@@ -78,6 +78,30 @@ This is a Spring Boot backend application that provides tools for running TTRPGs
 - Database migrations: `src/main/resources/db/migration/`
 - Utility scripts: `scripts/`
 
+## Expected Package Structure
+
+```
+com.aboff.core/
+├── config/          # Configuration classes
+├── controller/      # REST API endpoints
+├── service/         # Business logic layer
+├── repository/      # Data access layer (Spring Data JPA)
+├── model/           # Domain models
+│   ├── entity/      # JPA entities
+│   ├── dto/         # Data Transfer Objects
+│   └── enums/       # Application enumerations
+├── exception/       # Custom exceptions and error handling
+├── security/        # Security configurations and utilities
+├── mapper/          # Object mapping utilities
+├── util/            # Utility classes and helpers
+└── CoreApplication.java
+```
+
+### Testing Structure
+- Unit tests mirror main package structure under `src/test/java/`
+- Integration tests for end-to-end testing
+- Test fixtures for sample data and builders
+
 ## Current Application Structure
 
 ### Core Components
