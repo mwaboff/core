@@ -82,6 +82,7 @@ This is a Spring Boot backend application that provides tools for running TTRPGs
 
 ```
 com.aboff.core/
+├── annotation/      # Custom annotations (@RequireRole, @RequireMinimumRole)
 ├── config/          # Configuration classes
 ├── controller/      # REST API endpoints
 ├── service/         # Business logic layer
