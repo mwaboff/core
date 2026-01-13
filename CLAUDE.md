@@ -50,6 +50,17 @@ Key paths:
 - Test naming: `{ClassName}Test` for unit tests, `{ClassName}IntegrationTest` for integration tests
 - Skip coverage for: Lombok annotations, simple getters/setters, trivial configs
 
+### Testing Requirements
+
+- **All new logic must have comprehensive tests** - any code written to service classes, model classes, controller classes, or other components must include tests that provide near 100% test coverage.
+- **Update tests when modifying existing code** - when making changes to existing code, update the corresponding tests to maintain coverage and prevent regressions.
+- **Run tests after changes** - always run `./mvnw test` after making code changes to verify no regressions occur and all tests pass.
+
+## Database Migrations
+
+- **Always use `./scripts/create-migration.sh <name>` to create new migration files** - never manually generate migration filenames. The script ensures correct Flyway naming conventions with proper timestamps.
+- **Prefer new migrations over modifying existing ones** - when troubleshooting or updating models, create a new migration rather than editing an existing migration file, unless the user explicitly requests modification of an existing migration.
+
 ## Environment
 
 Create `.env` in project root:
