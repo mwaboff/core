@@ -4,6 +4,10 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
+/**
+ * Main application class.
+ * Bootstraps the Spring Boot application and enables scheduling.
+ */
 @SpringBootApplication
 @EnableScheduling
 public class CoreApplication {

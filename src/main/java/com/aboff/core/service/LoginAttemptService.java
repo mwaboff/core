@@ -9,6 +9,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Service for managing login attempts.
+ * Handles recording attempts, checking for excessive failures, and cleaning up
+ * old records.
+ */
 @Service
 public class LoginAttemptService {
 
@@ -19,7 +24,9 @@ public class LoginAttemptService {
     }
 
     /**
-     * Records a login attempt
+     * Records a login attempt.
+     *
+     * @param attempt the login attempt detail to record
      */
     @Transactional
     public void recordAttempt(LoginAttempt attempt) {
@@ -27,7 +34,11 @@ public class LoginAttemptService {
     }
 
     /**
-     * Gets recent failed login attempts for a username within a time window
+     * Gets recent failed login attempts for a username within a time window.
+     *
+     * @param username the username to check
+     * @param minutes  the time window in minutes
+     * @return list of recent failed login attempts
      */
     public List<LoginAttempt> getRecentFailedAttempts(String username, int minutes) {
         LocalDateTime since = LocalDateTime.now().minusMinutes(minutes);
@@ -35,15 +46,18 @@ public class LoginAttemptService {
     }
 
     /**
-     * Gets all login attempts for a user, ordered by most recent first
+     * Gets all login attempts for a user, ordered by most recent first.
+     *
+     * @param userId the user ID
+     * @return list of all login attempts for the user
      */
     public List<LoginAttempt> getAttemptsForUser(Long userId) {
         return loginAttemptRepository.findByUserIdOrderByAttemptedAtDesc(userId);
     }
 
     /**
-     * Scheduled cleanup of old login attempts (runs daily at 2 AM)
-     * Deletes attempts older than 90 days
+     * Scheduled cleanup of old login attempts (runs daily at 2 AM).
+     * Deletes attempts older than 90 days.
      */
     @Scheduled(cron = "0 0 2 * * *")
     @Transactional

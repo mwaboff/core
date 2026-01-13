@@ -1,6 +1,7 @@
 package com.aboff.core.service;
 
 import com.aboff.core.exception.AccountLockedException;
+import com.aboff.core.exception.InvalidPasswordException;
 import com.aboff.core.exception.UserAlreadyExistsException;
 import com.aboff.core.model.dto.request.LoginRequest;
 import com.aboff.core.model.dto.request.RegisterRequest;
@@ -15,6 +16,7 @@ import com.aboff.core.util.PasswordValidator;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.Builder;
 import lombok.Data;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -24,6 +26,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * Service for handling user authentication and registration.
+ * Manages user lifecycle events like login, logout, and registration.
+ */
+@Slf4j
 @Service
 public class AuthenticationService {
 
@@ -40,6 +47,22 @@ public class AuthenticationService {
     private final String defaultAvatarUrl;
     private final String defaultTimezone;
 
+    /**
+     * Constructs a new AuthenticationService with required dependencies and
+     * configuration.
+     *
+     * @param userRepository             the user repository
+     * @param activeTokenRepository      the active token repository
+     * @param loginAttemptService        the login attempt service
+     * @param passwordEncoder            the password encoder
+     * @param jwtTokenProvider           the JWT token provider
+     * @param passwordValidator          the password validator
+     * @param maxFailedAttempts          max failed login attempts before lockout
+     * @param lockoutDurationMinutes     duration of account lockout in minutes
+     * @param failedAttemptWindowMinutes time window for tracking failed attempts
+     * @param defaultAvatarUrl           default avatar URL for new users
+     * @param defaultTimezone            default timezone for new users
+     */
     public AuthenticationService(
             UserRepository userRepository,
             ActiveTokenRepository activeTokenRepository,
@@ -66,10 +89,17 @@ public class AuthenticationService {
     }
 
     /**
-     * Registers a new user
+     * Registers a new user.
+     *
+     * @param request the registration request containing user details
+     * @return the registered user's response
+     * @throws UserAlreadyExistsException if username or email is already taken
+     * @throws InvalidPasswordException   if the password does not meet requirements
      */
     @Transactional
     public UserResponse register(RegisterRequest request) {
+        log.debug("Registration attempt for username: {}, email: {}", request.getUsername(), request.getEmail());
+
         // Check if username already exists
         if (userRepository.existsByUsername(request.getUsername())) {
             throw new UserAlreadyExistsException("Username already taken");
@@ -107,15 +137,23 @@ public class AuthenticationService {
 
         user = userRepository.save(user);
 
+        log.info("User registered successfully: {}", user.getUsername());
         return mapToUserResponse(user);
     }
 
     /**
-     * Authenticates a user and returns JWT token with user information
+     * Authenticates a user and returns JWT token with user information.
+     *
+     * @param request     the login request containing credentials
+     * @param httpRequest the raw HTTP request for metadata extraction
+     * @return the login result containing user info and token
+     * @throws BadCredentialsException if authentication fails
+     * @throws AccountLockedException  if the account is locked
      */
     @Transactional
     public LoginResult login(LoginRequest request, HttpServletRequest httpRequest) {
         String usernameOrEmail = request.getUsernameOrEmail();
+        log.debug("Login attempt for: {}", usernameOrEmail);
         String ipAddress = extractIpAddress(httpRequest);
         String userAgent = extractUserAgent(httpRequest);
 
@@ -126,6 +164,7 @@ public class AuthenticationService {
 
         if (user == null) {
             // Record failed attempt with no user ID
+            log.warn("Login failed - user not found: {}", usernameOrEmail);
             recordLoginAttempt(usernameOrEmail, null, false, "USER_NOT_FOUND", ipAddress, userAgent);
             throw new BadCredentialsException("Invalid username or password");
         }
@@ -138,11 +177,11 @@ public class AuthenticationService {
 
         // Check if account is locked
         if (user.isAccountLocked()) {
+            log.warn("Login failed - account locked: {} until {}", usernameOrEmail, user.getAccountLockedUntil());
             recordLoginAttempt(usernameOrEmail, user.getId(), false, "ACCOUNT_LOCKED", ipAddress, userAgent);
             throw new AccountLockedException(
                     "Account is temporarily locked due to multiple failed login attempts",
-                    user.getAccountLockedUntil()
-            );
+                    user.getAccountLockedUntil());
         }
 
         // Validate password
@@ -155,12 +194,14 @@ public class AuthenticationService {
                     usernameOrEmail, failedAttemptWindowMinutes);
 
             if (recentFailures.size() + 1 >= maxFailedAttempts) {
+                log.warn("Account locked due to {} failed attempts: {}", recentFailures.size() + 1, usernameOrEmail);
                 user.lockAccount(lockoutDurationMinutes);
             }
 
             userRepository.save(user);
 
             // Record failed attempt
+            log.warn("Login failed - invalid credentials: {}", usernameOrEmail);
             recordLoginAttempt(usernameOrEmail, user.getId(), false, "INVALID_CREDENTIALS", ipAddress, userAgent);
 
             throw new BadCredentialsException("Invalid username or password");
@@ -189,6 +230,8 @@ public class AuthenticationService {
         // Record successful login attempt
         recordLoginAttempt(usernameOrEmail, user.getId(), true, null, ipAddress, userAgent);
 
+        log.info("User logged in successfully: {}", user.getUsername());
+
         // Return user response and token
         return LoginResult.builder()
                 .userResponse(mapToUserResponse(user))
@@ -197,27 +240,34 @@ public class AuthenticationService {
     }
 
     /**
-     * Logs out the user by revoking the token
+     * Logs out the user by revoking the token.
+     *
+     * @param token the JWT token to revoke
      */
     @Transactional
     public void logout(String token) {
+        log.debug("Processing logout request");
         String tokenHash = jwtTokenProvider.hashToken(token);
         activeTokenRepository.findByTokenHash(tokenHash).ifPresent(activeToken -> {
+            log.info("Revoking token for userId: {}", activeToken.getUserId());
             activeToken.revoke();
             activeTokenRepository.save(activeToken);
         });
     }
 
     /**
-     * Invalidates all tokens for a user (used on password change)
+     * Invalidates all tokens for a user (used on password change).
+     *
+     * @param userId the user ID to invalidate tokens for
      */
     @Transactional
     public void invalidateAllUserTokens(Long userId) {
+        log.info("Invalidating all tokens for userId: {}", userId);
         activeTokenRepository.revokeAllUserTokens(userId, LocalDateTime.now());
     }
 
     private void recordLoginAttempt(String usernameAttempted, Long userId, boolean success,
-                                     String failureReason, String ipAddress, String userAgent) {
+            String failureReason, String ipAddress, String userAgent) {
         LoginAttempt attempt = LoginAttempt.builder()
                 .userId(userId)
                 .usernameAttempted(usernameAttempted)
@@ -262,12 +312,19 @@ public class AuthenticationService {
     }
 
     /**
-     * Result object containing both user response and JWT token
+     * Result object containing both user response and JWT token.
      */
     @Data
     @Builder
     public static class LoginResult {
+        /**
+         * The user profile response.
+         */
         private UserResponse userResponse;
+
+        /**
+         * The ephemeral JWT token.
+         */
         private String token;
     }
 }

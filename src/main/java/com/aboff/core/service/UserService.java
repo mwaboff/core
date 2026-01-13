@@ -19,6 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+/**
+ * Service for managing user accounts.
+ * Handles user profile updates, password changes, and account deletion.
+ */
 @Service
 public class UserService {
 
@@ -28,6 +32,15 @@ public class UserService {
     private final PasswordValidator passwordValidator;
     private final CookieUtil cookieUtil;
 
+    /**
+     * Constructs a new UserService with required dependencies.
+     *
+     * @param userRepository        the user repository
+     * @param authenticationService the authentication service
+     * @param passwordEncoder       the password encoder
+     * @param passwordValidator     the password validator
+     * @param cookieUtil            the cookie utility
+     */
     public UserService(
             UserRepository userRepository,
             AuthenticationService authenticationService,
@@ -42,7 +55,11 @@ public class UserService {
     }
 
     /**
-     * Gets the current authenticated user
+     * Gets the current authenticated user.
+     *
+     * @param authentication the Spring Security authentication object
+     * @return the current user's response
+     * @throws UserNotFoundException if the user cannot be found
      */
     public UserResponse getCurrentUser(Authentication authentication) {
         User user = extractUserFromAuthentication(authentication);
@@ -50,7 +67,13 @@ public class UserService {
     }
 
     /**
-     * Updates user profile information (email, avatarUrl, timezone)
+     * Updates user profile information (email, avatarUrl, timezone).
+     *
+     * @param userId  the ID of the user to update
+     * @param request the update request containing new details
+     * @return the updated user's response
+     * @throws UserNotFoundException      if the user is not found
+     * @throws UserAlreadyExistsException if the new email is already taken
      */
     @Transactional
     public UserResponse updateUser(Long userId, UpdateUserRequest request) {
@@ -80,7 +103,15 @@ public class UserService {
     }
 
     /**
-     * Changes user password and invalidates all existing tokens (force re-login on all devices)
+     * Changes user password and invalidates all existing tokens (force re-login on
+     * all devices).
+     *
+     * @param userId   the ID of the user
+     * @param request  the change password request
+     * @param response the HTTP response to clear cookies
+     * @throws UserNotFoundException    if the user is not found
+     * @throws InvalidPasswordException if the current password is incorrect or new
+     *                                  password is weak
      */
     @Transactional
     public void changePassword(
@@ -112,7 +143,11 @@ public class UserService {
     }
 
     /**
-     * Soft deletes a user account
+     * Soft deletes a user account.
+     *
+     * @param userId   the ID of the user to delete
+     * @param response the HTTP response to clear cookies
+     * @throws UserNotFoundException if the user is not found
      */
     @Transactional
     public void deleteUser(Long userId, HttpServletResponse response) {
@@ -131,7 +166,11 @@ public class UserService {
     }
 
     /**
-     * Extracts User entity from Spring Security Authentication
+     * Extracts User entity from Spring Security Authentication.
+     *
+     * @param authentication the authentication object
+     * @return the user entity
+     * @throws UserNotFoundException if the user cannot be found
      */
     private User extractUserFromAuthentication(Authentication authentication) {
         if (authentication == null || !(authentication.getPrincipal() instanceof CustomUserDetails)) {
@@ -144,7 +183,10 @@ public class UserService {
     }
 
     /**
-     * Maps User entity to UserResponse DTO
+     * Maps User entity to UserResponse DTO.
+     *
+     * @param user the user entity
+     * @return the user response DTO
      */
     private UserResponse mapToUserResponse(User user) {
         return UserResponse.builder()

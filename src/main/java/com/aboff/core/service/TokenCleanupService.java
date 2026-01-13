@@ -7,6 +7,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
+/**
+ * Service for cleaning up expired and revoked tokens.
+ * Runs scheduled jobs to maintain database size.
+ */
 @Service
 public class TokenCleanupService {
 
@@ -17,7 +21,7 @@ public class TokenCleanupService {
     }
 
     /**
-     * Scheduled cleanup of expired and old revoked tokens (runs daily at 3 AM)
+     * Scheduled cleanup of expired and old revoked tokens (runs daily at 3 AM).
      * - Deletes expired tokens
      * - Deletes revoked tokens older than 30 days
      */

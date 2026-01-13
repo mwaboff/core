@@ -4,6 +4,10 @@ import com.aboff.core.exception.InvalidPasswordException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+/**
+ * Component for validating password strength.
+ * Enforces configured password complexity rules.
+ */
 @Component
 public class PasswordValidator {
 
@@ -27,7 +31,9 @@ public class PasswordValidator {
     }
 
     /**
-     * Validates password strength according to configured rules
+     * Validates password strength according to configured rules.
+     *
+     * @param password the password to validate
      * @throws InvalidPasswordException if password doesn't meet requirements
      */
     public void validatePassword(String password) {

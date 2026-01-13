@@ -3,6 +3,7 @@ package com.aboff.core.exception;
 import com.aboff.core.model.dto.response.ErrorResponse;
 import com.aboff.core.model.dto.response.ValidationErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.BadCredentialsException;
@@ -16,11 +17,24 @@ import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * Global exception handler for the application.
+ * Handles specific exceptions and standardizing error responses.
+ */
+@Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
+    /**
+     * Handles UserAlreadyExistsException.
+     * Returns 409 Conflict.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
     @ExceptionHandler(UserAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleUserAlreadyExists(
             UserAlreadyExistsException ex,
@@ -35,6 +49,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
+    /**
+     * Handles AccountLockedException.
+     * Returns 403 Forbidden.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
     @ExceptionHandler(AccountLockedException.class)
     public ResponseEntity<ErrorResponse> handleAccountLocked(
             AccountLockedException ex,
@@ -55,6 +77,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
     }
 
+    /**
+     * Handles InvalidPasswordException.
+     * Returns 400 Bad Request.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
     @ExceptionHandler(InvalidPasswordException.class)
     public ResponseEntity<ErrorResponse> handleInvalidPassword(
             InvalidPasswordException ex,
@@ -69,6 +99,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
+    /**
+     * Handles UserNotFoundException.
+     * Returns 404 Not Found.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
     @ExceptionHandler(UserNotFoundException.class)
     public ResponseEntity<ErrorResponse> handleUserNotFound(
             UserNotFoundException ex,
@@ -83,6 +121,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
     }
 
+    /**
+     * Handles BadCredentialsException.
+     * Returns 401 Unauthorized.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErrorResponse> handleBadCredentials(
             BadCredentialsException ex,
@@ -98,6 +144,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(error);
     }
 
+    /**
+     * Handles validation errors (MethodArgumentNotValidException).
+     * Returns 400 Bad Request with field errors.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the validation error response entity
+     */
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ValidationErrorResponse> handleValidationErrors(
             MethodArgumentNotValidException ex,
@@ -127,13 +181,20 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
     }
 
+    /**
+     * Handles generic unhandled exceptions.
+     * Returns 500 Internal Server Error.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGenericException(
             Exception ex,
             HttpServletRequest request) {
-        // Log the full exception for debugging (would use proper logger in production)
-        System.err.println("Unexpected error: " + ex.getMessage());
-        ex.printStackTrace();
+        // Log the full exception for debugging
+        log.error("Unexpected error on path {}: {}", request.getRequestURI(), ex.getMessage(), ex);
 
         ErrorResponse error = ErrorResponse.builder()
                 .status(HttpStatus.INTERNAL_SERVER_ERROR.value())

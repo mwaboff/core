@@ -48,6 +48,12 @@ Key paths:
 - Tests: `src/test/java/com/aboff/core/`
 - Migrations: `src/main/resources/db/migration/`
 
+## Documentation
+
+- Add detailed javadocs to all methods and classes. Use standard Javadocs (`/** ... */`) with `@param`, `@return`, and `@throws` tags where applicable.
+- Ensure all public classes and methods have documentation explaining their purpose and behavior.
+- Limit HTML syntax except when needed for formatting lists or code blocks.
+
 ## Testing
 
 - Test naming: `{ClassName}Test` for unit tests, `{ClassName}IntegrationTest` for integration tests

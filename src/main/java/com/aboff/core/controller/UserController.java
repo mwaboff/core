@@ -12,6 +12,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * REST controller for user-related operations.
+ * Handles profile retrieval, updates, password changes, and account deletion.
+ */
 @RestController
 @RequestMapping("/api/users")
 @Validated
@@ -19,13 +23,21 @@ public class UserController {
 
     private final UserService userService;
 
+    /**
+     * Constructs a new UserController with required dependencies.
+     *
+     * @param userService the user service
+     */
     public UserController(UserService userService) {
         this.userService = userService;
     }
 
     /**
-     * Get current authenticated user
+     * Get current authenticated user.
      * GET /api/users/me
+     *
+     * @param authentication the current authentication object
+     * @return the user response containing profile details
      */
     @GetMapping("/me")
     public UserResponse getCurrentUser(Authentication authentication) {
@@ -33,8 +45,12 @@ public class UserController {
     }
 
     /**
-     * Update current user's profile
+     * Update current user's profile.
      * PATCH /api/users/me
+     *
+     * @param request        the update request containing new details
+     * @param authentication the current authentication object
+     * @return the updated user response
      */
     @PatchMapping("/me")
     public UserResponse updateCurrentUser(
@@ -46,9 +62,13 @@ public class UserController {
     }
 
     /**
-     * Change current user's password
+     * Change current user's password.
      * POST /api/users/me/change-password
-     * Invalidates all existing tokens and clears current session cookie
+     * Invalidates all existing tokens and clears current session cookie.
+     *
+     * @param request        the change password request
+     * @param authentication the current authentication object
+     * @param response       the HTTP servlet response to clear the cookie
      */
     @PostMapping("/me/change-password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -62,9 +82,12 @@ public class UserController {
     }
 
     /**
-     * Delete (soft delete) current user's account
+     * Delete (soft delete) current user's account.
      * DELETE /api/users/me
-     * Invalidates all tokens and clears current session cookie
+     * Invalidates all tokens and clears current session cookie.
+     *
+     * @param authentication the current authentication object
+     * @param response       the HTTP servlet response to clear the cookie
      */
     @DeleteMapping("/me")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -77,7 +100,10 @@ public class UserController {
     }
 
     /**
-     * Extracts user ID from Spring Security Authentication
+     * Extracts user ID from Spring Security Authentication.
+     *
+     * @param authentication the authentication object
+     * @return the user ID
      */
     private Long extractUserId(Authentication authentication) {
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();

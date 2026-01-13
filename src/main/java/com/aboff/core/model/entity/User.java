@@ -10,6 +10,10 @@ import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.LocalDateTime;
 
+/**
+ * Entity representing a user account.
+ * Stores authentication and profile information.
+ */
 @Entity
 @Table(name = "users")
 @Data
@@ -59,42 +63,48 @@ public class User {
     private LocalDateTime deletedAt;
 
     /**
-     * Returns whether this user has been soft-deleted
+     * Returns whether this user has been soft-deleted.
+     *
+     * @return true if the user is deleted, false otherwise
      */
     public boolean isDeleted() {
         return deletedAt != null;
     }
 
     /**
-     * Soft deletes the user by setting the deleted_at timestamp
+     * Soft deletes the user by setting the deleted_at timestamp.
      */
     public void softDelete() {
         this.deletedAt = LocalDateTime.now();
     }
 
     /**
-     * Restores a soft-deleted user
+     * Restores a soft-deleted user.
      */
     public void restore() {
         this.deletedAt = null;
     }
 
     /**
-     * Returns whether this user's account is locked
+     * Returns whether this user's account is locked.
+     *
+     * @return true if the account is locked, false otherwise
      */
     public boolean isAccountLocked() {
         return accountLockedUntil != null && accountLockedUntil.isAfter(LocalDateTime.now());
     }
 
     /**
-     * Locks the account for the specified number of minutes
+     * Locks the account for the specified number of minutes.
+     *
+     * @param minutes the duration in minutes to lock the account
      */
     public void lockAccount(int minutes) {
         this.accountLockedUntil = LocalDateTime.now().plusMinutes(minutes);
     }
 
     /**
-     * Unlocks the account and resets failed login attempts
+     * Unlocks the account and resets failed login attempts.
      */
     public void unlockAccount() {
         this.accountLockedUntil = null;
@@ -103,7 +113,7 @@ public class User {
     }
 
     /**
-     * Increments the failed login attempts counter
+     * Increments the failed login attempts counter.
      */
     public void incrementFailedAttempts() {
         this.failedLoginAttempts = (this.failedLoginAttempts == null ? 0 : this.failedLoginAttempts) + 1;
@@ -111,7 +121,7 @@ public class User {
     }
 
     /**
-     * Resets the failed login attempts counter
+     * Resets the failed login attempts counter.
      */
     public void resetFailedAttempts() {
         this.failedLoginAttempts = 0;

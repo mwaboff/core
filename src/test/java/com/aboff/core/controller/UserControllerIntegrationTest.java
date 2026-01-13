@@ -25,7 +25,6 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -149,7 +148,7 @@ class UserControllerIntegrationTest {
                         .cookie(authCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .with(csrf()))
+                        )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("newemail@example.com"))
                 .andExpect(jsonPath("$.avatarUrl").value("https://new.avatar.url"))
@@ -175,7 +174,7 @@ class UserControllerIntegrationTest {
                         .cookie(authCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .with(csrf()))
+                        )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.timezone").value("America/Los_Angeles"))
                 .andExpect(jsonPath("$.email").value("test@example.com")) // Email unchanged
@@ -201,7 +200,7 @@ class UserControllerIntegrationTest {
                         .cookie(authCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .with(csrf()))
+                        )
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.message").value("Email already registered"));
     }
@@ -217,7 +216,7 @@ class UserControllerIntegrationTest {
         mockMvc.perform(patch("/api/users/me")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .with(csrf()))
+                        )
                 .andExpect(status().isUnauthorized());
     }
 
@@ -240,7 +239,7 @@ class UserControllerIntegrationTest {
                         .cookie(authCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .with(csrf()))
+                        )
                 .andExpect(status().isNoContent())
                 .andExpect(cookie().maxAge("AUTH_TOKEN", 0)); // Cookie should be cleared
 
@@ -266,7 +265,7 @@ class UserControllerIntegrationTest {
                         .cookie(authCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .with(csrf()))
+                        )
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("Current password is incorrect"));
 
@@ -288,7 +287,7 @@ class UserControllerIntegrationTest {
                         .cookie(authCookie)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
-                        .with(csrf()))
+                        )
                 .andExpect(status().isBadRequest());
     }
 
@@ -298,7 +297,7 @@ class UserControllerIntegrationTest {
     void deleteCurrentUser_Success_Returns204AndSoftDeletes() throws Exception {
         // Act
         mockMvc.perform(delete("/api/users/me")
-                        .with(csrf())
+                        
                         .cookie(authCookie))
                 .andExpect(status().isNoContent())
                 .andExpect(cookie().maxAge("AUTH_TOKEN", 0)); // Cookie should be cleared
@@ -317,7 +316,7 @@ class UserControllerIntegrationTest {
     void deleteCurrentUser_NoToken_Returns401() throws Exception {
         // Act & Assert
         mockMvc.perform(delete("/api/users/me")
-                        .with(csrf()))
+                        )
                 .andExpect(status().isUnauthorized());
     }
 
@@ -325,7 +324,7 @@ class UserControllerIntegrationTest {
     void deleteCurrentUser_AfterDeletion_CannotLogin() throws Exception {
         // Arrange - Delete the user
         mockMvc.perform(delete("/api/users/me")
-                        .with(csrf())
+                        
                         .cookie(authCookie))
                 .andExpect(status().isNoContent());
 

@@ -107,8 +107,7 @@ This application uses JWT-based authentication with httpOnly cookies for secure,
 
 - **JWT Tokens**: 30-day expiration, stored in httpOnly cookies
 - **httpOnly Cookies**: XSS protection (JavaScript cannot access tokens)
-- **SameSite=Strict**: Automatic CSRF protection
-- **CSRF Tokens**: Additional protection for state-changing requests
+- **SameSite=Strict**: CSRF protection (browser blocks cross-site requests)
 - **BCrypt Password Hashing**: Strength 12 (~300ms per hash)
 - **Account Locking**: 5 failed attempts in 15 minutes = 30-minute lock
 - **Multi-device Support**: Each login creates a separate token
@@ -226,7 +225,6 @@ Authenticate with username/email and password. Sets httpOnly `AUTH_TOKEN` cookie
 **Headers**:
 ```
 Set-Cookie: AUTH_TOKEN=eyJhbGci...; Max-Age=2592000; Path=/; HttpOnly; SameSite=Strict
-Set-Cookie: XSRF-TOKEN=...; Path=/
 ```
 
 **Error Responses**:
@@ -304,7 +302,6 @@ Update authenticated user's profile (email, avatarUrl, timezone).
 
 **Headers**:
 - Requires `AUTH_TOKEN` cookie
-- Requires `X-XSRF-TOKEN` header (from XSRF-TOKEN cookie)
 
 **Request Body** (all fields optional):
 ```json
@@ -334,12 +331,8 @@ Update authenticated user's profile (email, avatarUrl, timezone).
 
 **Example**:
 ```bash
-# Extract CSRF token from cookies
-CSRF_TOKEN=$(grep XSRF-TOKEN cookies.txt | awk '{print $7}')
-
 curl -X PATCH http://localhost:8080/api/users/me \
   -H "Content-Type: application/json" \
-  -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -b cookies.txt \
   -d '{
     "email": "newemail@example.com",
@@ -355,7 +348,6 @@ Change authenticated user's password. **Invalidates ALL user tokens** (logs out 
 
 **Headers**:
 - Requires `AUTH_TOKEN` cookie
-- Requires `X-XSRF-TOKEN` header
 
 **Request Body**:
 ```json
@@ -376,11 +368,8 @@ Change authenticated user's password. **Invalidates ALL user tokens** (logs out 
 
 **Example**:
 ```bash
-CSRF_TOKEN=$(grep XSRF-TOKEN cookies.txt | awk '{print $7}')
-
 curl -X POST http://localhost:8080/api/users/me/change-password \
   -H "Content-Type: application/json" \
-  -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -b cookies.txt \
   -c cookies.txt \
   -d '{
@@ -399,7 +388,6 @@ Soft-delete authenticated user's account and invalidate all tokens.
 
 **Headers**:
 - Requires `AUTH_TOKEN` cookie
-- Requires `X-XSRF-TOKEN` header
 
 **Response** (204 No Content)
 
@@ -411,10 +399,7 @@ Soft-delete authenticated user's account and invalidate all tokens.
 
 **Example**:
 ```bash
-CSRF_TOKEN=$(grep XSRF-TOKEN cookies.txt | awk '{print $7}')
-
 curl -X DELETE http://localhost:8080/api/users/me \
-  -H "X-XSRF-TOKEN: $CSRF_TOKEN" \
   -b cookies.txt \
   -c cookies.txt
 ```
@@ -538,7 +523,3 @@ docker compose logs postgres
 - Token may have expired (30-day expiration)
 - Token may have been revoked (password change invalidates all tokens)
 - Check if account was deleted
-
-**403 Forbidden on POST/PATCH/DELETE**
-- Include `X-XSRF-TOKEN` header with value from `XSRF-TOKEN` cookie
-- CSRF protection is enabled for all state-changing requests

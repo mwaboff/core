@@ -16,3 +16,9 @@ spring:
     properties:
       hibernate:
         format_sql: false
+
+logging:
+  level:
+    com.aboff.core.security: INFO
+    com.aboff.core.exception: INFO
+    com.aboff.core.service.AuthenticationService: INFO

@@ -8,6 +8,10 @@ import lombok.NoArgsConstructor;
 import java.time.LocalDateTime;
 import java.util.Map;
 
+/**
+ * DTO for validation error responses.
+ * Contains field-specific error messages.
+ */
 @Data
 @Builder
 @NoArgsConstructor

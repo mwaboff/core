@@ -44,3 +44,13 @@ application:
   user:
     default-avatar-url: https://api.dicebear.com/7.x/avatars/svg?seed=default
     default-timezone: UTC
+
+# Logging configuration for troubleshooting authentication issues
+# Set these to INFO in production
+logging:
+  level:
+    com.aboff.core.security: DEBUG
+    com.aboff.core.exception: DEBUG
+    com.aboff.core.service.AuthenticationService: DEBUG
+    # Uncomment below for verbose Spring Security debug logging
+    # org.springframework.security: DEBUG

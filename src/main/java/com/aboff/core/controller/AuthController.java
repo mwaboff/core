@@ -13,6 +13,10 @@ import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+/**
+ * REST controller for authentication operations.
+ * Handles registration, login, and logout.
+ */
 @RestController
 @RequestMapping("/api/auth")
 @Validated
@@ -29,8 +33,11 @@ public class AuthController {
     }
 
     /**
-     * Register a new user
+     * Register a new user.
      * POST /api/auth/register
+     *
+     * @param request the registration request containing user details
+     * @return the registered user response
      */
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
@@ -39,8 +46,13 @@ public class AuthController {
     }
 
     /**
-     * Login user and set httpOnly authentication cookie
+     * Login user and set httpOnly authentication cookie.
      * POST /api/auth/login
+     *
+     * @param request      the login request containing username and password
+     * @param httpRequest  the HTTP servlet request
+     * @param httpResponse the HTTP servlet response to set the cookie
+     * @return the logged-in user response
      */
     @PostMapping("/login")
     public UserResponse login(
@@ -59,8 +71,12 @@ public class AuthController {
     }
 
     /**
-     * Logout user by revoking token and clearing cookie
+     * Logout user by revoking token and clearing cookie.
      * POST /api/auth/logout
+     *
+     * @param httpRequest    the HTTP servlet request
+     * @param httpResponse   the HTTP servlet response to clear the cookie
+     * @param authentication the current authentication object
      */
     @PostMapping("/logout")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -82,7 +98,10 @@ public class AuthController {
     }
 
     /**
-     * Extracts JWT token from AUTH_TOKEN cookie
+     * Extracts JWT token from AUTH_TOKEN cookie.
+     *
+     * @param request the HTTP servlet request
+     * @return the token string, or null if not found
      */
     private String extractTokenFromCookie(HttpServletRequest request) {
         if (request.getCookies() != null) {

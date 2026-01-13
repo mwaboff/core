@@ -14,6 +14,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.Date;
 import java.util.HexFormat;
 
+/**
+ * Utility class for generating and validating JWT tokens.
+ * Handles token creation, claim extraction, and hashing.
+ */
 @Component
 public class JwtTokenProvider {
 
@@ -28,7 +32,10 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Generates a JWT token for the given user
+     * Generates a JWT token for the given user.
+     *
+     * @param user the user to generate the token for
+     * @return the generated JWT token string
      */
     public String generateToken(User user) {
         Date now = new Date();
@@ -44,7 +51,11 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Validates the JWT token and returns the claims
+     * Validates the JWT token and returns the claims.
+     *
+     * @param token the JWT token to validate
+     * @return the claims if the token is valid
+     * @throws JwtException if the token is invalid or expired
      */
     public Claims validateToken(String token) {
         try {
@@ -67,7 +78,10 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Extracts the user ID from the JWT token
+     * Extracts the user ID from the JWT token.
+     *
+     * @param token the JWT token
+     * @return the user ID
      */
     public Long getUserIdFromToken(String token) {
         Claims claims = validateToken(token);
@@ -75,7 +89,10 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Checks if the token is expired
+     * Checks if the token is expired.
+     *
+     * @param token the JWT token
+     * @return true if the token is expired, false otherwise
      */
     public boolean isTokenExpired(String token) {
         try {
@@ -87,7 +104,10 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Generates a SHA-256 hash of the token for database storage
+     * Generates a SHA-256 hash of the token for database storage.
+     *
+     * @param token the JWT token
+     * @return the token hash
      */
     public String hashToken(String token) {
         try {
@@ -100,7 +120,9 @@ public class JwtTokenProvider {
     }
 
     /**
-     * Returns the JWT expiration time in milliseconds
+     * Returns the JWT expiration time in milliseconds.
+     *
+     * @return the expiration time in milliseconds
      */
     public long getExpirationMs() {
         return jwtExpirationMs;

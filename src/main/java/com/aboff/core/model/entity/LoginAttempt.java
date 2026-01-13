@@ -9,6 +9,10 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
+/**
+ * Entity representing a login attempt.
+ * Used for security monitoring and rate limiting.
+ */
 @Entity
 @Table(name = "login_attempts")
 @Data

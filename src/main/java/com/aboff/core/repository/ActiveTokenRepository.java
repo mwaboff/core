@@ -11,38 +11,58 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * Repository for ActiveToken entity operations.
+ */
 @Repository
 public interface ActiveTokenRepository extends JpaRepository<ActiveToken, Long> {
 
     /**
-     * Finds a token by its hash
+     * Finds a token by its hash.
+     *
+     * @param tokenHash the token hash
+     * @return the token if found
      */
     Optional<ActiveToken> findByTokenHash(String tokenHash);
 
     /**
-     * Finds a valid (not revoked and not expired) token by its hash
+     * Finds a valid (not revoked and not expired) token by its hash.
+     *
+     * @param tokenHash the token hash
+     * @param now       the current timestamp
+     * @return the token if valid and found
      */
     @Query("SELECT at FROM ActiveToken at WHERE at.tokenHash = :tokenHash " +
-           "AND at.revokedAt IS NULL AND at.expiresAt > :now")
+            "AND at.revokedAt IS NULL AND at.expiresAt > :now")
     Optional<ActiveToken> findValidToken(
-        @Param("tokenHash") String tokenHash,
-        @Param("now") LocalDateTime now);
+            @Param("tokenHash") String tokenHash,
+            @Param("now") LocalDateTime now);
 
     /**
-     * Finds all non-revoked tokens for a user
+     * Finds all non-revoked tokens for a user.
+     *
+     * @param userId the user ID
+     * @return list of active tokens
      */
     List<ActiveToken> findByUserIdAndRevokedAtIsNull(Long userId);
 
     /**
-     * Revokes all tokens for a user
+     * Revokes all tokens for a user.
+     *
+     * @param userId the user ID
+     * @param now    the revocation timestamp
+     * @return the number of tokens revoked
      */
     @Modifying
     @Query("UPDATE ActiveToken at SET at.revokedAt = :now WHERE at.userId = :userId " +
-           "AND at.revokedAt IS NULL")
+            "AND at.revokedAt IS NULL")
     int revokeAllUserTokens(@Param("userId") Long userId, @Param("now") LocalDateTime now);
 
     /**
-     * Deletes expired tokens and old revoked tokens
+     * Deletes expired tokens and old revoked tokens.
+     *
+     * @param before the timestamp before which tokens should be deleted
+     * @return the number of tokens deleted
      */
     @Modifying
     @Query("DELETE FROM ActiveToken at WHERE at.expiresAt < :before OR at.revokedAt < :before")
