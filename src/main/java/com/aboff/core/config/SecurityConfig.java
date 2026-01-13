@@ -43,6 +43,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(requestHandler)
+                        .ignoringRequestMatchers("/api/auth/register", "/api/auth/login")
                 )
                 // Stateless session management (JWT-based)
                 .sessionManagement(session -> session
