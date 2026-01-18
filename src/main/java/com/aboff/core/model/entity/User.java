@@ -1,5 +1,6 @@
 package com.aboff.core.model.entity;
 
+import com.aboff.core.model.enums.Role;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -62,6 +63,9 @@ public class User {
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    @Column(name = "banned_at")
+    private LocalDateTime bannedAt;
+
     /**
      * Returns whether this user has been soft-deleted.
      *
@@ -83,6 +87,29 @@ public class User {
      */
     public void restore() {
         this.deletedAt = null;
+    }
+
+    /**
+     * Returns whether this user is banned.
+     *
+     * @return true if the user is banned, false otherwise
+     */
+    public boolean isBanned() {
+        return bannedAt != null;
+    }
+
+    /**
+     * Bans the user by setting the banned_at timestamp.
+     */
+    public void ban() {
+        this.bannedAt = LocalDateTime.now();
+    }
+
+    /**
+     * Unbans the user by clearing the banned_at timestamp.
+     */
+    public void unban() {
+        this.bannedAt = null;
     }
 
     /**
@@ -119,6 +146,11 @@ public class User {
         this.failedLoginAttempts = (this.failedLoginAttempts == null ? 0 : this.failedLoginAttempts) + 1;
         this.lastFailedLogin = LocalDateTime.now();
     }
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private Role role = Role.USER;
 
     /**
      * Resets the failed login attempts counter.

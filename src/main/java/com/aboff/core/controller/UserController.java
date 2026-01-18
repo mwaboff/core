@@ -33,15 +33,20 @@ public class UserController {
     }
 
     /**
-     * Get current authenticated user.
+     * Get user profile by ID or for the current authenticated user.
      * GET /api/users/me
+     * GET /api/users/{userId}
      *
+     * @param userId         optional user ID (numeric or "me")
      * @param authentication the current authentication object
      * @return the user response containing profile details
      */
-    @GetMapping("/me")
-    public UserResponse getCurrentUser(Authentication authentication) {
-        return userService.getCurrentUser(authentication);
+    @GetMapping({ "/me", "/{userId}" })
+    public UserResponse getCurrentUser(
+            @PathVariable(required = false) String userId,
+            Authentication authentication) {
+        String targetId = (userId != null) ? userId : "me";
+        return userService.getUserProfile(targetId, authentication);
     }
 
     /**

@@ -28,6 +28,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final AuthenticationService authenticationService;
+    private final RoleHierarchyService roleHierarchyService;
     private final PasswordEncoder passwordEncoder;
     private final PasswordValidator passwordValidator;
     private final CookieUtil cookieUtil;
@@ -44,11 +45,13 @@ public class UserService {
     public UserService(
             UserRepository userRepository,
             AuthenticationService authenticationService,
+            RoleHierarchyService roleHierarchyService,
             PasswordEncoder passwordEncoder,
             PasswordValidator passwordValidator,
             CookieUtil cookieUtil) {
         this.userRepository = userRepository;
         this.authenticationService = authenticationService;
+        this.roleHierarchyService = roleHierarchyService;
         this.passwordEncoder = passwordEncoder;
         this.passwordValidator = passwordValidator;
         this.cookieUtil = cookieUtil;
@@ -62,8 +65,41 @@ public class UserService {
      * @throws UserNotFoundException if the user cannot be found
      */
     public UserResponse getCurrentUser(Authentication authentication) {
-        User user = extractUserFromAuthentication(authentication);
-        return mapToUserResponse(user);
+        return getUserProfile("me", authentication);
+    }
+
+    /**
+     * Gets a user profile by ID.
+     * If the ID is "me", returns the current authenticated user's profile.
+     * If the ID matches the current user, returns full profile.
+     * If the ID is different, returns only username and createdAt.
+     *
+     * @param userIdStr      the user ID to fetch (numeric or "me")
+     * @param authentication the Spring Security authentication object
+     * @return the user profile response
+     * @throws UserNotFoundException if the user is not found
+     */
+    public UserResponse getUserProfile(String userIdStr, Authentication authentication) {
+        User currentUser = extractUserFromAuthentication(authentication);
+        User targetUser;
+
+        if ("me".equalsIgnoreCase(userIdStr)) {
+            targetUser = currentUser;
+        } else {
+            try {
+                Long targetId = Long.parseLong(userIdStr);
+                targetUser = userRepository.findById(targetId)
+                        .orElseThrow(() -> new UserNotFoundException("User not found"));
+            } catch (NumberFormatException e) {
+                // If it's not a number and not "me", we can treat it as not found
+                throw new UserNotFoundException("User not found: " + userIdStr);
+            }
+        }
+
+        boolean isOwnProfile = currentUser.getId().equals(targetUser.getId());
+        boolean hasPrivilegedRole = roleHierarchyService.isPrivilegedRole(currentUser.getRole());
+
+        return mapToUserResponse(targetUser, isOwnProfile || hasPrivilegedRole);
     }
 
     /**
@@ -189,14 +225,29 @@ public class UserService {
      * @return the user response DTO
      */
     private UserResponse mapToUserResponse(User user) {
-        return UserResponse.builder()
+        return mapToUserResponse(user, true);
+    }
+
+    /**
+     * Maps User entity to UserResponse DTO with optional field restriction.
+     *
+     * @param user     the user entity
+     * @param fullInfo whether to include all non-sensitive fields
+     * @return the user response DTO
+     */
+    private UserResponse mapToUserResponse(User user, boolean fullInfo) {
+        UserResponse.UserResponseBuilder builder = UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
-                .email(user.getEmail())
                 .avatarUrl(user.getAvatarUrl())
-                .timezone(user.getTimezone())
-                .createdAt(user.getCreatedAt())
-                .lastModifiedAt(user.getLastModifiedAt())
-                .build();
+                .createdAt(user.getCreatedAt());
+
+        if (fullInfo) {
+            builder.email(user.getEmail())
+                    .timezone(user.getTimezone())
+                    .lastModifiedAt(user.getLastModifiedAt());
+        }
+
+        return builder.build();
     }
 }

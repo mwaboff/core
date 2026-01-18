@@ -25,15 +25,14 @@ public class CustomUserDetails implements UserDetails {
 
     /**
      * Returns the authorities granted to the user.
-     * Currently returns a default ROLE_USER for all users.
+     * Maps the user's role to a Spring Security GrantedAuthority.
      *
      * @return collection of granted authorities
      */
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        // For now, all users have the ROLE_USER authority
-        // Future enhancement: Add roles table and fetch from database
-        return Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"));
+        String roleName = "ROLE_" + user.getRole().name();
+        return Collections.singletonList(new SimpleGrantedAuthority(roleName));
     }
 
     /**
