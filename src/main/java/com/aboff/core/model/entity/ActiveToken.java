@@ -2,10 +2,9 @@ package com.aboff.core.model.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
+import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
 
@@ -16,14 +15,10 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "active_tokens")
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ActiveToken {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class ActiveToken extends BaseEntity {
 
     @Column(name = "user_id", nullable = false)
     private Long userId;
@@ -45,10 +40,6 @@ public class ActiveToken {
 
     @Column(name = "revoked_at")
     private LocalDateTime revokedAt;
-
-    @CreationTimestamp
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private LocalDateTime createdAt;
 
     /**
      * Returns whether this token is valid (not revoked and not expired).

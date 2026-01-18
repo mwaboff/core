@@ -215,7 +215,7 @@ class AuthControllerIntegrationTest {
                 assertThat(activeToken.getRevokedAt()).isNull();
 
                 // Verify login attempt was recorded
-                List<LoginAttempt> attempts = loginAttemptRepository.findByUserIdOrderByAttemptedAtDesc(user.getId());
+                List<LoginAttempt> attempts = loginAttemptRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
                 assertThat(attempts).hasSize(1);
                 assertThat(attempts.get(0).getSuccess()).isTrue();
         }
@@ -271,7 +271,7 @@ class AuthControllerIntegrationTest {
                                 .andExpect(jsonPath("$.message").value("Invalid username or password"));
 
                 // Verify failed login attempt was recorded
-                List<LoginAttempt> attempts = loginAttemptRepository.findByUserIdOrderByAttemptedAtDesc(user.getId());
+                List<LoginAttempt> attempts = loginAttemptRepository.findByUserIdOrderByCreatedAtDesc(user.getId());
                 assertThat(attempts).hasSize(1);
                 assertThat(attempts.get(0).getSuccess()).isFalse();
                 assertThat(attempts.get(0).getFailureReason()).isEqualTo("INVALID_CREDENTIALS");

@@ -55,5 +55,5 @@ public class LoginAttemptResponse {
     /**
      * The timestamp when the attempt was made.
      */
-    private LocalDateTime attemptedAt;
+    private LocalDateTime createdAt;
 }

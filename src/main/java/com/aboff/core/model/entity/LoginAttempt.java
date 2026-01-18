@@ -2,12 +2,9 @@ package com.aboff.core.model.entity;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.hibernate.annotations.CreationTimestamp;
-
-import java.time.LocalDateTime;
+import lombok.experimental.SuperBuilder;
 
 /**
  * Entity representing a login attempt.
@@ -16,14 +13,10 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "login_attempts")
 @Data
-@Builder
+@SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class LoginAttempt {
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class LoginAttempt extends BaseEntity {
 
     @Column(name = "user_id")
     private Long userId;
@@ -42,8 +35,4 @@ public class LoginAttempt {
 
     @Column(name = "user_agent", length = 500)
     private String userAgent;
-
-    @CreationTimestamp
-    @Column(name = "attempted_at", nullable = false, updatable = false)
-    private LocalDateTime attemptedAt;
 }

@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Java 25 Spring Boot 4.0.1 backend with JWT-based authentication. Uses PostgreSQL with Flyway migrations, Spring Security, and Lombok.
 
+This application allows users to create characters in the Daggerheart TTRPG. It manages character sheets, domain cards, and other useful features for GMs and players alike.
+
 ## Commands
 
 ```bash

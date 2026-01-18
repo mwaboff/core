@@ -24,7 +24,7 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, Long
          * @return list of failed login attempts
          */
         @Query("SELECT la FROM LoginAttempt la WHERE la.usernameAttempted = :username " +
-                        "AND la.attemptedAt >= :since AND la.success = false")
+                        "AND la.createdAt >= :since AND la.success = false")
         List<LoginAttempt> findRecentFailedAttempts(
                         @Param("username") String username,
                         @Param("since") LocalDateTime since);
@@ -35,7 +35,7 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, Long
          * @param userId the user ID
          * @return list of login attempts
          */
-        List<LoginAttempt> findByUserIdOrderByAttemptedAtDesc(Long userId);
+        List<LoginAttempt> findByUserIdOrderByCreatedAtDesc(Long userId);
 
         /**
          * Finds all login attempts for an IP address, ordered by most recent first.
@@ -43,7 +43,7 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, Long
          * @param ipAddress the IP address
          * @return list of login attempts
          */
-        List<LoginAttempt> findByIpAddressOrderByAttemptedAtDesc(String ipAddress);
+        List<LoginAttempt> findByIpAddressOrderByCreatedAtDesc(String ipAddress);
 
         /**
          * Deletes login attempts older than the specified date.
@@ -52,6 +52,6 @@ public interface LoginAttemptRepository extends JpaRepository<LoginAttempt, Long
          * @return the number of attempts deleted
          */
         @Modifying
-        @Query("DELETE FROM LoginAttempt la WHERE la.attemptedAt < :before")
+        @Query("DELETE FROM LoginAttempt la WHERE la.createdAt < :before")
         int deleteOldAttempts(@Param("before") LocalDateTime before);
 }
