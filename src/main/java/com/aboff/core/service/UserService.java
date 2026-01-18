@@ -99,7 +99,9 @@ public class UserService {
         boolean isOwnProfile = currentUser.getId().equals(targetUser.getId());
         boolean hasPrivilegedRole = roleHierarchyService.isPrivilegedRole(currentUser.getRole());
 
-        return mapToUserResponse(targetUser, isOwnProfile || hasPrivilegedRole);
+        // Full info for self OR privileged callers.
+        // Privileged info ONLY for privileged callers.
+        return mapToUserResponse(targetUser, isOwnProfile || hasPrivilegedRole, hasPrivilegedRole);
     }
 
     /**
@@ -225,17 +227,18 @@ public class UserService {
      * @return the user response DTO
      */
     private UserResponse mapToUserResponse(User user) {
-        return mapToUserResponse(user, true);
+        return mapToUserResponse(user, true, false);
     }
 
     /**
      * Maps User entity to UserResponse DTO with optional field restriction.
      *
-     * @param user     the user entity
-     * @param fullInfo whether to include all non-sensitive fields
+     * @param user           the user entity
+     * @param fullInfo       whether to include all non-sensitive fields
+     * @param privilegedInfo whether to include administrative fields
      * @return the user response DTO
      */
-    private UserResponse mapToUserResponse(User user, boolean fullInfo) {
+    private UserResponse mapToUserResponse(User user, boolean fullInfo, boolean privilegedInfo) {
         UserResponse.UserResponseBuilder builder = UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
@@ -246,6 +249,13 @@ public class UserService {
             builder.email(user.getEmail())
                     .timezone(user.getTimezone())
                     .lastModifiedAt(user.getLastModifiedAt());
+        }
+
+        if (privilegedInfo) {
+            builder.accountLockedUntil(user.getAccountLockedUntil())
+                    .failedLoginAttempts(user.getFailedLoginAttempts())
+                    .deletedAt(user.getDeletedAt())
+                    .bannedAt(user.getBannedAt());
         }
 
         return builder.build();

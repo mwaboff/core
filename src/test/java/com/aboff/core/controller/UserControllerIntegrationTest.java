@@ -110,7 +110,12 @@ class UserControllerIntegrationTest {
                                 .andExpect(jsonPath("$.avatarUrl").value("https://avatar.url"))
                                 .andExpect(jsonPath("$.timezone").value("UTC"))
                                 .andExpect(jsonPath("$.createdAt").exists())
-                                .andExpect(jsonPath("$.lastModifiedAt").exists());
+                                .andExpect(jsonPath("$.lastModifiedAt").exists())
+                                // Admin fields should be absent for regular users
+                                .andExpect(jsonPath("$.accountLockedUntil").doesNotExist())
+                                .andExpect(jsonPath("$.failedLoginAttempts").doesNotExist())
+                                .andExpect(jsonPath("$.deletedAt").doesNotExist())
+                                .andExpect(jsonPath("$.bannedAt").doesNotExist());
         }
 
         @Test
@@ -147,7 +152,12 @@ class UserControllerIntegrationTest {
                                 // Restricted fields should be missing
                                 .andExpect(jsonPath("$.email").doesNotExist())
                                 .andExpect(jsonPath("$.timezone").doesNotExist())
-                                .andExpect(jsonPath("$.lastModifiedAt").doesNotExist());
+                                .andExpect(jsonPath("$.lastModifiedAt").doesNotExist())
+                                // Admin fields should be absent for regular users
+                                .andExpect(jsonPath("$.accountLockedUntil").doesNotExist())
+                                .andExpect(jsonPath("$.failedLoginAttempts").doesNotExist())
+                                .andExpect(jsonPath("$.deletedAt").doesNotExist())
+                                .andExpect(jsonPath("$.bannedAt").doesNotExist());
         }
 
         @Test
@@ -190,7 +200,40 @@ class UserControllerIntegrationTest {
                                 .andExpect(jsonPath("$.email").value("target@example.com"))
                                 .andExpect(jsonPath("$.avatarUrl").value("https://target.avatar.url"))
                                 .andExpect(jsonPath("$.timezone").value("America/Chicago"))
-                                .andExpect(jsonPath("$.lastModifiedAt").exists());
+                                .andExpect(jsonPath("$.lastModifiedAt").exists())
+                                // Admin fields should be present for moderators
+                                .andExpect(jsonPath("$.accountLockedUntil").doesNotExist())
+                                .andExpect(jsonPath("$.failedLoginAttempts").value(0))
+                                .andExpect(jsonPath("$.deletedAt").doesNotExist())
+                                .andExpect(jsonPath("$.bannedAt").doesNotExist());
+        }
+
+        @Test
+        void getUser_AdminFetchingOther_ReturnsAdminInfo() throws Exception {
+                // Arrange - Create an admin and a target user with some admin data
+                User admin = createPrivilegedUser("admin", "admin@example.com", Role.ADMIN);
+                String adminToken = jwtTokenProvider.generateToken(admin);
+                Cookie adminCookie = new Cookie("AUTH_TOKEN", adminToken);
+
+                LocalDateTime lockUntil = LocalDateTime.now().plusHours(1);
+                User targetUser = User.builder()
+                                .username("lockeduser")
+                                .email("locked@example.com")
+                                .passwordHash(passwordEncoder.encode("Password123!"))
+                                .accountLockedUntil(lockUntil)
+                                .failedLoginAttempts(5)
+                                .build();
+                targetUser = userRepository.save(targetUser);
+
+                // Act & Assert
+                mockMvc.perform(get("/api/users/" + targetUser.getId())
+                                .cookie(adminCookie))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.username").value("lockeduser"))
+                                .andExpect(jsonPath("$.accountLockedUntil").exists())
+                                .andExpect(jsonPath("$.failedLoginAttempts").value(5))
+                                .andExpect(jsonPath("$.deletedAt").doesNotExist())
+                                .andExpect(jsonPath("$.bannedAt").doesNotExist());
         }
 
         private User createPrivilegedUser(String username, String email, Role role) {
@@ -220,6 +263,26 @@ class UserControllerIntegrationTest {
         void getCurrentUser_NoToken_Returns401() throws Exception {
                 // Act & Assert
                 mockMvc.perform(get("/api/users/me"))
+                                .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        void getUser_BannedUser_Returns401() throws Exception {
+                // Arrange - Create a user and ban them
+                User user = User.builder()
+                                .username("banneduser")
+                                .email("banned@example.com")
+                                .passwordHash(passwordEncoder.encode("Password123!"))
+                                .bannedAt(LocalDateTime.now())
+                                .build();
+                user = userRepository.save(user);
+
+                String token = jwtTokenProvider.generateToken(user);
+                Cookie authCookie = new Cookie("AUTH_TOKEN", token);
+
+                // Act & Assert
+                mockMvc.perform(get("/api/users/me")
+                                .cookie(authCookie))
                                 .andExpect(status().isUnauthorized());
         }
 

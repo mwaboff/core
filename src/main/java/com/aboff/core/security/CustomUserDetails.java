@@ -93,7 +93,7 @@ public class CustomUserDetails implements UserDetails {
      */
     @Override
     public boolean isEnabled() {
-        return !user.isDeleted();
+        return !user.isDeleted() && !user.isBanned();
     }
 
     /**

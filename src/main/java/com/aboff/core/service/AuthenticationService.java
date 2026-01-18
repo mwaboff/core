@@ -175,6 +175,13 @@ public class AuthenticationService {
             throw new BadCredentialsException("Invalid username or password");
         }
 
+        // Check if account is banned
+        if (user.isBanned()) {
+            log.warn("Login failed - user is banned: {}", usernameOrEmail);
+            recordLoginAttempt(usernameOrEmail, user.getId(), false, "USER_BANNED", ipAddress, userAgent);
+            throw new BadCredentialsException("Invalid username or password");
+        }
+
         // Check if account is locked
         if (user.isAccountLocked()) {
             log.warn("Login failed - account locked: {} until {}", usernameOrEmail, user.getAccountLockedUntil());

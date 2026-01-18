@@ -54,6 +54,25 @@ public class UserResponse {
      */
     private LocalDateTime lastModifiedAt;
 
-    // NEVER expose: passwordHash, accountLockedUntil, failedLoginAttempts,
-    // lastFailedLogin, deletedAt
+    /**
+     * The timestamp until which the account is locked (privileged users only).
+     */
+    private LocalDateTime accountLockedUntil;
+
+    /**
+     * The number of failed login attempts (privileged users only).
+     */
+    private Integer failedLoginAttempts;
+
+    /**
+     * The timestamp when the user account was soft-deleted (privileged users only).
+     */
+    private LocalDateTime deletedAt;
+
+    /**
+     * The timestamp when the user was banned (privileged users only).
+     */
+    private LocalDateTime bannedAt;
+
+    // NEVER expose: passwordHash, lastFailedLogin
 }
