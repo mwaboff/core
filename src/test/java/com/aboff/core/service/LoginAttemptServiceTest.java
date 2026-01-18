@@ -81,12 +81,12 @@ class LoginAttemptServiceTest {
                 LoginAttempt.builder()
                         .usernameAttempted(username)
                         .success(false)
-                        .attemptedAt(LocalDateTime.now().minusMinutes(5))
+                        .createdAt(LocalDateTime.now().minusMinutes(5))
                         .build(),
                 LoginAttempt.builder()
                         .usernameAttempted(username)
                         .success(false)
-                        .attemptedAt(LocalDateTime.now().minusMinutes(10))
+                        .createdAt(LocalDateTime.now().minusMinutes(10))
                         .build()
         );
 
@@ -130,17 +130,17 @@ class LoginAttemptServiceTest {
                         .userId(userId)
                         .usernameAttempted("testuser")
                         .success(true)
-                        .attemptedAt(LocalDateTime.now())
+                        .createdAt(LocalDateTime.now())
                         .build(),
                 LoginAttempt.builder()
                         .userId(userId)
                         .usernameAttempted("testuser")
                         .success(false)
-                        .attemptedAt(LocalDateTime.now().minusHours(1))
+                        .createdAt(LocalDateTime.now().minusHours(1))
                         .build()
         );
 
-        when(loginAttemptRepository.findByUserIdOrderByAttemptedAtDesc(userId))
+        when(loginAttemptRepository.findByUserIdOrderByCreatedAtDesc(userId))
                 .thenReturn(expectedAttempts);
 
         // Act

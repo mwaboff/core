@@ -52,7 +52,7 @@ public class LoginAttemptService {
      * @return list of all login attempts for the user
      */
     public List<LoginAttempt> getAttemptsForUser(Long userId) {
-        return loginAttemptRepository.findByUserIdOrderByAttemptedAtDesc(userId);
+        return loginAttemptRepository.findByUserIdOrderByCreatedAtDesc(userId);
     }
 
     /**

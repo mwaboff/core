@@ -89,7 +89,7 @@ public class AdminController {
         public List<LoginAttemptResponse> getLoginHistoryByUserId(
                         @PathVariable Long userId,
                         @RequestParam(required = false) Integer limit) {
-                List<LoginAttempt> attempts = loginAttemptRepository.findByUserIdOrderByAttemptedAtDesc(userId);
+                List<LoginAttempt> attempts = loginAttemptRepository.findByUserIdOrderByCreatedAtDesc(userId);
                 return attempts.stream()
                                 .limit(limit != null ? limit : Long.MAX_VALUE)
                                 .map(this::mapToLoginAttemptResponse)
@@ -111,7 +111,7 @@ public class AdminController {
         public List<LoginAttemptResponse> getLoginHistoryByIpAddress(
                         @PathVariable String ipAddress,
                         @RequestParam(required = false) Integer limit) {
-                List<LoginAttempt> attempts = loginAttemptRepository.findByIpAddressOrderByAttemptedAtDesc(ipAddress);
+                List<LoginAttempt> attempts = loginAttemptRepository.findByIpAddressOrderByCreatedAtDesc(ipAddress);
                 return attempts.stream()
                                 .limit(limit != null ? limit : Long.MAX_VALUE)
                                 .map(this::mapToLoginAttemptResponse)
@@ -251,7 +251,7 @@ public class AdminController {
                                 .failureReason(attempt.getFailureReason())
                                 .ipAddress(attempt.getIpAddress())
                                 .userAgent(attempt.getUserAgent())
-                                .attemptedAt(attempt.getAttemptedAt())
+                                .createdAt(attempt.getCreatedAt())
                                 .build();
         }
 

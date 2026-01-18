@@ -589,7 +589,7 @@ class AdminControllerIntegrationTest {
                                 .success(success)
                                 .ipAddress("127.0.0.1")
                                 .userAgent("Test Agent")
-                                .attemptedAt(LocalDateTime.now())
+                                .createdAt(LocalDateTime.now())
                                 .build();
                 loginAttemptRepository.save(attempt);
         }
@@ -601,7 +601,7 @@ class AdminControllerIntegrationTest {
                                 .success(success)
                                 .ipAddress(ipAddress)
                                 .userAgent("Test Agent")
-                                .attemptedAt(LocalDateTime.now())
+                                .createdAt(LocalDateTime.now())
                                 .build();
                 loginAttemptRepository.save(attempt);
         }
