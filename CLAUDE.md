@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Java 25 Spring Boot 4.0.1 backend. Uses PostgreSQL with Flyway migrations, Spring Security with OAuth2, and Lombok.
+Java 25 Spring Boot 4.0.1 backend with JWT-based authentication. Uses PostgreSQL with Flyway migrations, Spring Security, and Lombok.
 
 ## Commands
 
@@ -26,24 +26,33 @@ Java 25 Spring Boot 4.0.1 backend. Uses PostgreSQL with Flyway migrations, Sprin
 ./scripts/start-db.sh              # Start PostgreSQL (Docker)
 ./scripts/stop-db.sh               # Stop database
 ./scripts/connect-db.sh            # Connect to database CLI
+./scripts/drop-db.sh               # Drop database (development only)
 ./scripts/create-migration.sh name # Create Flyway migration
 ```
 
 ## Architecture
 
 Package structure follows layered architecture under `com.aboff.core/`:
-- `config/` - Configuration classes
+- `config/` - Configuration classes (SecurityConfig, JwtConfig)
 - `controller/` - REST API endpoints
 - `service/` - Business logic
 - `repository/` - Data access (Spring Data JPA)
-- `model/entity/`, `model/dto/`, `model/enums/` - Domain models
-- `exception/` - Custom exceptions
-- `security/` - Security configurations
+- `model/entity/` - JPA entities (User, LoginAttempt, ActiveToken)
+- `model/dto/` - Data transfer objects (request/response)
+- `model/enums/` - Enumerations
+- `exception/` - Custom exceptions and global handler
+- `security/` - JWT infrastructure (filters, providers)
 
 Key paths:
 - Source: `src/main/java/com/aboff/core/`
 - Tests: `src/test/java/com/aboff/core/`
 - Migrations: `src/main/resources/db/migration/`
+
+## Documentation
+
+- Add detailed javadocs to all methods and classes. Use standard Javadocs (`/** ... */`) with `@param`, `@return`, and `@throws` tags where applicable.
+- Ensure all public classes and methods have documentation explaining their purpose and behavior.
+- Limit HTML syntax except when needed for formatting lists or code blocks.
 
 ## Testing
 
@@ -68,4 +77,6 @@ Create `.env` in project root:
 POSTGRES_DB=heartandfear
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=password
+
+JWT_SECRET=your-secure-256-bit-secret-here-change-in-production
 ```

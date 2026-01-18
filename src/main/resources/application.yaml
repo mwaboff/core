@@ -10,3 +10,47 @@ spring:
     enabled: true
     locations: classpath:db/migration
     baseline-on-migrate: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+
+# JWT configuration
+jwt:
+  secret: ${JWT_SECRET:change-this-to-256-bit-secret-in-production-must-be-long-enough-for-hmac-sha}
+  expiration: 2592000000 # 30 days in milliseconds (30 * 24 * 60 * 60 * 1000)
+  cookie:
+    name: AUTH_TOKEN
+    http-only: true
+    secure: ${JWT_COOKIE_SECURE:false} # false in dev, true in prod
+    same-site: Strict
+    max-age: 2592000 # 30 days in seconds (30 * 24 * 60 * 60)
+
+# Application-specific configuration
+application:
+  security:
+    max-failed-attempts: 5
+    lockout-duration-minutes: 30
+    failed-attempt-window-minutes: 15
+    password:
+      min-length: 8
+      require-uppercase: true
+      require-lowercase: true
+      require-digit: true
+      require-special: true
+  user:
+    default-avatar-url: https://api.dicebear.com/7.x/avatars/svg?seed=default
+    default-timezone: UTC
+
+# Logging configuration for troubleshooting authentication issues
+# Set these to INFO in production
+logging:
+  level:
+    com.aboff.core.security: DEBUG
+    com.aboff.core.exception: DEBUG
+    com.aboff.core.service.AuthenticationService: DEBUG
+    # Uncomment below for verbose Spring Security debug logging
+    # org.springframework.security: DEBUG
