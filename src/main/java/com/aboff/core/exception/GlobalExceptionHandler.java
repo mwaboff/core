@@ -123,6 +123,50 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles EntityNotFoundException from JPA.
+     * Returns 404 Not Found.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
+    @ExceptionHandler(jakarta.persistence.EntityNotFoundException.class)
+    public ResponseEntity<ErrorResponse> handleEntityNotFound(
+            jakarta.persistence.EntityNotFoundException ex,
+            HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.builder()
+                .status(HttpStatus.NOT_FOUND.value())
+                .error("Entity Not Found")
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    /**
+     * Handles IllegalStateException.
+     * Returns 400 Bad Request.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalState(
+            IllegalStateException ex,
+            HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.builder()
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Invalid Operation")
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    /**
      * Handles BadCredentialsException.
      * Returns 401 Unauthorized.
      *

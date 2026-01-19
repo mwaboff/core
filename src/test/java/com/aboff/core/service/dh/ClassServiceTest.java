@@ -1,0 +1,561 @@
+package com.aboff.core.service.dh;
+
+import com.aboff.core.model.dto.dh.request.CreateClassRequest;
+import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
+import com.aboff.core.model.dto.dh.response.ClassResponse;
+import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.Class;
+import com.aboff.core.model.entity.dh.Domain;
+import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.Question;
+import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.model.enums.QuestionType;
+import com.aboff.core.repository.dh.ClassRepository;
+import com.aboff.core.repository.dh.DomainRepository;
+import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
+import com.aboff.core.repository.dh.QuestionRepository;
+import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
+
+import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.*;
+import static org.mockito.Mockito.*;
+
+/**
+ * Unit tests for ClassService.
+ * Tests all CRUD operations, pagination, soft deletion, restore functionality, expand parameter, bulk operations, and many-to-many relationships.
+ */
+@ExtendWith(MockitoExtension.class)
+class ClassServiceTest {
+
+    @Mock
+    private ClassRepository classRepository;
+
+    @Mock
+    private ExpansionRepository expansionRepository;
+
+    @Mock
+    private DomainRepository domainRepository;
+
+    @Mock
+    private FeatureRepository featureRepository;
+
+    @Mock
+    private QuestionRepository questionRepository;
+
+    @InjectMocks
+    private ClassService classService;
+
+    // ==================== GET ALL CLASSES TESTS ====================
+
+    @Test
+    void getAllClasses_WithoutFilters_ReturnsPagedClasses() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class class1 = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Class class2 = Class.builder()
+                .id(2L)
+                .name("Mage")
+                .description("Spellcaster")
+                .expansion(expansion)
+                .startingClassItems("Staff, Spellbook")
+                .startingEvasion(15)
+                .startingHitPoints(15)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(class1, class2));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("Warrior");
+        assertThat(result.getContent().get(1).getName()).isEqualTo("Mage");
+    }
+
+    @Test
+    void getAllClasses_WithExpansionFilter_ReturnsFilteredClasses() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(eq(1L), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, 1L, null);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
+        verify(classRepository).findByDeletedAtIsNullAndExpansion(eq(1L), any(Pageable.class));
+    }
+
+    @Test
+    void getAllClasses_WithIncludeDeleted_ReturnsAllClasses() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Deleted Class")
+                .description("Deleted")
+                .expansion(expansion)
+                .startingClassItems("Items")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .deletedAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findAllWithExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, true, null, null);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getDeletedAt()).isNotNull();
+        verify(classRepository).findAllWithExpansion(isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void getAllClasses_WithLargePage_LimitsTo100() {
+        // Arrange
+        Page<Class> classPage = new PageImpl<>(List.of());
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        classService.getAllClasses(0, 500, false, null, null);
+
+        // Assert
+        verify(classRepository).findByDeletedAtIsNullAndExpansion(
+                isNull(),
+                argThat(pageable -> pageable.getPageSize() == 100)
+        );
+    }
+
+    @Test
+    void getAllClasses_WithExpandParameters_ExpandsRelationships() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Domain domain = Domain.builder().id(1L).name("Blade").expansion(expansion).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Power Attack").featureType(FeatureType.HOPE).expansion(expansion).createdAt(LocalDateTime.now()).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .associatedDomains(Set.of(domain))
+                .hopeFeatures(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "expansion,associatedDomains,hopeFeatures");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getExpansion()).isNotNull();
+        assertThat(result.getContent().get(0).getAssociatedDomains()).isNotNull();
+        assertThat(result.getContent().get(0).getHopeFeatures()).isNotNull();
+    }
+
+    // ==================== GET CLASS BY ID TESTS ====================
+
+    @Test
+    void getClassById_ValidId_ReturnsClass() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(clazz));
+
+        // Act
+        ClassResponse result = classService.getClassById(1L, null);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getName()).isEqualTo("Warrior");
+        assertThat(result.getStartingEvasion()).isEqualTo(10);
+        assertThat(result.getStartingHitPoints()).isEqualTo(20);
+    }
+
+    @Test
+    void getClassById_NotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        when(classRepository.findByIdAndDeletedAtIsNull(999L))
+                .thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> classService.getClassById(999L, null))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Class not found with id: 999");
+    }
+
+    // ==================== CREATE CLASS TESTS ====================
+
+    @Test
+    void createClass_ValidRequest_CreatesAndReturnsClass() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Domain domain = Domain.builder().id(1L).name("Blade").expansion(expansion).build();
+        Feature feature = Feature.builder().id(1L).name("Power Attack").featureType(FeatureType.HOPE).expansion(expansion).build();
+        Question question = Question.builder().id(1L).questionText("What?").questionType(QuestionType.BACKGROUND).expansion(expansion).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansionId(1L)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .associatedDomainIds(List.of(1L))
+                .hopeFeatureIds(List.of(1L))
+                .classFeatureIds(List.of())
+                .backgroundQuestionIds(List.of(1L))
+                .connectionQuestionIds(List.of())
+                .build();
+
+        Class savedClass = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(domainRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(domain));
+        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(feature));
+        when(questionRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(question));
+        when(classRepository.save(any(Class.class))).thenReturn(savedClass);
+
+        // Act
+        ClassResponse result = classService.createClass(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getName()).isEqualTo("Warrior");
+        verify(classRepository).save(any(Class.class));
+    }
+
+    @Test
+    void createClass_ExpansionNotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansionId(999L)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> classService.createClass(request))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Expansion not found with id: 999");
+
+        verify(classRepository, never()).save(any());
+    }
+
+    // ==================== CREATE CLASSES BULK TESTS ====================
+
+    @Test
+    void createClassesBulk_ValidRequests_CreatesAndReturnsClasses() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        CreateClassRequest request1 = CreateClassRequest.builder()
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansionId(1L)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .build();
+
+        CreateClassRequest request2 = CreateClassRequest.builder()
+                .name("Mage")
+                .description("Spellcaster")
+                .expansionId(1L)
+                .startingClassItems("Staff, Spellbook")
+                .startingEvasion(15)
+                .startingHitPoints(15)
+                .build();
+
+        Class savedClass1 = Class.builder().id(1L).name("Warrior").description("Strong fighter")
+                .expansion(expansion).startingClassItems("Sword, Shield").startingEvasion(10).startingHitPoints(20)
+                .createdAt(LocalDateTime.now()).build();
+
+        Class savedClass2 = Class.builder().id(2L).name("Mage").description("Spellcaster")
+                .expansion(expansion).startingClassItems("Staff, Spellbook").startingEvasion(15).startingHitPoints(15)
+                .createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(classRepository.saveAll(anyList())).thenReturn(List.of(savedClass1, savedClass2));
+
+        // Act
+        List<ClassResponse> results = classService.createClassesBulk(List.of(request1, request2));
+
+        // Assert
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).getName()).isEqualTo("Warrior");
+        assertThat(results.get(1).getName()).isEqualTo("Mage");
+        verify(classRepository).saveAll(anyList());
+    }
+
+    // ==================== UPDATE CLASS TESTS ====================
+
+    @Test
+    void updateClass_ValidRequest_UpdatesAndReturnsClass() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class existingClass = Class.builder()
+                .id(1L)
+                .name("Old Name")
+                .description("Old description")
+                .expansion(expansion)
+                .startingClassItems("Old Items")
+                .startingEvasion(5)
+                .startingHitPoints(10)
+                .associatedDomains(new HashSet<>())
+                .hopeFeatures(new HashSet<>())
+                .classFeatures(new HashSet<>())
+                .backgroundQuestions(new HashSet<>())
+                .connectionQuestions(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateClassRequest request = UpdateClassRequest.builder()
+                .name("Updated Name")
+                .description("Updated description")
+                .expansionId(1L)
+                .startingClassItems("Updated Items")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .associatedDomainIds(List.of())
+                .hopeFeatureIds(List.of())
+                .classFeatureIds(List.of())
+                .backgroundQuestionIds(List.of())
+                .connectionQuestionIds(List.of())
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingClass));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.updateClass(1L, request);
+
+        // Assert
+        assertThat(result.getName()).isEqualTo("Updated Name");
+        assertThat(result.getDescription()).isEqualTo("Updated description");
+        assertThat(result.getStartingEvasion()).isEqualTo(10);
+        assertThat(result.getStartingHitPoints()).isEqualTo(20);
+        verify(classRepository).save(any(Class.class));
+    }
+
+    @Test
+    void updateClass_NotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        UpdateClassRequest request = UpdateClassRequest.builder()
+                .name("Updated Name")
+                .description("Updated description")
+                .expansionId(1L)
+                .startingClassItems("Updated Items")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> classService.updateClass(999L, request))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Class not found with id: 999");
+
+        verify(classRepository, never()).save(any());
+    }
+
+    // ==================== DELETE CLASS TESTS ====================
+
+    @Test
+    void deleteClass_ValidId_SoftDeletesClass() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("To Delete")
+                .description("To be deleted")
+                .expansion(expansion)
+                .startingClassItems("Items")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+
+        // Act
+        classService.deleteClass(1L);
+
+        // Assert
+        verify(classRepository).save(argThat(c -> c.getDeletedAt() != null));
+    }
+
+    @Test
+    void deleteClass_NotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        when(classRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> classService.deleteClass(999L))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Class not found with id: 999");
+
+        verify(classRepository, never()).save(any());
+    }
+
+    // ==================== RESTORE CLASS TESTS ====================
+
+    @Test
+    void restoreClass_DeletedClass_RestoresSuccessfully() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class deletedClass = Class.builder()
+                .id(1L)
+                .name("Deleted Class")
+                .description("Deleted")
+                .expansion(expansion)
+                .startingClassItems("Items")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .deletedAt(LocalDateTime.now())
+                .build();
+
+        when(classRepository.findById(1L)).thenReturn(Optional.of(deletedClass));
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.restoreClass(1L);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(classRepository).save(argThat(c -> c.getDeletedAt() == null));
+    }
+
+    @Test
+    void restoreClass_NotDeleted_ThrowsIllegalStateException() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class activeClass = Class.builder()
+                .id(1L)
+                .name("Active Class")
+                .description("Active")
+                .expansion(expansion)
+                .startingClassItems("Items")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(classRepository.findById(1L)).thenReturn(Optional.of(activeClass));
+
+        // Act & Assert
+        assertThatThrownBy(() -> classService.restoreClass(1L))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Class with id 1 is not deleted");
+
+        verify(classRepository, never()).save(any());
+    }
+
+    @Test
+    void restoreClass_NotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        when(classRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> classService.restoreClass(999L))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Class not found with id: 999");
+    }
+}
