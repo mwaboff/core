@@ -1,594 +1,2153 @@
 {
-	"info": {
-		"_postman_id": "47d9ce37-ce21-489d-8614-e910b4d92dfa",
-		"name": "Core",
-		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-		"_exporter_id": "39632585"
-	},
-	"item": [
-		{
-			"name": "Authentication",
-			"item": [
-				{
-					"name": "Register",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"username\": \"boff\",\n  \"email\": \"michael@aboff.com\",\n  \"password\": \"SecurePass123!\",\n  \"timezone\": \"America/New_York\",\n  \"avatarUrl\": \"https://example.com/avatar.jpg\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/auth/register",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"auth",
-								"register"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Login (Email)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const xsrf = pm.cookies.get('XSRF-TOKEN');",
-									"if (xsrf) {",
-									"    pm.environment.set('xsrf', xsrf);",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"usernameOrEmail\": \"michael@aboff.com\",\n  \"password\": \"SecurePass123!\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/auth/login",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"auth",
-								"login"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Login (Username)",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const xsrf = pm.cookies.get('XSRF-TOKEN');",
-									"if (xsrf) {",
-									"    pm.environment.set('xsrf', xsrf);",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"usernameOrEmail\": \"boff\",\n  \"password\": \"SecurePass123!\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/auth/login",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"auth",
-								"login"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Logout",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						},
-						{
-							"listen": "prerequest",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/auth/logout",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"auth",
-								"logout"
-							]
-						}
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "User Operations",
-			"item": [
-				{
-					"name": "Get Current User Details",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						},
-						{
-							"listen": "prerequest",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/users/me",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"users",
-								"me"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Get User Details",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						},
-						{
-							"listen": "prerequest",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/users/2",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"users",
-								"2"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Change Password",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const xsrf = pm.cookies.get('XSRF-TOKEN');",
-									"if (xsrf) {",
-									"    pm.environment.set('xsrf', xsrf);",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						},
-						{
-							"listen": "prerequest",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [
-							{
-								"key": "X-XSRF-TOKEN",
-								"value": "{{xsrf}}",
-								"type": "text"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"avatarUrl\": \"https://example.com/new-avatar.jpg\",\n  \"timezone\": \"America/Los_Angeles\",\n  \"password\": \"SecurePass123!\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/users/me",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"users",
-								"me"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Update Current User",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"const xsrf = pm.cookies.get('XSRF-TOKEN');",
-									"if (xsrf) {",
-									"    pm.environment.set('xsrf', xsrf);",
-									"}"
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						},
-						{
-							"listen": "prerequest",
-							"script": {
-								"exec": [
-									""
-								],
-								"type": "text/javascript",
-								"packages": {},
-								"requests": {}
-							}
-						}
-					],
-					"request": {
-						"method": "PATCH",
-						"header": [],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"avatarUrl\": \"https://example.com/new-avatar.jpg\",\n  \"timezone\": \"America/Los_Angeles\",\n  \"password\": \"SecurePass123!!\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/users/me",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"users",
-								"me"
-							]
-						}
-					},
-					"response": []
-				},
-				{
-					"name": "Soft Delete Current User",
-					"request": {
-						"method": "DELETE",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/users/me",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"users",
-								"me"
-							]
-						},
-						"description": "Generated from cURL: curl --location --request DELETE 'http://localhost:8080/api/users/me'\n"
-					},
-					"response": []
-				}
-			]
-		},
-		{
-			"name": "Admin Operations",
-			"item": [
-				{
-					"name": "Ban User",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/admin/users/2/ban",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"admin",
-								"users",
-								"2",
-								"ban"
-							]
-						},
-						"description": "Generated from cURL: curl --location --request POST 'http://localhost:8080/api/admin/users/1/ban'\n"
-					},
-					"response": []
-				},
-				{
-					"name": "Unban User",
-					"request": {
-						"method": "POST",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/admin/users/2/unban",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"admin",
-								"users",
-								"2",
-								"unban"
-							]
-						},
-						"description": "Generated from cURL: curl --location --request POST 'http://localhost:8080/api/admin/users/1/ban'\n"
-					},
-					"response": []
-				},
-				{
-					"name": "Update User Role",
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n    \"newRole\": \"ADMIN\"\n}",
-							"options": {
-								"raw": {
-									"language": "json"
-								}
-							}
-						},
-						"url": {
-							"raw": "http://localhost:8080/api/admin/users/1/change-role",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"admin",
-								"users",
-								"1",
-								"change-role"
-							]
-						},
-						"description": "Generated from cURL: curl --location --request POST 'http://localhost:8080/api/admin/users/1/change-role' \\\n--header 'Content-Type: application/json' \\\n--data-raw '{\n    \"newRole\": \"ADMIN\"\n}'"
-					},
-					"response": []
-				},
-				{
-					"name": "Get All Login History",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/admin/login-history?limit=10",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"admin",
-								"login-history"
-							],
-							"query": [
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						},
-						"description": "Generated from cURL: curl --location 'http://localhost:8080/api/admin/login-history'\n"
-					},
-					"response": []
-				},
-				{
-					"name": "Get User Login History",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/admin/login-history?limit=10",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"admin",
-								"login-history"
-							],
-							"query": [
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						},
-						"description": "Generated from cURL: curl --location 'http://localhost:8080/api/admin/login-history'\n"
-					},
-					"response": []
-				},
-				{
-					"name": "Get User Login History Copy",
-					"request": {
-						"method": "GET",
-						"header": [],
-						"url": {
-							"raw": "http://localhost:8080/api/admin/login-history?limit=10",
-							"protocol": "http",
-							"host": [
-								"localhost"
-							],
-							"port": "8080",
-							"path": [
-								"api",
-								"admin",
-								"login-history"
-							],
-							"query": [
-								{
-									"key": "limit",
-									"value": "10"
-								}
-							]
-						},
-						"description": "Generated from cURL: curl --location 'http://localhost:8080/api/admin/login-history'\n"
-					},
-					"response": []
-				}
-			]
-		}
-	]
+    "info": {
+        "_postman_id": "47d9ce37-ce21-489d-8614-e910b4d92dfa",
+        "name": "Core",
+        "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+        "_exporter_id": "39632585"
+    },
+    "item": [
+        {
+            "name": "Authentication",
+            "item": [
+                {
+                    "name": "Register",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"username\": \"boff\",\n  \"email\": \"michael@aboff.com\",\n  \"password\": \"SecurePass123!\",\n  \"timezone\": \"America/New_York\",\n  \"avatarUrl\": \"https://example.com/avatar.jpg\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "http://localhost:8080/api/auth/register",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "auth",
+                                "register"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Login (Email)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+                                    "if (xsrf) {",
+                                    "    pm.environment.set('xsrf', xsrf);",
+                                    "}"
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"usernameOrEmail\": \"michael@aboff.com\",\n  \"password\": \"SecurePass123!\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "http://localhost:8080/api/auth/login",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "auth",
+                                "login"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Login (Username)",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+                                    "if (xsrf) {",
+                                    "    pm.environment.set('xsrf', xsrf);",
+                                    "}"
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"usernameOrEmail\": \"boff\",\n  \"password\": \"SecurePass123!\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "http://localhost:8080/api/auth/login",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "auth",
+                                "login"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Logout",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    ""
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        },
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "exec": [
+                                    ""
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/auth/logout",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "auth",
+                                "logout"
+                            ]
+                        }
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "User Operations",
+            "item": [
+                {
+                    "name": "Get Current User Details",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    ""
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        },
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "exec": [
+                                    ""
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/users/me",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "users",
+                                "me"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get User Details",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    ""
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        },
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "exec": [
+                                    ""
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/users/2",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "users",
+                                "2"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Change Password",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+                                    "if (xsrf) {",
+                                    "    pm.environment.set('xsrf', xsrf);",
+                                    "}"
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        },
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "exec": [
+                                    ""
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [
+                            {
+                                "key": "X-XSRF-TOKEN",
+                                "value": "{{xsrf}}",
+                                "type": "text"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"avatarUrl\": \"https://example.com/new-avatar.jpg\",\n  \"timezone\": \"America/Los_Angeles\",\n  \"password\": \"SecurePass123!\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "http://localhost:8080/api/users/me",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "users",
+                                "me"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update Current User",
+                    "event": [
+                        {
+                            "listen": "test",
+                            "script": {
+                                "exec": [
+                                    "const xsrf = pm.cookies.get('XSRF-TOKEN');",
+                                    "if (xsrf) {",
+                                    "    pm.environment.set('xsrf', xsrf);",
+                                    "}"
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        },
+                        {
+                            "listen": "prerequest",
+                            "script": {
+                                "exec": [
+                                    ""
+                                ],
+                                "type": "text/javascript",
+                                "packages": {},
+                                "requests": {}
+                            }
+                        }
+                    ],
+                    "request": {
+                        "method": "PATCH",
+                        "header": [],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n  \"avatarUrl\": \"https://example.com/new-avatar.jpg\",\n  \"timezone\": \"America/Los_Angeles\",\n  \"password\": \"SecurePass123!!\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "http://localhost:8080/api/users/me",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "users",
+                                "me"
+                            ]
+                        }
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Soft Delete Current User",
+                    "request": {
+                        "method": "DELETE",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/users/me",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "users",
+                                "me"
+                            ]
+                        },
+                        "description": "Generated from cURL: curl --location --request DELETE 'http://localhost:8080/api/users/me'\n"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Admin Operations",
+            "item": [
+                {
+                    "name": "Ban User",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/admin/users/2/ban",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "admin",
+                                "users",
+                                "2",
+                                "ban"
+                            ]
+                        },
+                        "description": "Generated from cURL: curl --location --request POST 'http://localhost:8080/api/admin/users/1/ban'\n"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Unban User",
+                    "request": {
+                        "method": "POST",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/admin/users/2/unban",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "admin",
+                                "users",
+                                "2",
+                                "unban"
+                            ]
+                        },
+                        "description": "Generated from cURL: curl --location --request POST 'http://localhost:8080/api/admin/users/1/ban'\n"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Update User Role",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "application/json"
+                            }
+                        ],
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"newRole\": \"ADMIN\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "http://localhost:8080/api/admin/users/1/change-role",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "admin",
+                                "users",
+                                "1",
+                                "change-role"
+                            ]
+                        },
+                        "description": "Generated from cURL: curl --location --request POST 'http://localhost:8080/api/admin/users/1/change-role' \\\n--header 'Content-Type: application/json' \\\n--data-raw '{\n    \"newRole\": \"ADMIN\"\n}'"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get All Login History",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/admin/login-history?limit=10",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "admin",
+                                "login-history"
+                            ],
+                            "query": [
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        },
+                        "description": "Generated from cURL: curl --location 'http://localhost:8080/api/admin/login-history'\n"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get User Login History",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/admin/login-history?limit=10",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "admin",
+                                "login-history"
+                            ],
+                            "query": [
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        },
+                        "description": "Generated from cURL: curl --location 'http://localhost:8080/api/admin/login-history'\n"
+                    },
+                    "response": []
+                },
+                {
+                    "name": "Get User Login History Copy",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "http://localhost:8080/api/admin/login-history?limit=10",
+                            "protocol": "http",
+                            "host": [
+                                "localhost"
+                            ],
+                            "port": "8080",
+                            "path": [
+                                "api",
+                                "admin",
+                                "login-history"
+                            ],
+                            "query": [
+                                {
+                                    "key": "limit",
+                                    "value": "10"
+                                }
+                            ]
+                        },
+                        "description": "Generated from cURL: curl --location 'http://localhost:8080/api/admin/login-history'\n"
+                    },
+                    "response": []
+                }
+            ]
+        },
+        {
+            "name": "Daggerheart (DH)",
+            "item": [
+                {
+                    "name": "Expansions",
+                    "item": [
+                        {
+                            "name": "Get All Expansions",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/expansions",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "expansions"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Expansion By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/expansions/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "expansions",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Expansion",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/expansions",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "expansions"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Daggerheart Core Set\",\n  \"isPublished\": true\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Expansion",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/expansions/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "expansions",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Daggerheart Core Set Updated\",\n  \"isPublished\": true\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Expansion",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/expansions/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "expansions",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Expansion",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/expansions/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "expansions",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Domains",
+                    "item": [
+                        {
+                            "name": "Get All Domains",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/domains",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "domains"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Domain By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/domains/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "domains",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Domain",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/domains",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "domains"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Blade\",\n  \"iconUrl\": \"http://example.com/blade.png\",\n  \"description\": \"Domain of combat and steel\",\n  \"expansionId\": 1\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Domain",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/domains/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "domains",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Blade Updated\",\n  \"iconUrl\": \"http://example.com/blade_v2.png\",\n  \"description\": \"Updated domain description\",\n  \"expansionId\": 1\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Domain",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/domains/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "domains",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Domain",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/domains/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "domains",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Features",
+                    "item": [
+                        {
+                            "name": "Get All Features",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/features",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "features"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Feature By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/features/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "features",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Feature",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/features",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "features"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Rage\",\n  \"description\": \"You can rage...\",\n  \"featureType\": \"CLASS\",\n  \"expansionId\": 1\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Feature",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/features/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "features",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Rage Updated\",\n  \"description\": \"Updated rage description\",\n  \"featureType\": \"CLASS\",\n  \"expansionId\": 1\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Feature",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/features/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "features",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Feature",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/features/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "features",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Questions",
+                    "item": [
+                        {
+                            "name": "Get All Questions",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/questions",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "questions"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Question By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/questions/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "questions",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Question",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/questions",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "questions"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"questionText\": \"What is your origin?\",\n  \"questionType\": \"BACKGROUND\",\n  \"expansionId\": 1\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Question",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/questions/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "questions",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"questionText\": \"What is your updated origin?\",\n  \"questionType\": \"BACKGROUND\",\n  \"expansionId\": 1\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Question",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/questions/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "questions",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Question",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/questions/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "questions",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Ancestry Cards",
+                    "item": [
+                        {
+                            "name": "Get All Ancestry Cards",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/ancestry",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "ancestry"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Ancestry Card By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/ancestry/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "ancestry",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Ancestry Card",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/ancestry",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "ancestry"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Human\",\n  \"description\": \"Versatile and ambitious\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"backgroundImageUrl\": \"http://example.com/human.jpg\",\n  \"featureIds\": [\n    1\n  ]\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Ancestry Card",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/ancestry/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "ancestry",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Human Updated\",\n  \"description\": \"Updated description\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"backgroundImageUrl\": \"http://example.com/human_v2.jpg\",\n  \"featureIds\": [\n    1\n  ]\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Ancestry Card",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/ancestry/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "ancestry",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Ancestry Card",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/ancestry/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "ancestry",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Community Cards",
+                    "item": [
+                        {
+                            "name": "Get All Community Cards",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/community",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "community"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Community Card By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/community/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "community",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Community Card",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/community",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "community"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Order of the Blade\",\n  \"description\": \"A community of warriors\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"backgroundImageUrl\": \"http://example.com/order.jpg\",\n  \"featureIds\": [\n    1\n  ]\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Community Card",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/community/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "community",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Order of the Blade Updated\",\n  \"description\": \"Updated description\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"backgroundImageUrl\": \"http://example.com/order_v2.jpg\",\n  \"featureIds\": [\n    1\n  ]\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Community Card",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/community/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "community",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Community Card",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/community/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "community",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Classes",
+                    "item": [
+                        {
+                            "name": "Get All Classes",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/classes",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "classes"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Class By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/classes/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "classes",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Class",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/classes",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "classes"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Warrior\",\n  \"description\": \"Master of weapons\",\n  \"expansionId\": 1,\n  \"startingClassItems\": \"A sword and shield\",\n  \"startingEvasion\": 10,\n  \"startingHitPoints\": 6,\n  \"associatedDomainIds\": [\n    1\n  ],\n  \"hopeFeatureIds\": [\n    1\n  ],\n  \"classFeatureIds\": [\n    1\n  ],\n  \"backgroundQuestionIds\": [\n    1\n  ],\n  \"connectionQuestionIds\": [\n    1\n  ]\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Class",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/classes/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "classes",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Warrior Updated\",\n  \"description\": \"Updated description\",\n  \"expansionId\": 1,\n  \"startingClassItems\": \"A sword and shield\",\n  \"startingEvasion\": 11,\n  \"startingHitPoints\": 7,\n  \"associatedDomainIds\": [\n    1\n  ],\n  \"hopeFeatureIds\": [\n    1\n  ],\n  \"classFeatureIds\": [\n    1\n  ],\n  \"backgroundQuestionIds\": [\n    1\n  ],\n  \"connectionQuestionIds\": [\n    1\n  ]\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Class",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/classes/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "classes",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Class",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/classes/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "classes",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Subclass Cards",
+                    "item": [
+                        {
+                            "name": "Get All Subclass Cards",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/subclass",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "subclass"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Subclass Card By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/subclass/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "subclass",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Subclass Card",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/subclass",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "subclass"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Berserker\",\n  \"description\": \"Fury unleashed\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"backgroundImageUrl\": \"http://example.com/berserker.jpg\",\n  \"featureIds\": [\n    1\n  ],\n  \"associatedClassId\": 1,\n  \"level\": \"FOUNDATION\",\n  \"associatedDomainIds\": [\n    1\n  ]\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Subclass Card",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/subclass/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "subclass",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Berserker Updated\",\n  \"description\": \"Updated description\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"backgroundImageUrl\": \"http://example.com/berserker_v2.jpg\",\n  \"featureIds\": [\n    1\n  ],\n  \"associatedClassId\": 1,\n  \"level\": \"FOUNDATION\",\n  \"associatedDomainIds\": [\n    1\n  ]\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Subclass Card",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/subclass/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "subclass",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Subclass Card",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/subclass/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "subclass",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                },
+                {
+                    "name": "Domain Cards",
+                    "item": [
+                        {
+                            "name": "Get All Domain Cards",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/domain",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "domain"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Get Domain Card By ID",
+                            "request": {
+                                "method": "GET",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/domain/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "domain",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Create Domain Card",
+                            "request": {
+                                "method": "POST",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/domain",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "domain"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Fireball\",\n  \"description\": \"Explosive fire\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"backgroundImageUrl\": \"http://example.com/fireball.jpg\",\n  \"featureIds\": [\n    1\n  ],\n  \"associatedDomainId\": 1,\n  \"level\": 1,\n  \"recallCost\": 2,\n  \"type\": \"SPELL\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Update Domain Card",
+                            "request": {
+                                "method": "PUT",
+                                "header": [
+                                    {
+                                        "key": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/domain/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "domain",
+                                        "1"
+                                    ]
+                                },
+                                "description": "",
+                                "body": {
+                                    "mode": "raw",
+                                    "raw": "{\n  \"name\": \"Fireball Updated\",\n  \"description\": \"Updated description\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"backgroundImageUrl\": \"http://example.com/fireball_v2.jpg\",\n  \"featureIds\": [\n    1\n  ],\n  \"associatedDomainId\": 1,\n  \"level\": 1,\n  \"recallCost\": 2,\n  \"type\": \"SPELL\"\n}",
+                                    "options": {
+                                        "raw": {
+                                            "language": "json"
+                                        }
+                                    }
+                                }
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Delete Domain Card",
+                            "request": {
+                                "method": "DELETE",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/domain/1",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "domain",
+                                        "1"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        },
+                        {
+                            "name": "Restore Domain Card",
+                            "request": {
+                                "method": "POST",
+                                "header": [],
+                                "url": {
+                                    "raw": "http://localhost:8080/api/dh/cards/domain/1/restore",
+                                    "protocol": "http",
+                                    "host": [
+                                        "localhost"
+                                    ],
+                                    "port": "8080",
+                                    "path": [
+                                        "api",
+                                        "dh",
+                                        "cards",
+                                        "domain",
+                                        "1",
+                                        "restore"
+                                    ]
+                                },
+                                "description": ""
+                            },
+                            "response": []
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
 }
