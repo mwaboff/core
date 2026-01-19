@@ -1,5 +1,6 @@
-package com.aboff.core.model.entity;
+package com.aboff.core.model.entity.dh;
 
+import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.enums.FeatureType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;

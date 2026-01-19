@@ -1,4 +1,4 @@
-package com.aboff.core.model.entity;
+package com.aboff.core.model.entity.dh;
 
 import com.aboff.core.model.enums.DomainCardType;
 import jakarta.persistence.*;

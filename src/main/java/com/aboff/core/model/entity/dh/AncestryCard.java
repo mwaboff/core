@@ -1,4 +1,4 @@
-package com.aboff.core.model.entity;
+package com.aboff.core.model.entity.dh;
 
 import jakarta.persistence.*;
 import lombok.Data;
