@@ -1,0 +1,2223 @@
+{
+  "info": {
+    "name": "Daggerheart API Collection",
+    "description": "Auto-generated comprehensive API collection for the Daggerheart TTRPG character management application. This collection includes all major endpoints for authentication, user management, admin operations, and Daggerheart game resources (cards, classes, domains, equipment, etc.).\n\nIMPORTANT: Most endpoints require authentication via httpOnly cookie. After logging in, the cookie will be automatically set and used for subsequent requests.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "userId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "expansionId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "classId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "domainId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "featureId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "cardId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "itemId",
+      "value": "1",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Authentication",
+      "description": "User authentication endpoints including registration, login, and logout",
+      "item": [
+        {
+          "name": "Register User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"newuser123\",\n  \"email\": \"user@example.com\",\n  \"password\": \"SecurePass123!\",\n  \"timezone\": \"America/New_York\",\n  \"avatarUrl\": \"https://example.com/avatar.png\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "register"]
+            },
+            "description": "Register a new user account. Username must be 3-100 characters with letters, numbers, underscores, or hyphens. Password must be 8-100 characters."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('username');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"usernameOrEmail\": \"newuser123\",\n  \"password\": \"SecurePass123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "login"]
+            },
+            "description": "Login with username or email. Sets an httpOnly authentication cookie for subsequent requests."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains user data\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('username');",
+                  "});",
+                  "",
+                  "pm.test(\"Authentication cookie is set\", function () {",
+                  "    pm.expect(pm.cookies.has('AUTH_TOKEN')).to.be.true;",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "auth", "logout"]
+            },
+            "description": "Logout current user, revoke token, and clear authentication cookie. Requires authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User profile management endpoints",
+      "item": [
+        {
+          "name": "Get Current User Profile",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Get the profile of the currently authenticated user. Requires authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response contains user profile\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.have.property('id');",
+                  "    pm.expect(jsonData).to.have.property('username');",
+                  "    pm.expect(jsonData).to.have.property('email');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "{{userId}}"]
+            },
+            "description": "Get user profile by ID. Requires authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Current User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"newemail@example.com\",\n  \"avatarUrl\": \"https://example.com/new-avatar.png\",\n  \"timezone\": \"America/Los_Angeles\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Update current user's profile information. All fields are optional. Requires authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change Password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"currentPassword\": \"SecurePass123!\",\n  \"newPassword\": \"NewSecurePass456!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me/change-password",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me", "change-password"]
+            },
+            "description": "Change current user's password. Invalidates all existing tokens. Requires authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "users", "me"]
+            },
+            "description": "Soft delete current user's account. Invalidates all tokens. Requires authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 204 No Content\", function () {",
+                  "    pm.response.to.have.status(204);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "description": "Administrative operations (requires ADMIN, MODERATOR, or OWNER role)",
+      "item": [
+        {
+          "name": "Get All Login History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/login-history?limit=100",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "login-history"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "100",
+                  "description": "Maximum number of records to return"
+                }
+              ]
+            },
+            "description": "Get all login attempts for security monitoring. Requires OWNER or ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test(\"Response is an array\", function () {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.expect(jsonData).to.be.an('array');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Login History by User ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/login-history/user/{{userId}}?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "login-history", "user", "{{userId}}"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get login attempts for a specific user. Requires OWNER or ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Login History by IP Address",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/login-history/ip/192.168.1.1?limit=50",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "login-history", "ip", "192.168.1.1"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "Get login attempts for a specific IP address. Requires OWNER or ADMIN role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ban User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{userId}}/ban",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", "{{userId}}", "ban"]
+            },
+            "description": "Ban a user account. Invalidates all tokens. Requires OWNER, ADMIN, or MODERATOR role with higher rank than target user."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Unban User",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{userId}}/unban",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", "{{userId}}", "unban"]
+            },
+            "description": "Unban a user account. Requires OWNER, ADMIN, or MODERATOR role with higher rank than target user."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change User Role",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"newRole\": \"ADMIN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/admin/users/{{userId}}/change-role",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "admin", "users", "{{userId}}", "change-role"]
+            },
+            "description": "Change a user's role. Valid roles: USER, MODERATOR, ADMIN, OWNER. Invalidates all user tokens. Requires OWNER role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Expansions",
+      "description": "Manage game expansions and content packs",
+      "item": [
+        {
+          "name": "Get All Expansions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/expansions?page=0&size=20&published=true",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "expansions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "published",
+                  "value": "true",
+                  "description": "Filter by published status"
+                },
+                {
+                  "key": "includeDeleted",
+                  "value": "false",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get paginated list of expansions. Requires authentication."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 200 OK\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Expansion by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/expansions/{{expansionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "expansions", "{{expansionId}}"]
+            },
+            "description": "Get a specific expansion by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Expansion",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Core Rulebook\",\n  \"isPublished\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/expansions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "expansions"]
+            },
+            "description": "Create a new expansion. Requires ADMIN or OWNER role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update Expansion",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Core Rulebook - Updated\",\n  \"isPublished\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/expansions/{{expansionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "expansions", "{{expansionId}}"]
+            },
+            "description": "Update an existing expansion. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Expansion",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/expansions/{{expansionId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "expansions", "{{expansionId}}"]
+            },
+            "description": "Soft delete an expansion. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Expansion",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/expansions/{{expansionId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "expansions", "{{expansionId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted expansion. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Classes",
+      "description": "Character classes management",
+      "item": [
+        {
+          "name": "Get All Classes",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/classes?page=0&size=20&expand=expansion,associatedDomains",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "classes"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "expansionId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion,associatedDomains"
+                }
+              ]
+            },
+            "description": "Get paginated list of character classes. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Class by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/classes/{{classId}}?expand=expansion,associatedDomains",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "classes", "{{classId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion,associatedDomains"
+                }
+              ]
+            },
+            "description": "Get a specific class by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Class",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Warrior\",\n  \"description\": \"A mighty fighter skilled in combat\",\n  \"expansionId\": 1,\n  \"startingClassItems\": \"Longsword, Shield, Chainmail\",\n  \"startingEvasion\": 12,\n  \"startingHitPoints\": 20,\n  \"associatedDomainIds\": [1, 2],\n  \"hopeFeatureIds\": [1],\n  \"classFeatureIds\": [2, 3],\n  \"backgroundQuestionIds\": [1, 2],\n  \"connectionQuestionIds\": [3, 4]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/classes",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "classes"]
+            },
+            "description": "Create a new character class. Requires ADMIN or OWNER role."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Status code is 201 Created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create Classes Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Rogue\",\n    \"description\": \"A stealthy infiltrator\",\n    \"expansionId\": 1,\n    \"startingEvasion\": 15,\n    \"startingHitPoints\": 16,\n    \"associatedDomainIds\": [1]\n  },\n  {\n    \"name\": \"Wizard\",\n    \"description\": \"A powerful spellcaster\",\n    \"expansionId\": 1,\n    \"startingEvasion\": 10,\n    \"startingHitPoints\": 14,\n    \"associatedDomainIds\": [2]\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/classes/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "classes", "bulk"]
+            },
+            "description": "Create multiple classes at once. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Class",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Warrior - Updated\",\n  \"description\": \"An even mightier fighter\",\n  \"startingEvasion\": 13,\n  \"startingHitPoints\": 22\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/classes/{{classId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "classes", "{{classId}}"]
+            },
+            "description": "Update an existing class. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Class",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/classes/{{classId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "classes", "{{classId}}"]
+            },
+            "description": "Soft delete a class. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Class",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/classes/{{classId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "classes", "{{classId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted class. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Domains",
+      "description": "Character domains management",
+      "item": [
+        {
+          "name": "Get All Domains",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/domains?page=0&size=20&expand=expansion",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "domains"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion"
+                }
+              ]
+            },
+            "description": "Get paginated list of domains. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Domain by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/domains/{{domainId}}?expand=expansion",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "domains", "{{domainId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion"
+                }
+              ]
+            },
+            "description": "Get a specific domain by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Domain",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Valor\",\n  \"description\": \"The domain of courage and heroism\",\n  \"expansionId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/domains",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "domains"]
+            },
+            "description": "Create a new domain. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Create Domains Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Arcana\",\n    \"description\": \"The domain of magic and knowledge\",\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Shadow\",\n    \"description\": \"The domain of stealth and deception\",\n    \"expansionId\": 1\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/domains/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "domains", "bulk"]
+            },
+            "description": "Create multiple domains at once. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Domain",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Valor - Updated\",\n  \"description\": \"Updated domain description\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/domains/{{domainId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "domains", "{{domainId}}"]
+            },
+            "description": "Update an existing domain. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Domain",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/domains/{{domainId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "domains", "{{domainId}}"]
+            },
+            "description": "Soft delete a domain. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Domain",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/domains/{{domainId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "domains", "{{domainId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted domain. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Features",
+      "description": "Character features and abilities",
+      "item": [
+        {
+          "name": "Get All Features",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/features?page=0&size=20&expand=expansion",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "features"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "featureType",
+                  "value": "CLASS_FEATURE",
+                  "disabled": true
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion"
+                }
+              ]
+            },
+            "description": "Get paginated list of features. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Feature by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/features/{{featureId}}?expand=expansion",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "features", "{{featureId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion"
+                }
+              ]
+            },
+            "description": "Get a specific feature by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Feature",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Second Wind\",\n  \"description\": \"Recover health during battle\",\n  \"expansionId\": 1,\n  \"featureType\": \"CLASS_FEATURE\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/features",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "features"]
+            },
+            "description": "Create a new feature. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Feature",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Second Wind - Improved\",\n  \"description\": \"Recover even more health\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/features/{{featureId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "features", "{{featureId}}"]
+            },
+            "description": "Update an existing feature. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Feature",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/features/{{featureId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "features", "{{featureId}}"]
+            },
+            "description": "Soft delete a feature. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Feature",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/features/{{featureId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "features", "{{featureId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted feature. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Weapons",
+      "description": "Weapon items management",
+      "item": [
+        {
+          "name": "Get All Weapons",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/weapons?page=0&size=20&isOfficial=true&expand=expansion,feature",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "weapons"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "isOfficial",
+                  "value": "true"
+                },
+                {
+                  "key": "trait",
+                  "value": "AGILITY",
+                  "disabled": true
+                },
+                {
+                  "key": "range",
+                  "value": "MELEE",
+                  "disabled": true
+                },
+                {
+                  "key": "isPrimary",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion,feature"
+                }
+              ]
+            },
+            "description": "Get paginated list of weapons. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Weapon by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/weapons/{{itemId}}?expand=expansion,feature,originalWeapon",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "weapons", "{{itemId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion,feature,originalWeapon"
+                }
+              ]
+            },
+            "description": "Get a specific weapon by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Weapon",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Longsword\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"isPrimary\": true,\n  \"trait\": \"STRENGTH\",\n  \"range\": \"MELEE\",\n  \"burden\": \"ONE_HANDED\",\n  \"damage\": {\n    \"diceCount\": 2,\n    \"diceType\": \"D6\",\n    \"modifier\": 0,\n    \"damageType\": \"PHYSICAL\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/weapons",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "weapons"]
+            },
+            "description": "Create a new weapon. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Create Weapons Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Dagger\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"isPrimary\": false,\n    \"trait\": \"AGILITY\",\n    \"range\": \"MELEE\",\n    \"burden\": \"ONE_HANDED\",\n    \"damage\": {\n      \"diceCount\": 1,\n      \"diceType\": \"D4\",\n      \"damageType\": \"PHYSICAL\"\n    }\n  },\n  {\n    \"name\": \"Shortbow\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"isPrimary\": true,\n    \"trait\": \"AGILITY\",\n    \"range\": \"RANGED\",\n    \"burden\": \"TWO_HANDED\",\n    \"damage\": {\n      \"diceCount\": 2,\n      \"diceType\": \"D6\",\n      \"damageType\": \"PHYSICAL\"\n    }\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/weapons/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "weapons", "bulk"]
+            },
+            "description": "Create multiple weapons at once. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Weapon",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Longsword +1\",\n  \"damage\": {\n    \"diceCount\": 2,\n    \"diceType\": \"D6\",\n    \"modifier\": 1,\n    \"damageType\": \"PHYSICAL\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/weapons/{{itemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "weapons", "{{itemId}}"]
+            },
+            "description": "Update an existing weapon. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Weapon",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/weapons/{{itemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "weapons", "{{itemId}}"]
+            },
+            "description": "Soft delete a weapon. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Weapon",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/weapons/{{itemId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "weapons", "{{itemId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted weapon. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Armor",
+      "description": "Armor items management",
+      "item": [
+        {
+          "name": "Get All Armor",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/armors?page=0&size=20&isOfficial=true&expand=expansion,feature",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "armors"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "isOfficial",
+                  "value": "true"
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion,feature"
+                }
+              ]
+            },
+            "description": "Get paginated list of armor items. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Armor by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/armors/{{itemId}}?expand=expansion,feature,originalArmor",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "armors", "{{itemId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion,feature,originalArmor"
+                }
+              ]
+            },
+            "description": "Get a specific armor by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Armor",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chainmail\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"armorSlots\": 2,\n  \"evasionModifier\": -1\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/armors",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "armors"]
+            },
+            "description": "Create a new armor item. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Create Armor Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Leather Armor\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"armorSlots\": 1,\n    \"evasionModifier\": 0\n  },\n  {\n    \"name\": \"Plate Mail\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"armorSlots\": 3,\n    \"evasionModifier\": -2\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/armors/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "armors", "bulk"]
+            },
+            "description": "Create multiple armor items at once. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Armor",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chainmail +1\",\n  \"armorSlots\": 2,\n  \"evasionModifier\": 0\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/armors/{{itemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "armors", "{{itemId}}"]
+            },
+            "description": "Update an existing armor. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Armor",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/armors/{{itemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "armors", "{{itemId}}"]
+            },
+            "description": "Soft delete an armor. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Armor",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/armors/{{itemId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "armors", "{{itemId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted armor. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Loot",
+      "description": "Loot items management",
+      "item": [
+        {
+          "name": "Get All Loot",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/loot?page=0&size=20&isOfficial=true&expand=expansion",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "loot"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "isOfficial",
+                  "value": "true"
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion"
+                }
+              ]
+            },
+            "description": "Get paginated list of loot items. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Loot by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/loot/{{itemId}}?expand=expansion,originalLoot",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "loot", "{{itemId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion,originalLoot"
+                }
+              ]
+            },
+            "description": "Get a specific loot item by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Loot",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Healing Potion\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"description\": \"Restores 2d6 hit points when consumed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/loot",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "loot"]
+            },
+            "description": "Create a new loot item. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Create Loot Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Rope (50 ft)\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"description\": \"Sturdy rope for climbing\"\n  },\n  {\n    \"name\": \"Torch\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"description\": \"Provides light in darkness\"\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/loot/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "loot", "bulk"]
+            },
+            "description": "Create multiple loot items at once. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Loot",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Greater Healing Potion\",\n  \"description\": \"Restores 4d6 hit points when consumed\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/loot/{{itemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "loot", "{{itemId}}"]
+            },
+            "description": "Update an existing loot item. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Loot",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/loot/{{itemId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "loot", "{{itemId}}"]
+            },
+            "description": "Soft delete a loot item. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Loot",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/loot/{{itemId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "loot", "{{itemId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted loot item. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Ancestry Cards",
+      "description": "Character ancestry cards management",
+      "item": [
+        {
+          "name": "Get All Ancestry Cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/ancestry?page=0&size=20&isOfficial=true&expand=expansion,features",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "ancestry"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "isOfficial",
+                  "value": "true"
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion,features"
+                }
+              ]
+            },
+            "description": "Get paginated list of ancestry cards. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Ancestry Card by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/ancestry/{{cardId}}?expand=expansion,features",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "ancestry", "{{cardId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion,features"
+                }
+              ]
+            },
+            "description": "Get a specific ancestry card by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Ancestry Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Human\",\n  \"description\": \"Versatile and adaptable\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"featureIds\": [1, 2]\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/ancestry",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "ancestry"]
+            },
+            "description": "Create a new ancestry card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Create Ancestry Cards Bulk",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "[\n  {\n    \"name\": \"Elf\",\n    \"description\": \"Graceful and long-lived\",\n    \"expansionId\": 1,\n    \"isOfficial\": true\n  },\n  {\n    \"name\": \"Dwarf\",\n    \"description\": \"Stout and resilient\",\n    \"expansionId\": 1,\n    \"isOfficial\": true\n  }\n]"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/ancestry/bulk",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "ancestry", "bulk"]
+            },
+            "description": "Create multiple ancestry cards at once. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Ancestry Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Human - Updated\",\n  \"description\": \"Even more versatile\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/ancestry/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "ancestry", "{{cardId}}"]
+            },
+            "description": "Update an existing ancestry card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Ancestry Card",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/ancestry/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "ancestry", "{{cardId}}"]
+            },
+            "description": "Soft delete an ancestry card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Ancestry Card",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/ancestry/{{cardId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "ancestry", "{{cardId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted ancestry card. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Community Cards",
+      "description": "Community cards management",
+      "item": [
+        {
+          "name": "Get All Community Cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/community?page=0&size=20&expand=expansion,features",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "community"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion,features"
+                }
+              ]
+            },
+            "description": "Get paginated list of community cards. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Community Card by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/community/{{cardId}}?expand=expansion,features",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "community", "{{cardId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion,features"
+                }
+              ]
+            },
+            "description": "Get a specific community card by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Community Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Guild Member\",\n  \"description\": \"Member of a prestigious guild\",\n  \"expansionId\": 1,\n  \"isOfficial\": true\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/community",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "community"]
+            },
+            "description": "Create a new community card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Community Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Guild Master\",\n  \"description\": \"Leader of a prestigious guild\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/community/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "community", "{{cardId}}"]
+            },
+            "description": "Update an existing community card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Community Card",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/community/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "community", "{{cardId}}"]
+            },
+            "description": "Soft delete a community card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Community Card",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/community/{{cardId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "community", "{{cardId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted community card. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Domain Cards",
+      "description": "Domain cards management",
+      "item": [
+        {
+          "name": "Get All Domain Cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/domain?page=0&size=20&expand=expansion,features,associatedDomain",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "domain"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "type",
+                  "value": "FOUNDATION",
+                  "disabled": true
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion,features,associatedDomain"
+                }
+              ]
+            },
+            "description": "Get paginated list of domain cards. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Domain Card by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/domain/{{cardId}}?expand=expansion,features,associatedDomain",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "domain", "{{cardId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion,features,associatedDomain"
+                }
+              ]
+            },
+            "description": "Get a specific domain card by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Domain Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Shield of Valor\",\n  \"description\": \"Protect your allies\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"associatedDomainId\": 1,\n  \"type\": \"FOUNDATION\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/domain",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "domain"]
+            },
+            "description": "Create a new domain card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Domain Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Greater Shield of Valor\",\n  \"description\": \"Protect even more allies\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/domain/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "domain", "{{cardId}}"]
+            },
+            "description": "Update an existing domain card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Domain Card",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/domain/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "domain", "{{cardId}}"]
+            },
+            "description": "Soft delete a domain card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Domain Card",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/domain/{{cardId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "domain", "{{cardId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted domain card. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Subclass Cards",
+      "description": "Subclass cards management",
+      "item": [
+        {
+          "name": "Get All Subclass Cards",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/subclass?page=0&size=20&expand=expansion,features,associatedClass",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "subclass"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "level",
+                  "value": "FIRST",
+                  "disabled": true
+                },
+                {
+                  "key": "associatedClassId",
+                  "value": "1",
+                  "disabled": true
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion,features,associatedClass"
+                }
+              ]
+            },
+            "description": "Get paginated list of subclass cards. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Subclass Card by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/subclass/{{cardId}}?expand=expansion,features,associatedClass",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "subclass", "{{cardId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion,features,associatedClass"
+                }
+              ]
+            },
+            "description": "Get a specific subclass card by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Subclass Card",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Battle Master\",\n  \"description\": \"Master of tactical combat\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"associatedClassId\": 1,\n  \"level\": \"FIRST\",\n  \"spellcasting\": false\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/subclass",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "subclass"]
+            },
+            "description": "Create a new subclass card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Subclass Card",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Grand Battle Master\",\n  \"description\": \"Supreme tactical genius\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/subclass/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "subclass", "{{cardId}}"]
+            },
+            "description": "Update an existing subclass card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Subclass Card",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/subclass/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "subclass", "{{cardId}}"]
+            },
+            "description": "Soft delete a subclass card. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Subclass Card",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/cards/subclass/{{cardId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "cards", "subclass", "{{cardId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted subclass card. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Daggerheart - Questions",
+      "description": "Character background and connection questions",
+      "item": [
+        {
+          "name": "Get All Questions",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/questions?page=0&size=20&expand=expansion",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "questions"],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "20"
+                },
+                {
+                  "key": "questionType",
+                  "value": "BACKGROUND",
+                  "disabled": true
+                },
+                {
+                  "key": "expand",
+                  "value": "expansion"
+                }
+              ]
+            },
+            "description": "Get paginated list of questions. Requires authentication."
+          }
+        },
+        {
+          "name": "Get Question by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/questions/{{cardId}}?expand=expansion",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "questions", "{{cardId}}"],
+              "query": [
+                {
+                  "key": "expand",
+                  "value": "expansion"
+                }
+              ]
+            },
+            "description": "Get a specific question by ID. Requires authentication."
+          }
+        },
+        {
+          "name": "Create Question",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionText\": \"What is your greatest fear?\",\n  \"expansionId\": 1,\n  \"questionType\": \"BACKGROUND\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/questions",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "questions"]
+            },
+            "description": "Create a new question. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Update Question",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"questionText\": \"What is your deepest fear?\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/questions/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "questions", "{{cardId}}"]
+            },
+            "description": "Update an existing question. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Delete Question",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/questions/{{cardId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "questions", "{{cardId}}"]
+            },
+            "description": "Soft delete a question. Requires ADMIN or OWNER role."
+          }
+        },
+        {
+          "name": "Restore Question",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/dh/questions/{{cardId}}/restore",
+              "host": ["{{baseUrl}}"],
+              "path": ["api", "dh", "questions", "{{cardId}}", "restore"]
+            },
+            "description": "Restore a soft-deleted question. Requires ADMIN or OWNER role."
+          }
+        }
+      ]
+    }
+  ]
+}

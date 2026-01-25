@@ -1,6 +1,7 @@
 package com.aboff.core.model.entity.dh;
 
 import com.aboff.core.model.enums.SubclassLevel;
+import com.aboff.core.model.enums.Trait;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -41,6 +42,14 @@ public class SubclassCard extends Card {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private SubclassLevel level;
+
+    /**
+     * The trait used for spellcasting with this subclass.
+     * Optional field - only applicable for subclasses that use spellcasting.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "spellcasting_trait", length = 20)
+    private Trait spellcastingTrait;
 
     /**
      * The domains associated with this subclass.

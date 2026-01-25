@@ -11,6 +11,7 @@ import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.SubclassLevel;
+import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -344,6 +345,89 @@ class SubclassCardServiceTest {
         verify(subclassCardRepository, never()).save(any());
     }
 
+    @Test
+    void createSubclassCard_WithSpellcastingTrait_CreatesCardWithTraitInfo() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Mage").expansion(expansion).startingEvasion(8).startingHitPoints(15).build();
+
+        CreateSubclassCardRequest request = CreateSubclassCardRequest.builder()
+                .name("Elementalist")
+                .description("Master of elemental magic")
+                .expansionId(1L)
+                .isOfficial(true)
+                .associatedClassId(1L)
+                .level(SubclassLevel.FOUNDATION)
+                .spellcastingTrait(Trait.KNOWLEDGE)
+                .build();
+
+        SubclassCard savedCard = SubclassCard.builder()
+                .id(1L)
+                .name("Elementalist")
+                .description("Master of elemental magic")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedClass(clazz)
+                .level(SubclassLevel.FOUNDATION)
+                .spellcastingTrait(Trait.KNOWLEDGE)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(subclassCardRepository.save(any(SubclassCard.class))).thenReturn(savedCard);
+
+        // Act
+        SubclassCardResponse result = subclassCardService.createSubclassCard(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getSpellcastingTrait()).isNotNull();
+        assertThat(result.getSpellcastingTrait().getTrait()).isEqualTo(Trait.KNOWLEDGE);
+        assertThat(result.getSpellcastingTrait().getDescription()).isEqualTo(Trait.KNOWLEDGE.getDescription());
+        assertThat(result.getSpellcastingTrait().getExamples()).isEqualTo(Trait.KNOWLEDGE.getExamples());
+        verify(subclassCardRepository).save(argThat(card -> card.getSpellcastingTrait() == Trait.KNOWLEDGE));
+    }
+
+    @Test
+    void createSubclassCard_WithoutSpellcastingTrait_CreatesCardWithNullTrait() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+
+        CreateSubclassCardRequest request = CreateSubclassCardRequest.builder()
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansionId(1L)
+                .isOfficial(true)
+                .associatedClassId(1L)
+                .level(SubclassLevel.FOUNDATION)
+                .build();
+
+        SubclassCard savedCard = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedClass(clazz)
+                .level(SubclassLevel.FOUNDATION)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(subclassCardRepository.save(any(SubclassCard.class))).thenReturn(savedCard);
+
+        // Act
+        SubclassCardResponse result = subclassCardService.createSubclassCard(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getSpellcastingTrait()).isNull();
+        verify(subclassCardRepository).save(argThat(card -> card.getSpellcastingTrait() == null));
+    }
+
     // ==================== CREATE SUBCLASS CARDS BULK TESTS ====================
 
     @Test
@@ -460,6 +544,95 @@ class SubclassCardServiceTest {
                 .hasMessage("SubclassCard not found with id: 999");
 
         verify(subclassCardRepository, never()).save(any());
+    }
+
+    @Test
+    void updateSubclassCard_UpdateSpellcastingTrait_UpdatesTraitSuccessfully() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Mage").expansion(expansion).startingEvasion(8).startingHitPoints(15).build();
+
+        SubclassCard existingCard = SubclassCard.builder()
+                .id(1L)
+                .name("Elementalist")
+                .description("Master of elemental magic")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedClass(clazz)
+                .level(SubclassLevel.FOUNDATION)
+                .spellcastingTrait(Trait.KNOWLEDGE)
+                .features(new HashSet<>())
+                .associatedDomains(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateSubclassCardRequest request = UpdateSubclassCardRequest.builder()
+                .name("Elementalist")
+                .description("Master of elemental magic")
+                .expansionId(1L)
+                .isOfficial(true)
+                .associatedClassId(1L)
+                .level(SubclassLevel.FOUNDATION)
+                .spellcastingTrait(Trait.INSTINCT)
+                .build();
+
+        when(subclassCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassCardResponse result = subclassCardService.updateSubclassCard(1L, request);
+
+        // Assert
+        assertThat(result.getSpellcastingTrait()).isNotNull();
+        assertThat(result.getSpellcastingTrait().getTrait()).isEqualTo(Trait.INSTINCT);
+        assertThat(result.getSpellcastingTrait().getDescription()).isEqualTo(Trait.INSTINCT.getDescription());
+        assertThat(result.getSpellcastingTrait().getExamples()).isEqualTo(Trait.INSTINCT.getExamples());
+        verify(subclassCardRepository).save(argThat(card -> card.getSpellcastingTrait() == Trait.INSTINCT));
+    }
+
+    @Test
+    void updateSubclassCard_RemoveSpellcastingTrait_SetsTraitToNull() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Mage").expansion(expansion).startingEvasion(8).startingHitPoints(15).build();
+
+        SubclassCard existingCard = SubclassCard.builder()
+                .id(1L)
+                .name("Elementalist")
+                .description("Master of elemental magic")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedClass(clazz)
+                .level(SubclassLevel.FOUNDATION)
+                .spellcastingTrait(Trait.KNOWLEDGE)
+                .features(new HashSet<>())
+                .associatedDomains(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateSubclassCardRequest request = UpdateSubclassCardRequest.builder()
+                .name("Elementalist")
+                .description("Master of elemental magic")
+                .expansionId(1L)
+                .isOfficial(true)
+                .associatedClassId(1L)
+                .level(SubclassLevel.FOUNDATION)
+                .spellcastingTrait(null)
+                .build();
+
+        when(subclassCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassCardResponse result = subclassCardService.updateSubclassCard(1L, request);
+
+        // Assert
+        assertThat(result.getSpellcastingTrait()).isNull();
+        verify(subclassCardRepository).save(argThat(card -> card.getSpellcastingTrait() == null));
     }
 
     // ==================== DELETE SUBCLASS CARD TESTS ====================

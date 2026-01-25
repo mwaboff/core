@@ -1,6 +1,7 @@
 package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.SubclassLevel;
+import com.aboff.core.model.enums.Trait;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -65,6 +66,11 @@ public class UpdateSubclassCardRequest {
      */
     @NotNull(message = "Subclass level is required")
     private SubclassLevel level;
+
+    /**
+     * The trait used for spellcasting with this subclass (optional)
+     */
+    private Trait spellcastingTrait;
 
     /**
      * IDs of associated domains
