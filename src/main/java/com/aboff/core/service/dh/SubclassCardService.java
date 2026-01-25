@@ -140,6 +140,7 @@ public class SubclassCardService {
                 .backgroundImageUrl(request.getBackgroundImageUrl())
                 .associatedClass(associatedClass)
                 .level(request.getLevel())
+                .spellcastingTrait(request.getSpellcastingTrait())
                 .build();
 
         // Set features if provided
@@ -188,6 +189,7 @@ public class SubclassCardService {
                             .backgroundImageUrl(request.getBackgroundImageUrl())
                             .associatedClass(associatedClass)
                             .level(request.getLevel())
+                            .spellcastingTrait(request.getSpellcastingTrait())
                             .build();
 
                     if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
@@ -242,6 +244,7 @@ public class SubclassCardService {
         card.setBackgroundImageUrl(request.getBackgroundImageUrl());
         card.setAssociatedClass(associatedClass);
         card.setLevel(request.getLevel());
+        card.setSpellcastingTrait(request.getSpellcastingTrait());
 
         // Update features
         if (request.getFeatureIds() != null) {
@@ -349,6 +352,15 @@ public class SubclassCardService {
                 .createdAt(card.getCreatedAt())
                 .lastModifiedAt(card.getLastModifiedAt())
                 .deletedAt(card.getDeletedAt());
+
+        // Add spellcasting trait info if present
+        if (card.getSpellcastingTrait() != null) {
+            builder.spellcastingTrait(SubclassCardResponse.TraitInfo.builder()
+                    .trait(card.getSpellcastingTrait())
+                    .description(card.getSpellcastingTrait().getDescription())
+                    .examples(card.getSpellcastingTrait().getExamples())
+                    .build());
+        }
 
         // Always include feature IDs
         if (card.getFeatures() != null) {

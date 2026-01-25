@@ -1,0 +1,84 @@
+package com.aboff.core.model.dto.dh.response;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+/**
+ * Response DTO for Loot entities.
+ * Represents loot items in the Daggerheart TTRPG system.
+ * <p>
+ * Supports expansion via the ?expand parameter:
+ * <ul>
+ *   <li>By default: returns expansionId, originalLootId only</li>
+ *   <li>With ?expand=expansion: includes full expansion object</li>
+ *   <li>With ?expand=originalLoot: includes full original loot object</li>
+ * </ul>
+ * </p>
+ */
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class LootResponse {
+
+    /**
+     * Unique identifier for the loot.
+     */
+    private Long id;
+
+    /**
+     * Name of the loot item.
+     */
+    private String name;
+
+    /**
+     * ID of the expansion this loot belongs to (always included).
+     */
+    private Long expansionId;
+
+    /**
+     * Full expansion object (included only when ?expand=expansion is specified).
+     */
+    private ExpansionResponse expansion;
+
+    /**
+     * Whether this loot is from official game content.
+     */
+    private Boolean isOfficial;
+
+    /**
+     * Description of the loot item.
+     */
+    private String description;
+
+    /**
+     * ID of the original loot if this is a custom copy (null if original).
+     */
+    private Long originalLootId;
+
+    /**
+     * Full original loot object (included only when ?expand=originalLoot is specified).
+     */
+    private LootResponse originalLoot;
+
+    /**
+     * Timestamp when the loot was created.
+     */
+    private LocalDateTime createdAt;
+
+    /**
+     * Timestamp when the loot was last modified.
+     */
+    private LocalDateTime lastModifiedAt;
+
+    /**
+     * Timestamp when the loot was soft-deleted (null if not deleted).
+     */
+    private LocalDateTime deletedAt;
+}

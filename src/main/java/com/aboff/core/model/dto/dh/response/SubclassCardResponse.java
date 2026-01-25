@@ -2,6 +2,7 @@ package com.aboff.core.model.dto.dh.response;
 
 import com.aboff.core.model.enums.CardType;
 import com.aboff.core.model.enums.SubclassLevel;
+import com.aboff.core.model.enums.Trait;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -96,6 +97,12 @@ public class SubclassCardResponse {
     private SubclassLevel level;
 
     /**
+     * The trait used for spellcasting with this subclass.
+     * Includes the trait name along with its description and examples.
+     */
+    private TraitInfo spellcastingTrait;
+
+    /**
      * IDs of associated domains (always included)
      */
     private List<Long> associatedDomainIds;
@@ -119,4 +126,29 @@ public class SubclassCardResponse {
      * Timestamp when the card was soft-deleted (null if not deleted)
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * Nested class containing trait information with metadata.
+     * Includes the trait name along with its description and usage examples.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class TraitInfo {
+        /**
+         * The trait name (e.g., AGILITY, KNOWLEDGE)
+         */
+        private Trait trait;
+
+        /**
+         * Description of what the trait represents
+         */
+        private String description;
+
+        /**
+         * Examples of when this trait is used
+         */
+        private String examples;
+    }
 }
