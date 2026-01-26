@@ -45,6 +45,33 @@ application:
     default-avatar-url: https://api.dicebear.com/7.x/avatars/svg?seed=default
     default-timezone: UTC
 
+# Daggerheart game configuration
+daggerheart:
+  character:
+    defaults:
+      level:
+        min: 1
+        max: 10
+        starting: 1
+      hit-points:
+        min: 0
+        starting: 6
+      stress:
+        min: 0
+        starting: 6
+      hope:
+        min: 0
+        starting: 2
+      armor:
+        min: 0
+        starting: 0
+      gold:
+        min: 0
+        starting: 0
+      trait-modifier:
+        min: -3
+        max: 3
+
 # Logging configuration for troubleshooting authentication issues
 # Set these to INFO in production
 logging:
