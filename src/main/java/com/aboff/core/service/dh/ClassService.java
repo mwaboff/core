@@ -28,6 +28,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.util.ExpandUtil;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -76,7 +78,7 @@ public class ClassService {
             classPage = classRepository.findByDeletedAtIsNullAndExpansion(expansionId, pageable);
         }
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
 
         return PagedResponse.<ClassResponse>builder()
                 .content(classPage.getContent().stream()
@@ -102,7 +104,7 @@ public class ClassService {
         Class clazz = classRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Class not found with id: " + id));
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
         return toResponse(clazz, expandSet);
     }
 
@@ -347,19 +349,6 @@ public class ClassService {
         log.info("Restored class with id: {}", id);
 
         return toResponse(restoredClass, Set.of());
-    }
-
-    /**
-     * Parses the expand parameter into a set of relationship names.
-     *
-     * @param expand Comma-separated list of relationships to expand
-     * @return Set of relationship names
-     */
-    private Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
-            return Set.of();
-        }
-        return new HashSet<>(List.of(expand.split(",")));
     }
 
     /**

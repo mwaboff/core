@@ -14,6 +14,8 @@ import com.aboff.core.repository.CampaignRepository;
 import com.aboff.core.repository.CharacterSheetRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -58,6 +60,7 @@ public class CampaignService {
     private final CampaignRepository campaignRepository;
     private final UserRepository userRepository;
     private final CharacterSheetRepository characterSheetRepository;
+    private final RoleHierarchyService roleHierarchyService;
 
     // ==================== CRUD OPERATIONS ====================
 
@@ -419,7 +422,7 @@ public class CampaignService {
         }
 
         // Must be a player in the campaign (or moderator)
-        if (!campaign.isPlayer(userId) && !hasModeratorRole(userDetails)) {
+        if (!campaign.isPlayer(userId) && !roleHierarchyService.hasModeratorOrHigher(userDetails)) {
             throw new InsufficientPermissionsException(
                     "You must be a player in this campaign to submit a character sheet");
         }
@@ -588,7 +591,7 @@ public class CampaignService {
         Long userId = userDetails.getUserId();
 
         boolean isCreator = campaign.isCreator(userId);
-        boolean isModerator = hasModeratorRole(userDetails);
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
 
         if (!isCreator && !isModerator) {
             throw new InsufficientPermissionsException(
@@ -614,7 +617,7 @@ public class CampaignService {
 
         boolean isCreator = campaign.isCreator(userId);
         boolean isGameMaster = campaign.isGameMaster(userId);
-        boolean isModerator = hasModeratorRole(userDetails);
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
 
         if (!isCreator && !isGameMaster && !isModerator) {
             throw new InsufficientPermissionsException(
@@ -639,7 +642,7 @@ public class CampaignService {
         Long userId = userDetails.getUserId();
 
         boolean isInvolved = campaign.isInvolved(userId);
-        boolean isModerator = hasModeratorRole(userDetails);
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
 
         if (!isInvolved && !isModerator) {
             throw new InsufficientPermissionsException(
@@ -647,30 +650,20 @@ public class CampaignService {
         }
     }
 
-    /**
-     * Checks if the user has MODERATOR, ADMIN, or OWNER role.
-     *
-     * @param userDetails The user details to check
-     * @return true if the user has a moderator-level role, false otherwise
-     */
-    private boolean hasModeratorRole(CustomUserDetails userDetails) {
-        return userDetails.getAuthorities().stream()
-                .anyMatch(auth -> auth.getAuthority().matches("ROLE_(MODERATOR|ADMIN|OWNER)"));
-    }
-
     // ==================== HELPER METHODS ====================
 
     /**
      * Parses the expand parameter into a set of relationship names.
+     * <p>
+     * Supports "all" expansion which includes all available relationships:
+     * creator, gameMasters, players, pendingCharacterSheets, playerCharacters, nonPlayerCharacters.
+     * </p>
      *
      * @param expand Comma-separated list of relationships to expand
      * @return Set of relationship names
      */
     private Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
-            return Set.of();
-        }
-        Set<String> expandSet = new HashSet<>(List.of(expand.split(",")));
+        Set<String> expandSet = new HashSet<>(ExpandUtil.parseExpand(expand));
         // Handle "all" expansion
         if (expandSet.contains("all")) {
             expandSet.add("creator");

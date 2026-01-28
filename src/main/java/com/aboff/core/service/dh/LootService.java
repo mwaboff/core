@@ -19,6 +19,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.util.ExpandUtil;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -65,7 +67,7 @@ public class LootService {
             lootPage = lootRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
         }
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
 
         return PagedResponse.<LootResponse>builder()
                 .content(lootPage.getContent().stream()
@@ -91,7 +93,7 @@ public class LootService {
         Loot loot = lootRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + id));
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
         return toResponse(loot, expandSet);
     }
 
@@ -255,19 +257,6 @@ public class LootService {
         log.info("Restored loot with id: {}", id);
 
         return toResponse(restoredLoot, Set.of());
-    }
-
-    /**
-     * Parses the expand parameter into a set of relationship names.
-     *
-     * @param expand Comma-separated list of relationships to expand
-     * @return Set of relationship names
-     */
-    private Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
-            return Set.of();
-        }
-        return new HashSet<>(List.of(expand.split(",")));
     }
 
     /**

@@ -3,6 +3,7 @@ package com.aboff.core.service;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.Role;
+import com.aboff.core.security.CustomUserDetails;
 import org.springframework.stereotype.Service;
 
 /**
@@ -76,5 +77,27 @@ public class RoleHierarchyService {
      */
     public boolean isPrivilegedRole(Role role) {
         return role == Role.OWNER || role == Role.ADMIN || role == Role.MODERATOR;
+    }
+
+    /**
+     * Checks if the user has at least MODERATOR role (MODERATOR, ADMIN, or OWNER).
+     * Convenience method for common access control checks.
+     *
+     * @param user the user to check
+     * @return true if the user has MODERATOR role or higher, false otherwise
+     */
+    public boolean hasModeratorOrHigher(User user) {
+        return hasRoleOrHigher(user, Role.MODERATOR);
+    }
+
+    /**
+     * Checks if the user has at least MODERATOR role (MODERATOR, ADMIN, or OWNER).
+     * Overload that accepts CustomUserDetails for use in service methods.
+     *
+     * @param userDetails the user details to check
+     * @return true if the user has MODERATOR role or higher, false otherwise
+     */
+    public boolean hasModeratorOrHigher(CustomUserDetails userDetails) {
+        return hasModeratorOrHigher(userDetails.getUser());
     }
 }
