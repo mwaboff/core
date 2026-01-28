@@ -13,6 +13,7 @@ import com.aboff.core.repository.CharacterSheetRepository;
 import com.aboff.core.repository.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +51,9 @@ class ExperienceServiceTest {
 
     @Mock
     private UserRepository userRepository;
+
+    @Mock
+    private RoleHierarchyService roleHierarchyService;
 
     @Mock
     private Authentication authentication;
@@ -380,6 +384,7 @@ class ExperienceServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(experienceRepository.findById(1L)).thenReturn(Optional.of(exp));
         when(experienceRepository.save(any(Experience.class))).thenReturn(updatedExp);
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
 
         // Act
         ExperienceResponse result = experienceService.updateExperience(1L, request, authentication);
@@ -515,6 +520,7 @@ class ExperienceServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(moderator);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(experienceRepository.findById(1L)).thenReturn(Optional.of(exp));
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
 
         // Act
         experienceService.deleteExperience(1L, authentication);

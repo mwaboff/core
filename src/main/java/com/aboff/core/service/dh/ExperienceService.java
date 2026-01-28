@@ -14,6 +14,8 @@ import com.aboff.core.repository.CharacterSheetRepository;
 import com.aboff.core.repository.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +52,7 @@ public class ExperienceService {
     private final ExperienceRepository experienceRepository;
     private final CharacterSheetRepository characterSheetRepository;
     private final UserRepository userRepository;
+    private final RoleHierarchyService roleHierarchyService;
 
     /**
      * Retrieves a paginated list of experiences.
@@ -86,7 +89,7 @@ public class ExperienceService {
             experiencePage = experienceRepository.findAll(pageable);
         }
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
 
         return PagedResponse.<ExperienceResponse>builder()
                 .content(experiencePage.getContent().stream()
@@ -112,7 +115,7 @@ public class ExperienceService {
         Experience experience = experienceRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Experience not found with id: " + id));
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
         return toResponse(experience, expandSet);
     }
 
@@ -241,36 +244,12 @@ public class ExperienceService {
 
         Long ownerId = experience.getCharacterSheet().getOwner().getId();
         boolean isOwner = ownerId.equals(userId);
-        boolean isModerator = hasModeratorRole(userDetails);
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
 
         if (!isOwner && !isModerator) {
             throw new InsufficientPermissionsException(
                     "You do not have permission to " + operation + " this experience");
         }
-    }
-
-    /**
-     * Checks if the user has MODERATOR, ADMIN, or OWNER role.
-     *
-     * @param userDetails The user details to check
-     * @return true if the user has a moderator-level role, false otherwise
-     */
-    private boolean hasModeratorRole(CustomUserDetails userDetails) {
-        return userDetails.getAuthorities().stream()
-                .anyMatch(auth -> auth.getAuthority().matches("ROLE_(MODERATOR|ADMIN|OWNER)"));
-    }
-
-    /**
-     * Parses the expand parameter into a set of relationship names.
-     *
-     * @param expand Comma-separated list of relationships to expand
-     * @return Set of relationship names
-     */
-    private Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
-            return Set.of();
-        }
-        return new HashSet<>(List.of(expand.split(",")));
     }
 
     /**

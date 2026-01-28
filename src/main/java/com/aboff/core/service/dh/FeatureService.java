@@ -20,6 +20,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.util.ExpandUtil;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -66,7 +68,7 @@ public class FeatureService {
             featurePage = featureRepository.findByDeletedAtIsNullAndFilters(expansionId, featureType, pageable);
         }
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
 
         return PagedResponse.<FeatureResponse>builder()
                 .content(featurePage.getContent().stream()
@@ -91,7 +93,7 @@ public class FeatureService {
         Feature feature = featureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Feature not found with id: " + id));
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
         return toResponse(feature, expandSet);
     }
 
@@ -192,19 +194,6 @@ public class FeatureService {
         log.info("Restored feature with id: {}", id);
 
         return toResponse(restoredFeature, Set.of());
-    }
-
-    /**
-     * Parses the expand parameter into a set of relationship names.
-     *
-     * @param expand Comma-separated list of relationships to expand
-     * @return Set of relationship names
-     */
-    private Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
-            return Set.of();
-        }
-        return new HashSet<>(List.of(expand.split(",")));
     }
 
     /**

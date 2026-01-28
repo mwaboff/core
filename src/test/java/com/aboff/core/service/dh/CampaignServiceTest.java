@@ -13,6 +13,7 @@ import com.aboff.core.repository.CampaignRepository;
 import com.aboff.core.repository.CharacterSheetRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +50,9 @@ class CampaignServiceTest {
 
     @Mock
     private CharacterSheetRepository characterSheetRepository;
+
+    @Mock
+    private RoleHierarchyService roleHierarchyService;
 
     @Mock
     private Authentication authentication;
@@ -172,6 +176,7 @@ class CampaignServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(moderator);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
 
         // Act
         CampaignResponse result = campaignService.getCampaignById(1L, null, authentication);
@@ -333,6 +338,7 @@ class CampaignServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
 
         // Act
         CampaignResponse result = campaignService.updateCampaign(1L, request, authentication);
@@ -415,6 +421,7 @@ class CampaignServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(moderator);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
 
         // Act
         campaignService.deleteCampaign(1L, authentication);

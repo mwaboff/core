@@ -3,6 +3,7 @@ package com.aboff.core.service;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.Role;
+import com.aboff.core.security.CustomUserDetails;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -215,5 +216,109 @@ class RoleHierarchyServiceTest {
     @Test
     void isPrivilegedRole_User_ReturnsFalse() {
         assertThat(roleHierarchyService.isPrivilegedRole(Role.USER)).isFalse();
+    }
+
+    // ==================== HAS_MODERATOR_OR_HIGHER (User) TESTS ====================
+
+    @Test
+    void hasModeratorOrHigher_User_Owner_ReturnsTrue() {
+        // Arrange
+        User owner = User.builder().id(1L).role(Role.OWNER).build();
+
+        // Act
+        boolean result = roleHierarchyService.hasModeratorOrHigher(owner);
+
+        // Assert
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void hasModeratorOrHigher_User_Admin_ReturnsTrue() {
+        // Arrange
+        User admin = User.builder().id(1L).role(Role.ADMIN).build();
+
+        // Act
+        boolean result = roleHierarchyService.hasModeratorOrHigher(admin);
+
+        // Assert
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void hasModeratorOrHigher_User_Moderator_ReturnsTrue() {
+        // Arrange
+        User moderator = User.builder().id(1L).role(Role.MODERATOR).build();
+
+        // Act
+        boolean result = roleHierarchyService.hasModeratorOrHigher(moderator);
+
+        // Assert
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void hasModeratorOrHigher_User_RegularUser_ReturnsFalse() {
+        // Arrange
+        User user = User.builder().id(1L).role(Role.USER).build();
+
+        // Act
+        boolean result = roleHierarchyService.hasModeratorOrHigher(user);
+
+        // Assert
+        assertThat(result).isFalse();
+    }
+
+    // ==================== HAS_MODERATOR_OR_HIGHER (CustomUserDetails) TESTS ====================
+
+    @Test
+    void hasModeratorOrHigher_CustomUserDetails_Owner_ReturnsTrue() {
+        // Arrange
+        User owner = User.builder().id(1L).role(Role.OWNER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+
+        // Act
+        boolean result = roleHierarchyService.hasModeratorOrHigher(userDetails);
+
+        // Assert
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void hasModeratorOrHigher_CustomUserDetails_Admin_ReturnsTrue() {
+        // Arrange
+        User admin = User.builder().id(1L).role(Role.ADMIN).build();
+        CustomUserDetails userDetails = new CustomUserDetails(admin);
+
+        // Act
+        boolean result = roleHierarchyService.hasModeratorOrHigher(userDetails);
+
+        // Assert
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void hasModeratorOrHigher_CustomUserDetails_Moderator_ReturnsTrue() {
+        // Arrange
+        User moderator = User.builder().id(1L).role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+
+        // Act
+        boolean result = roleHierarchyService.hasModeratorOrHigher(userDetails);
+
+        // Assert
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void hasModeratorOrHigher_CustomUserDetails_RegularUser_ReturnsFalse() {
+        // Arrange
+        User user = User.builder().id(1L).role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+
+        // Act
+        boolean result = roleHierarchyService.hasModeratorOrHigher(userDetails);
+
+        // Assert
+        assertThat(result).isFalse();
     }
 }

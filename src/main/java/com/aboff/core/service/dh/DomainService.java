@@ -19,6 +19,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.util.ExpandUtil;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -68,7 +70,7 @@ public class DomainService {
             domainPage = domainRepository.findByDeletedAtIsNullAndExpansion(expansionId, pageable);
         }
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
 
         return PagedResponse.<DomainResponse>builder()
                 .content(domainPage.getContent().stream()
@@ -94,7 +96,7 @@ public class DomainService {
         Domain domain = domainRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Domain not found with id: " + id));
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
         return toResponse(domain, expandSet);
     }
 
@@ -233,19 +235,6 @@ public class DomainService {
         log.info("Restored domain with id: {}", id);
 
         return toResponse(restoredDomain, Set.of());
-    }
-
-    /**
-     * Parses the expand parameter into a set of relationship names.
-     *
-     * @param expand Comma-separated list of relationships to expand
-     * @return Set of relationship names
-     */
-    private Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
-            return Set.of();
-        }
-        return new HashSet<>(List.of(expand.split(",")));
     }
 
     /**

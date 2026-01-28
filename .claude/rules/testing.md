@@ -10,11 +10,10 @@
 2. **Integration Tests** - API endpoints, database operations
 
 ## Test Rules
-1. Tests should be small - test one scenario at a time
-2. Test naming - `{ClassName}Test` for unit tests, `{ClassName}IntegrationTest` for integration tests
-3. Tests should be isolated - previous tests or modified objects should not affect subsequent tests
-4. **Update tests when modifying existing code** - when making changes to existing code, update the corresponding tests to maintain coverage and prevent regressions.
-5. **Validate after changes** - always run `./mvnw test` after making code or test changes to verify no regressions occur and all tests pass.
+1**REQUIREMENT:** DO create new or update existing tests for all new or modified code. Aim for 100% logic coverage.
+2**REQUIREMENT:** DO run tests to validate all changes made when coding. All tests must pass (green). Correct code and re-run tests until all pass. 
+
+DO name tests consistently - `{ClassName}Test` for unit tests, `{ClassName}IntegrationTest` for integration tests
 
 ## Edge Cases You MUST Test
 - Null/Undefined: What if input is null?

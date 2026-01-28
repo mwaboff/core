@@ -37,6 +37,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.util.ExpandUtil;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -112,7 +114,7 @@ public class AdversaryService {
                     user.getId(), expansionId, tier, adversaryType, isOfficial, name, pageable);
         }
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
 
         return PagedResponse.<AdversaryResponse>builder()
                 .content(adversaryPage.getContent().stream()
@@ -141,7 +143,7 @@ public class AdversaryService {
 
         validateViewPermission(adversary, auth);
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
         return toResponse(adversary, expandSet);
     }
 
@@ -542,16 +544,6 @@ public class AdversaryService {
             throw new IllegalArgumentException(
                     "Stress marked cannot exceed stress max");
         }
-    }
-
-    /**
-     * Parses the expand parameter into a set of relationship names.
-     */
-    private Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
-            return Set.of();
-        }
-        return new HashSet<>(List.of(expand.split(",")));
     }
 
     /**

@@ -13,6 +13,7 @@ import com.aboff.core.repository.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.*;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -68,6 +69,9 @@ class CharacterSheetServiceTest {
 
     @Mock
     private LootRepository lootRepository;
+
+    @Mock
+    private RoleHierarchyService roleHierarchyService;
 
     @Mock
     private Authentication authentication;
@@ -652,6 +656,7 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(moderator);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
 
         // Act
         characterSheetService.deleteCharacterSheet(1L, authentication);
@@ -1085,6 +1090,7 @@ class CharacterSheetServiceTest {
             saved.setExperiences(new HashSet<>());
             return saved;
         });
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
 
         // Act
         CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);

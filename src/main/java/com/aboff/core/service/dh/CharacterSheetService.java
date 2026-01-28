@@ -13,6 +13,8 @@ import com.aboff.core.repository.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.*;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +58,7 @@ public class CharacterSheetService {
     private final AncestryCardRepository ancestryCardRepository;
     private final SubclassCardRepository subclassCardRepository;
     private final LootRepository lootRepository;
+    private final RoleHierarchyService roleHierarchyService;
 
     /**
      * Retrieves a paginated list of character sheets.
@@ -89,7 +92,7 @@ public class CharacterSheetService {
         Page<CharacterSheet> characterSheetPage = characterSheetRepository.findActiveWithFilters(
                 ownerId, name, minLevel, maxLevel, pageable);
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
 
         return PagedResponse.<CharacterSheetResponse>builder()
                 .content(characterSheetPage.getContent().stream()
@@ -115,7 +118,7 @@ public class CharacterSheetService {
         CharacterSheet characterSheet = characterSheetRepository.findActiveById(id)
                 .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
 
-        Set<String> expandSet = parseExpand(expand);
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
         return toResponse(characterSheet, expandSet);
     }
 
@@ -506,23 +509,12 @@ public class CharacterSheetService {
 
         Long ownerId = characterSheet.getOwner().getId();
         boolean isOwner = ownerId.equals(userId);
-        boolean isModerator = hasModeratorRole(userDetails);
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
 
         if (!isOwner && !isModerator) {
             throw new InsufficientPermissionsException(
                     "You do not have permission to " + operation + " this character sheet");
         }
-    }
-
-    /**
-     * Checks if the user has MODERATOR, ADMIN, or OWNER role.
-     *
-     * @param userDetails The user details to check
-     * @return true if the user has a moderator-level role, false otherwise
-     */
-    private boolean hasModeratorRole(CustomUserDetails userDetails) {
-        return userDetails.getAuthorities().stream()
-                .anyMatch(auth -> auth.getAuthority().matches("ROLE_(MODERATOR|ADMIN|OWNER)"));
     }
 
     /**
@@ -565,19 +557,6 @@ public class CharacterSheetService {
                     "Severe damage threshold (" + sheet.getSevereDamageThreshold() +
                     ") must be greater than or equal to major damage threshold (" + sheet.getMajorDamageThreshold() + ")");
         }
-    }
-
-    /**
-     * Parses the expand parameter into a set of relationship names.
-     *
-     * @param expand Comma-separated list of relationships to expand
-     * @return Set of relationship names
-     */
-    private Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
-            return Set.of();
-        }
-        return new HashSet<>(List.of(expand.split(",")));
     }
 
     /**
