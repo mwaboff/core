@@ -1,0 +1,1450 @@
+{
+	"info": {
+		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+		"name": "Daggerheart Core API Collection",
+		"description": "Auto-generated comprehensive Postman Collection for the Daggerheart TTRPG Core API. Includes authentication, user management, character sheets, campaigns, and all game content endpoints.\n\nAuthentication uses HTTP-only cookies. After login, the AUTH_TOKEN cookie is automatically set and used for subsequent requests.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080",
+			"type": "string"
+		},
+		{
+			"key": "userId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "characterSheetId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "campaignId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "experienceId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "adversaryId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "expansionId",
+			"value": "1",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"description": "User authentication endpoints including registration, login, and logout",
+			"item": [
+				{
+					"name": "Register New User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has user data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('username');",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"});",
+									"",
+									"// Save user ID for future requests",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"userId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"username\": \"aragorn_ranger\",\n  \"email\": \"aragorn@gondor.com\",\n  \"password\": \"Strider123!\",\n  \"timezone\": \"America/New_York\",\n  \"avatarUrl\": \"https://api.dicebear.com/7.x/avatars/svg?seed=aragorn\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/register",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"register"
+							]
+						},
+						"description": "Register a new user account. Password must be at least 8 characters with uppercase, lowercase, digit, and special character."
+					},
+					"response": []
+				},
+				{
+					"name": "Login User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"AUTH_TOKEN cookie is set\", function () {",
+									"    pm.expect(pm.cookies.has('AUTH_TOKEN')).to.be.true;",
+									"});",
+									"",
+									"pm.test(\"Response has user data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('username');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"usernameOrEmail\": \"aragorn_ranger\",\n  \"password\": \"Strider123!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"login"
+							]
+						},
+						"description": "Login with username/email and password. Sets AUTH_TOKEN cookie for subsequent requests."
+					},
+					"response": []
+				},
+				{
+					"name": "Logout User",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 204\", function () {",
+									"    pm.response.to.have.status(204);",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/auth/logout",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"auth",
+								"logout"
+							]
+						},
+						"description": "Logout current user and clear AUTH_TOKEN cookie. Requires authentication."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "User Management",
+			"description": "User profile and account management endpoints",
+			"item": [
+				{
+					"name": "Get Current User Profile",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has user data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('username');",
+									"    pm.expect(jsonData).to.have.property('email');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"me"
+							]
+						},
+						"description": "Get the current authenticated user's profile. Requires authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "Get User by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"{{userId}}"
+							]
+						},
+						"description": "Get a user's profile by ID. Requires authentication."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Current User Profile",
+					"request": {
+						"method": "PATCH",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"aragorn.updated@gondor.com\",\n  \"timezone\": \"America/Los_Angeles\",\n  \"avatarUrl\": \"https://api.dicebear.com/7.x/avatars/svg?seed=aragorn2\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"me"
+							]
+						},
+						"description": "Update the current user's profile. Partial updates supported."
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"currentPassword\": \"Strider123!\",\n  \"newPassword\": \"NewStrider456!\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me/change-password",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"me",
+								"change-password"
+							]
+						},
+						"description": "Change the current user's password. Invalidates all existing tokens."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Current User Account",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/users/me",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"users",
+								"me"
+							]
+						},
+						"description": "Soft delete the current user's account. Invalidates all tokens."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Character Sheets",
+			"description": "Character sheet CRUD operations for Daggerheart TTRPG",
+			"item": [
+				{
+					"name": "List All Character Sheets (Moderator)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets?page=0&size=20&expand=owner",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "ownerId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "name",
+									"value": "Aragorn",
+									"disabled": true
+								},
+								{
+									"key": "minLevel",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "maxLevel",
+									"value": "10",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "owner"
+								}
+							]
+						},
+						"description": "Get paginated list of character sheets. Requires MODERATOR/ADMIN/OWNER role. Supports filtering by owner, name, and level."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Character Sheet by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has character data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"    pm.expect(jsonData).to.have.property('level');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}?expand=owner,experiences",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets",
+								"{{characterSheetId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "owner,experiences"
+								}
+							]
+						},
+						"description": "Get a character sheet by ID. Any authenticated user can view."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Character Sheet",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"characterSheetId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Aragorn Elessar\",\n  \"pronouns\": \"he/him\",\n  \"level\": 5,\n  \"evasion\": 12,\n  \"armorMax\": 5,\n  \"armorMarked\": 0,\n  \"majorDamageThreshold\": 3,\n  \"severeDamageThreshold\": 6,\n  \"agilityModifier\": 2,\n  \"agilityMarked\": false,\n  \"strengthModifier\": 3,\n  \"strengthMarked\": false,\n  \"finesseModifier\": 1,\n  \"finesseMarked\": false,\n  \"instinctModifier\": 2,\n  \"instinctMarked\": false,\n  \"presenceModifier\": 2,\n  \"presenceMarked\": false,\n  \"knowledgeModifier\": 0,\n  \"knowledgeMarked\": false,\n  \"hitPointMax\": 12,\n  \"hitPointMarked\": 0,\n  \"stressMax\": 6,\n  \"stressMarked\": 0,\n  \"hopeMax\": 3,\n  \"hopeMarked\": 0,\n  \"gold\": 100\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets"
+							]
+						},
+						"description": "Create a new character sheet. Authenticated user becomes the owner."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Character Sheet",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"level\": 6,\n  \"hitPointMax\": 14,\n  \"gold\": 150,\n  \"hopeMarked\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets",
+								"{{characterSheetId}}"
+							]
+						},
+						"description": "Update character sheet. Only owner or moderators can update. Partial updates supported."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Character Sheet",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets",
+								"{{characterSheetId}}"
+							]
+						},
+						"description": "Soft delete a character sheet. Only owner or moderators can delete."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Experiences",
+			"description": "Character experience management",
+			"item": [
+				{
+					"name": "List Experiences for Character",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets",
+								"{{characterSheetId}}",
+								"experiences"
+							]
+						},
+						"description": "Get all experiences for a character sheet."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Experience by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences/{{experienceId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets",
+								"{{characterSheetId}}",
+								"experiences",
+								"{{experienceId}}"
+							]
+						},
+						"description": "Get a specific experience by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Experience",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"experienceId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Survived battle at Helm's Deep\",\n  \"modifier\": 2\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets",
+								"{{characterSheetId}}",
+								"experiences"
+							]
+						},
+						"description": "Create a new experience for a character sheet."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Experience",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Led the charge at Helm's Deep\",\n  \"modifier\": 3\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences/{{experienceId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets",
+								"{{characterSheetId}}",
+								"experiences",
+								"{{experienceId}}"
+							]
+						},
+						"description": "Update an experience."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Experience",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences/{{experienceId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"character-sheets",
+								"{{characterSheetId}}",
+								"experiences",
+								"{{experienceId}}"
+							]
+						},
+						"description": "Delete an experience."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Campaigns",
+			"description": "Campaign management for group play",
+			"item": [
+				{
+					"name": "List All Campaigns (Moderator)",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns?page=0&size=20&expand=creator,gameMasters",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "creatorId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "name",
+									"value": "Dragon Hunt",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "creator,gameMasters"
+								}
+							]
+						},
+						"description": "Get paginated list of campaigns. Requires MODERATOR/ADMIN/OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Campaign by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has campaign data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}?expand=all",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "all",
+									"description": "Options: creator, gameMasters, players, pendingCharacterSheets, playerCharacters, nonPlayerCharacters, all"
+								}
+							]
+						},
+						"description": "Get campaign by ID. Only participants or moderators can view."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Campaign",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"campaignId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"The Quest for the Dragon's Hoard\",\n  \"description\": \"A epic campaign to retrieve the lost treasures of Mount Gundabad. Players will face dragons, orcs, and ancient curses.\",\n  \"gameMasterIds\": [],\n  \"playerIds\": []\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns"
+							]
+						},
+						"description": "Create a new campaign. Creator automatically becomes a game master."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Campaign",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"The Quest for the Dragon's Hoard - Chapter 2\",\n  \"description\": \"The adventure continues as our heroes delve deeper into the mountain.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}"
+							]
+						},
+						"description": "Update campaign. Only creator or moderators can update."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Campaign",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}"
+							]
+						},
+						"description": "Soft delete a campaign. Only creator or moderators can delete."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Game Master",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/game-masters/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"game-masters",
+								"{{userId}}"
+							]
+						},
+						"description": "Add a user as a game master. Only creator or moderators can add GMs."
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Game Master",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/game-masters/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"game-masters",
+								"{{userId}}"
+							]
+						},
+						"description": "Remove a game master. Cannot remove the creator."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Player",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/players/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"players",
+								"{{userId}}"
+							]
+						},
+						"description": "Add a player to the campaign. Requires GM access."
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Player",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/players/{{userId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"players",
+								"{{userId}}"
+							]
+						},
+						"description": "Remove a player from the campaign. Requires GM access."
+					},
+					"response": []
+				},
+				{
+					"name": "Submit Character Sheet",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/character-sheets/{{characterSheetId}}/submit",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"character-sheets",
+								"{{characterSheetId}}",
+								"submit"
+							]
+						},
+						"description": "Submit a character sheet for GM approval. Must be the sheet owner and a player in the campaign."
+					},
+					"response": []
+				},
+				{
+					"name": "Approve Character Sheet",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/character-sheets/{{characterSheetId}}/approve",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"character-sheets",
+								"{{characterSheetId}}",
+								"approve"
+							]
+						},
+						"description": "Approve a pending character sheet. Requires GM access. Moves sheet from pending to player characters."
+					},
+					"response": []
+				},
+				{
+					"name": "Reject Character Sheet",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/character-sheets/{{characterSheetId}}/reject",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"character-sheets",
+								"{{characterSheetId}}",
+								"reject"
+							]
+						},
+						"description": "Reject a pending character sheet. Requires GM access. Removes sheet from pending."
+					},
+					"response": []
+				},
+				{
+					"name": "Add NPC",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/npcs/{{characterSheetId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"npcs",
+								"{{characterSheetId}}"
+							]
+						},
+						"description": "Add a character as an NPC to the campaign. Requires GM access."
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Character Sheet",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/campaigns/{{campaignId}}/character-sheets/{{characterSheetId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"campaigns",
+								"{{campaignId}}",
+								"character-sheets",
+								"{{characterSheetId}}"
+							]
+						},
+						"description": "Remove a character sheet from the campaign. Requires GM access. Removes from all collections."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Adversaries",
+			"description": "Adversary (enemy/NPC) management for Daggerheart TTRPG",
+			"item": [
+				{
+					"name": "List Adversaries",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries?page=0&size=20&expand=expansion,creator",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "tier",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "adversaryType",
+									"value": "STANDARD",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "name",
+									"value": "Goblin",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,creator"
+								}
+							]
+						},
+						"description": "Get paginated list of adversaries. Returns official, public, and user's own adversaries. Filters: expansionId, tier (1-4), adversaryType, isOfficial, name. Expand options: expansion, creator, originalAdversary, experiences, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Adversary by ID",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 200\", function () {",
+									"    pm.response.to.have.status(200);",
+									"});",
+									"",
+									"pm.test(\"Response has adversary data\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('id');",
+									"    pm.expect(jsonData).to.have.property('name');",
+									"    pm.expect(jsonData).to.have.property('tier');",
+									"    pm.expect(jsonData).to.have.property('adversaryType');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries/{{adversaryId}}?expand=expansion,creator,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries",
+								"{{adversaryId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,creator,features"
+								}
+							]
+						},
+						"description": "Get an adversary by ID. Access restricted to official, public, or user's own adversaries."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Adversary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"adversaryId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Goblin Bruiser\",\n  \"tier\": 1,\n  \"adversaryType\": \"BRUISER\",\n  \"description\": \"A muscular goblin wielding a crude mace, covered in tribal scars.\",\n  \"motivesAndTactics\": \"Charges into melee and targets the weakest-looking enemy. Retreats if badly wounded.\",\n  \"difficulty\": 3,\n  \"majorThreshold\": 5,\n  \"severeThreshold\": 10,\n  \"hitPointMax\": 8,\n  \"stressMax\": 4,\n  \"attackModifier\": 2,\n  \"weaponName\": \"Crude Mace\",\n  \"attackRange\": \"MELEE\",\n  \"damage\": {\n    \"diceCount\": 1,\n    \"diceType\": \"D8\",\n    \"modifier\": 2,\n    \"damageType\": \"PHYSICAL\"\n  },\n  \"expansionId\": {{expansionId}},\n  \"isPublic\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries"
+							]
+						},
+						"description": "Create a new adversary. Authenticated user becomes the creator. Non-official by default."
+					},
+					"response": []
+				},
+				{
+					"name": "Batch Create Adversaries",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201 or 207\", function () {",
+									"    pm.expect([201, 207]).to.include(pm.response.code);",
+									"});",
+									"",
+									"pm.test(\"Response has batch results\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('created');",
+									"    pm.expect(jsonData).to.have.property('totalRequested');",
+									"    pm.expect(jsonData).to.have.property('totalCreated');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"adversaries\": [\n    {\n      \"name\": \"Goblin Scout\",\n      \"tier\": 1,\n      \"adversaryType\": \"SKULK\",\n      \"description\": \"A sneaky goblin with a shortbow.\",\n      \"difficulty\": 2,\n      \"majorThreshold\": 3,\n      \"severeThreshold\": 6,\n      \"hitPointMax\": 4,\n      \"stressMax\": 2,\n      \"attackModifier\": 3,\n      \"weaponName\": \"Shortbow\",\n      \"attackRange\": \"FAR\",\n      \"damage\": {\n        \"diceCount\": 1,\n        \"diceType\": \"D6\",\n        \"modifier\": 1,\n        \"damageType\": \"PHYSICAL\"\n      },\n      \"expansionId\": {{expansionId}},\n      \"isPublic\": false\n    },\n    {\n      \"name\": \"Goblin Shaman\",\n      \"tier\": 1,\n      \"adversaryType\": \"SUPPORT\",\n      \"description\": \"A goblin wearing bone fetishes and carrying a gnarled staff.\",\n      \"difficulty\": 4,\n      \"majorThreshold\": 4,\n      \"severeThreshold\": 8,\n      \"hitPointMax\": 6,\n      \"stressMax\": 6,\n      \"attackModifier\": 1,\n      \"weaponName\": \"Spirit Bolt\",\n      \"attackRange\": \"CLOSE\",\n      \"damage\": {\n        \"diceCount\": 1,\n        \"diceType\": \"D6\",\n        \"modifier\": 0,\n        \"damageType\": \"MAGICAL\"\n      },\n      \"expansionId\": {{expansionId}},\n      \"isPublic\": false\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries/batch",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries",
+								"batch"
+							]
+						},
+						"description": "Batch create multiple adversaries. Requires MODERATOR+ role. Supports partial success - returns created adversaries and errors. Max 100 per batch."
+					},
+					"response": []
+				},
+				{
+					"name": "Copy Adversary",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"pm.test(\"Status code is 201\", function () {",
+									"    pm.response.to.have.status(201);",
+									"});",
+									"",
+									"pm.test(\"Response has originalAdversaryId\", function () {",
+									"    var jsonData = pm.response.json();",
+									"    pm.expect(jsonData).to.have.property('originalAdversaryId');",
+									"});"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries/{{adversaryId}}/copy",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries",
+								"{{adversaryId}}",
+								"copy"
+							]
+						},
+						"description": "Create a copy of an existing adversary. The copy is private by default and linked to the original via originalAdversaryId. Allows users to customize adversaries while keeping reference to the original for reverting changes."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Adversary",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Elite Goblin Bruiser\",\n  \"difficulty\": 4,\n  \"hitPointMax\": 12,\n  \"attackModifier\": 3,\n  \"isPublic\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries/{{adversaryId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries",
+								"{{adversaryId}}"
+							]
+						},
+						"description": "Update an adversary. Partial updates supported. Permission: Official adversaries require OWNER role. Non-official adversaries can be modified by creator OR MODERATOR+ role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Adversary",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries/{{adversaryId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries",
+								"{{adversaryId}}"
+							]
+						},
+						"description": "Soft delete an adversary. Permission: Official adversaries require OWNER role. Non-official adversaries can be deleted by creator OR MODERATOR+ role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Adversary",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries/{{adversaryId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries",
+								"{{adversaryId}}",
+								"restore"
+							]
+						},
+						"description": "Restore a soft-deleted adversary. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "noauth"
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	]
+}
