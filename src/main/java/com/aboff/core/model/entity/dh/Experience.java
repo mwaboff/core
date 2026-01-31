@@ -42,12 +42,21 @@ public class Experience extends BaseEntity {
 
     /**
      * The character sheet this experience belongs to.
-     * Each experience is permanently tied to a specific character.
+     * An experience belongs to either a character sheet or a companion, but not both.
      * When the character sheet is deleted, all associated experiences are also deleted.
      */
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "character_sheet_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "character_sheet_id")
     private CharacterSheet characterSheet;
+
+    /**
+     * The companion this experience belongs to.
+     * An experience belongs to either a character sheet or a companion, but not both.
+     * When the companion is deleted, all associated experiences are also deleted.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "companion_id")
+    private Companion companion;
 
     /**
      * The user who created this experience entry.

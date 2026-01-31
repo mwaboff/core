@@ -10,9 +10,12 @@ import lombok.NoArgsConstructor;
  * Request DTO for creating a new Experience.
  * <p>
  * Experiences represent significant events, accomplishments, and learning moments
- * for a character in the Daggerheart TTRPG system. Each experience provides a
- * modifier (default +2) that applies when the character attempts actions related
+ * for a character or companion in the Daggerheart TTRPG system. Each experience provides a
+ * modifier (default +2) that applies when the character/companion attempts actions related
  * to that experience.
+ * </p>
+ * <p>
+ * Exactly one of characterSheetId or companionId must be provided.
  * </p>
  */
 @Data
@@ -23,9 +26,15 @@ public class CreateExperienceRequest {
 
     /**
      * ID of the character sheet this experience belongs to.
+     * Either this or companionId must be provided, but not both.
      */
-    @NotNull(message = "Character sheet ID is required")
     private Long characterSheetId;
+
+    /**
+     * ID of the companion this experience belongs to.
+     * Either this or characterSheetId must be provided, but not both.
+     */
+    private Long companionId;
 
     /**
      * Detailed description of the experience.
