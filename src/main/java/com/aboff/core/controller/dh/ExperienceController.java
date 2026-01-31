@@ -36,14 +36,15 @@ public class ExperienceController {
     /**
      * Retrieves a paginated list of experiences.
      * <p>
-     * Optionally filters by character sheet ID to show experiences for a
-     * specific character.
+     * Optionally filters by character sheet ID or companion ID to show experiences for a
+     * specific character or companion.
      * </p>
      *
      * @param page Zero-based page number (default: 0)
      * @param size Number of items per page (default: 20, max: 100)
      * @param characterSheetId Optional filter for character sheet ID
-     * @param expand Comma-separated list of relationships to expand (e.g., "characterSheet,createdBy")
+     * @param companionId Optional filter for companion ID
+     * @param expand Comma-separated list of relationships to expand (e.g., "characterSheet,companion,createdBy")
      * @return Paginated response containing experiences
      */
     @GetMapping
@@ -51,10 +52,11 @@ public class ExperienceController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) Long characterSheetId,
+            @RequestParam(required = false) Long companionId,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<ExperienceResponse> response = experienceService.getAllExperiences(
-                page, size, characterSheetId, expand);
+                page, size, characterSheetId, companionId, expand);
 
         return ResponseEntity.ok(response);
     }
@@ -63,7 +65,7 @@ public class ExperienceController {
      * Retrieves a single experience by ID.
      *
      * @param id The experience ID
-     * @param expand Comma-separated list of relationships to expand (e.g., "characterSheet,createdBy")
+     * @param expand Comma-separated list of relationships to expand (e.g., "characterSheet,companion,createdBy")
      * @return ExperienceResponse containing the experience details
      */
     @GetMapping("/{id}")

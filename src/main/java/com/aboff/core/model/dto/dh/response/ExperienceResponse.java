@@ -11,11 +11,12 @@ import java.time.LocalDateTime;
 
 /**
  * Response DTO for Experience entities.
- * Represents an experience entry for a character in the Daggerheart TTRPG system.
+ * Represents an experience entry for a character or companion in the Daggerheart TTRPG system.
  * <p>
  * Supports expansion via the ?expand parameter:
  * - By default: returns IDs only for relationships
  * - With ?expand=characterSheet: includes full character sheet object
+ * - With ?expand=companion: includes full companion object
  * - With ?expand=createdBy: includes full user object
  * - Multiple expansions can be comma-separated: ?expand=characterSheet,createdBy
  * </p>
@@ -41,6 +42,16 @@ public class ExperienceResponse {
      * Full character sheet object (included only when ?expand=characterSheet is specified)
      */
     private CharacterSheetResponse characterSheet;
+
+    /**
+     * ID of the companion this experience belongs to (always included if applicable)
+     */
+    private Long companionId;
+
+    /**
+     * Full companion object (included only when ?expand=companion is specified)
+     */
+    private CompanionResponse companion;
 
     /**
      * ID of the user who created this experience (always included)
