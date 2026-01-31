@@ -96,7 +96,7 @@ class ExperienceServiceTest {
         when(experienceRepository.findAll(any(Pageable.class))).thenReturn(experiencePage);
 
         // Act
-        PagedResponse<ExperienceResponse> result = experienceService.getAllExperiences(0, 20, null, null);
+        PagedResponse<ExperienceResponse> result = experienceService.getAllExperiences(0, 20, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -131,7 +131,7 @@ class ExperienceServiceTest {
         when(experienceRepository.findByCharacterSheetId(eq(1L), any(Pageable.class))).thenReturn(experiencePage);
 
         // Act
-        PagedResponse<ExperienceResponse> result = experienceService.getAllExperiences(0, 20, 1L, null);
+        PagedResponse<ExperienceResponse> result = experienceService.getAllExperiences(0, 20, 1L, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -146,7 +146,7 @@ class ExperienceServiceTest {
         when(characterSheetRepository.findActiveById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> experienceService.getAllExperiences(0, 20, 999L, null))
+        assertThatThrownBy(() -> experienceService.getAllExperiences(0, 20, 999L, null, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("CharacterSheet not found with id: 999");
     }
@@ -291,6 +291,7 @@ class ExperienceServiceTest {
 
         CustomUserDetails userDetails = new CustomUserDetails(creator);
         when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(creator));
         when(characterSheetRepository.findActiveById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert

@@ -12,8 +12,8 @@ import java.util.List;
 /**
  * Repository for Experience entity operations.
  * <p>
- * Provides data access methods for character experiences including queries for
- * finding experiences by character sheet, created by user, and managing experience data.
+ * Provides data access methods for character and companion experiences including queries for
+ * finding experiences by character sheet, companion, created by user, and managing experience data.
  * </p>
  */
 @Repository
@@ -41,6 +41,29 @@ public interface ExperienceRepository extends JpaRepository<Experience, Long> {
      */
     @Query("SELECT e FROM Experience e WHERE e.characterSheet.id = :characterSheetId")
     Page<Experience> findByCharacterSheetId(Long characterSheetId, Pageable pageable);
+
+    /**
+     * Finds all experiences associated with a specific companion.
+     * <p>
+     * Returns experiences ordered by creation date (newest first) to show
+     * the companion's most recent experiences at the top.
+     * </p>
+     *
+     * @param companionId the ID of the companion
+     * @return list of experiences for the companion, ordered by creation date descending
+     */
+    @Query("SELECT e FROM Experience e WHERE e.companion.id = :companionId ORDER BY e.createdAt DESC")
+    List<Experience> findByCompanionId(Long companionId);
+
+    /**
+     * Finds all experiences associated with a specific companion with pagination.
+     *
+     * @param companionId the ID of the companion
+     * @param pageable the pagination information
+     * @return page of experiences for the companion
+     */
+    @Query("SELECT e FROM Experience e WHERE e.companion.id = :companionId")
+    Page<Experience> findByCompanionId(Long companionId, Pageable pageable);
 
     /**
      * Finds all experiences created by a specific user.

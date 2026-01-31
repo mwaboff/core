@@ -424,6 +424,18 @@ public class CharacterSheet extends BaseEntity {
     @Builder.Default
     private Set<Experience> experiences = new HashSet<>();
 
+    // ========== Companions ==========
+
+    /**
+     * Companions associated with this character.
+     * Companions are allied creatures, familiars, or followers that accompany
+     * the character. Each companion has its own combat capabilities, stress
+     * tracking, and can accumulate experiences.
+     */
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<Companion> companions = new HashSet<>();
+
     // ========== Soft Deletion ==========
 
     /**
