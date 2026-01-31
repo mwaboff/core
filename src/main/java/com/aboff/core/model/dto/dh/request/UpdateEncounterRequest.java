@@ -50,9 +50,11 @@ public class UpdateEncounterRequest {
     private Boolean isPublic;
 
     /**
-     * List of adversaries to replace the current adversaries in the encounter.
+     * List of adversary IDs to replace the current adversaries in the encounter.
      * If provided, completely replaces the existing adversary list.
+     * Each entry represents a single adversary instance.
+     * To include multiple instances of the same adversary, include the ID multiple times.
      */
     @Valid
-    private List<CreateEncounterRequest.EncounterAdversaryRequest> adversaries;
+    private List<Long> adversaryIds;
 }

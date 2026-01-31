@@ -24,17 +24,4 @@ public interface EncounterAdversaryRepository extends JpaRepository<EncounterAdv
      */
     @Query("SELECT ea FROM EncounterAdversary ea WHERE ea.encounter.id = :encounterId")
     List<EncounterAdversary> findByEncounterId(@Param("encounterId") Long encounterId);
-
-    /**
-     * Finds a specific encounter adversary entry by encounter and adversary IDs.
-     *
-     * @param encounterId The ID of the encounter
-     * @param adversaryId The ID of the adversary
-     * @return Optional containing the encounter adversary if found
-     */
-    @Query("SELECT ea FROM EncounterAdversary ea WHERE ea.encounter.id = :encounterId " +
-           "AND ea.adversary.id = :adversaryId")
-    Optional<EncounterAdversary> findByEncounterIdAndAdversaryId(
-            @Param("encounterId") Long encounterId,
-            @Param("adversaryId") Long adversaryId);
 }

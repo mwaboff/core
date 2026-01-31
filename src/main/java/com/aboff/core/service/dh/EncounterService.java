@@ -170,16 +170,15 @@ public class EncounterService {
         }
 
         // Add adversaries if provided
-        if (request.getAdversaries() != null && !request.getAdversaries().isEmpty()) {
-            for (CreateEncounterRequest.EncounterAdversaryRequest advReq : request.getAdversaries()) {
-                Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(advReq.getAdversaryId())
+        if (request.getAdversaryIds() != null && !request.getAdversaryIds().isEmpty()) {
+            for (Long adversaryId : request.getAdversaryIds()) {
+                Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(adversaryId)
                         .orElseThrow(() -> new EntityNotFoundException(
-                                "Adversary not found with id: " + advReq.getAdversaryId()));
+                                "Adversary not found with id: " + adversaryId));
 
                 EncounterAdversary encounterAdversary = EncounterAdversary.builder()
                         .encounter(encounter)
                         .adversary(adversary)
-                        .count(advReq.getCount())
                         .build();
 
                 encounter.getEncounterAdversaries().add(encounterAdversary);
@@ -234,18 +233,17 @@ public class EncounterService {
         }
 
         // Replace adversaries if provided
-        if (request.getAdversaries() != null) {
+        if (request.getAdversaryIds() != null) {
             encounter.getEncounterAdversaries().clear();
 
-            for (CreateEncounterRequest.EncounterAdversaryRequest advReq : request.getAdversaries()) {
-                Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(advReq.getAdversaryId())
+            for (Long adversaryId : request.getAdversaryIds()) {
+                Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(adversaryId)
                         .orElseThrow(() -> new EntityNotFoundException(
-                                "Adversary not found with id: " + advReq.getAdversaryId()));
+                                "Adversary not found with id: " + adversaryId));
 
                 EncounterAdversary encounterAdversary = EncounterAdversary.builder()
                         .encounter(encounter)
                         .adversary(adversary)
-                        .count(advReq.getCount())
                         .build();
 
                 encounter.getEncounterAdversaries().add(encounterAdversary);
@@ -355,7 +353,6 @@ public class EncounterService {
             EncounterAdversary copyEA = EncounterAdversary.builder()
                     .encounter(copy)
                     .adversary(originalEA.getAdversary())
-                    .count(originalEA.getCount())
                     .build();
             copy.getEncounterAdversaries().add(copyEA);
         }
@@ -367,17 +364,16 @@ public class EncounterService {
     }
 
     /**
-     * Adds an adversary to an encounter or updates the count if already present.
+     * Adds an adversary instance to an encounter.
      *
      * @param encounterId The encounter ID
      * @param adversaryId The adversary ID to add
-     * @param count The count of this adversary type
      * @param auth Authentication context
      * @return EncounterResponse containing the updated encounter
      */
     @Transactional
-    public EncounterResponse addAdversaryToEncounter(Long encounterId, Long adversaryId, Integer count, Authentication auth) {
-        log.info("Adding adversary {} to encounter {} with count {}", adversaryId, encounterId, count);
+    public EncounterResponse addAdversaryToEncounter(Long encounterId, Long adversaryId, Authentication auth) {
+        log.info("Adding adversary {} to encounter {}", adversaryId, encounterId);
 
         Encounter encounter = encounterRepository.findByIdAndDeletedAtIsNull(encounterId)
                 .orElseThrow(() -> new EntityNotFoundException("Encounter not found with id: " + encounterId));
@@ -387,88 +383,48 @@ public class EncounterService {
         Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(adversaryId)
                 .orElseThrow(() -> new EntityNotFoundException("Adversary not found with id: " + adversaryId));
 
-        // Check if adversary already in encounter
-        EncounterAdversary encounterAdversary = encounterAdversaryRepository
-                .findByEncounterIdAndAdversaryId(encounterId, adversaryId)
-                .orElse(null);
+        EncounterAdversary encounterAdversary = EncounterAdversary.builder()
+                .encounter(encounter)
+                .adversary(adversary)
+                .build();
+        encounter.getEncounterAdversaries().add(encounterAdversary);
+        encounterRepository.save(encounter);
 
-        if (encounterAdversary != null) {
-            // Update count
-            encounterAdversary.setCount(count);
-            encounterAdversaryRepository.save(encounterAdversary);
-        } else {
-            // Add new
-            encounterAdversary = EncounterAdversary.builder()
-                    .encounter(encounter)
-                    .adversary(adversary)
-                    .count(count)
-                    .build();
-            encounter.getEncounterAdversaries().add(encounterAdversary);
-            encounterRepository.save(encounter);
-        }
-
-        log.info("Added/updated adversary {} in encounter {}", adversaryId, encounterId);
+        log.info("Added adversary {} to encounter {}", adversaryId, encounterId);
 
         return toResponse(encounter, Set.of());
     }
 
     /**
-     * Removes an adversary from an encounter.
+     * Removes an adversary instance from an encounter.
      *
      * @param encounterId The encounter ID
-     * @param adversaryId The adversary ID to remove
+     * @param encounterAdversaryId The encounter adversary ID to remove
      * @param auth Authentication context
      * @return EncounterResponse containing the updated encounter
      */
     @Transactional
-    public EncounterResponse removeAdversaryFromEncounter(Long encounterId, Long adversaryId, Authentication auth) {
-        log.info("Removing adversary {} from encounter {}", adversaryId, encounterId);
+    public EncounterResponse removeAdversaryFromEncounter(Long encounterId, Long encounterAdversaryId, Authentication auth) {
+        log.info("Removing encounter adversary {} from encounter {}", encounterAdversaryId, encounterId);
 
         Encounter encounter = encounterRepository.findByIdAndDeletedAtIsNull(encounterId)
                 .orElseThrow(() -> new EntityNotFoundException("Encounter not found with id: " + encounterId));
 
         validateModifyPermission(encounter, auth);
 
-        EncounterAdversary encounterAdversary = encounterAdversaryRepository
-                .findByEncounterIdAndAdversaryId(encounterId, adversaryId)
+        EncounterAdversary encounterAdversary = encounterAdversaryRepository.findById(encounterAdversaryId)
                 .orElseThrow(() -> new EntityNotFoundException(
-                        "Adversary " + adversaryId + " not found in encounter " + encounterId));
+                        "Encounter adversary not found with id: " + encounterAdversaryId));
+
+        if (!encounterAdversary.getEncounter().getId().equals(encounterId)) {
+            throw new IllegalArgumentException(
+                    "Encounter adversary " + encounterAdversaryId + " does not belong to encounter " + encounterId);
+        }
 
         encounter.getEncounterAdversaries().remove(encounterAdversary);
         encounterAdversaryRepository.delete(encounterAdversary);
 
-        log.info("Removed adversary {} from encounter {}", adversaryId, encounterId);
-
-        return toResponse(encounter, Set.of());
-    }
-
-    /**
-     * Updates the count of an adversary in an encounter.
-     *
-     * @param encounterId The encounter ID
-     * @param adversaryId The adversary ID
-     * @param count The new count
-     * @param auth Authentication context
-     * @return EncounterResponse containing the updated encounter
-     */
-    @Transactional
-    public EncounterResponse updateAdversaryCount(Long encounterId, Long adversaryId, Integer count, Authentication auth) {
-        log.info("Updating adversary {} count in encounter {} to {}", adversaryId, encounterId, count);
-
-        Encounter encounter = encounterRepository.findByIdAndDeletedAtIsNull(encounterId)
-                .orElseThrow(() -> new EntityNotFoundException("Encounter not found with id: " + encounterId));
-
-        validateModifyPermission(encounter, auth);
-
-        EncounterAdversary encounterAdversary = encounterAdversaryRepository
-                .findByEncounterIdAndAdversaryId(encounterId, adversaryId)
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Adversary " + adversaryId + " not found in encounter " + encounterId));
-
-        encounterAdversary.setCount(count);
-        encounterAdversaryRepository.save(encounterAdversary);
-
-        log.info("Updated adversary {} count in encounter {}", adversaryId, encounterId);
+        log.info("Removed encounter adversary {} from encounter {}", encounterAdversaryId, encounterId);
 
         return toResponse(encounter, Set.of());
     }
@@ -605,9 +561,7 @@ public class EncounterService {
         EncounterResponse.EncounterAdversaryResponse.EncounterAdversaryResponseBuilder builder =
                 EncounterResponse.EncounterAdversaryResponse.builder()
                 .id(ea.getId())
-                .adversaryId(ea.getAdversary().getId())
-                .count(ea.getCount())
-                .battlePoints(ea.calculateBattlePoints());
+                .adversaryId(ea.getAdversary().getId());
 
         // Expand full adversary if requested
         if (expandAdversary) {

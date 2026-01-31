@@ -189,11 +189,10 @@ public class EncounterController {
     }
 
     /**
-     * Adds an adversary to an encounter or updates the count if already present.
+     * Adds an adversary instance to an encounter.
      *
      * @param id The encounter ID
      * @param adversaryId The adversary ID to add
-     * @param count The count of this adversary type (default: 1)
      * @param auth Authentication context
      * @return EncounterResponse containing the updated encounter
      */
@@ -201,48 +200,27 @@ public class EncounterController {
     public ResponseEntity<EncounterResponse> addAdversaryToEncounter(
             @PathVariable Long id,
             @RequestParam Long adversaryId,
-            @RequestParam(defaultValue = "1") @Min(1) Integer count,
             Authentication auth) {
 
-        EncounterResponse response = encounterService.addAdversaryToEncounter(id, adversaryId, count, auth);
+        EncounterResponse response = encounterService.addAdversaryToEncounter(id, adversaryId, auth);
         return ResponseEntity.ok(response);
     }
 
     /**
-     * Updates the count of an adversary in an encounter.
+     * Removes an adversary instance from an encounter.
      *
      * @param id The encounter ID
-     * @param adversaryId The adversary ID
-     * @param count The new count (must be at least 1)
-     * @param auth Authentication context
-     * @return EncounterResponse containing the updated encounter
-     */
-    @PutMapping("/{id}/adversaries/{adversaryId}")
-    public ResponseEntity<EncounterResponse> updateAdversaryCount(
-            @PathVariable Long id,
-            @PathVariable Long adversaryId,
-            @RequestParam @Min(1) Integer count,
-            Authentication auth) {
-
-        EncounterResponse response = encounterService.updateAdversaryCount(id, adversaryId, count, auth);
-        return ResponseEntity.ok(response);
-    }
-
-    /**
-     * Removes an adversary from an encounter.
-     *
-     * @param id The encounter ID
-     * @param adversaryId The adversary ID to remove
+     * @param encounterAdversaryId The encounter adversary ID to remove
      * @param auth Authentication context
      * @return 204 No Content on success
      */
-    @DeleteMapping("/{id}/adversaries/{adversaryId}")
+    @DeleteMapping("/{id}/adversaries/{encounterAdversaryId}")
     public ResponseEntity<Void> removeAdversaryFromEncounter(
             @PathVariable Long id,
-            @PathVariable Long adversaryId,
+            @PathVariable Long encounterAdversaryId,
             Authentication auth) {
 
-        encounterService.removeAdversaryFromEncounter(id, adversaryId, auth);
+        encounterService.removeAdversaryFromEncounter(id, encounterAdversaryId, auth);
         return ResponseEntity.noContent().build();
     }
 }

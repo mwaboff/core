@@ -9,10 +9,11 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * Join entity representing an adversary within an encounter with a count.
+ * Join entity representing a single adversary instance within an encounter.
  * <p>
- * This entity tracks individual adversary assignments to encounters, including
- * the count of that adversary type (e.g., "3 Goblin Minions").
+ * This entity tracks individual adversary instances in encounters.
+ * Each entry represents one unique adversary, so multiple instances of the
+ * same adversary type require multiple EncounterAdversary records.
  * </p>
  */
 @Entity
@@ -37,25 +38,4 @@ public class EncounterAdversary extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "adversary_id", nullable = false)
     private Adversary adversary;
-
-    /**
-     * Number of this adversary type in the encounter.
-     * Defaults to 1. Must be at least 1.
-     */
-    @Column(name = "count", nullable = false)
-    private Integer count;
-
-    /**
-     * Calculates the battle points contribution of this adversary entry.
-     * Battle points = adversary type's base battle points * count
-     *
-     * @return Total battle points for this adversary count
-     */
-    public int calculateBattlePoints() {
-        if (adversary == null || adversary.getAdversaryType() == null) {
-            return 0;
-        }
-        int basePoints = adversary.getAdversaryType().getBattlePoints();
-        return basePoints * (count != null ? count : 1);
-    }
 }

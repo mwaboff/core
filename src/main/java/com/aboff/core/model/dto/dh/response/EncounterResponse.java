@@ -94,8 +94,8 @@ public class EncounterResponse {
     private UserResponse creator;
 
     /**
-     * List of adversaries in the encounter with their counts.
-     * Always includes adversary IDs and counts.
+     * List of adversary instances in the encounter.
+     * Always includes adversary IDs.
      * Full adversary objects included only when ?expand=adversaryDetails is specified.
      */
     private List<EncounterAdversaryResponse> adversaries;
@@ -122,7 +122,7 @@ public class EncounterResponse {
     private LocalDateTime deletedAt;
 
     /**
-     * Nested DTO for adversary entries in the encounter.
+     * Nested DTO for adversary instances in the encounter.
      */
     @Data
     @Builder
@@ -132,7 +132,7 @@ public class EncounterResponse {
     public static class EncounterAdversaryResponse {
 
         /**
-         * Unique identifier for this encounter adversary entry.
+         * Unique identifier for this encounter adversary instance.
          */
         private Long id;
 
@@ -145,15 +145,5 @@ public class EncounterResponse {
          * Full adversary object (included only when ?expand=adversaryDetails is specified).
          */
         private AdversaryResponse adversary;
-
-        /**
-         * Number of this adversary type in the encounter.
-         */
-        private Integer count;
-
-        /**
-         * Battle points contribution from this adversary entry (calculated).
-         */
-        private Integer battlePoints;
     }
 }

@@ -21,7 +21,7 @@ import java.util.List;
  * </p>
  * <ul>
  *   <li><strong>Basic Information:</strong> Name, description, tier</li>
- *   <li><strong>Adversaries:</strong> Collection of adversaries with counts</li>
+ *   <li><strong>Adversaries:</strong> Collection of individual adversary instances</li>
  *   <li><strong>Battle Points:</strong> Calculated total for encounter balancing</li>
  *   <li><strong>Content Management:</strong> Official vs custom, public sharing, creator tracking</li>
  *   <li><strong>Campaign Association:</strong> Optional link to a specific campaign</li>
@@ -114,8 +114,9 @@ public class Encounter extends BaseEntity {
     // ========== Adversaries ==========
 
     /**
-     * Adversaries included in this encounter with their counts.
-     * Each entry represents a type and quantity of adversary.
+     * Adversaries included in this encounter.
+     * Each entry represents a single adversary instance. Multiple instances of the
+     * same adversary type should be represented as separate entries.
      */
     @OneToMany(mappedBy = "encounter", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     @lombok.Builder.Default
@@ -160,7 +161,7 @@ public class Encounter extends BaseEntity {
 
     /**
      * Calculates the total battle points for this encounter.
-     * Sums the battle points of all adversaries, accounting for their counts.
+     * Sums the battle points of all adversary instances.
      *
      * @return Total battle points for encounter balancing
      */
@@ -169,7 +170,8 @@ public class Encounter extends BaseEntity {
             return 0;
         }
         return encounterAdversaries.stream()
-                .mapToInt(EncounterAdversary::calculateBattlePoints)
+                .filter(ea -> ea.getAdversary() != null && ea.getAdversary().getAdversaryType() != null)
+                .mapToInt(ea -> ea.getAdversary().getAdversaryType().getBattlePoints())
                 .sum();
     }
 }

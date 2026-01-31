@@ -54,32 +54,10 @@ public class CreateEncounterRequest {
     private Boolean isPublic = false;
 
     /**
-     * List of adversaries to include in the encounter with their counts.
+     * List of adversary IDs to include in the encounter.
+     * Each entry represents a single adversary instance.
+     * To include multiple instances of the same adversary, include the ID multiple times.
      */
     @Valid
-    private List<EncounterAdversaryRequest> adversaries;
-
-    /**
-     * Nested DTO for adversary assignment with count.
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class EncounterAdversaryRequest {
-
-        /**
-         * ID of the adversary to include.
-         */
-        @NotNull(message = "Adversary ID is required")
-        private Long adversaryId;
-
-        /**
-         * Number of this adversary type in the encounter.
-         */
-        @NotNull(message = "Count is required")
-        @Min(value = 1, message = "Count must be at least 1")
-        @Builder.Default
-        private Integer count = 1;
-    }
+    private List<Long> adversaryIds;
 }
