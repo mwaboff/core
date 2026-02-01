@@ -244,7 +244,7 @@ class UserServiceTest {
                                 .build();
 
                 when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-                when(userRepository.existsByEmail("new@example.com")).thenReturn(false);
+                when(userRepository.existsByEmailIgnoreCase("new@example.com")).thenReturn(false);
                 when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
                 // Act
@@ -274,7 +274,7 @@ class UserServiceTest {
                                 .build();
 
                 when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-                when(userRepository.existsByEmail("existing@example.com")).thenReturn(true);
+                when(userRepository.existsByEmailIgnoreCase("existing@example.com")).thenReturn(true);
 
                 // Act & Assert
                 assertThatThrownBy(() -> userService.updateUser(1L, request))
@@ -310,8 +310,8 @@ class UserServiceTest {
                 assertThat(result.getEmail()).isEqualTo("test@example.com");
                 assertThat(result.getAvatarUrl()).isEqualTo("https://new.avatar");
 
-                // Should not check existsByEmail since email didn't change
-                verify(userRepository, never()).existsByEmail(anyString());
+                // Should not check existsByEmailIgnoreCase since email didn't change
+                verify(userRepository, never()).existsByEmailIgnoreCase(anyString());
                 verify(userRepository).save(any(User.class));
         }
 

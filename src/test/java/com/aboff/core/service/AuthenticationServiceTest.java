@@ -93,8 +93,8 @@ class AuthenticationServiceTest {
                                 .password("Password123!")
                                 .build();
 
-                when(userRepository.existsByUsername("testuser")).thenReturn(false);
-                when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+                when(userRepository.existsByUsernameIgnoreCase("testuser")).thenReturn(false);
+                when(userRepository.existsByEmailIgnoreCase("test@example.com")).thenReturn(false);
                 when(passwordEncoder.encode("Password123!")).thenReturn("hashedPassword");
 
                 User savedUser = User.builder()
@@ -138,7 +138,7 @@ class AuthenticationServiceTest {
                                 .password("Password123!")
                                 .build();
 
-                when(userRepository.existsByUsername("testuser")).thenReturn(true);
+                when(userRepository.existsByUsernameIgnoreCase("testuser")).thenReturn(true);
 
                 // Act & Assert
                 assertThatThrownBy(() -> authenticationService.register(request))
@@ -157,8 +157,8 @@ class AuthenticationServiceTest {
                                 .password("Password123!")
                                 .build();
 
-                when(userRepository.existsByUsername("testuser")).thenReturn(false);
-                when(userRepository.existsByEmail("test@example.com")).thenReturn(true);
+                when(userRepository.existsByUsernameIgnoreCase("testuser")).thenReturn(false);
+                when(userRepository.existsByEmailIgnoreCase("test@example.com")).thenReturn(true);
 
                 // Act & Assert
                 assertThatThrownBy(() -> authenticationService.register(request))
@@ -179,8 +179,8 @@ class AuthenticationServiceTest {
                                 .timezone("America/New_York")
                                 .build();
 
-                when(userRepository.existsByUsername("testuser")).thenReturn(false);
-                when(userRepository.existsByEmail("test@example.com")).thenReturn(false);
+                when(userRepository.existsByUsernameIgnoreCase("testuser")).thenReturn(false);
+                when(userRepository.existsByEmailIgnoreCase("test@example.com")).thenReturn(false);
                 when(passwordEncoder.encode("Password123!")).thenReturn("hashedPassword");
 
                 User savedUser = User.builder()
@@ -207,6 +207,45 @@ class AuthenticationServiceTest {
                 assertThat(capturedUser.getTimezone()).isEqualTo("America/New_York");
         }
 
+        @Test
+        void register_ExistingUsernameWithDifferentCase_ThrowsUserAlreadyExistsException() {
+                // Arrange - "TestUser" already exists, trying to register "testuser"
+                RegisterRequest request = RegisterRequest.builder()
+                                .username("testuser")
+                                .email("new@example.com")
+                                .password("Password123!")
+                                .build();
+
+                when(userRepository.existsByUsernameIgnoreCase("testuser")).thenReturn(true);
+
+                // Act & Assert
+                assertThatThrownBy(() -> authenticationService.register(request))
+                                .isInstanceOf(UserAlreadyExistsException.class)
+                                .hasMessage("Username already taken");
+
+                verify(userRepository, never()).save(any());
+        }
+
+        @Test
+        void register_ExistingEmailWithDifferentCase_ThrowsUserAlreadyExistsException() {
+                // Arrange - "Test@Example.com" already exists, trying to register "test@example.com"
+                RegisterRequest request = RegisterRequest.builder()
+                                .username("newuser")
+                                .email("test@example.com")
+                                .password("Password123!")
+                                .build();
+
+                when(userRepository.existsByUsernameIgnoreCase("newuser")).thenReturn(false);
+                when(userRepository.existsByEmailIgnoreCase("test@example.com")).thenReturn(true);
+
+                // Act & Assert
+                assertThatThrownBy(() -> authenticationService.register(request))
+                                .isInstanceOf(UserAlreadyExistsException.class)
+                                .hasMessage("Email already registered");
+
+                verify(userRepository, never()).save(any());
+        }
+
         // ==================== LOGIN TESTS ====================
 
         @Test
@@ -229,7 +268,7 @@ class AuthenticationServiceTest {
                                 .lastModifiedAt(LocalDateTime.now())
                                 .build();
 
-                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+                when(userRepository.findByUsernameIgnoreCase("testuser")).thenReturn(Optional.of(user));
                 when(passwordEncoder.matches("Password123!", "hashedPassword")).thenReturn(true);
                 when(jwtTokenProvider.generateToken(user)).thenReturn("jwt-token");
                 when(jwtTokenProvider.hashToken("jwt-token")).thenReturn("token-hash");
@@ -259,8 +298,8 @@ class AuthenticationServiceTest {
                                 .password("Password123!")
                                 .build();
 
-                when(userRepository.findByUsername("nonexistent")).thenReturn(Optional.empty());
-                when(userRepository.findByEmail("nonexistent")).thenReturn(Optional.empty());
+                when(userRepository.findByUsernameIgnoreCase("nonexistent")).thenReturn(Optional.empty());
+                when(userRepository.findByEmailIgnoreCase("nonexistent")).thenReturn(Optional.empty());
                 when(httpRequest.getHeader("X-Forwarded-For")).thenReturn(null);
                 when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
                 when(httpRequest.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
@@ -289,7 +328,7 @@ class AuthenticationServiceTest {
                                 .deletedAt(LocalDateTime.now())
                                 .build();
 
-                when(userRepository.findByUsername("deleteduser")).thenReturn(Optional.of(deletedUser));
+                when(userRepository.findByUsernameIgnoreCase("deleteduser")).thenReturn(Optional.of(deletedUser));
                 when(httpRequest.getHeader("X-Forwarded-For")).thenReturn(null);
                 when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
                 when(httpRequest.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
@@ -318,7 +357,7 @@ class AuthenticationServiceTest {
                                 .bannedAt(LocalDateTime.now())
                                 .build();
 
-                when(userRepository.findByUsername("banneduser")).thenReturn(Optional.of(bannedUser));
+                when(userRepository.findByUsernameIgnoreCase("banneduser")).thenReturn(Optional.of(bannedUser));
                 when(httpRequest.getHeader("X-Forwarded-For")).thenReturn(null);
                 when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
                 when(httpRequest.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
@@ -349,7 +388,7 @@ class AuthenticationServiceTest {
                                 .accountLockedUntil(lockedUntil)
                                 .build();
 
-                when(userRepository.findByUsername("lockeduser")).thenReturn(Optional.of(lockedUser));
+                when(userRepository.findByUsernameIgnoreCase("lockeduser")).thenReturn(Optional.of(lockedUser));
                 when(httpRequest.getHeader("X-Forwarded-For")).thenReturn(null);
                 when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
                 when(httpRequest.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
@@ -378,7 +417,7 @@ class AuthenticationServiceTest {
                                 .failedLoginAttempts(2)
                                 .build();
 
-                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+                when(userRepository.findByUsernameIgnoreCase("testuser")).thenReturn(Optional.of(user));
                 when(passwordEncoder.matches("WrongPassword!", "hashedPassword")).thenReturn(false);
                 when(loginAttemptService.getRecentFailedAttempts(anyString(), anyInt()))
                                 .thenReturn(new ArrayList<>());
@@ -416,7 +455,7 @@ class AuthenticationServiceTest {
                                 LoginAttempt.builder().build(),
                                 LoginAttempt.builder().build());
 
-                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+                when(userRepository.findByUsernameIgnoreCase("testuser")).thenReturn(Optional.of(user));
                 when(passwordEncoder.matches("WrongPassword!", "hashedPassword")).thenReturn(false);
                 when(loginAttemptService.getRecentFailedAttempts("testuser", FAILED_ATTEMPT_WINDOW_MINUTES))
                                 .thenReturn(recentFailures);
@@ -452,7 +491,7 @@ class AuthenticationServiceTest {
                                 .lastModifiedAt(LocalDateTime.now())
                                 .build();
 
-                when(userRepository.findByUsername("testuser")).thenReturn(Optional.of(user));
+                when(userRepository.findByUsernameIgnoreCase("testuser")).thenReturn(Optional.of(user));
                 when(passwordEncoder.matches("Password123!", "hashedPassword")).thenReturn(true);
                 when(jwtTokenProvider.generateToken(user)).thenReturn("jwt-token");
                 when(jwtTokenProvider.hashToken("jwt-token")).thenReturn("token-hash");
@@ -466,6 +505,113 @@ class AuthenticationServiceTest {
 
                 // Assert
                 verify(userRepository).save(argThat(u -> u.getFailedLoginAttempts() == 0));
+        }
+
+        @Test
+        void login_UsernameWithDifferentCase_SuccessfullyAuthenticates() {
+                // Arrange - user registers as "TestUser" but logs in with "testuser"
+                LoginRequest request = LoginRequest.builder()
+                                .usernameOrEmail("TESTUSER")
+                                .password("Password123!")
+                                .build();
+
+                User user = User.builder()
+                                .id(1L)
+                                .username("testuser")
+                                .email("test@example.com")
+                                .passwordHash("hashedPassword")
+                                .avatarUrl(DEFAULT_AVATAR_URL)
+                                .timezone(DEFAULT_TIMEZONE)
+                                .failedLoginAttempts(0)
+                                .createdAt(LocalDateTime.now())
+                                .lastModifiedAt(LocalDateTime.now())
+                                .build();
+
+                when(userRepository.findByUsernameIgnoreCase("TESTUSER")).thenReturn(Optional.of(user));
+                when(passwordEncoder.matches("Password123!", "hashedPassword")).thenReturn(true);
+                when(jwtTokenProvider.generateToken(user)).thenReturn("jwt-token");
+                when(jwtTokenProvider.hashToken("jwt-token")).thenReturn("token-hash");
+                when(jwtTokenProvider.getExpirationMs()).thenReturn(2592000000L);
+                when(httpRequest.getHeader("X-Forwarded-For")).thenReturn(null);
+                when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
+                when(httpRequest.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
+
+                // Act
+                AuthenticationService.LoginResult result = authenticationService.login(request, httpRequest);
+
+                // Assert
+                assertThat(result).isNotNull();
+                assertThat(result.getToken()).isEqualTo("jwt-token");
+                assertThat(result.getUserResponse().getUsername()).isEqualTo("testuser");
+        }
+
+        @Test
+        void login_EmailWithDifferentCase_SuccessfullyAuthenticates() {
+                // Arrange - user registers with "Test@Example.com" but logs in with "test@example.com"
+                LoginRequest request = LoginRequest.builder()
+                                .usernameOrEmail("TEST@EXAMPLE.COM")
+                                .password("Password123!")
+                                .build();
+
+                User user = User.builder()
+                                .id(1L)
+                                .username("testuser")
+                                .email("test@example.com")
+                                .passwordHash("hashedPassword")
+                                .avatarUrl(DEFAULT_AVATAR_URL)
+                                .timezone(DEFAULT_TIMEZONE)
+                                .failedLoginAttempts(0)
+                                .createdAt(LocalDateTime.now())
+                                .lastModifiedAt(LocalDateTime.now())
+                                .build();
+
+                when(userRepository.findByUsernameIgnoreCase("TEST@EXAMPLE.COM")).thenReturn(Optional.empty());
+                when(userRepository.findByEmailIgnoreCase("TEST@EXAMPLE.COM")).thenReturn(Optional.of(user));
+                when(passwordEncoder.matches("Password123!", "hashedPassword")).thenReturn(true);
+                when(jwtTokenProvider.generateToken(user)).thenReturn("jwt-token");
+                when(jwtTokenProvider.hashToken("jwt-token")).thenReturn("token-hash");
+                when(jwtTokenProvider.getExpirationMs()).thenReturn(2592000000L);
+                when(httpRequest.getHeader("X-Forwarded-For")).thenReturn(null);
+                when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
+                when(httpRequest.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
+
+                // Act
+                AuthenticationService.LoginResult result = authenticationService.login(request, httpRequest);
+
+                // Assert
+                assertThat(result).isNotNull();
+                assertThat(result.getToken()).isEqualTo("jwt-token");
+                assertThat(result.getUserResponse().getEmail()).isEqualTo("test@example.com");
+        }
+
+        @Test
+        void login_PasswordIsCaseSensitive_FailsWithWrongCase() {
+                // Arrange - password is case-sensitive, should fail with wrong case
+                LoginRequest request = LoginRequest.builder()
+                                .usernameOrEmail("testuser")
+                                .password("password123!")
+                                .build();
+
+                User user = User.builder()
+                                .id(1L)
+                                .username("testuser")
+                                .email("test@example.com")
+                                .passwordHash("hashedPassword")
+                                .failedLoginAttempts(0)
+                                .build();
+
+                when(userRepository.findByUsernameIgnoreCase("testuser")).thenReturn(Optional.of(user));
+                when(passwordEncoder.matches("password123!", "hashedPassword")).thenReturn(false);
+                when(loginAttemptService.getRecentFailedAttempts(anyString(), anyInt()))
+                                .thenReturn(new ArrayList<>());
+                when(httpRequest.getHeader("X-Forwarded-For")).thenReturn(null);
+                when(httpRequest.getRemoteAddr()).thenReturn("127.0.0.1");
+                when(httpRequest.getHeader("User-Agent")).thenReturn("Mozilla/5.0");
+
+                // Act & Assert
+                assertThatThrownBy(() -> authenticationService.login(request, httpRequest))
+                                .isInstanceOf(BadCredentialsException.class)
+                                .hasMessage("Invalid username or password");
         }
 
         // ==================== LOGOUT TESTS ====================

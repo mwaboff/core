@@ -31,6 +31,8 @@ jwt:
 
 # Application-specific configuration
 application:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:5173,http://localhost:4200,http://localhost:8081}
   security:
     max-failed-attempts: 5
     lockout-duration-minutes: 30

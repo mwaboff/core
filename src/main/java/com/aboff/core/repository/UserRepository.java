@@ -13,36 +13,36 @@ import java.util.Optional;
 public interface UserRepository extends JpaRepository<User, Long> {
 
     /**
-     * Finds a user by username.
+     * Finds a user by username (case-insensitive).
      *
      * @param username the username to search for
      * @return the user if found
      */
-    Optional<User> findByUsername(String username);
+    Optional<User> findByUsernameIgnoreCase(String username);
 
     /**
-     * Finds a user by email.
+     * Finds a user by email (case-insensitive).
      *
      * @param email the email to search for
      * @return the user if found
      */
-    Optional<User> findByEmail(String email);
+    Optional<User> findByEmailIgnoreCase(String email);
 
     /**
-     * Checks if a user exists by username.
+     * Checks if a user exists by username (case-insensitive).
      *
      * @param username the username to check
      * @return true if the user exists, false otherwise
      */
-    boolean existsByUsername(String username);
+    boolean existsByUsernameIgnoreCase(String username);
 
     /**
-     * Checks if a user exists by email.
+     * Checks if a user exists by email (case-insensitive).
      *
      * @param email the email to check
      * @return true if the user exists, false otherwise
      */
-    boolean existsByEmail(String email);
+    boolean existsByEmailIgnoreCase(String email);
 
     /**
      * Finds all non-deleted users.

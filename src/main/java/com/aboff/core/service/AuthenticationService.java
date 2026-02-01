@@ -100,13 +100,13 @@ public class AuthenticationService {
     public UserResponse register(RegisterRequest request) {
         log.debug("Registration attempt for username: {}, email: {}", request.getUsername(), request.getEmail());
 
-        // Check if username already exists
-        if (userRepository.existsByUsername(request.getUsername())) {
+        // Check if username already exists (case-insensitive)
+        if (userRepository.existsByUsernameIgnoreCase(request.getUsername())) {
             throw new UserAlreadyExistsException("Username already taken");
         }
 
-        // Check if email already exists
-        if (userRepository.existsByEmail(request.getEmail())) {
+        // Check if email already exists (case-insensitive)
+        if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
             throw new UserAlreadyExistsException("Email already registered");
         }
 
@@ -157,9 +157,9 @@ public class AuthenticationService {
         String ipAddress = extractIpAddress(httpRequest);
         String userAgent = extractUserAgent(httpRequest);
 
-        // Find user by username or email
-        User user = userRepository.findByUsername(usernameOrEmail)
-                .or(() -> userRepository.findByEmail(usernameOrEmail))
+        // Find user by username or email (case-insensitive)
+        User user = userRepository.findByUsernameIgnoreCase(usernameOrEmail)
+                .or(() -> userRepository.findByEmailIgnoreCase(usernameOrEmail))
                 .orElse(null);
 
         if (user == null) {
