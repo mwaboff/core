@@ -19,7 +19,7 @@ import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.AdversaryType;
 import com.aboff.core.model.enums.Role;
-import com.aboff.core.repository.ExperienceRepository;
+import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;

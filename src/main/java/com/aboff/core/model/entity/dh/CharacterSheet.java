@@ -311,6 +311,16 @@ public class CharacterSheet extends BaseEntity {
     @JoinColumn(name = "active_armor_id")
     private Armor activeArmor;
 
+    /**
+     * The character's currently active beastform.
+     * Represents the creature form the character can transform into,
+     * granting modified traits, combat abilities, and special features.
+     * Can be null if the character has no beastform.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "active_beastform_id")
+    private Beastform activeBeastform;
+
     // ========== Ownership ==========
 
     /**
