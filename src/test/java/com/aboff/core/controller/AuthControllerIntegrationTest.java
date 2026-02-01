@@ -98,7 +98,7 @@ class AuthControllerIntegrationTest {
                                 .andReturn();
 
                 // Verify user was created in database
-                User user = userRepository.findByUsername("testuser").orElseThrow();
+                User user = userRepository.findByUsernameIgnoreCase("testuser").orElseThrow();
                 assertThat(user.getEmail()).isEqualTo("test@example.com");
                 assertThat(user.getPasswordHash()).isNotNull();
                 assertThat(passwordEncoder.matches("Password123!", user.getPasswordHash())).isTrue();

@@ -118,9 +118,9 @@ public class UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        // Check if email is being updated and is already taken by another user
-        if (request.getEmail() != null && !request.getEmail().equals(user.getEmail())) {
-            if (userRepository.existsByEmail(request.getEmail())) {
+        // Check if email is being updated and is already taken by another user (case-insensitive)
+        if (request.getEmail() != null && !request.getEmail().equalsIgnoreCase(user.getEmail())) {
+            if (userRepository.existsByEmailIgnoreCase(request.getEmail())) {
                 throw new UserAlreadyExistsException("Email already registered");
             }
             user.setEmail(request.getEmail());

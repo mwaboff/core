@@ -14,6 +14,14 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.web.cors.CorsConfiguration;
+import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import org.springframework.beans.factory.annotation.Value;
+
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Configuration class for Spring Security.
@@ -27,6 +35,9 @@ public class SecurityConfig {
 
         private final JwtAuthenticationFilter jwtAuthenticationFilter;
         private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+
+        @Value("${application.cors.allowed-origins:}")
+        private String allowedOrigins;
 
         public SecurityConfig(
                         JwtAuthenticationFilter jwtAuthenticationFilter,
@@ -48,6 +59,8 @@ public class SecurityConfig {
         @Bean
         public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
                 http
+                                // Enable CORS with custom configuration
+                                .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                                 // Disable CSRF - using SameSite=Strict cookies for protection
                                 .csrf(csrf -> csrf.disable())
                                 // Stateless session management (JWT-based)
@@ -90,5 +103,48 @@ public class SecurityConfig {
         @Bean
         public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
                 return authConfig.getAuthenticationManager();
+        }
+
+        /**
+         * Configures CORS settings for cross-origin requests.
+         * Allowed origins are configured via application.cors.allowed-origins property.
+         * In development, localhost origins are permitted; in production, only explicit origins are allowed.
+         * Credentials are allowed to support HttpOnly cookie-based JWT authentication.
+         *
+         * @return the CorsConfigurationSource
+         */
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
+
+                // Parse allowed origins from configuration
+                if (allowedOrigins != null && !allowedOrigins.isBlank()) {
+                        List<String> origins = Arrays.stream(allowedOrigins.split(","))
+                                        .map(String::trim)
+                                        .filter(s -> !s.isEmpty())
+                                        .toList();
+                        configuration.setAllowedOrigins(origins);
+                }
+
+                // Allow standard HTTP methods
+                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+
+                // Allow common headers
+                configuration.setAllowedHeaders(Arrays.asList(
+                                "Authorization",
+                                "Content-Type",
+                                "Accept",
+                                "Origin",
+                                "X-Requested-With"));
+
+                // Required for cookie-based authentication
+                configuration.setAllowCredentials(true);
+
+                // Cache preflight response for 1 hour
+                configuration.setMaxAge(3600L);
+
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/api/**", configuration);
+                return source;
         }
 }

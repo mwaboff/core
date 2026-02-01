@@ -1,6 +1,12 @@
 # Production Profile Configuration
 # Activate with: --spring.profiles.active=prod or SPRING_PROFILES_ACTIVE=prod
 
+application:
+  cors:
+    # Production origins only - no localhost allowed
+    # Must be set via CORS_ALLOWED_ORIGINS environment variable
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+
 jwt:
   cookie:
     secure: true # HTTPS-only cookies in production
