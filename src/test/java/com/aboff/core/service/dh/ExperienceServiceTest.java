@@ -9,8 +9,8 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.enums.Role;
-import com.aboff.core.repository.CharacterSheetRepository;
-import com.aboff.core.repository.ExperienceRepository;
+import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.RoleHierarchyService;
@@ -32,7 +32,6 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 

@@ -1,4 +1,4 @@
-package com.aboff.core.repository;
+package com.aboff.core.repository.dh;
 
 import com.aboff.core.model.entity.dh.Experience;
 import org.springframework.data.domain.Page;

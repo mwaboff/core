@@ -10,7 +10,7 @@ import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
-import com.aboff.core.repository.CharacterSheetRepository;
+import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.security.JwtTokenProvider;

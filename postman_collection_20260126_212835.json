@@ -2,7 +2,7 @@
 	"info": {
 		"_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
 		"name": "Daggerheart Core API Collection",
-		"description": "Auto-generated comprehensive Postman Collection for the Daggerheart TTRPG Core API. Includes authentication, user management, character sheets, campaigns, and all game content endpoints.\n\nAuthentication uses HTTP-only cookies. After login, the AUTH_TOKEN cookie is automatically set and used for subsequent requests.",
+		"description": "Comprehensive Postman Collection for the Daggerheart TTRPG Core API (142 endpoints). Includes authentication, user management, character sheets, campaigns, and all game content endpoints.\n\nAuthentication uses HTTP-only cookies. After login, the AUTH_TOKEN cookie is automatically set and used for subsequent requests.\n\n**Setup:**\n1. Set baseUrl variable to http://localhost:8080\n2. Register or login to get AUTH_TOKEN cookie\n3. Cookie automatically included in subsequent requests",
 		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
 	},
 	"variable": [
@@ -27,6 +27,11 @@
 			"type": "string"
 		},
 		{
+			"key": "companionId",
+			"value": "1",
+			"type": "string"
+		},
+		{
 			"key": "experienceId",
 			"value": "1",
 			"type": "string"
@@ -37,7 +42,72 @@
 			"type": "string"
 		},
 		{
+			"key": "encounterId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "encounterAdversaryId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "weaponId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "armorId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "lootId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "ancestryCardId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "communityCardId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "subclassCardId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "domainCardId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "classId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "domainId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "featureId",
+			"value": "1",
+			"type": "string"
+		},
+		{
 			"key": "expansionId",
+			"value": "1",
+			"type": "string"
+		},
+		{
+			"key": "questionId",
 			"value": "1",
 			"type": "string"
 		}
@@ -45,7 +115,7 @@
 	"item": [
 		{
 			"name": "Authentication",
-			"description": "User authentication endpoints including registration, login, and logout",
+			"description": "User authentication endpoints including registration, login, and logout. Login and logout require authentication.",
 			"item": [
 				{
 					"name": "Register New User",
@@ -65,7 +135,6 @@
 									"    pm.expect(jsonData).to.have.property('email');",
 									"});",
 									"",
-									"// Save user ID for future requests",
 									"if (pm.response.code === 201) {",
 									"    var jsonData = pm.response.json();",
 									"    pm.collectionVariables.set(\"userId\", jsonData.id);",
@@ -191,7 +260,7 @@
 		},
 		{
 			"name": "User Management",
-			"description": "User profile and account management endpoints",
+			"description": "User profile and account management endpoints. All require authentication.",
 			"item": [
 				{
 					"name": "Get Current User Profile",
@@ -229,7 +298,7 @@
 								"me"
 							]
 						},
-						"description": "Get the current authenticated user's profile. Requires authentication."
+						"description": "Get the current authenticated user's profile."
 					},
 					"response": []
 				},
@@ -249,7 +318,7 @@
 								"{{userId}}"
 							]
 						},
-						"description": "Get a user's profile by ID. Requires authentication."
+						"description": "Get a user's profile by ID."
 					},
 					"response": []
 				},
@@ -335,11 +404,174 @@
 			]
 		},
 		{
-			"name": "Character Sheets",
-			"description": "Character sheet CRUD operations for Daggerheart TTRPG",
+			"name": "Admin",
+			"description": "Administrative endpoints for user management and audit logs. Requires ADMIN/OWNER roles.",
 			"item": [
 				{
-					"name": "List All Character Sheets (Moderator)",
+					"name": "Get All Login History",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/login-history?limit=100",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"login-history"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "100"
+								}
+							]
+						},
+						"description": "Get all login attempts. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Login History by User",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/login-history/user/{{userId}}?limit=50",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"login-history",
+								"user",
+								"{{userId}}"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Get login history for a specific user. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Login History by IP",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/login-history/ip/192.168.1.1?limit=50",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"login-history",
+								"ip",
+								"192.168.1.1"
+							],
+							"query": [
+								{
+									"key": "limit",
+									"value": "50"
+								}
+							]
+						},
+						"description": "Get login history by IP address. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Ban User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/users/{{userId}}/ban",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"users",
+								"{{userId}}",
+								"ban"
+							]
+						},
+						"description": "Ban a user. Requires MODERATOR, ADMIN, or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Unban User",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/users/{{userId}}/unban",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"users",
+								"{{userId}}",
+								"unban"
+							]
+						},
+						"description": "Unban a user. Requires MODERATOR, ADMIN, or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Change User Role",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"role\": \"MODERATOR\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/admin/users/{{userId}}/change-role",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"admin",
+								"users",
+								"{{userId}}",
+								"change-role"
+							]
+						},
+						"description": "Change a user's role. Requires OWNER role. Valid roles: USER, MODERATOR, ADMIN, OWNER."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Character Sheets",
+			"description": "Character sheet CRUD operations for Daggerheart TTRPG. Supports expansion for related data.",
+			"item": [
+				{
+					"name": "List All Character Sheets",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -388,7 +620,7 @@
 								}
 							]
 						},
-						"description": "Get paginated list of character sheets. Requires MODERATOR/ADMIN/OWNER role. Supports filtering by owner, name, and level."
+						"description": "Get paginated list of character sheets. Requires MODERATOR+ role. Filters: ownerId, name, minLevel, maxLevel."
 					},
 					"response": []
 				},
@@ -435,7 +667,7 @@
 								}
 							]
 						},
-						"description": "Get a character sheet by ID. Any authenticated user can view."
+						"description": "Get a character sheet by ID. Expand options: owner, experiences, companions, inventoryWeapons, inventoryArmor, inventoryLoot."
 					},
 					"response": []
 				},
@@ -540,28 +772,210 @@
 			]
 		},
 		{
-			"name": "Experiences",
-			"description": "Character experience management",
+			"name": "Companions",
+			"description": "Companion character management. Companions belong to character sheets.",
 			"item": [
 				{
-					"name": "List Experiences for Character",
+					"name": "List All Companions",
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences",
+							"raw": "{{baseUrl}}/api/dh/companions?page=0&size=20&characterSheetId={{characterSheetId}}&expand=characterSheet",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
 								"dh",
-								"character-sheets",
-								"{{characterSheetId}}",
-								"experiences"
+								"companions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "characterSheetId",
+									"value": "{{characterSheetId}}"
+								},
+								{
+									"key": "expand",
+									"value": "characterSheet"
+								}
 							]
 						},
-						"description": "Get all experiences for a character sheet."
+						"description": "List companions. Filter by characterSheetId. Expand: characterSheet, experiences."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Companion by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/companions/{{companionId}}?expand=characterSheet,experiences",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"companions",
+								"{{companionId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "characterSheet,experiences"
+								}
+							]
+						},
+						"description": "Get companion by ID. Expand: characterSheet, experiences."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Companion",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"companionId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"characterSheetId\": {{characterSheetId}},\n  \"name\": \"Shadow\",\n  \"description\": \"A loyal wolf companion\",\n  \"hitPointMax\": 6,\n  \"hitPointMarked\": 0,\n  \"stressMax\": 3,\n  \"stressMarked\": 0\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/companions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"companions"
+							]
+						},
+						"description": "Create a new companion for a character sheet."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Companion",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"hitPointMarked\": 2,\n  \"stressMarked\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/companions/{{companionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"companions",
+								"{{companionId}}"
+							]
+						},
+						"description": "Update companion. Partial updates supported."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Companion",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/companions/{{companionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"companions",
+								"{{companionId}}"
+							]
+						},
+						"description": "Delete companion (hard delete)."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Experiences",
+			"description": "Experience management for characters and companions.",
+			"item": [
+				{
+					"name": "List All Experiences",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/experiences?page=0&size=20&characterSheetId={{characterSheetId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"experiences"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "characterSheetId",
+									"value": "{{characterSheetId}}"
+								},
+								{
+									"key": "companionId",
+									"value": "{{companionId}}",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List experiences. Filter by characterSheetId or companionId."
 					},
 					"response": []
 				},
@@ -571,20 +985,18 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences/{{experienceId}}",
+							"raw": "{{baseUrl}}/api/dh/experiences/{{experienceId}}",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
 								"dh",
-								"character-sheets",
-								"{{characterSheetId}}",
 								"experiences",
 								"{{experienceId}}"
 							]
 						},
-						"description": "Get a specific experience by ID."
+						"description": "Get experience by ID."
 					},
 					"response": []
 				},
@@ -614,22 +1026,20 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"description\": \"Survived battle at Helm's Deep\",\n  \"modifier\": 2\n}"
+							"raw": "{\n  \"characterSheetId\": {{characterSheetId}},\n  \"description\": \"Survived battle at Helm's Deep\",\n  \"modifier\": 2\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences",
+							"raw": "{{baseUrl}}/api/dh/experiences",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
 								"dh",
-								"character-sheets",
-								"{{characterSheetId}}",
 								"experiences"
 							]
 						},
-						"description": "Create a new experience for a character sheet."
+						"description": "Create experience for character or companion. Include characterSheetId OR companionId."
 					},
 					"response": []
 				},
@@ -648,20 +1058,18 @@
 							"raw": "{\n  \"description\": \"Led the charge at Helm's Deep\",\n  \"modifier\": 3\n}"
 						},
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences/{{experienceId}}",
+							"raw": "{{baseUrl}}/api/dh/experiences/{{experienceId}}",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
 								"dh",
-								"character-sheets",
-								"{{characterSheetId}}",
 								"experiences",
 								"{{experienceId}}"
 							]
 						},
-						"description": "Update an experience."
+						"description": "Update experience. Partial updates supported."
 					},
 					"response": []
 				},
@@ -671,20 +1079,18 @@
 						"method": "DELETE",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/character-sheets/{{characterSheetId}}/experiences/{{experienceId}}",
+							"raw": "{{baseUrl}}/api/dh/experiences/{{experienceId}}",
 							"host": [
 								"{{baseUrl}}"
 							],
 							"path": [
 								"api",
 								"dh",
-								"character-sheets",
-								"{{characterSheetId}}",
 								"experiences",
 								"{{experienceId}}"
 							]
 						},
-						"description": "Delete an experience."
+						"description": "Delete experience (hard delete)."
 					},
 					"response": []
 				}
@@ -692,10 +1098,10 @@
 		},
 		{
 			"name": "Campaigns",
-			"description": "Campaign management for group play",
+			"description": "Campaign management for group play. GMs can manage players and character sheets.",
 			"item": [
 				{
-					"name": "List All Campaigns (Moderator)",
+					"name": "List All Campaigns",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -734,7 +1140,7 @@
 								}
 							]
 						},
-						"description": "Get paginated list of campaigns. Requires MODERATOR/ADMIN/OWNER role."
+						"description": "List campaigns (MODERATOR+ only). Filters: creatorId, name. Expand: creator, gameMasters, players, pendingCharacterSheets, playerCharacters, nonPlayerCharacters, all."
 					},
 					"response": []
 				},
@@ -776,8 +1182,7 @@
 							"query": [
 								{
 									"key": "expand",
-									"value": "all",
-									"description": "Options: creator, gameMasters, players, pendingCharacterSheets, playerCharacters, nonPlayerCharacters, all"
+									"value": "all"
 								}
 							]
 						},
@@ -815,7 +1220,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"The Quest for the Dragon's Hoard\",\n  \"description\": \"A epic campaign to retrieve the lost treasures of Mount Gundabad. Players will face dragons, orcs, and ancient curses.\",\n  \"gameMasterIds\": [],\n  \"playerIds\": []\n}"
+							"raw": "{\n  \"name\": \"The Quest for the Dragon's Hoard\",\n  \"description\": \"An epic campaign to retrieve the lost treasures of Mount Gundabad. Players will face dragons, orcs, and ancient curses.\",\n  \"gameMasterIds\": [],\n  \"playerIds\": []\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/campaigns",
@@ -879,7 +1284,7 @@
 								"{{campaignId}}"
 							]
 						},
-						"description": "Soft delete a campaign. Only creator or moderators can delete."
+						"description": "Soft delete campaign. Only creator or moderators can delete."
 					},
 					"response": []
 				},
@@ -902,7 +1307,7 @@
 								"{{userId}}"
 							]
 						},
-						"description": "Add a user as a game master. Only creator or moderators can add GMs."
+						"description": "Add user as game master. Only creator or moderators can add GMs."
 					},
 					"response": []
 				},
@@ -925,7 +1330,7 @@
 								"{{userId}}"
 							]
 						},
-						"description": "Remove a game master. Cannot remove the creator."
+						"description": "Remove game master. Cannot remove creator."
 					},
 					"response": []
 				},
@@ -948,7 +1353,7 @@
 								"{{userId}}"
 							]
 						},
-						"description": "Add a player to the campaign. Requires GM access."
+						"description": "Add player to campaign. Requires GM access."
 					},
 					"response": []
 				},
@@ -971,7 +1376,7 @@
 								"{{userId}}"
 							]
 						},
-						"description": "Remove a player from the campaign. Requires GM access."
+						"description": "Remove player from campaign. Requires GM access."
 					},
 					"response": []
 				},
@@ -995,7 +1400,7 @@
 								"submit"
 							]
 						},
-						"description": "Submit a character sheet for GM approval. Must be the sheet owner and a player in the campaign."
+						"description": "Submit character sheet for GM approval. Must be sheet owner and campaign player."
 					},
 					"response": []
 				},
@@ -1019,7 +1424,7 @@
 								"approve"
 							]
 						},
-						"description": "Approve a pending character sheet. Requires GM access. Moves sheet from pending to player characters."
+						"description": "Approve pending character sheet. Requires GM access. Moves to player characters."
 					},
 					"response": []
 				},
@@ -1043,7 +1448,7 @@
 								"reject"
 							]
 						},
-						"description": "Reject a pending character sheet. Requires GM access. Removes sheet from pending."
+						"description": "Reject pending character sheet. Requires GM access."
 					},
 					"response": []
 				},
@@ -1066,7 +1471,7 @@
 								"{{characterSheetId}}"
 							]
 						},
-						"description": "Add a character as an NPC to the campaign. Requires GM access."
+						"description": "Add character as NPC. Requires GM access."
 					},
 					"response": []
 				},
@@ -1089,7 +1494,7 @@
 								"{{characterSheetId}}"
 							]
 						},
-						"description": "Remove a character sheet from the campaign. Requires GM access. Removes from all collections."
+						"description": "Remove character sheet from campaign. Requires GM access."
 					},
 					"response": []
 				}
@@ -1097,10 +1502,10 @@
 		},
 		{
 			"name": "Adversaries",
-			"description": "Adversary (enemy/NPC) management for Daggerheart TTRPG",
+			"description": "Adversary (enemy/NPC) management for Daggerheart. Supports official/public/custom content pattern.",
 			"item": [
 				{
-					"name": "List Adversaries",
+					"name": "List All Adversaries",
 					"request": {
 						"method": "GET",
 						"header": [],
@@ -1135,12 +1540,12 @@
 								},
 								{
 									"key": "tier",
-									"value": "1",
+									"value": "2",
 									"disabled": true
 								},
 								{
 									"key": "adversaryType",
-									"value": "STANDARD",
+									"value": "SOLO",
 									"disabled": true
 								},
 								{
@@ -1150,7 +1555,7 @@
 								},
 								{
 									"key": "name",
-									"value": "Goblin",
+									"value": "Dragon",
 									"disabled": true
 								},
 								{
@@ -1159,38 +1564,17 @@
 								}
 							]
 						},
-						"description": "Get paginated list of adversaries. Returns official, public, and user's own adversaries. Filters: expansionId, tier (1-4), adversaryType, isOfficial, name. Expand options: expansion, creator, originalAdversary, experiences, features."
+						"description": "List adversaries. Filters: expansionId, tier (1-4), adversaryType, isOfficial, name. Expand: expansion, creator, originalAdversary, experiences, features."
 					},
 					"response": []
 				},
 				{
 					"name": "Get Adversary by ID",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 200\", function () {",
-									"    pm.response.to.have.status(200);",
-									"});",
-									"",
-									"pm.test(\"Response has adversary data\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('id');",
-									"    pm.expect(jsonData).to.have.property('name');",
-									"    pm.expect(jsonData).to.have.property('tier');",
-									"    pm.expect(jsonData).to.have.property('adversaryType');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
 					"request": {
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/adversaries/{{adversaryId}}?expand=expansion,creator,features",
+							"raw": "{{baseUrl}}/api/dh/adversaries/{{adversaryId}}?expand=expansion,features",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -1203,11 +1587,11 @@
 							"query": [
 								{
 									"key": "expand",
-									"value": "expansion,creator,features"
+									"value": "expansion,features"
 								}
 							]
 						},
-						"description": "Get an adversary by ID. Access restricted to official, public, or user's own adversaries."
+						"description": "Get adversary by ID. Expand: expansion, creator, originalAdversary, experiences, features."
 					},
 					"response": []
 				},
@@ -1218,10 +1602,6 @@
 							"listen": "test",
 							"script": {
 								"exec": [
-									"pm.test(\"Status code is 201\", function () {",
-									"    pm.response.to.have.status(201);",
-									"});",
-									"",
 									"if (pm.response.code === 201) {",
 									"    var jsonData = pm.response.json();",
 									"    pm.collectionVariables.set(\"adversaryId\", jsonData.id);",
@@ -1241,7 +1621,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Goblin Bruiser\",\n  \"tier\": 1,\n  \"adversaryType\": \"BRUISER\",\n  \"description\": \"A muscular goblin wielding a crude mace, covered in tribal scars.\",\n  \"motivesAndTactics\": \"Charges into melee and targets the weakest-looking enemy. Retreats if badly wounded.\",\n  \"difficulty\": 3,\n  \"majorThreshold\": 5,\n  \"severeThreshold\": 10,\n  \"hitPointMax\": 8,\n  \"stressMax\": 4,\n  \"attackModifier\": 2,\n  \"weaponName\": \"Crude Mace\",\n  \"attackRange\": \"MELEE\",\n  \"damage\": {\n    \"diceCount\": 1,\n    \"diceType\": \"D8\",\n    \"modifier\": 2,\n    \"damageType\": \"PHYSICAL\"\n  },\n  \"expansionId\": {{expansionId}},\n  \"isPublic\": false\n}"
+							"raw": "{\n  \"name\": \"Shadow Drake\",\n  \"tier\": 2,\n  \"adversaryType\": \"BRUISER\",\n  \"description\": \"A medium-sized drake that lurks in dark caves, breathing shadowy flames.\",\n  \"motivesAndTactics\": \"Prefers ambush tactics. Uses shadow breath to disorient enemies before closing for melee.\",\n  \"difficulty\": 15,\n  \"majorThreshold\": 4,\n  \"severeThreshold\": 8,\n  \"hitPointMax\": 20,\n  \"stressMax\": 10,\n  \"attackModifier\": 2,\n  \"weaponName\": \"Shadow Breath\",\n  \"attackRange\": \"CLOSE\",\n  \"damage\": {\n    \"diceCount\": 2,\n    \"diceType\": \"D8\",\n    \"modifier\": 2,\n    \"damageType\": \"MAGIC\"\n  },\n  \"expansionId\": 1,\n  \"isPublic\": false\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/adversaries",
@@ -1254,80 +1634,12 @@
 								"adversaries"
 							]
 						},
-						"description": "Create a new adversary. Authenticated user becomes the creator. Non-official by default."
-					},
-					"response": []
-				},
-				{
-					"name": "Batch Create Adversaries",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 201 or 207\", function () {",
-									"    pm.expect([201, 207]).to.include(pm.response.code);",
-									"});",
-									"",
-									"pm.test(\"Response has batch results\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('created');",
-									"    pm.expect(jsonData).to.have.property('totalRequested');",
-									"    pm.expect(jsonData).to.have.property('totalCreated');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
-					"request": {
-						"method": "POST",
-						"header": [
-							{
-								"key": "Content-Type",
-								"value": "application/json"
-							}
-						],
-						"body": {
-							"mode": "raw",
-							"raw": "{\n  \"adversaries\": [\n    {\n      \"name\": \"Goblin Scout\",\n      \"tier\": 1,\n      \"adversaryType\": \"SKULK\",\n      \"description\": \"A sneaky goblin with a shortbow.\",\n      \"difficulty\": 2,\n      \"majorThreshold\": 3,\n      \"severeThreshold\": 6,\n      \"hitPointMax\": 4,\n      \"stressMax\": 2,\n      \"attackModifier\": 3,\n      \"weaponName\": \"Shortbow\",\n      \"attackRange\": \"FAR\",\n      \"damage\": {\n        \"diceCount\": 1,\n        \"diceType\": \"D6\",\n        \"modifier\": 1,\n        \"damageType\": \"PHYSICAL\"\n      },\n      \"expansionId\": {{expansionId}},\n      \"isPublic\": false\n    },\n    {\n      \"name\": \"Goblin Shaman\",\n      \"tier\": 1,\n      \"adversaryType\": \"SUPPORT\",\n      \"description\": \"A goblin wearing bone fetishes and carrying a gnarled staff.\",\n      \"difficulty\": 4,\n      \"majorThreshold\": 4,\n      \"severeThreshold\": 8,\n      \"hitPointMax\": 6,\n      \"stressMax\": 6,\n      \"attackModifier\": 1,\n      \"weaponName\": \"Spirit Bolt\",\n      \"attackRange\": \"CLOSE\",\n      \"damage\": {\n        \"diceCount\": 1,\n        \"diceType\": \"D6\",\n        \"modifier\": 0,\n        \"damageType\": \"MAGICAL\"\n      },\n      \"expansionId\": {{expansionId}},\n      \"isPublic\": false\n    }\n  ]\n}"
-						},
-						"url": {
-							"raw": "{{baseUrl}}/api/dh/adversaries/batch",
-							"host": [
-								"{{baseUrl}}"
-							],
-							"path": [
-								"api",
-								"dh",
-								"adversaries",
-								"batch"
-							]
-						},
-						"description": "Batch create multiple adversaries. Requires MODERATOR+ role. Supports partial success - returns created adversaries and errors. Max 100 per batch."
+						"description": "Create a new adversary. User becomes the creator."
 					},
 					"response": []
 				},
 				{
 					"name": "Copy Adversary",
-					"event": [
-						{
-							"listen": "test",
-							"script": {
-								"exec": [
-									"pm.test(\"Status code is 201\", function () {",
-									"    pm.response.to.have.status(201);",
-									"});",
-									"",
-									"pm.test(\"Response has originalAdversaryId\", function () {",
-									"    var jsonData = pm.response.json();",
-									"    pm.expect(jsonData).to.have.property('originalAdversaryId');",
-									"});"
-								],
-								"type": "text/javascript"
-							}
-						}
-					],
 					"request": {
 						"method": "POST",
 						"header": [],
@@ -1344,7 +1656,37 @@
 								"copy"
 							]
 						},
-						"description": "Create a copy of an existing adversary. The copy is private by default and linked to the original via originalAdversaryId. Allows users to customize adversaries while keeping reference to the original for reverting changes."
+						"description": "Create a private copy of an adversary. Linked via originalAdversaryId."
+					},
+					"response": []
+				},
+				{
+					"name": "Batch Create Adversaries",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"adversaries\": [\n    {\n      \"name\": \"Goblin Scout\",\n      \"tier\": 1,\n      \"adversaryType\": \"MINION\",\n      \"difficulty\": 10,\n      \"majorThreshold\": 2,\n      \"severeThreshold\": 4,\n      \"hitPointMax\": 5,\n      \"stressMax\": 3,\n      \"expansionId\": 1\n    },\n    {\n      \"name\": \"Goblin Warrior\",\n      \"tier\": 1,\n      \"adversaryType\": \"STANDARD\",\n      \"difficulty\": 12,\n      \"majorThreshold\": 3,\n      \"severeThreshold\": 5,\n      \"hitPointMax\": 8,\n      \"stressMax\": 5,\n      \"expansionId\": 1\n    }\n  ]\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/adversaries/batch",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"adversaries",
+								"batch"
+							]
+						},
+						"description": "Batch create adversaries. Requires MODERATOR+ role. Returns 207 Multi-Status on partial failure."
 					},
 					"response": []
 				},
@@ -1360,7 +1702,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Elite Goblin Bruiser\",\n  \"difficulty\": 4,\n  \"hitPointMax\": 12,\n  \"attackModifier\": 3,\n  \"isPublic\": true\n}"
+							"raw": "{\n  \"hitPointMax\": 25,\n  \"stressMax\": 12,\n  \"description\": \"A medium-sized drake that lurks in dark caves, breathing shadowy flames. Known to be especially aggressive.\"\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/adversaries/{{adversaryId}}",
@@ -1374,7 +1716,7 @@
 								"{{adversaryId}}"
 							]
 						},
-						"description": "Update an adversary. Partial updates supported. Permission: Official adversaries require OWNER role. Non-official adversaries can be modified by creator OR MODERATOR+ role."
+						"description": "Update adversary. Creator or MODERATOR+ can update non-official. OWNER only for official."
 					},
 					"response": []
 				},
@@ -1395,7 +1737,7 @@
 								"{{adversaryId}}"
 							]
 						},
-						"description": "Soft delete an adversary. Permission: Official adversaries require OWNER role. Non-official adversaries can be deleted by creator OR MODERATOR+ role."
+						"description": "Soft delete adversary. Creator or MODERATOR+ can delete non-official. OWNER only for official."
 					},
 					"response": []
 				},
@@ -1417,7 +1759,2999 @@
 								"restore"
 							]
 						},
-						"description": "Restore a soft-deleted adversary. Requires ADMIN or OWNER role."
+						"description": "Restore soft-deleted adversary. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Encounters",
+			"description": "Encounter management for Daggerheart. Groups of adversaries for combat scenarios.",
+			"item": [
+				{
+					"name": "List All Encounters",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters?page=0&size=20&expand=creator,adversaryDetails",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "campaignId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "tier",
+									"value": "2",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "name",
+									"value": "Goblin Ambush",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "creator,adversaryDetails"
+								}
+							]
+						},
+						"description": "List encounters. Filters: campaignId, tier, isOfficial, name. Expand: creator, campaign, originalEncounter, adversaryDetails."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Encounter by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters/{{encounterId}}?expand=adversaryDetails",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters",
+								"{{encounterId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "adversaryDetails"
+								}
+							]
+						},
+						"description": "Get encounter by ID. Expand: creator, campaign, originalEncounter, adversaryDetails."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Encounter",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"encounterId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Goblin War Party\",\n  \"description\": \"A raiding party of goblins led by a shaman. They attack travelers on forest roads.\",\n  \"tier\": 2,\n  \"isPublic\": false\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters"
+							]
+						},
+						"description": "Create a new encounter. User becomes the creator."
+					},
+					"response": []
+				},
+				{
+					"name": "Copy Encounter",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters/{{encounterId}}/copy",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters",
+								"{{encounterId}}",
+								"copy"
+							]
+						},
+						"description": "Create a private copy of an encounter. Linked via originalEncounterId."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Encounter",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"A raiding party of goblins led by a shaman. They attack travelers on forest roads at night.\",\n  \"tier\": 3\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters/{{encounterId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters",
+								"{{encounterId}}"
+							]
+						},
+						"description": "Update encounter. Creator or MODERATOR+ can update non-official. OWNER only for official."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Encounter",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters/{{encounterId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters",
+								"{{encounterId}}"
+							]
+						},
+						"description": "Soft delete encounter. Creator or MODERATOR+ can delete non-official. OWNER only for official."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Encounter",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters/{{encounterId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters",
+								"{{encounterId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted encounter. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Add Adversary to Encounter",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    var jsonData = pm.response.json();",
+									"    if (jsonData.adversaries && jsonData.adversaries.length > 0) {",
+									"        var lastAdversary = jsonData.adversaries[jsonData.adversaries.length - 1];",
+									"        pm.collectionVariables.set(\"encounterAdversaryId\", lastAdversary.id);",
+									"    }",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters/{{encounterId}}/adversaries?adversaryId={{adversaryId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters",
+								"{{encounterId}}",
+								"adversaries"
+							],
+							"query": [
+								{
+									"key": "adversaryId",
+									"value": "{{adversaryId}}"
+								}
+							]
+						},
+						"description": "Add an adversary to the encounter. Creates an encounter adversary instance."
+					},
+					"response": []
+				},
+				{
+					"name": "Remove Adversary from Encounter",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/encounters/{{encounterId}}/adversaries/{{encounterAdversaryId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"encounters",
+								"{{encounterId}}",
+								"adversaries",
+								"{{encounterAdversaryId}}"
+							]
+						},
+						"description": "Remove an adversary instance from the encounter."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Ancestry Cards",
+			"description": "Ancestry card management for character creation. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Ancestry Cards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry?page=0&size=20&expand=expansion,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"ancestry"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,features"
+								}
+							]
+						},
+						"description": "List ancestry cards. Filters: expansionId, isOfficial. Expand: expansion, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Ancestry Card by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry/{{ancestryCardId}}?expand=expansion,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"ancestry",
+								"{{ancestryCardId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,features"
+								}
+							]
+						},
+						"description": "Get ancestry card by ID. Expand: expansion, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Ancestry Card",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"ancestryCardId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Dwarven\",\n  \"description\": \"Sturdy mountain folk known for their craftsmanship and resilience.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"ancestry"
+							]
+						},
+						"description": "Create ancestry card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Ancestry Cards",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Elven\",\n    \"description\": \"Graceful forest dwellers with keen senses.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Human\",\n    \"description\": \"Adaptable and diverse people found across all lands.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"ancestry",
+								"bulk"
+							]
+						},
+						"description": "Bulk create ancestry cards. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Ancestry Card",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Sturdy mountain folk known for their exceptional craftsmanship, resilience, and love of stone.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry/{{ancestryCardId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"ancestry",
+								"{{ancestryCardId}}"
+							]
+						},
+						"description": "Update ancestry card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Ancestry Card",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry/{{ancestryCardId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"ancestry",
+								"{{ancestryCardId}}"
+							]
+						},
+						"description": "Soft delete ancestry card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Ancestry Card",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry/{{ancestryCardId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"ancestry",
+								"{{ancestryCardId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted ancestry card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Community Cards",
+			"description": "Community card management for character creation. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Community Cards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/community?page=0&size=20&expand=expansion,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"community"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,features"
+								}
+							]
+						},
+						"description": "List community cards. Filters: expansionId, isOfficial. Expand: expansion, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Community Card by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/community/{{communityCardId}}?expand=expansion,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"community",
+								"{{communityCardId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,features"
+								}
+							]
+						},
+						"description": "Get community card by ID. Expand: expansion, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Community Card",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"communityCardId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Wanderer\",\n  \"description\": \"A traveler from distant lands, bringing exotic knowledge and customs.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/community",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"community"
+							]
+						},
+						"description": "Create community card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Community Cards",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Highborne\",\n    \"description\": \"Raised among nobility and high society.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Outcast\",\n    \"description\": \"Cast out from your community, forced to survive on your own.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/community/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"community",
+								"bulk"
+							]
+						},
+						"description": "Bulk create community cards. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Community Card",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"A well-traveled wanderer from distant lands, bringing exotic knowledge, customs, and stories.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/community/{{communityCardId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"community",
+								"{{communityCardId}}"
+							]
+						},
+						"description": "Update community card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Community Card",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/community/{{communityCardId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"community",
+								"{{communityCardId}}"
+							]
+						},
+						"description": "Soft delete community card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Community Card",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/community/{{communityCardId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"community",
+								"{{communityCardId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted community card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Subclass Cards",
+			"description": "Subclass card management for advanced character specialization. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Subclass Cards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/subclass?page=0&size=20&expand=expansion,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"subclass"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,features"
+								}
+							]
+						},
+						"description": "List subclass cards. Filters: expansionId, isOfficial. Expand: expansion, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Subclass Card by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/subclass/{{subclassCardId}}?expand=expansion,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"subclass",
+								"{{subclassCardId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,features"
+								}
+							]
+						},
+						"description": "Get subclass card by ID. Expand: expansion, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Subclass Card",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"subclassCardId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Shadow Dancer\",\n  \"description\": \"A rogue specialization that masters stealth and deception through shadow magic.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/subclass",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"subclass"
+							]
+						},
+						"description": "Create subclass card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Subclass Cards",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Berserker\",\n    \"description\": \"A warrior who channels rage into devastating combat prowess.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Spellblade\",\n    \"description\": \"Combines martial combat with arcane magic.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/subclass/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"subclass",
+								"bulk"
+							]
+						},
+						"description": "Bulk create subclass cards. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Subclass Card",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"A rogue specialization that masters stealth, deception, and assassination through shadow magic and cunning.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/subclass/{{subclassCardId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"subclass",
+								"{{subclassCardId}}"
+							]
+						},
+						"description": "Update subclass card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Subclass Card",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/subclass/{{subclassCardId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"subclass",
+								"{{subclassCardId}}"
+							]
+						},
+						"description": "Soft delete subclass card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Subclass Card",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/subclass/{{subclassCardId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"subclass",
+								"{{subclassCardId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted subclass card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Domain Cards",
+			"description": "Domain card management for spellcasting specialization. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Domain Cards",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/domain?page=0&size=20&expand=expansion,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"domain"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,features"
+								}
+							]
+						},
+						"description": "List domain cards. Filters: expansionId, isOfficial. Expand: expansion, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Domain Card by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/domain/{{domainCardId}}?expand=expansion,features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"domain",
+								"{{domainCardId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,features"
+								}
+							]
+						},
+						"description": "Get domain card by ID. Expand: expansion, features."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Domain Card",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"domainCardId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Arcane\",\n  \"description\": \"Magic drawn from study of raw magical forces and ancient formulae.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/domain",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"domain"
+							]
+						},
+						"description": "Create domain card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Domain Cards",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Sage\",\n    \"description\": \"Magic drawn from wisdom and understanding of natural laws.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Grace\",\n    \"description\": \"Divine magic channeled through faith and devotion.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/domain/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"domain",
+								"bulk"
+							]
+						},
+						"description": "Bulk create domain cards. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Domain Card",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Magic drawn from deep study of raw magical forces, ancient formulae, and the fundamental laws of reality.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/domain/{{domainCardId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"domain",
+								"{{domainCardId}}"
+							]
+						},
+						"description": "Update domain card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Domain Card",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/domain/{{domainCardId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"domain",
+								"{{domainCardId}}"
+							]
+						},
+						"description": "Soft delete domain card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Domain Card",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/cards/domain/{{domainCardId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"cards",
+								"domain",
+								"{{domainCardId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted domain card. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Weapons",
+			"description": "Weapon item management. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Weapons",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/weapons?page=0&size=20&expand=expansion,feature",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"weapons"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "trait",
+									"value": "STRENGTH",
+									"disabled": true
+								},
+								{
+									"key": "range",
+									"value": "MELEE",
+									"disabled": true
+								},
+								{
+									"key": "burden",
+									"value": "ONE_HANDED",
+									"disabled": true
+								},
+								{
+									"key": "isPrimary",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,feature"
+								}
+							]
+						},
+						"description": "List weapons. Filters: expansionId, isOfficial, trait, range, burden, isPrimary. Expand: expansion, feature, originalWeapon."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Weapon by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/weapons/{{weaponId}}?expand=expansion,feature",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"weapons",
+								"{{weaponId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,feature"
+								}
+							]
+						},
+						"description": "Get weapon by ID. Expand: expansion, feature, originalWeapon."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Weapon",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"weaponId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Longsword\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"isPrimary\": true,\n  \"trait\": \"STRENGTH\",\n  \"range\": \"MELEE\",\n  \"burden\": \"ONE_HANDED\",\n  \"damage\": {\n    \"diceCount\": null,\n    \"diceType\": \"D8\",\n    \"modifier\": 0,\n    \"damageType\": \"PHYSICAL\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/weapons",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"weapons"
+							]
+						},
+						"description": "Create weapon. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Weapons",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Dagger\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"isPrimary\": false,\n    \"trait\": \"FINESSE\",\n    \"range\": \"MELEE\",\n    \"burden\": \"ONE_HANDED\",\n    \"damage\": {\n      \"diceType\": \"D6\",\n      \"damageType\": \"PHYSICAL\"\n    }\n  },\n  {\n    \"name\": \"Longbow\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"isPrimary\": true,\n    \"trait\": \"AGILITY\",\n    \"range\": \"VERY_FAR\",\n    \"burden\": \"TWO_HANDED\",\n    \"damage\": {\n      \"diceType\": \"D10\",\n      \"damageType\": \"PHYSICAL\"\n    }\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/weapons/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"weapons",
+								"bulk"
+							]
+						},
+						"description": "Bulk create weapons. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Weapon",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"damage\": {\n    \"diceType\": \"D10\",\n    \"modifier\": 1,\n    \"damageType\": \"PHYSICAL\"\n  }\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/weapons/{{weaponId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"weapons",
+								"{{weaponId}}"
+							]
+						},
+						"description": "Update weapon. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Weapon",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/weapons/{{weaponId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"weapons",
+								"{{weaponId}}"
+							]
+						},
+						"description": "Soft delete weapon. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Weapon",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/weapons/{{weaponId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"weapons",
+								"{{weaponId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted weapon. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Armor",
+			"description": "Armor item management. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Armor",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/armor?page=0&size=20&expand=expansion,feature",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"armor"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,feature"
+								}
+							]
+						},
+						"description": "List armor. Filters: expansionId, isOfficial. Expand: expansion, feature, originalArmor."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Armor by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/armor/{{armorId}}?expand=expansion,feature",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"armor",
+								"{{armorId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,feature"
+								}
+							]
+						},
+						"description": "Get armor by ID. Expand: expansion, feature, originalArmor."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Armor",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"armorId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Chainmail\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"armorScore\": 3,\n  \"description\": \"Interlocking metal rings providing solid protection.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/armor",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"armor"
+							]
+						},
+						"description": "Create armor. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Armor",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Leather Armor\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"armorScore\": 1,\n    \"description\": \"Light, flexible protection.\"\n  },\n  {\n    \"name\": \"Plate Armor\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"armorScore\": 5,\n    \"description\": \"Heavy plates of metal offering maximum protection.\"\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/armor/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"armor",
+								"bulk"
+							]
+						},
+						"description": "Bulk create armor. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Armor",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"armorScore\": 4,\n  \"description\": \"Interlocking metal rings providing solid protection. Reinforced at vital areas.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/armor/{{armorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"armor",
+								"{{armorId}}"
+							]
+						},
+						"description": "Update armor. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Armor",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/armor/{{armorId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"armor",
+								"{{armorId}}"
+							]
+						},
+						"description": "Soft delete armor. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Armor",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/armor/{{armorId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"armor",
+								"{{armorId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted armor. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Loot",
+			"description": "Loot item management. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Loot",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/loot?page=0&size=20&expand=expansion,feature",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"loot"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "isOfficial",
+									"value": "true",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,feature"
+								}
+							]
+						},
+						"description": "List loot. Filters: expansionId, isOfficial. Expand: expansion, feature, originalLoot."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Loot by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/loot/{{lootId}}?expand=expansion,feature",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"loot",
+								"{{lootId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,feature"
+								}
+							]
+						},
+						"description": "Get loot by ID. Expand: expansion, feature, originalLoot."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Loot",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"lootId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Healing Potion\",\n  \"expansionId\": 1,\n  \"isOfficial\": true,\n  \"description\": \"A magical potion that restores 2d6 hit points when consumed.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/loot",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"loot"
+							]
+						},
+						"description": "Create loot. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Loot",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Rope (50 ft)\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"description\": \"Sturdy hemp rope.\"\n  },\n  {\n    \"name\": \"Torch\",\n    \"expansionId\": 1,\n    \"isOfficial\": true,\n    \"description\": \"Provides light in dark places.\"\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/loot/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"loot",
+								"bulk"
+							]
+						},
+						"description": "Bulk create loot. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Loot",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"A magical potion that restores 2d6 hit points when consumed. Tastes of berries and honey.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/loot/{{lootId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"loot",
+								"{{lootId}}"
+							]
+						},
+						"description": "Update loot. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Loot",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/loot/{{lootId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"loot",
+								"{{lootId}}"
+							]
+						},
+						"description": "Soft delete loot. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Loot",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/loot/{{lootId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"loot",
+								"{{lootId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted loot. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Classes",
+			"description": "Character class management. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Classes",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/classes?page=0&size=20&expand=expansion,associatedDomains",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"classes"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion,associatedDomains"
+								}
+							]
+						},
+						"description": "List character classes. Filters: expansionId. Expand: expansion, associatedDomains."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Class by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/classes/{{classId}}?expand=expansion,associatedDomains",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"classes",
+								"{{classId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion,associatedDomains"
+								}
+							]
+						},
+						"description": "Get class by ID. Expand: expansion, associatedDomains."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Class",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"classId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Guardian\",\n  \"description\": \"Stalwart defenders who protect their allies and control the battlefield.\",\n  \"expansionId\": 1,\n  \"foundationName\": \"Shield Wall\",\n  \"foundationDescription\": \"You can use your armor to protect nearby allies.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/classes",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"classes"
+							]
+						},
+						"description": "Create class. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Classes",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Seraph\",\n    \"description\": \"Divine spellcasters who channel celestial power.\",\n    \"expansionId\": 1,\n    \"foundationName\": \"Divine Light\",\n    \"foundationDescription\": \"Your magic heals and protects.\"\n  },\n  {\n    \"name\": \"Ranger\",\n    \"description\": \"Skilled hunters and trackers of the wilderness.\",\n    \"expansionId\": 1,\n    \"foundationName\": \"Hunter's Mark\",\n    \"foundationDescription\": \"You excel at tracking and ranged combat.\"\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/classes/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"classes",
+								"bulk"
+							]
+						},
+						"description": "Bulk create classes. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Class",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Stalwart defenders who protect their allies and control the battlefield through tactical positioning.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/classes/{{classId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"classes",
+								"{{classId}}"
+							]
+						},
+						"description": "Update class. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Class",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/classes/{{classId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"classes",
+								"{{classId}}"
+							]
+						},
+						"description": "Soft delete class. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Class",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/classes/{{classId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"classes",
+								"{{classId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted class. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Domains",
+			"description": "Spellcasting domain management. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Domains",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/domains?page=0&size=20&expand=expansion",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"domains"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion"
+								}
+							]
+						},
+						"description": "List spellcasting domains. Filters: expansionId. Expand: expansion."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Domain by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/domains/{{domainId}}?expand=expansion",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"domains",
+								"{{domainId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion"
+								}
+							]
+						},
+						"description": "Get domain by ID. Expand: expansion."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Domain",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"domainId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Arcane\",\n  \"description\": \"Magic drawn from study of raw magical forces and ancient formulae.\",\n  \"expansionId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/domains",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"domains"
+							]
+						},
+						"description": "Create domain. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Domains",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"name\": \"Sage\",\n    \"description\": \"Magic from wisdom and understanding of natural laws.\",\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Grace\",\n    \"description\": \"Divine magic channeled through faith.\",\n    \"expansionId\": 1\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/domains/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"domains",
+								"bulk"
+							]
+						},
+						"description": "Bulk create domains. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Domain",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"Magic drawn from deep study of raw magical forces, ancient formulae, and the fundamental laws of reality.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/domains/{{domainId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"domains",
+								"{{domainId}}"
+							]
+						},
+						"description": "Update domain. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Domain",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/domains/{{domainId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"domains",
+								"{{domainId}}"
+							]
+						},
+						"description": "Soft delete domain. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Domain",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/domains/{{domainId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"domains",
+								"{{domainId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted domain. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Features",
+			"description": "Feature (abilities/traits) management. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Features",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/features?page=0&size=20&expand=expansion",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"features"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "featureType",
+									"value": "ANCESTRY",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion"
+								}
+							]
+						},
+						"description": "List features. Filters: expansionId, featureType. Expand: expansion."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Feature by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/features/{{featureId}}?expand=expansion",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"features",
+								"{{featureId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion"
+								}
+							]
+						},
+						"description": "Get feature by ID. Expand: expansion."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Feature",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"featureId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Darkvision\",\n  \"description\": \"You can see in dim light within 60 feet as if it were bright light.\",\n  \"featureType\": \"ANCESTRY\",\n  \"expansionId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/features",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"features"
+							]
+						},
+						"description": "Create feature. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Feature",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"You can see in dim light within 60 feet as if it were bright light, and in darkness as if it were dim light.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/features/{{featureId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"features",
+								"{{featureId}}"
+							]
+						},
+						"description": "Update feature. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Feature",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/features/{{featureId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"features",
+								"{{featureId}}"
+							]
+						},
+						"description": "Soft delete feature. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Feature",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/features/{{featureId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"features",
+								"{{featureId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted feature. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Expansions",
+			"description": "Game expansion/sourcebook management. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Expansions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/expansions?page=0&size=20",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"expansions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "published",
+									"value": "true",
+									"disabled": true
+								}
+							]
+						},
+						"description": "List expansions. Filters: published."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Expansion by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/expansions/{{expansionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"expansions",
+								"{{expansionId}}"
+							]
+						},
+						"description": "Get expansion by ID."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Expansion",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"expansionId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"name\": \"Core Rulebook\",\n  \"description\": \"The core rules and content for Daggerheart.\",\n  \"published\": true\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/expansions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"expansions"
+							]
+						},
+						"description": "Create expansion. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Expansion",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"description\": \"The core rules and base content for Daggerheart TTRPG.\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/expansions/{{expansionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"expansions",
+								"{{expansionId}}"
+							]
+						},
+						"description": "Update expansion. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Expansion",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/expansions/{{expansionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"expansions",
+								"{{expansionId}}"
+							]
+						},
+						"description": "Soft delete expansion. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Expansion",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/expansions/{{expansionId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"expansions",
+								"{{expansionId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted expansion. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Questions",
+			"description": "Character creation question management. ADMIN/OWNER only for modifications.",
+			"item": [
+				{
+					"name": "List All Questions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/questions?page=0&size=20&expand=expansion",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"questions"
+							],
+							"query": [
+								{
+									"key": "page",
+									"value": "0"
+								},
+								{
+									"key": "size",
+									"value": "20"
+								},
+								{
+									"key": "includeDeleted",
+									"value": "false",
+									"disabled": true
+								},
+								{
+									"key": "expansionId",
+									"value": "1",
+									"disabled": true
+								},
+								{
+									"key": "expand",
+									"value": "expansion"
+								}
+							]
+						},
+						"description": "List character creation questions. Filters: expansionId. Expand: expansion."
+					},
+					"response": []
+				},
+				{
+					"name": "Get Question by ID",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/questions/{{questionId}}?expand=expansion",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"questions",
+								"{{questionId}}"
+							],
+							"query": [
+								{
+									"key": "expand",
+									"value": "expansion"
+								}
+							]
+						},
+						"description": "Get question by ID. Expand: expansion."
+					},
+					"response": []
+				},
+				{
+					"name": "Create Question",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 201) {",
+									"    var jsonData = pm.response.json();",
+									"    pm.collectionVariables.set(\"questionId\", jsonData.id);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"questionText\": \"What drives you to adventure?\",\n  \"expansionId\": 1\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/questions",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"questions"
+							]
+						},
+						"description": "Create question. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Bulk Create Questions",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "[\n  {\n    \"questionText\": \"Who was your mentor?\",\n    \"expansionId\": 1\n  },\n  {\n    \"questionText\": \"What is your greatest fear?\",\n    \"expansionId\": 1\n  }\n]"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/questions/bulk",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"questions",
+								"bulk"
+							]
+						},
+						"description": "Bulk create questions. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Update Question",
+					"request": {
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"questionText\": \"What truly drives you to seek adventure and leave the safety of home?\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/questions/{{questionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"questions",
+								"{{questionId}}"
+							]
+						},
+						"description": "Update question. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Delete Question",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/questions/{{questionId}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"questions",
+								"{{questionId}}"
+							]
+						},
+						"description": "Soft delete question. Requires ADMIN or OWNER role."
+					},
+					"response": []
+				},
+				{
+					"name": "Restore Question",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/api/dh/questions/{{questionId}}/restore",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"api",
+								"dh",
+								"questions",
+								"{{questionId}}",
+								"restore"
+							]
+						},
+						"description": "Restore soft-deleted question. Requires ADMIN or OWNER role."
 					},
 					"response": []
 				}

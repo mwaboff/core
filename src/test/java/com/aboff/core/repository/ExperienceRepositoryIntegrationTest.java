@@ -4,6 +4,8 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.enums.Role;
+import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.ExperienceRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

@@ -14,7 +14,7 @@ import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.Encounter;
 import com.aboff.core.model.entity.dh.EncounterAdversary;
 import com.aboff.core.model.enums.Role;
-import com.aboff.core.repository.CampaignRepository;
+import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.EncounterAdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRepository;

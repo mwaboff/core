@@ -11,8 +11,8 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Companion;
 import com.aboff.core.model.entity.dh.Experience;
-import com.aboff.core.repository.CharacterSheetRepository;
-import com.aboff.core.repository.ExperienceRepository;
+import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
@@ -29,8 +29,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
 
 /**
