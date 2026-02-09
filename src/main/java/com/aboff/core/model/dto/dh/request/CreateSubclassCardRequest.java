@@ -56,6 +56,11 @@ public class CreateSubclassCardRequest {
     private List<Long> featureIds;
 
     /**
+     * IDs of cost tags associated with this card
+     */
+    private List<Long> costTagIds;
+
+    /**
      * ID of the class this subclass is associated with
      */
     @NotNull(message = "Associated class ID is required")

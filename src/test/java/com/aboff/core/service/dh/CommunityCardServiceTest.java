@@ -8,6 +8,7 @@ import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.CommunityCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
@@ -47,6 +48,9 @@ class CommunityCardServiceTest {
 
     @Mock
     private FeatureRepository featureRepository;
+
+    @Mock
+    private CardCostTagRepository cardCostTagRepository;
 
     @InjectMocks
     private CommunityCardService communityCardService;

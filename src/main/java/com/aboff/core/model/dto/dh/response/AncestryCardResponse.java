@@ -78,6 +78,16 @@ public class AncestryCardResponse {
     private List<FeatureResponse> features;
 
     /**
+     * IDs of cost tags associated with this card (always included)
+     */
+    private List<Long> costTagIds;
+
+    /**
+     * Full cost tag objects (included only when ?expand=costTags is specified)
+     */
+    private List<CardCostTagResponse> costTags;
+
+    /**
      * Timestamp when the card was created
      */
     private LocalDateTime createdAt;

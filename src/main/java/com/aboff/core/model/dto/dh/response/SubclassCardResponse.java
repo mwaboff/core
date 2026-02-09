@@ -82,6 +82,16 @@ public class SubclassCardResponse {
     private List<FeatureResponse> features;
 
     /**
+     * IDs of cost tags associated with this card (always included)
+     */
+    private List<Long> costTagIds;
+
+    /**
+     * Full cost tag objects (included only when ?expand=costTags is specified)
+     */
+    private List<CardCostTagResponse> costTags;
+
+    /**
      * ID of the associated class (always included)
      */
     private Long associatedClassId;

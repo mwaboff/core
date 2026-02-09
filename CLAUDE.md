@@ -6,6 +6,10 @@ Java 25 Spring Boot 4.0.1 backend for a Daggerheart TTRPG character management a
 
 The application enables users to create and manage character sheets, campaigns, game content (weapons, armor, cards), and adversaries for the Daggerheart tabletop RPG.
 
+## Critical Considerations
+
+**MANDATORY:** After all code changes, you MUST validate tests are successful (all green), lint checks are successful (all green), and the application builds successfully.
+
 ## Commands
 
 ```bash

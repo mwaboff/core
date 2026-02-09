@@ -5,10 +5,13 @@ import com.aboff.core.model.dto.dh.request.UpdateAncestryCardRequest;
 import com.aboff.core.model.dto.dh.response.AncestryCardResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.AncestryCard;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.AncestryCardRepository;
+import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -47,6 +50,9 @@ class AncestryCardServiceTest {
 
     @Mock
     private FeatureRepository featureRepository;
+
+    @Mock
+    private CardCostTagRepository cardCostTagRepository;
 
     @InjectMocks
     private AncestryCardService ancestryCardService;
@@ -303,6 +309,73 @@ class AncestryCardServiceTest {
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Human");
         verify(ancestryCardRepository).save(any(AncestryCard.class));
+    }
+
+    @Test
+    void createAncestryCard_WithCostTagIds_SetsCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+
+        CreateAncestryCardRequest request = CreateAncestryCardRequest.builder()
+                .name("Human")
+                .description("Versatile ancestry")
+                .expansionId(1L)
+                .isOfficial(true)
+                .costTagIds(List.of(1L))
+                .build();
+
+        AncestryCard savedCard = AncestryCard.builder()
+                .id(1L)
+                .name("Human")
+                .description("Versatile ancestry")
+                .expansion(expansion)
+                .isOfficial(true)
+                .costTags(Set.of(costTag))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(costTag));
+        when(ancestryCardRepository.save(any(AncestryCard.class))).thenReturn(savedCard);
+
+        // Act
+        AncestryCardResponse result = ancestryCardService.createAncestryCard(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCostTagIds()).containsExactly(1L);
+        verify(cardCostTagRepository).findAllByIdInAndDeletedAtIsNull(List.of(1L));
+    }
+
+    @Test
+    void getAllAncestryCards_WithExpandCostTags_ExpandsCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+
+        AncestryCard card = AncestryCard.builder()
+                .id(1L)
+                .name("Human")
+                .description("Versatile ancestry")
+                .expansion(expansion)
+                .isOfficial(true)
+                .costTags(Set.of(costTag))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "costTags");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getCostTags()).isNotNull();
+        assertThat(result.getContent().get(0).getCostTags()).hasSize(1);
+        assertThat(result.getContent().get(0).getCostTags().get(0).getLabel()).isEqualTo("3 Hope");
     }
 
     @Test

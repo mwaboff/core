@@ -53,6 +53,11 @@ public class CreateDomainCardRequest {
     private List<Long> featureIds;
 
     /**
+     * IDs of cost tags associated with this card
+     */
+    private List<Long> costTagIds;
+
+    /**
      * ID of the domain this card is associated with
      */
     @NotNull(message = "Associated domain ID is required")

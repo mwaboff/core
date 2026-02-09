@@ -6,10 +6,13 @@ import com.aboff.core.model.dto.dh.response.AncestryCardResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.entity.dh.AncestryCard;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.repository.dh.AncestryCardRepository;
+import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -41,6 +44,7 @@ public class AncestryCardService {
     private final AncestryCardRepository ancestryCardRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureRepository featureRepository;
+    private final CardCostTagRepository cardCostTagRepository;
 
     /**
      * Retrieves a paginated list of ancestry cards.
@@ -131,6 +135,12 @@ public class AncestryCardService {
             card.setFeatures(features);
         }
 
+        // Set cost tags if provided
+        if (request.getCostTagIds() != null && !request.getCostTagIds().isEmpty()) {
+            Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
+            card.setCostTags(costTags);
+        }
+
         AncestryCard savedCard = ancestryCardRepository.save(card);
         log.info("Created ancestry card with id: {}", savedCard.getId());
 
@@ -164,6 +174,11 @@ public class AncestryCardService {
                     if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
                         Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
                         card.setFeatures(features);
+                    }
+
+                    if (request.getCostTagIds() != null && !request.getCostTagIds().isEmpty()) {
+                        Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
+                        card.setCostTags(costTags);
                     }
 
                     return card;
@@ -210,6 +225,16 @@ public class AncestryCardService {
             } else {
                 Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
                 card.setFeatures(features);
+            }
+        }
+
+        // Update cost tags
+        if (request.getCostTagIds() != null) {
+            if (request.getCostTagIds().isEmpty()) {
+                card.setCostTags(new HashSet<>());
+            } else {
+                Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
+                card.setCostTags(costTags);
             }
         }
 
@@ -317,6 +342,27 @@ public class AncestryCardService {
                             .createdAt(feature.getCreatedAt())
                             .lastModifiedAt(feature.getLastModifiedAt())
                             .deletedAt(feature.getDeletedAt())
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        // Always include cost tag IDs
+        if (card.getCostTags() != null) {
+            builder.costTagIds(card.getCostTags().stream()
+                    .map(CardCostTag::getId)
+                    .collect(Collectors.toList()));
+        }
+
+        // Expand cost tags if requested
+        if (expand.contains("costTags") && card.getCostTags() != null) {
+            builder.costTags(card.getCostTags().stream()
+                    .map(tag -> CardCostTagResponse.builder()
+                            .id(tag.getId())
+                            .label(tag.getLabel())
+                            .category(tag.getCategory())
+                            .createdAt(tag.getCreatedAt())
+                            .lastModifiedAt(tag.getLastModifiedAt())
+                            .deletedAt(tag.getDeletedAt())
                             .build())
                     .collect(Collectors.toList()));
         }
