@@ -85,6 +85,17 @@ public abstract class Card extends BaseEntity {
     private Set<Feature> features;
 
     /**
+     * The cost/limitation tags associated with this card.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "card_card_cost_tags",
+        joinColumns = @JoinColumn(name = "card_id"),
+        inverseJoinColumns = @JoinColumn(name = "card_cost_tag_id")
+    )
+    private Set<CardCostTag> costTags;
+
+    /**
      * Timestamp indicating when this card was soft-deleted.
      * If null, the card is active.
      */

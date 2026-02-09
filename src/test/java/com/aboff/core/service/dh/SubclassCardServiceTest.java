@@ -12,6 +12,7 @@ import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
+import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -53,6 +54,9 @@ class SubclassCardServiceTest {
 
     @Mock
     private FeatureRepository featureRepository;
+
+    @Mock
+    private CardCostTagRepository cardCostTagRepository;
 
     @Mock
     private ClassRepository classRepository;

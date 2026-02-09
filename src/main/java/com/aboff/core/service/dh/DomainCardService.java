@@ -2,16 +2,19 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateDomainCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateDomainCardRequest;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.DomainCardResponse;
 import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.DomainCardType;
+import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -45,6 +48,7 @@ public class DomainCardService {
     private final DomainCardRepository domainCardRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureRepository featureRepository;
+    private final CardCostTagRepository cardCostTagRepository;
     private final DomainRepository domainRepository;
 
     /**
@@ -148,6 +152,12 @@ public class DomainCardService {
             card.setFeatures(features);
         }
 
+        // Set cost tags if provided
+        if (request.getCostTagIds() != null && !request.getCostTagIds().isEmpty()) {
+            Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
+            card.setCostTags(costTags);
+        }
+
         DomainCard savedCard = domainCardRepository.save(card);
         log.info("Created domain card with id: {}", savedCard.getId());
 
@@ -189,6 +199,11 @@ public class DomainCardService {
                     if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
                         Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
                         card.setFeatures(features);
+                    }
+
+                    if (request.getCostTagIds() != null && !request.getCostTagIds().isEmpty()) {
+                        Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
+                        card.setCostTags(costTags);
                     }
 
                     return card;
@@ -243,6 +258,16 @@ public class DomainCardService {
             } else {
                 Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
                 card.setFeatures(features);
+            }
+        }
+
+        // Update cost tags
+        if (request.getCostTagIds() != null) {
+            if (request.getCostTagIds().isEmpty()) {
+                card.setCostTags(new HashSet<>());
+            } else {
+                Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
+                card.setCostTags(costTags);
             }
         }
 
@@ -354,6 +379,27 @@ public class DomainCardService {
                             .createdAt(feature.getCreatedAt())
                             .lastModifiedAt(feature.getLastModifiedAt())
                             .deletedAt(feature.getDeletedAt())
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        // Always include cost tag IDs
+        if (card.getCostTags() != null) {
+            builder.costTagIds(card.getCostTags().stream()
+                    .map(CardCostTag::getId)
+                    .collect(Collectors.toList()));
+        }
+
+        // Expand cost tags if requested
+        if (expand.contains("costTags") && card.getCostTags() != null) {
+            builder.costTags(card.getCostTags().stream()
+                    .map(tag -> CardCostTagResponse.builder()
+                            .id(tag.getId())
+                            .label(tag.getLabel())
+                            .category(tag.getCategory())
+                            .createdAt(tag.getCreatedAt())
+                            .lastModifiedAt(tag.getLastModifiedAt())
+                            .deletedAt(tag.getDeletedAt())
                             .build())
                     .collect(Collectors.toList()));
         }

@@ -52,4 +52,9 @@ public class UpdateAncestryCardRequest {
      * IDs of features granted by this card
      */
     private List<Long> featureIds;
+
+    /**
+     * IDs of cost tags associated with this card
+     */
+    private List<Long> costTagIds;
 }

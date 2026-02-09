@@ -10,6 +10,7 @@ import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -50,6 +51,9 @@ class DomainCardServiceTest {
 
     @Mock
     private FeatureRepository featureRepository;
+
+    @Mock
+    private CardCostTagRepository cardCostTagRepository;
 
     @Mock
     private DomainRepository domainRepository;
