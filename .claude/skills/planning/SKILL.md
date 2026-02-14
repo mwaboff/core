@@ -10,7 +10,7 @@ metadata:
 
 Turn initial user and agent defined requests into well designed plan before implementation.
 
-Start by undersetanding the request and the application context. Ask questions one at a time until you understand the what you are building. Present the plan in small but detailed sections, checking with the user for any feedback before continuing.
+Start by understanding the request and the application context. Ask questions one at a time until you understand the what you are building. Present the plan in small but detailed sections, checking with the user for any feedback before continuing.
 
 ## Process
 
