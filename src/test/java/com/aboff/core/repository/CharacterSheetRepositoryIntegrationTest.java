@@ -47,12 +47,6 @@ class CharacterSheetRepositoryIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        characterSheetRepository.deleteAll();
-        userRepository.deleteAll();
-        expansionRepository.deleteAll();
-        weaponRepository.deleteAll();
-        armorRepository.deleteAll();
-
         user1 = createUser("player1", "player1@example.com");
         user2 = createUser("player2", "player2@example.com");
 
