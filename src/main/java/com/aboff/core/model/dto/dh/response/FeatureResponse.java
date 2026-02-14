@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Response DTO for Feature entities.
@@ -53,6 +54,16 @@ public class FeatureResponse {
      * Full expansion object (included only when ?expand=expansion is specified)
      */
     private ExpansionResponse expansion;
+
+    /**
+     * IDs of cost tags associated with this feature (always included)
+     */
+    private List<Long> costTagIds;
+
+    /**
+     * Full cost tag objects (included only when ?expand=costTags is specified)
+     */
+    private List<CardCostTagResponse> costTags;
 
     /**
      * Timestamp when the feature was created

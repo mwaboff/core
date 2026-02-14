@@ -2,9 +2,11 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.FeatureType;
@@ -22,9 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.util.ExpandUtil;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing Feature entities.
@@ -37,6 +39,7 @@ public class FeatureService {
 
     private final FeatureRepository featureRepository;
     private final ExpansionRepository expansionRepository;
+    private final CardCostTagService cardCostTagService;
 
     /**
      * Retrieves a paginated list of features.
@@ -118,6 +121,12 @@ public class FeatureService {
                 .expansion(expansion)
                 .build();
 
+        // Set cost tags if provided
+        Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
+        if (resolvedTags != null) {
+            feature.setCostTags(resolvedTags);
+        }
+
         Feature savedFeature = featureRepository.save(feature);
         log.info("Created feature with id: {}", savedFeature.getId());
 
@@ -146,6 +155,12 @@ public class FeatureService {
         feature.setDescription(request.getDescription());
         feature.setFeatureType(request.getFeatureType());
         feature.setExpansion(expansion);
+
+        // Update cost tags
+        Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
+        if (resolvedTags != null) {
+            feature.setCostTags(resolvedTags);
+        }
 
         Feature updatedFeature = featureRepository.save(feature);
         log.info("Updated feature with id: {}", updatedFeature.getId());
@@ -197,6 +212,46 @@ public class FeatureService {
     }
 
     /**
+     * Creates multiple features in bulk.
+     *
+     * @param requests List of creation requests
+     * @return List of created feature responses
+     */
+    @Transactional
+    public List<FeatureResponse> createFeaturesBulk(List<CreateFeatureRequest> requests) {
+        log.info("Creating {} features in bulk", requests.size());
+
+        List<Feature> features = requests.stream()
+                .map(request -> {
+                    Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                            .orElseThrow(() -> new EntityNotFoundException(
+                                    "Expansion not found with id: " + request.getExpansionId()));
+
+                    Feature feature = Feature.builder()
+                            .name(request.getName())
+                            .description(request.getDescription())
+                            .featureType(request.getFeatureType())
+                            .expansion(expansion)
+                            .build();
+
+                    Set<CardCostTag> bulkResolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
+                    if (bulkResolvedTags != null) {
+                        feature.setCostTags(bulkResolvedTags);
+                    }
+
+                    return feature;
+                })
+                .toList();
+
+        List<Feature> savedFeatures = featureRepository.saveAll(features);
+        log.info("Created {} features in bulk", savedFeatures.size());
+
+        return savedFeatures.stream()
+                .map(feature -> toResponse(feature, Set.of()))
+                .toList();
+    }
+
+    /**
      * Converts a Feature entity to FeatureResponse DTO.
      *
      * @param feature The feature entity
@@ -224,6 +279,27 @@ public class FeatureService {
                     .lastModifiedAt(expansion.getLastModifiedAt())
                     .deletedAt(expansion.getDeletedAt())
                     .build());
+        }
+
+        // Always include cost tag IDs
+        if (feature.getCostTags() != null) {
+            builder.costTagIds(feature.getCostTags().stream()
+                    .map(CardCostTag::getId)
+                    .collect(Collectors.toList()));
+        }
+
+        // Expand cost tags if requested
+        if (expand.contains("costTags") && feature.getCostTags() != null) {
+            builder.costTags(feature.getCostTags().stream()
+                    .map(tag -> CardCostTagResponse.builder()
+                            .id(tag.getId())
+                            .label(tag.getLabel())
+                            .category(tag.getCategory())
+                            .createdAt(tag.getCreatedAt())
+                            .lastModifiedAt(tag.getLastModifiedAt())
+                            .deletedAt(tag.getDeletedAt())
+                            .build())
+                    .collect(Collectors.toList()));
         }
 
         return builder.build();

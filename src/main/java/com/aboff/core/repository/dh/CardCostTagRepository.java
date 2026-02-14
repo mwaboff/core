@@ -62,4 +62,13 @@ public interface CardCostTagRepository extends JpaRepository<CardCostTag, Long> 
      */
     @Query("SELECT t FROM CardCostTag t WHERE t.id IN :ids AND t.deletedAt IS NULL")
     List<CardCostTag> findAllByIdInAndDeletedAtIsNull(@Param("ids") List<Long> ids);
+
+    /**
+     * Finds a non-deleted cost tag by label, ignoring case.
+     *
+     * @param label The cost tag label to search for
+     * @return Optional containing the cost tag if found and not deleted
+     */
+    @Query("SELECT t FROM CardCostTag t WHERE LOWER(t.label) = LOWER(:label) AND t.deletedAt IS NULL")
+    Optional<CardCostTag> findByLabelIgnoreCaseAndDeletedAtIsNull(@Param("label") String label);
 }

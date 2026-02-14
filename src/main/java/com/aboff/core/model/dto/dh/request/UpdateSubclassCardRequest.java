@@ -2,6 +2,7 @@ package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -59,6 +60,12 @@ public class UpdateSubclassCardRequest {
      * IDs of cost tags associated with this card
      */
     private List<Long> costTagIds;
+
+    /**
+     * Cost tags to find or create by label. Merged with costTagIds if both provided.
+     */
+    @Valid
+    private List<CostTagInput> costTags;
 
     /**
      * ID of the class this subclass is associated with

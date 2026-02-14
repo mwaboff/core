@@ -1,5 +1,6 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.dto.dh.request.CostTagInput;
 import com.aboff.core.model.dto.dh.request.CreateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
@@ -20,6 +21,7 @@ import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -356,5 +358,186 @@ class CardCostTagServiceTest {
         assertThatThrownBy(() -> cardCostTagService.restoreCostTag(999L))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("CardCostTag not found with id: 999");
+    }
+
+    // ==================== FIND OR CREATE TESTS ====================
+
+    @Test
+    void findOrCreate_ExistingTag_ReturnsExistingTag() {
+        // Arrange
+        CardCostTag existingTag = CardCostTag.builder()
+                .id(1L)
+                .label("3 Hope")
+                .category(CostTagCategory.COST)
+                .build();
+
+        when(cardCostTagRepository.findByLabelIgnoreCaseAndDeletedAtIsNull("3 hope"))
+                .thenReturn(Optional.of(existingTag));
+
+        // Act
+        CardCostTag result = cardCostTagService.findOrCreate("3 hope", CostTagCategory.COST);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getLabel()).isEqualTo("3 Hope");
+        verify(cardCostTagRepository, never()).save(any());
+    }
+
+    @Test
+    void findOrCreate_NoMatch_CreatesNewTag() {
+        // Arrange
+        when(cardCostTagRepository.findByLabelIgnoreCaseAndDeletedAtIsNull("New Tag"))
+                .thenReturn(Optional.empty());
+
+        CardCostTag savedTag = CardCostTag.builder()
+                .id(2L)
+                .label("New Tag")
+                .category(CostTagCategory.TIMING)
+                .build();
+
+        when(cardCostTagRepository.save(any(CardCostTag.class))).thenReturn(savedTag);
+
+        // Act
+        CardCostTag result = cardCostTagService.findOrCreate("New Tag", CostTagCategory.TIMING);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(2L);
+        assertThat(result.getLabel()).isEqualTo("New Tag");
+        assertThat(result.getCategory()).isEqualTo(CostTagCategory.TIMING);
+        verify(cardCostTagRepository).save(argThat(tag ->
+                tag.getLabel().equals("New Tag") && tag.getCategory().equals(CostTagCategory.TIMING)
+        ));
+    }
+
+    // ==================== RESOLVE COST TAGS TESTS ====================
+
+    @Test
+    void resolveCostTags_OnlyCostTagIds_ReturnsTagsById() {
+        // Arrange
+        CardCostTag tag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+        when(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(tag));
+
+        // Act
+        Set<CardCostTag> result = cardCostTagService.resolveCostTags(List.of(1L), null);
+
+        // Assert
+        assertThat(result).hasSize(1);
+        assertThat(result).contains(tag);
+    }
+
+    @Test
+    void resolveCostTags_OnlyCostTagInputs_FindsOrCreatesEach() {
+        // Arrange
+        CardCostTag existingTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+        when(cardCostTagRepository.findByLabelIgnoreCaseAndDeletedAtIsNull("3 Hope"))
+                .thenReturn(Optional.of(existingTag));
+
+        List<CostTagInput> inputs = List.of(
+                CostTagInput.builder().label("3 Hope").category(CostTagCategory.COST).build()
+        );
+
+        // Act
+        Set<CardCostTag> result = cardCostTagService.resolveCostTags(null, inputs);
+
+        // Assert
+        assertThat(result).hasSize(1);
+        assertThat(result).contains(existingTag);
+    }
+
+    @Test
+    void resolveCostTags_BothProvided_MergesResults() {
+        // Arrange
+        CardCostTag tagById = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+        CardCostTag tagByLabel = CardCostTag.builder().id(2L).label("1/session").category(CostTagCategory.TIMING).build();
+
+        when(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(tagById));
+        when(cardCostTagRepository.findByLabelIgnoreCaseAndDeletedAtIsNull("1/session"))
+                .thenReturn(Optional.of(tagByLabel));
+
+        List<CostTagInput> inputs = List.of(
+                CostTagInput.builder().label("1/session").category(CostTagCategory.TIMING).build()
+        );
+
+        // Act
+        Set<CardCostTag> result = cardCostTagService.resolveCostTags(List.of(1L), inputs);
+
+        // Assert
+        assertThat(result).hasSize(2);
+        assertThat(result).containsExactlyInAnyOrder(tagById, tagByLabel);
+    }
+
+    @Test
+    void resolveCostTags_BothNull_ReturnsNull() {
+        // Act
+        Set<CardCostTag> result = cardCostTagService.resolveCostTags(null, null);
+
+        // Assert
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void resolveCostTags_BothEmpty_ReturnsEmptySet() {
+        // Act
+        Set<CardCostTag> result = cardCostTagService.resolveCostTags(List.of(), List.of());
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void resolveCostTags_DuplicateBetweenIdsAndLabels_DeduplicatedInSet() {
+        // Arrange
+        CardCostTag tag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+        when(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(tag));
+        when(cardCostTagRepository.findByLabelIgnoreCaseAndDeletedAtIsNull("3 Hope"))
+                .thenReturn(Optional.of(tag));
+
+        List<CostTagInput> inputs = List.of(
+                CostTagInput.builder().label("3 Hope").category(CostTagCategory.COST).build()
+        );
+
+        // Act
+        Set<CardCostTag> result = cardCostTagService.resolveCostTags(List.of(1L), inputs);
+
+        // Assert
+        assertThat(result).hasSize(1);
+        assertThat(result).contains(tag);
+    }
+
+    @Test
+    void resolveCostTags_IdsNullInputsNonNull_ReturnsResolvedTags() {
+        // Arrange
+        CardCostTag newTag = CardCostTag.builder().id(1L).label("New Tag").category(CostTagCategory.LIMITATION).build();
+        when(cardCostTagRepository.findByLabelIgnoreCaseAndDeletedAtIsNull("New Tag"))
+                .thenReturn(Optional.empty());
+        when(cardCostTagRepository.save(any(CardCostTag.class))).thenReturn(newTag);
+
+        List<CostTagInput> inputs = List.of(
+                CostTagInput.builder().label("New Tag").category(CostTagCategory.LIMITATION).build()
+        );
+
+        // Act
+        Set<CardCostTag> result = cardCostTagService.resolveCostTags(null, inputs);
+
+        // Assert
+        assertThat(result).hasSize(1);
+        assertThat(result).contains(newTag);
+    }
+
+    @Test
+    void resolveCostTags_IdsNonNullInputsNull_ReturnsTagsById() {
+        // Arrange
+        CardCostTag tag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+        when(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(tag));
+
+        // Act
+        Set<CardCostTag> result = cardCostTagService.resolveCostTags(List.of(1L), null);
+
+        // Assert
+        assertThat(result).hasSize(1);
+        assertThat(result).contains(tag);
     }
 }

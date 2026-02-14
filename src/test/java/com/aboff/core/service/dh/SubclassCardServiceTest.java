@@ -4,15 +4,16 @@ import com.aboff.core.model.dto.dh.request.CreateSubclassCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateSubclassCardRequest;
 import com.aboff.core.model.dto.dh.response.SubclassCardResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.SubclassCard;
+import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
-import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -56,7 +57,7 @@ class SubclassCardServiceTest {
     private FeatureRepository featureRepository;
 
     @Mock
-    private CardCostTagRepository cardCostTagRepository;
+    private CardCostTagService cardCostTagService;
 
     @Mock
     private ClassRepository classRepository;
@@ -200,7 +201,8 @@ class SubclassCardServiceTest {
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).createdAt(LocalDateTime.now()).build();
         Domain domain = Domain.builder().id(1L).name("Blade").expansion(expansion).createdAt(LocalDateTime.now()).build();
-        Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
 
         SubclassCard card = SubclassCard.builder()
                 .id(1L)
@@ -226,8 +228,81 @@ class SubclassCardServiceTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansion()).isNotNull();
         assertThat(result.getContent().get(0).getFeatures()).isNotNull();
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTagIds()).containsExactly(10L);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags()).isNull();
         assertThat(result.getContent().get(0).getAssociatedClass()).isNotNull();
         assertThat(result.getContent().get(0).getAssociatedDomains()).isNotNull();
+    }
+
+    @Test
+    void getAllSubclassCards_WithExpandFeaturesWithoutCostTags_IncludesCostTagIdsOnly() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        SubclassCard card = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedClass(clazz)
+                .level(SubclassLevel.FOUNDATION)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, "features");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures()).isNotNull().hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTagIds()).containsExactly(10L);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllSubclassCards_WithExpandFeaturesAndCostTags_IncludesFullCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        SubclassCard card = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedClass(clazz)
+                .level(SubclassLevel.FOUNDATION)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, "features,costTags");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures()).isNotNull().hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTagIds()).containsExactly(10L);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags()).isNotNull().hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags().get(0).getId()).isEqualTo(10L);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags().get(0).getLabel()).isEqualTo("3 Hope");
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags().get(0).getCategory()).isEqualTo(CostTagCategory.COST);
     }
 
     // ==================== GET SUBCLASS CARD BY ID TESTS ====================

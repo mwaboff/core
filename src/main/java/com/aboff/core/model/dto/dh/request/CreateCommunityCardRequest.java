@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -57,4 +58,10 @@ public class CreateCommunityCardRequest {
      * IDs of cost tags associated with this card
      */
     private List<Long> costTagIds;
+
+    /**
+     * Cost tags to find or create by label. Merged with costTagIds if both provided.
+     */
+    @Valid
+    private List<CostTagInput> costTags;
 }

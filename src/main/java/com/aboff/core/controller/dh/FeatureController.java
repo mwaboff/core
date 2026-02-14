@@ -13,6 +13,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
+
 /**
  * REST controller for managing Feature resources.
  * Provides endpoints for CRUD operations on Daggerheart features.
@@ -80,6 +82,22 @@ public class FeatureController {
 
         FeatureResponse response = featureService.createFeature(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Creates multiple features in bulk.
+     * Requires ADMIN or OWNER role.
+     *
+     * @param requests List of creation requests containing feature details
+     * @return List of created feature responses
+     */
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    public ResponseEntity<List<FeatureResponse>> createFeaturesBulk(
+            @Valid @RequestBody List<CreateFeatureRequest> requests) {
+
+        List<FeatureResponse> responses = featureService.createFeaturesBulk(requests);
+        return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
     /**

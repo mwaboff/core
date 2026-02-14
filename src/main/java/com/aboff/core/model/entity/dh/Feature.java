@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
+import java.util.Set;
 
 /**
  * Entity representing a feature in the Daggerheart TTRPG system.
@@ -53,6 +54,17 @@ public class Feature extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "expansion_id", nullable = false)
     private Expansion expansion;
+
+    /**
+     * The cost/limitation tags associated with this feature.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "feature_card_cost_tags",
+        joinColumns = @JoinColumn(name = "feature_id"),
+        inverseJoinColumns = @JoinColumn(name = "card_cost_tag_id")
+    )
+    private Set<CardCostTag> costTags;
 
     /**
      * Timestamp indicating when this feature was soft-deleted.

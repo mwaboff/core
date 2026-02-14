@@ -11,7 +11,6 @@ import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
-import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.CommunityCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
@@ -44,7 +43,7 @@ public class CommunityCardService {
     private final CommunityCardRepository communityCardRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureRepository featureRepository;
-    private final CardCostTagRepository cardCostTagRepository;
+    private final CardCostTagService cardCostTagService;
 
     /**
      * Retrieves a paginated list of community cards.
@@ -136,9 +135,9 @@ public class CommunityCardService {
         }
 
         // Set cost tags if provided
-        if (request.getCostTagIds() != null && !request.getCostTagIds().isEmpty()) {
-            Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
-            card.setCostTags(costTags);
+        Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
+        if (resolvedTags != null) {
+            card.setCostTags(resolvedTags);
         }
 
         CommunityCard savedCard = communityCardRepository.save(card);
@@ -176,9 +175,9 @@ public class CommunityCardService {
                         card.setFeatures(features);
                     }
 
-                    if (request.getCostTagIds() != null && !request.getCostTagIds().isEmpty()) {
-                        Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
-                        card.setCostTags(costTags);
+                    Set<CardCostTag> bulkResolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
+                    if (bulkResolvedTags != null) {
+                        card.setCostTags(bulkResolvedTags);
                     }
 
                     return card;
@@ -229,13 +228,9 @@ public class CommunityCardService {
         }
 
         // Update cost tags
-        if (request.getCostTagIds() != null) {
-            if (request.getCostTagIds().isEmpty()) {
-                card.setCostTags(new HashSet<>());
-            } else {
-                Set<CardCostTag> costTags = new HashSet<>(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(request.getCostTagIds()));
-                card.setCostTags(costTags);
-            }
+        Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
+        if (resolvedTags != null) {
+            card.setCostTags(resolvedTags);
         }
 
         CommunityCard updatedCard = communityCardRepository.save(card);
@@ -333,16 +328,40 @@ public class CommunityCardService {
         // Expand features if requested
         if (expand.contains("features") && card.getFeatures() != null) {
             builder.features(card.getFeatures().stream()
-                    .map(feature -> FeatureResponse.builder()
-                            .id(feature.getId())
-                            .name(feature.getName())
-                            .description(feature.getDescription())
-                            .featureType(feature.getFeatureType())
-                            .expansionId(feature.getExpansion().getId())
-                            .createdAt(feature.getCreatedAt())
-                            .lastModifiedAt(feature.getLastModifiedAt())
-                            .deletedAt(feature.getDeletedAt())
-                            .build())
+                    .map(feature -> {
+                        FeatureResponse.FeatureResponseBuilder featureBuilder = FeatureResponse.builder()
+                                .id(feature.getId())
+                                .name(feature.getName())
+                                .description(feature.getDescription())
+                                .featureType(feature.getFeatureType())
+                                .expansionId(feature.getExpansion().getId())
+                                .createdAt(feature.getCreatedAt())
+                                .lastModifiedAt(feature.getLastModifiedAt())
+                                .deletedAt(feature.getDeletedAt());
+
+                        // Always include cost tag IDs
+                        if (feature.getCostTags() != null) {
+                            featureBuilder.costTagIds(feature.getCostTags().stream()
+                                    .map(CardCostTag::getId)
+                                    .collect(Collectors.toList()));
+                        }
+
+                        // Expand cost tags if requested
+                        if (expand.contains("costTags") && feature.getCostTags() != null) {
+                            featureBuilder.costTags(feature.getCostTags().stream()
+                                    .map(tag -> CardCostTagResponse.builder()
+                                            .id(tag.getId())
+                                            .label(tag.getLabel())
+                                            .category(tag.getCategory())
+                                            .createdAt(tag.getCreatedAt())
+                                            .lastModifiedAt(tag.getLastModifiedAt())
+                                            .deletedAt(tag.getDeletedAt())
+                                            .build())
+                                    .collect(Collectors.toList()));
+                        }
+
+                        return featureBuilder.build();
+                    })
                     .collect(Collectors.toList()));
         }
 
