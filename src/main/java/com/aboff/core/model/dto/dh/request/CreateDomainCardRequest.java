@@ -1,6 +1,7 @@
 package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.DomainCardType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -56,6 +57,12 @@ public class CreateDomainCardRequest {
      * IDs of cost tags associated with this card
      */
     private List<Long> costTagIds;
+
+    /**
+     * Cost tags to find or create by label. Merged with costTagIds if both provided.
+     */
+    @Valid
+    private List<CostTagInput> costTags;
 
     /**
      * ID of the domain this card is associated with

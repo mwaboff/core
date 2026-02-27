@@ -39,6 +39,9 @@ public class SecurityConfig {
         @Value("${application.cors.allowed-origins:}")
         private String allowedOrigins;
 
+        @Value("${application.security.bcrypt-strength:12}")
+        private int bcryptStrength;
+
         public SecurityConfig(
                         JwtAuthenticationFilter jwtAuthenticationFilter,
                         JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint) {
@@ -83,14 +86,14 @@ public class SecurityConfig {
 
         /**
          * Provides the password encoder bean.
-         * Uses BCrypt with a strength of 12.
+         * Uses BCrypt with configurable strength (default 12).
+         * Strength can be overridden via {@code application.security.bcrypt-strength} property.
          *
          * @return the BCryptPasswordEncoder
          */
         @Bean
         public PasswordEncoder passwordEncoder() {
-                // BCrypt with strength 12 (good balance of security and performance)
-                return new BCryptPasswordEncoder(12);
+                return new BCryptPasswordEncoder(bcryptStrength);
         }
 
         /**

@@ -6,10 +6,12 @@ import com.aboff.core.model.dto.dh.request.CreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAdversaryRequest;
 import com.aboff.core.model.dto.dh.response.AdversaryResponse;
 import com.aboff.core.model.dto.dh.response.BatchCreateAdversaryResponse;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Adversary;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.entity.dh.Feature;
@@ -339,11 +341,19 @@ class AdversaryServiceTest {
         // Arrange
         setupAuthenticationWith(regularUserDetails);
 
+        CardCostTag costTag = CardCostTag.builder()
+                .id(1L)
+                .label("3 Hope")
+                .category(CostTagCategory.COST)
+                .createdAt(LocalDateTime.now())
+                .build();
+
         Feature feature = Feature.builder()
                 .id(1L)
                 .name("Fire Breath")
                 .featureType(FeatureType.OTHER)
                 .expansion(expansion)
+                .costTags(Set.of(costTag))
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -1396,11 +1406,19 @@ class AdversaryServiceTest {
         // Arrange
         setupAuthenticationWith(regularUserDetails);
 
+        CardCostTag costTag = CardCostTag.builder()
+                .id(1L)
+                .label("3 Hope")
+                .category(CostTagCategory.COST)
+                .createdAt(LocalDateTime.now())
+                .build();
+
         Feature feature = Feature.builder()
                 .id(1L)
                 .name("Fire Breath")
                 .featureType(FeatureType.OTHER)
                 .expansion(expansion)
+                .costTags(Set.of(costTag))
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -1416,6 +1434,10 @@ class AdversaryServiceTest {
         // Assert
         assertThat(result.getFeatures()).isNotNull();
         assertThat(result.getFeatures()).hasSize(1);
+        // costTagIds should always be present when features are expanded
+        assertThat(result.getFeatures().iterator().next().getCostTagIds()).containsExactly(1L);
+        // costTags should be null when costTags is not in expand
+        assertThat(result.getFeatures().iterator().next().getCostTags()).isNull();
     }
 
     @Test
@@ -1423,11 +1445,19 @@ class AdversaryServiceTest {
         // Arrange
         setupAuthenticationWith(regularUserDetails);
 
+        CardCostTag costTag = CardCostTag.builder()
+                .id(1L)
+                .label("3 Hope")
+                .category(CostTagCategory.COST)
+                .createdAt(LocalDateTime.now())
+                .build();
+
         Feature feature = Feature.builder()
                 .id(1L)
                 .name("Fire Breath")
                 .featureType(FeatureType.OTHER)
                 .expansion(expansion)
+                .costTags(Set.of(costTag))
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -1444,6 +1474,150 @@ class AdversaryServiceTest {
         assertThat(result.getExpansion()).isNotNull();
         assertThat(result.getCreator()).isNotNull();
         assertThat(result.getFeatures()).isNotNull();
+    }
+
+    @Test
+    void getAdversaryById_WithExpandFeaturesAndCostTags_IncludesFullCostTags() {
+        // Arrange
+        setupAuthenticationWith(regularUserDetails);
+
+        CardCostTag costTag = CardCostTag.builder()
+                .id(1L)
+                .label("3 Hope")
+                .category(CostTagCategory.COST)
+                .createdAt(LocalDateTime.now())
+                .lastModifiedAt(LocalDateTime.now())
+                .build();
+
+        Feature feature = Feature.builder()
+                .id(1L)
+                .name("Fire Breath")
+                .featureType(FeatureType.OTHER)
+                .expansion(expansion)
+                .costTags(Set.of(costTag))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Adversary adversary = createTestAdversary(1L, "Dragon", expansion, regularUser);
+        adversary.setIsPublic(true);
+        adversary.setFeatures(new HashSet<>(Set.of(feature)));
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+
+        // Act
+        AdversaryResponse result = adversaryService.getAdversaryById(1L, "features,costTags", authentication);
+
+        // Assert
+        assertThat(result.getFeatures()).isNotNull();
+        assertThat(result.getFeatures()).hasSize(1);
+        var expandedFeature = result.getFeatures().iterator().next();
+        assertThat(expandedFeature.getCostTagIds()).containsExactly(1L);
+        assertThat(expandedFeature.getCostTags()).isNotNull();
+        assertThat(expandedFeature.getCostTags()).hasSize(1);
+        CardCostTagResponse tagResponse = expandedFeature.getCostTags().get(0);
+        assertThat(tagResponse.getId()).isEqualTo(1L);
+        assertThat(tagResponse.getLabel()).isEqualTo("3 Hope");
+        assertThat(tagResponse.getCategory()).isEqualTo(CostTagCategory.COST);
+    }
+
+    @Test
+    void getAdversaryById_WithExpandFeaturesWithoutCostTags_IncludesCostTagIdsOnly() {
+        // Arrange
+        setupAuthenticationWith(regularUserDetails);
+
+        CardCostTag costTag = CardCostTag.builder()
+                .id(5L)
+                .label("1/session")
+                .category(CostTagCategory.LIMITATION)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Feature feature = Feature.builder()
+                .id(2L)
+                .name("Shield Wall")
+                .featureType(FeatureType.OTHER)
+                .expansion(expansion)
+                .costTags(Set.of(costTag))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Adversary adversary = createTestAdversary(1L, "Guardian", expansion, regularUser);
+        adversary.setIsPublic(true);
+        adversary.setFeatures(new HashSet<>(Set.of(feature)));
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+
+        // Act
+        AdversaryResponse result = adversaryService.getAdversaryById(1L, "features", authentication);
+
+        // Assert
+        assertThat(result.getFeatures()).isNotNull();
+        assertThat(result.getFeatures()).hasSize(1);
+        var expandedFeature = result.getFeatures().iterator().next();
+        assertThat(expandedFeature.getCostTagIds()).containsExactly(5L);
+        assertThat(expandedFeature.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAdversaryById_WithExpandFeaturesNullCostTags_HandlesNullGracefully() {
+        // Arrange
+        setupAuthenticationWith(regularUserDetails);
+
+        Feature feature = Feature.builder()
+                .id(1L)
+                .name("Fire Breath")
+                .featureType(FeatureType.OTHER)
+                .expansion(expansion)
+                .costTags(null)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Adversary adversary = createTestAdversary(1L, "Dragon", expansion, regularUser);
+        adversary.setIsPublic(true);
+        adversary.setFeatures(new HashSet<>(Set.of(feature)));
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+
+        // Act
+        AdversaryResponse result = adversaryService.getAdversaryById(1L, "features,costTags", authentication);
+
+        // Assert
+        assertThat(result.getFeatures()).isNotNull();
+        assertThat(result.getFeatures()).hasSize(1);
+        var expandedFeature = result.getFeatures().iterator().next();
+        assertThat(expandedFeature.getCostTagIds()).isNull();
+        assertThat(expandedFeature.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAdversaryById_WithExpandFeaturesEmptyCostTags_ReturnsEmptyLists() {
+        // Arrange
+        setupAuthenticationWith(regularUserDetails);
+
+        Feature feature = Feature.builder()
+                .id(1L)
+                .name("Fire Breath")
+                .featureType(FeatureType.OTHER)
+                .expansion(expansion)
+                .costTags(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Adversary adversary = createTestAdversary(1L, "Dragon", expansion, regularUser);
+        adversary.setIsPublic(true);
+        adversary.setFeatures(new HashSet<>(Set.of(feature)));
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+
+        // Act
+        AdversaryResponse result = adversaryService.getAdversaryById(1L, "features,costTags", authentication);
+
+        // Assert
+        assertThat(result.getFeatures()).isNotNull();
+        assertThat(result.getFeatures()).hasSize(1);
+        var expandedFeature = result.getFeatures().iterator().next();
+        assertThat(expandedFeature.getCostTagIds()).isEmpty();
+        assertThat(expandedFeature.getCostTags()).isEmpty();
     }
 
     // ==================== DAMAGE ROLL TESTS ====================

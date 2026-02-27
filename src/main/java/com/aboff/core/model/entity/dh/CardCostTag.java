@@ -31,7 +31,7 @@ public class CardCostTag extends BaseEntity {
     /**
      * The display label for the cost tag (e.g., "3 Hope", "1/session").
      */
-    @Column(nullable = false, length = 200, unique = true)
+    @Column(nullable = false, length = 200)
     private String label;
 
     /**

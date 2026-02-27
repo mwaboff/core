@@ -177,7 +177,7 @@ JWT_SECRET=your-secure-256-bit-secret-here-change-in-production
 - JWT expiration: 30 days
 - Failed login lockout: 5 attempts, 30 minute lockout
 - Password: min 8 chars, requires upper/lower/digit/special
-- BCrypt strength: 12
+- BCrypt strength: configurable via `application.security.bcrypt-strength` (default 12, tests use 4)
 
 ## Testing Requirements
 

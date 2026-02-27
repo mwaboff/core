@@ -2073,7 +2073,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/cards/ancestry?page=0&size=20&expand=expansion,features",
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry?page=0&size=20&expand=expansion,features,costTags",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -2109,11 +2109,11 @@
 								},
 								{
 									"key": "expand",
-									"value": "expansion,features"
+									"value": "expansion,features,costTags"
 								}
 							]
 						},
-						"description": "List ancestry cards. Filters: expansionId, isOfficial. Expand: expansion, features."
+						"description": "List ancestry cards. Filters: expansionId, isOfficial. Expand: expansion, features, costTags."
 					},
 					"response": []
 				},
@@ -2123,7 +2123,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/cards/ancestry/{{ancestryCardId}}?expand=expansion,features",
+							"raw": "{{baseUrl}}/api/dh/cards/ancestry/{{ancestryCardId}}?expand=expansion,features,costTags",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -2137,11 +2137,11 @@
 							"query": [
 								{
 									"key": "expand",
-									"value": "expansion,features"
+									"value": "expansion,features,costTags"
 								}
 							]
 						},
-						"description": "Get ancestry card by ID. Expand: expansion, features."
+						"description": "Get ancestry card by ID. Expand: expansion, features, costTags."
 					},
 					"response": []
 				},
@@ -2171,7 +2171,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Dwarven\",\n  \"description\": \"Sturdy mountain folk known for their craftsmanship and resilience.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1\n}"
+							"raw": "{\n  \"name\": \"Dwarven\",\n  \"description\": \"Sturdy mountain folk known for their craftsmanship and resilience.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1,\n  \"costTags\": [\n    {\n      \"label\": \"1/session\",\n      \"category\": \"TIMING\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/ancestry",
@@ -2201,7 +2201,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "[\n  {\n    \"name\": \"Elven\",\n    \"description\": \"Graceful forest dwellers with keen senses.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Human\",\n    \"description\": \"Adaptable and diverse people found across all lands.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  }\n]"
+							"raw": "[\n  {\n    \"name\": \"Elven\",\n    \"description\": \"Graceful forest dwellers with keen senses.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1,\n    \"costTags\": [\n      {\n        \"label\": \"1/session\",\n        \"category\": \"TIMING\"\n      }\n    ]\n  },\n  {\n    \"name\": \"Human\",\n    \"description\": \"Adaptable and diverse people found across all lands.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1,\n    \"costTags\": [\n      {\n        \"label\": \"Action\",\n        \"category\": \"TIMING\"\n      },\n      {\n        \"label\": \"Close range\",\n        \"category\": \"LIMITATION\"\n      }\n    ]\n  }\n]"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/ancestry/bulk",
@@ -2232,7 +2232,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"description\": \"Sturdy mountain folk known for their exceptional craftsmanship, resilience, and love of stone.\"\n}"
+							"raw": "{\n  \"description\": \"Sturdy mountain folk known for their exceptional craftsmanship, resilience, and love of stone.\",\n  \"costTags\": [\n    {\n      \"label\": \"1/session\",\n      \"category\": \"TIMING\"\n    },\n    {\n      \"label\": \"3 Hope\",\n      \"category\": \"COST\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/ancestry/{{ancestryCardId}}",
@@ -2308,7 +2308,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/cards/community?page=0&size=20&expand=expansion,features",
+							"raw": "{{baseUrl}}/api/dh/cards/community?page=0&size=20&expand=expansion,features,costTags",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -2344,11 +2344,11 @@
 								},
 								{
 									"key": "expand",
-									"value": "expansion,features"
+									"value": "expansion,features,costTags"
 								}
 							]
 						},
-						"description": "List community cards. Filters: expansionId, isOfficial. Expand: expansion, features."
+						"description": "List community cards. Filters: expansionId, isOfficial. Expand: expansion, features, costTags."
 					},
 					"response": []
 				},
@@ -2358,7 +2358,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/cards/community/{{communityCardId}}?expand=expansion,features",
+							"raw": "{{baseUrl}}/api/dh/cards/community/{{communityCardId}}?expand=expansion,features,costTags",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -2372,11 +2372,11 @@
 							"query": [
 								{
 									"key": "expand",
-									"value": "expansion,features"
+									"value": "expansion,features,costTags"
 								}
 							]
 						},
-						"description": "Get community card by ID. Expand: expansion, features."
+						"description": "Get community card by ID. Expand: expansion, features, costTags."
 					},
 					"response": []
 				},
@@ -2406,7 +2406,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Wanderer\",\n  \"description\": \"A traveler from distant lands, bringing exotic knowledge and customs.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1\n}"
+							"raw": "{\n  \"name\": \"Wanderer\",\n  \"description\": \"A traveler from distant lands, bringing exotic knowledge and customs.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1,\n  \"costTags\": [\n    {\n      \"label\": \"Action\",\n      \"category\": \"TIMING\"\n    },\n    {\n      \"label\": \"1 Stress\",\n      \"category\": \"COST\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/community",
@@ -2436,7 +2436,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "[\n  {\n    \"name\": \"Highborne\",\n    \"description\": \"Raised among nobility and high society.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Outcast\",\n    \"description\": \"Cast out from your community, forced to survive on your own.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  }\n]"
+							"raw": "[\n  {\n    \"name\": \"Highborne\",\n    \"description\": \"Raised among nobility and high society.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1,\n    \"costTags\": [\n      {\n        \"label\": \"1/session\",\n        \"category\": \"TIMING\"\n      }\n    ]\n  },\n  {\n    \"name\": \"Outcast\",\n    \"description\": \"Cast out from your community, forced to survive on your own.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1,\n    \"costTags\": [\n      {\n        \"label\": \"Reaction\",\n        \"category\": \"TIMING\"\n      },\n      {\n        \"label\": \"2 Hope\",\n        \"category\": \"COST\"\n      }\n    ]\n  }\n]"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/community/bulk",
@@ -2467,7 +2467,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"description\": \"A well-traveled wanderer from distant lands, bringing exotic knowledge, customs, and stories.\"\n}"
+							"raw": "{\n  \"description\": \"A well-traveled wanderer from distant lands, bringing exotic knowledge, customs, and stories.\",\n  \"costTags\": [\n    {\n      \"label\": \"Action\",\n      \"category\": \"TIMING\"\n    },\n    {\n      \"label\": \"2 Stress\",\n      \"category\": \"COST\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/community/{{communityCardId}}",
@@ -2543,7 +2543,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/cards/subclass?page=0&size=20&expand=expansion,features",
+							"raw": "{{baseUrl}}/api/dh/cards/subclass?page=0&size=20&expand=expansion,features,costTags",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -2579,11 +2579,11 @@
 								},
 								{
 									"key": "expand",
-									"value": "expansion,features"
+									"value": "expansion,features,costTags"
 								}
 							]
 						},
-						"description": "List subclass cards. Filters: expansionId, isOfficial. Expand: expansion, features."
+						"description": "List subclass cards. Filters: expansionId, isOfficial. Expand: expansion, features, costTags."
 					},
 					"response": []
 				},
@@ -2593,7 +2593,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/cards/subclass/{{subclassCardId}}?expand=expansion,features",
+							"raw": "{{baseUrl}}/api/dh/cards/subclass/{{subclassCardId}}?expand=expansion,features,costTags",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -2607,11 +2607,11 @@
 							"query": [
 								{
 									"key": "expand",
-									"value": "expansion,features"
+									"value": "expansion,features,costTags"
 								}
 							]
 						},
-						"description": "Get subclass card by ID. Expand: expansion, features."
+						"description": "Get subclass card by ID. Expand: expansion, features, costTags."
 					},
 					"response": []
 				},
@@ -2641,7 +2641,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Shadow Dancer\",\n  \"description\": \"A rogue specialization that masters stealth and deception through shadow magic.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1\n}"
+							"raw": "{\n  \"name\": \"Shadow Dancer\",\n  \"description\": \"A rogue specialization that masters stealth and deception through shadow magic.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1,\n  \"costTags\": [\n    {\n      \"label\": \"3 Hope\",\n      \"category\": \"COST\"\n    },\n    {\n      \"label\": \"Action\",\n      \"category\": \"TIMING\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/subclass",
@@ -2671,7 +2671,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "[\n  {\n    \"name\": \"Berserker\",\n    \"description\": \"A warrior who channels rage into devastating combat prowess.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Spellblade\",\n    \"description\": \"Combines martial combat with arcane magic.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  }\n]"
+							"raw": "[\n  {\n    \"name\": \"Berserker\",\n    \"description\": \"A warrior who channels rage into devastating combat prowess.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1,\n    \"costTags\": [\n      {\n        \"label\": \"2 Stress\",\n        \"category\": \"COST\"\n      }\n    ]\n  },\n  {\n    \"name\": \"Spellblade\",\n    \"description\": \"Combines martial combat with arcane magic.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1,\n    \"costTags\": [\n      {\n        \"label\": \"1 Hope\",\n        \"category\": \"COST\"\n      },\n      {\n        \"label\": \"Close range\",\n        \"category\": \"LIMITATION\"\n      }\n    ]\n  }\n]"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/subclass/bulk",
@@ -2702,7 +2702,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"description\": \"A rogue specialization that masters stealth, deception, and assassination through shadow magic and cunning.\"\n}"
+							"raw": "{\n  \"description\": \"A rogue specialization that masters stealth, deception, and assassination through shadow magic and cunning.\",\n  \"costTags\": [\n    {\n      \"label\": \"3 Hope\",\n      \"category\": \"COST\"\n    },\n    {\n      \"label\": \"1/session\",\n      \"category\": \"TIMING\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/subclass/{{subclassCardId}}",
@@ -2778,7 +2778,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/cards/domain?page=0&size=20&expand=expansion,features",
+							"raw": "{{baseUrl}}/api/dh/cards/domain?page=0&size=20&expand=expansion,features,costTags",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -2814,11 +2814,11 @@
 								},
 								{
 									"key": "expand",
-									"value": "expansion,features"
+									"value": "expansion,features,costTags"
 								}
 							]
 						},
-						"description": "List domain cards. Filters: expansionId, isOfficial. Expand: expansion, features."
+						"description": "List domain cards. Filters: expansionId, isOfficial. Expand: expansion, features, costTags."
 					},
 					"response": []
 				},
@@ -2828,7 +2828,7 @@
 						"method": "GET",
 						"header": [],
 						"url": {
-							"raw": "{{baseUrl}}/api/dh/cards/domain/{{domainCardId}}?expand=expansion,features",
+							"raw": "{{baseUrl}}/api/dh/cards/domain/{{domainCardId}}?expand=expansion,features,costTags",
 							"host": [
 								"{{baseUrl}}"
 							],
@@ -2842,11 +2842,11 @@
 							"query": [
 								{
 									"key": "expand",
-									"value": "expansion,features"
+									"value": "expansion,features,costTags"
 								}
 							]
 						},
-						"description": "Get domain card by ID. Expand: expansion, features."
+						"description": "Get domain card by ID. Expand: expansion, features, costTags."
 					},
 					"response": []
 				},
@@ -2876,7 +2876,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"name\": \"Arcane\",\n  \"description\": \"Magic drawn from study of raw magical forces and ancient formulae.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1\n}"
+							"raw": "{\n  \"name\": \"Arcane\",\n  \"description\": \"Magic drawn from study of raw magical forces and ancient formulae.\",\n  \"isOfficial\": true,\n  \"expansionId\": 1,\n  \"costTags\": [\n    {\n      \"label\": \"2 Hope\",\n      \"category\": \"COST\"\n    },\n    {\n      \"label\": \"Action\",\n      \"category\": \"TIMING\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/domain",
@@ -2906,7 +2906,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "[\n  {\n    \"name\": \"Sage\",\n    \"description\": \"Magic drawn from wisdom and understanding of natural laws.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  },\n  {\n    \"name\": \"Grace\",\n    \"description\": \"Divine magic channeled through faith and devotion.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1\n  }\n]"
+							"raw": "[\n  {\n    \"name\": \"Sage\",\n    \"description\": \"Magic drawn from wisdom and understanding of natural laws.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1,\n    \"costTags\": [\n      {\n        \"label\": \"1 Hope\",\n        \"category\": \"COST\"\n      }\n    ]\n  },\n  {\n    \"name\": \"Grace\",\n    \"description\": \"Divine magic channeled through faith and devotion.\",\n    \"isOfficial\": true,\n    \"expansionId\": 1,\n    \"costTags\": [\n      {\n        \"label\": \"3 Hope\",\n        \"category\": \"COST\"\n      },\n      {\n        \"label\": \"Requires Level 5\",\n        \"category\": \"LIMITATION\"\n      }\n    ]\n  }\n]"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/domain/bulk",
@@ -2937,7 +2937,7 @@
 						],
 						"body": {
 							"mode": "raw",
-							"raw": "{\n  \"description\": \"Magic drawn from deep study of raw magical forces, ancient formulae, and the fundamental laws of reality.\"\n}"
+							"raw": "{\n  \"description\": \"Magic drawn from deep study of raw magical forces, ancient formulae, and the fundamental laws of reality.\",\n  \"costTags\": [\n    {\n      \"label\": \"2 Hope\",\n      \"category\": \"COST\"\n    },\n    {\n      \"label\": \"1/long rest\",\n      \"category\": \"TIMING\"\n    }\n  ]\n}"
 						},
 						"url": {
 							"raw": "{{baseUrl}}/api/dh/cards/domain/{{domainCardId}}",

@@ -3,14 +3,16 @@ package com.aboff.core.service.dh;
 import com.aboff.core.model.dto.dh.request.CreateDomainCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateDomainCardRequest;
 import com.aboff.core.model.dto.dh.response.DomainCardResponse;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.model.enums.FeatureType;
-import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -53,7 +55,7 @@ class DomainCardServiceTest {
     private FeatureRepository featureRepository;
 
     @Mock
-    private CardCostTagRepository cardCostTagRepository;
+    private CardCostTagService cardCostTagService;
 
     @Mock
     private DomainRepository domainRepository;
@@ -201,7 +203,9 @@ class DomainCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
         Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).createdAt(LocalDateTime.now()).build();
-        Feature feature = Feature.builder().id(1L).name("Blast").featureType(FeatureType.DOMAIN).expansion(expansion).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Blast").featureType(FeatureType.DOMAIN).expansion(expansion)
+                .costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
 
         DomainCard card = DomainCard.builder()
                 .id(1L)
@@ -229,6 +233,158 @@ class DomainCardServiceTest {
         assertThat(result.getContent().get(0).getExpansion()).isNotNull();
         assertThat(result.getContent().get(0).getFeatures()).isNotNull();
         assertThat(result.getContent().get(0).getAssociatedDomain()).isNotNull();
+        // Cost tag IDs should always be present in expanded features
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).containsExactly(10L);
+        // Cost tags should not be expanded without costTags in expand
+        assertThat(featureResponse.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllDomainCards_WithExpandFeaturesAndCostTags_IncludesFullCostTagObjects() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Blast").featureType(FeatureType.DOMAIN).expansion(expansion)
+                .costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        DomainCard card = DomainCard.builder()
+                .id(1L)
+                .name("Fireball")
+                .description("Cast fire spell")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedDomain(domain)
+                .level(1)
+                .recallCost(2)
+                .type(DomainCardType.SPELL)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "features,costTags");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).containsExactly(10L);
+        assertThat(featureResponse.getCostTags()).isNotNull().hasSize(1);
+        assertThat(featureResponse.getCostTags().get(0).getId()).isEqualTo(10L);
+        assertThat(featureResponse.getCostTags().get(0).getLabel()).isEqualTo("3 Hope");
+        assertThat(featureResponse.getCostTags().get(0).getCategory()).isEqualTo(CostTagCategory.COST);
+    }
+
+    @Test
+    void getAllDomainCards_WithExpandFeaturesWithoutCostTags_IncludesCostTagIdsOnly() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Blast").featureType(FeatureType.DOMAIN).expansion(expansion)
+                .costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        DomainCard card = DomainCard.builder()
+                .id(1L)
+                .name("Fireball")
+                .description("Cast fire spell")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedDomain(domain)
+                .level(1)
+                .recallCost(2)
+                .type(DomainCardType.SPELL)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "features");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).containsExactly(10L);
+        assertThat(featureResponse.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllDomainCards_WithExpandFeaturesNullCostTags_HandlesNullGracefully() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Blast").featureType(FeatureType.DOMAIN).expansion(expansion)
+                .costTags(null).createdAt(LocalDateTime.now()).build();
+
+        DomainCard card = DomainCard.builder()
+                .id(1L)
+                .name("Fireball")
+                .description("Cast fire spell")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedDomain(domain)
+                .level(1)
+                .recallCost(2)
+                .type(DomainCardType.SPELL)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "features,costTags");
+
+        // Assert
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).isNull();
+        assertThat(featureResponse.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllDomainCards_WithExpandFeaturesEmptyCostTags_ReturnsEmptyLists() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Blast").featureType(FeatureType.DOMAIN).expansion(expansion)
+                .costTags(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        DomainCard card = DomainCard.builder()
+                .id(1L)
+                .name("Fireball")
+                .description("Cast fire spell")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedDomain(domain)
+                .level(1)
+                .recallCost(2)
+                .type(DomainCardType.SPELL)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "features,costTags");
+
+        // Assert
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).isEmpty();
+        assertThat(featureResponse.getCostTags()).isEmpty();
     }
 
     // ==================== GET DOMAIN CARD BY ID TESTS ====================

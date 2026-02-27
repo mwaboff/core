@@ -3,12 +3,15 @@ package com.aboff.core.service.dh;
 import com.aboff.core.model.dto.dh.request.CreateCommunityCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCommunityCardRequest;
 import com.aboff.core.model.dto.dh.response.CommunityCardResponse;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
-import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.CommunityCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
@@ -50,7 +53,7 @@ class CommunityCardServiceTest {
     private FeatureRepository featureRepository;
 
     @Mock
-    private CardCostTagRepository cardCostTagRepository;
+    private CardCostTagService cardCostTagService;
 
     @InjectMocks
     private CommunityCardService communityCardService;
@@ -200,7 +203,9 @@ class CommunityCardServiceTest {
     void getAllCommunityCards_WithExpandParameters_ExpandsRelationships() {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
-        Feature feature = Feature.builder().id(1L).name("Tough").featureType(FeatureType.COMMUNITY).expansion(expansion).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Tough").featureType(FeatureType.COMMUNITY).expansion(expansion)
+                .costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
 
         CommunityCard card = CommunityCard.builder()
                 .id(1L)
@@ -223,9 +228,139 @@ class CommunityCardServiceTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansion()).isNotNull();
         assertThat(result.getContent().get(0).getFeatures()).isNotNull();
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTagIds()).containsExactly(10L);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags()).isNull();
     }
 
-    // ==================== GET ANCESTRY CARD BY ID TESTS ====================
+    @Test
+    void getAllCommunityCards_WithExpandFeaturesAndCostTags_IncludesFullCostTagObjects() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Tough").featureType(FeatureType.COMMUNITY).expansion(expansion)
+                .costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        CommunityCard card = CommunityCard.builder()
+                .id(1L)
+                .name("Farming")
+                .description("Agricultural community")
+                .expansion(expansion)
+                .isOfficial(true)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<CommunityCard> cardPage = new PageImpl<>(List.of(card));
+        when(communityCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<CommunityCardResponse> result = communityCardService.getAllCommunityCards(0, 20, false, null, null, "features,costTags");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures()).isNotNull().hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTagIds()).containsExactly(10L);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags()).isNotNull().hasSize(1);
+        CardCostTagResponse tagResponse = result.getContent().get(0).getFeatures().get(0).getCostTags().get(0);
+        assertThat(tagResponse.getId()).isEqualTo(10L);
+        assertThat(tagResponse.getLabel()).isEqualTo("3 Hope");
+        assertThat(tagResponse.getCategory()).isEqualTo(CostTagCategory.COST);
+    }
+
+    @Test
+    void getAllCommunityCards_WithExpandFeaturesWithoutCostTags_IncludesCostTagIdsOnly() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Tough").featureType(FeatureType.COMMUNITY).expansion(expansion)
+                .costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        CommunityCard card = CommunityCard.builder()
+                .id(1L)
+                .name("Farming")
+                .description("Agricultural community")
+                .expansion(expansion)
+                .isOfficial(true)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<CommunityCard> cardPage = new PageImpl<>(List.of(card));
+        when(communityCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<CommunityCardResponse> result = communityCardService.getAllCommunityCards(0, 20, false, null, null, "features");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures()).isNotNull().hasSize(1);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTagIds()).containsExactly(10L);
+        assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllCommunityCards_WithExpandFeaturesNullCostTags_HandlesNullGracefully() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Tough").featureType(FeatureType.COMMUNITY).expansion(expansion)
+                .costTags(null).createdAt(LocalDateTime.now()).build();
+
+        CommunityCard card = CommunityCard.builder()
+                .id(1L)
+                .name("Farming")
+                .description("Agricultural community")
+                .expansion(expansion)
+                .isOfficial(true)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<CommunityCard> cardPage = new PageImpl<>(List.of(card));
+        when(communityCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<CommunityCardResponse> result = communityCardService.getAllCommunityCards(0, 20, false, null, null, "features,costTags");
+
+        // Assert
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).isNull();
+        assertThat(featureResponse.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllCommunityCards_WithExpandFeaturesEmptyCostTags_ReturnsEmptyLists() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Tough").featureType(FeatureType.COMMUNITY).expansion(expansion)
+                .costTags(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        CommunityCard card = CommunityCard.builder()
+                .id(1L)
+                .name("Farming")
+                .description("Agricultural community")
+                .expansion(expansion)
+                .isOfficial(true)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<CommunityCard> cardPage = new PageImpl<>(List.of(card));
+        when(communityCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<CommunityCardResponse> result = communityCardService.getAllCommunityCards(0, 20, false, null, null, "features,costTags");
+
+        // Assert
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).isEmpty();
+        assertThat(featureResponse.getCostTags()).isEmpty();
+    }
+
+    // ==================== GET COMMUNITY CARD BY ID TESTS ====================
 
     @Test
     void getCommunityCardById_ValidId_ReturnsCard() {

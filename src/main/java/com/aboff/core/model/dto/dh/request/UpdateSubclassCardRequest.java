@@ -1,7 +1,7 @@
 package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.SubclassLevel;
-import com.aboff.core.model.enums.Trait;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -61,9 +61,28 @@ public class UpdateSubclassCardRequest {
     private List<Long> costTagIds;
 
     /**
-     * ID of the class this subclass is associated with
+     * Cost tags to find or create by label. Merged with costTagIds if both provided.
      */
-    @NotNull(message = "Associated class ID is required")
+    @Valid
+    private List<CostTagInput> costTags;
+
+    /**
+     * ID of an existing subclass path to associate with this card.
+     * Either subclassPathId or subclassPath (with associatedClassId) must be provided.
+     */
+    private Long subclassPathId;
+
+    /**
+     * Inline subclass path input for find-or-create.
+     * When provided, associatedClassId must also be specified.
+     */
+    @Valid
+    private SubclassPathInput subclassPath;
+
+    /**
+     * ID of the class for path resolution when using inline subclassPath input.
+     * Required when subclassPath is provided, ignored when subclassPathId is used.
+     */
     private Long associatedClassId;
 
     /**
@@ -71,14 +90,4 @@ public class UpdateSubclassCardRequest {
      */
     @NotNull(message = "Subclass level is required")
     private SubclassLevel level;
-
-    /**
-     * The trait used for spellcasting with this subclass (optional)
-     */
-    private Trait spellcastingTrait;
-
-    /**
-     * IDs of associated domains
-     */
-    private List<Long> associatedDomainIds;
 }

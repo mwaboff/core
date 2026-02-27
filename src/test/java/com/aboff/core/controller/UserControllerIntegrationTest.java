@@ -18,27 +18,24 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.WebApplicationContext;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @TestPropertySource(locations = "classpath:application-test.properties")
 @Transactional
 class UserControllerIntegrationTest {
 
-        private MockMvc mockMvc;
-
         @Autowired
-        private WebApplicationContext context;
+        private MockMvc mockMvc;
 
         private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -60,16 +57,6 @@ class UserControllerIntegrationTest {
 
         @BeforeEach
         void setUp() {
-                // Configure MockMvc with Spring Security
-                mockMvc = MockMvcBuilders
-                                .webAppContextSetup(context)
-                                .apply(springSecurity())
-                                .build();
-
-                // Clean up database
-                activeTokenRepository.deleteAll();
-                userRepository.deleteAll();
-
                 // Create test user
                 testUser = User.builder()
                                 .username("testuser")

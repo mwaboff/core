@@ -24,6 +24,12 @@ DO name tests consistently - `{ClassName}Test` for unit tests, `{ClassName}Integ
 - Race Conditions: Concurrent operations
 - Special Characters: Unicode, emojis, SQL characters
 
+## Integration Test Performance Rules
+1. **Use `@AutoConfigureMockMvc`** - Never manually construct MockMvc in `@BeforeEach`. Use `@AutoConfigureMockMvc` on the class and `@Autowired MockMvc mockMvc`.
+2. **Rely on `@Transactional` rollback for cleanup** - Do NOT call `repository.deleteAll()` in `@BeforeEach`. The `@Transactional` annotation on the test class automatically rolls back after each test.
+3. **Never use production BCrypt strength in tests** - The test properties (`application-test.properties`) set `application.security.bcrypt-strength=4`. Never override this to a higher value in tests. BCrypt strength 12 adds ~200ms per hash and is the #1 cause of slow integration tests.
+4. **Preserve Spring context caching** - All integration tests should use the same `@SpringBootTest` + `@TestPropertySource` configuration. Avoid `@MockBean`, `@DirtiesContext`, or differing `@TestPropertySource` values that would force separate context loads.
+
 ## Best Practices
 
 1. **One Assert Per Test** - Focus on single behavior

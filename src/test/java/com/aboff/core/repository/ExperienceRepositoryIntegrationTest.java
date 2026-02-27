@@ -43,10 +43,6 @@ class ExperienceRepositoryIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        experienceRepository.deleteAll();
-        characterSheetRepository.deleteAll();
-        userRepository.deleteAll();
-
         user1 = createUser("player1", "player1@example.com");
         user2 = createUser("player2", "player2@example.com");
 

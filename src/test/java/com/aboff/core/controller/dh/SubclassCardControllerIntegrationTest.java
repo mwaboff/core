@@ -7,6 +7,7 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.SubclassCard;
+import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.repository.ActiveTokenRepository;
@@ -14,6 +15,7 @@ import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
+import com.aboff.core.repository.dh.SubclassPathRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -25,15 +27,13 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.WebApplicationContext;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -43,14 +43,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Tests all CRUD endpoints for SubclassCard resources with proper authentication and authorization.
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 @TestPropertySource(locations = "classpath:application-test.properties")
 @Transactional
 class SubclassCardControllerIntegrationTest {
 
-    private MockMvc mockMvc;
-
     @Autowired
-    private WebApplicationContext context;
+    private MockMvc mockMvc;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -70,6 +69,9 @@ class SubclassCardControllerIntegrationTest {
     private ClassRepository classRepository;
 
     @Autowired
+    private SubclassPathRepository subclassPathRepository;
+
+    @Autowired
     private PasswordEncoder passwordEncoder;
 
     @Autowired
@@ -81,20 +83,10 @@ class SubclassCardControllerIntegrationTest {
     private String userToken;
     private Expansion testExpansion;
     private Class testClass;
+    private SubclassPath testPath;
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders
-                .webAppContextSetup(context)
-                .apply(springSecurity())
-                .build();
-
-        activeTokenRepository.deleteAll();
-        subclassCardRepository.deleteAll();
-        classRepository.deleteAll();
-        expansionRepository.deleteAll();
-        userRepository.deleteAll();
-
         adminUser = createUserWithRole("admin", "admin@example.com", Role.ADMIN);
         regularUser = createUserWithRole("user", "user@example.com", Role.USER);
 
@@ -105,7 +97,8 @@ class SubclassCardControllerIntegrationTest {
         storeTokenInDatabase(regularUser.getId(), userToken);
 
         testExpansion = createExpansion("Core Rulebook", true);
-        testClass = createClass("Warrior", "Warrior class", testExpansion);
+        testClass = createClass("Warrior", testExpansion);
+        testPath = createSubclassPath("Warden of Renewal", testClass, testExpansion);
     }
 
     // ==================== GET ALL SUBCLASS CARDS TESTS ====================
@@ -113,8 +106,8 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void getAllSubclassCards_AsAuthenticatedUser_Returns200() throws Exception {
         // Arrange
-        createSubclassCard("Berserker", "Berserker path", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
-        createSubclassCard("Paladin", "Paladin path", testExpansion, true, testClass, SubclassLevel.SPECIALIZATION);
+        createSubclassCard("Berserker", "Berserker path", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
+        createSubclassCard("Paladin", "Paladin path", testExpansion, true, testPath, SubclassLevel.SPECIALIZATION);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/cards/subclass")
@@ -134,8 +127,8 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void getAllSubclassCards_FilterByLevel_ReturnsFiltered() throws Exception {
         // Arrange
-        createSubclassCard("Berserker", "Level 2 subclass", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
-        createSubclassCard("Paladin", "Level 5 subclass", testExpansion, true, testClass, SubclassLevel.SPECIALIZATION);
+        createSubclassCard("Berserker", "Level 2 subclass", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
+        createSubclassCard("Paladin", "Level 5 subclass", testExpansion, true, testPath, SubclassLevel.SPECIALIZATION);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/cards/subclass")
@@ -149,9 +142,10 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void getAllSubclassCards_FilterByAssociatedClassId_ReturnsFiltered() throws Exception {
         // Arrange
-        Class class2 = createClass("Mage", "Mage class", testExpansion);
-        createSubclassCard("Berserker", "Warrior subclass", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
-        createSubclassCard("Wizard", "Mage subclass", testExpansion, true, class2, SubclassLevel.FOUNDATION);
+        Class class2 = createClass("Mage", testExpansion);
+        SubclassPath path2 = createSubclassPath("Arcane Scholar", class2, testExpansion);
+        createSubclassCard("Berserker", "Warrior subclass", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
+        createSubclassCard("Wizard", "Mage subclass", testExpansion, true, path2, SubclassLevel.FOUNDATION);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/cards/subclass")
@@ -167,7 +161,7 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void getSubclassCardById_AsAuthenticatedUser_Returns200() throws Exception {
         // Arrange
-        SubclassCard card = createSubclassCard("Berserker", "Berserker path", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
+        SubclassCard card = createSubclassCard("Berserker", "Berserker path", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/cards/subclass/{id}", card.getId())
@@ -175,22 +169,23 @@ class SubclassCardControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(card.getId()))
                 .andExpect(jsonPath("$.name").value("Berserker"))
-                .andExpect(jsonPath("$.level").value("FOUNDATION"));
+                .andExpect(jsonPath("$.level").value("FOUNDATION"))
+                .andExpect(jsonPath("$.subclassPathId").value(testPath.getId()));
     }
 
     @Test
-    void getSubclassCardById_WithExpand_IncludesAssociatedClass() throws Exception {
+    void getSubclassCardById_WithExpand_IncludesSubclassPath() throws Exception {
         // Arrange
-        SubclassCard card = createSubclassCard("Berserker", "Berserker path", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
+        SubclassCard card = createSubclassCard("Berserker", "Berserker path", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/cards/subclass/{id}", card.getId())
-                        .param("expand", "expansion,associatedClass")
+                        .param("expand", "expansion,subclassPath")
                         .cookie(new Cookie("AUTH_TOKEN", userToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.expansion").exists())
-                .andExpect(jsonPath("$.associatedClass").exists())
-                .andExpect(jsonPath("$.associatedClass.name").value("Warrior"));
+                .andExpect(jsonPath("$.subclassPath").exists())
+                .andExpect(jsonPath("$.subclassPath.name").value("Warden of Renewal"));
     }
 
     @Test
@@ -210,7 +205,7 @@ class SubclassCardControllerIntegrationTest {
                 .description("Berserker path")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
-                .associatedClassId(testClass.getId())
+                .subclassPathId(testPath.getId())
                 .level(SubclassLevel.FOUNDATION)
                 .build();
 
@@ -222,7 +217,8 @@ class SubclassCardControllerIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.name").value("Berserker"))
-                .andExpect(jsonPath("$.level").value("FOUNDATION"));
+                .andExpect(jsonPath("$.level").value("FOUNDATION"))
+                .andExpect(jsonPath("$.subclassPathId").value(testPath.getId()));
 
         assertThat(subclassCardRepository.findAll()).hasSize(1);
     }
@@ -235,7 +231,7 @@ class SubclassCardControllerIntegrationTest {
                 .description("Berserker path")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
-                .associatedClassId(testClass.getId())
+                .subclassPathId(testPath.getId())
                 .level(SubclassLevel.FOUNDATION)
                 .build();
 
@@ -259,7 +255,7 @@ class SubclassCardControllerIntegrationTest {
                 .description("Berserker path")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
-                .associatedClassId(testClass.getId())
+                .subclassPathId(testPath.getId())
                 .level(SubclassLevel.FOUNDATION)
                 .build();
         CreateSubclassCardRequest request2 = CreateSubclassCardRequest.builder()
@@ -267,7 +263,7 @@ class SubclassCardControllerIntegrationTest {
                 .description("Paladin path")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
-                .associatedClassId(testClass.getId())
+                .subclassPathId(testPath.getId())
                 .level(SubclassLevel.SPECIALIZATION)
                 .build();
         List<CreateSubclassCardRequest> requests = List.of(request1, request2);
@@ -292,7 +288,7 @@ class SubclassCardControllerIntegrationTest {
                 .description("Berserker path")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
-                .associatedClassId(testClass.getId())
+                .subclassPathId(testPath.getId())
                 .level(SubclassLevel.FOUNDATION)
                 .build();
         List<CreateSubclassCardRequest> requests = List.of(request);
@@ -310,13 +306,13 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void updateSubclassCard_AsAdmin_Returns200() throws Exception {
         // Arrange
-        SubclassCard card = createSubclassCard("Berserker", "Original description", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
+        SubclassCard card = createSubclassCard("Berserker", "Original description", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
         UpdateSubclassCardRequest request = UpdateSubclassCardRequest.builder()
                 .name("Warlord")
                 .description("Updated description")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
-                .associatedClassId(testClass.getId())
+                .subclassPathId(testPath.getId())
                 .level(SubclassLevel.SPECIALIZATION)
                 .build();
 
@@ -334,13 +330,13 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void updateSubclassCard_AsUser_Returns403() throws Exception {
         // Arrange
-        SubclassCard card = createSubclassCard("Berserker", "Original description", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
+        SubclassCard card = createSubclassCard("Berserker", "Original description", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
         UpdateSubclassCardRequest request = UpdateSubclassCardRequest.builder()
                 .name("Warlord")
                 .description("Updated description")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
-                .associatedClassId(testClass.getId())
+                .subclassPathId(testPath.getId())
                 .level(SubclassLevel.FOUNDATION)
                 .build();
 
@@ -360,7 +356,7 @@ class SubclassCardControllerIntegrationTest {
                 .description("Updated description")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
-                .associatedClassId(testClass.getId())
+                .subclassPathId(testPath.getId())
                 .level(SubclassLevel.FOUNDATION)
                 .build();
 
@@ -377,7 +373,7 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void deleteSubclassCard_AsAdmin_Returns204() throws Exception {
         // Arrange
-        SubclassCard card = createSubclassCard("Berserker", "To delete", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
+        SubclassCard card = createSubclassCard("Berserker", "To delete", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
 
         // Act & Assert
         mockMvc.perform(delete("/api/dh/cards/subclass/{id}", card.getId())
@@ -391,7 +387,7 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void deleteSubclassCard_AsUser_Returns403() throws Exception {
         // Arrange
-        SubclassCard card = createSubclassCard("Berserker", "To delete", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
+        SubclassCard card = createSubclassCard("Berserker", "To delete", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
 
         // Act & Assert
         mockMvc.perform(delete("/api/dh/cards/subclass/{id}", card.getId())
@@ -414,7 +410,7 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void restoreSubclassCard_AsAdmin_Returns200() throws Exception {
         // Arrange
-        SubclassCard card = createSubclassCard("Berserker", "Deleted card", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
+        SubclassCard card = createSubclassCard("Berserker", "Deleted card", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
         card.setDeletedAt(LocalDateTime.now());
         subclassCardRepository.save(card);
 
@@ -432,7 +428,7 @@ class SubclassCardControllerIntegrationTest {
     @Test
     void restoreSubclassCard_AsUser_Returns403() throws Exception {
         // Arrange
-        SubclassCard card = createSubclassCard("Berserker", "Deleted card", testExpansion, true, testClass, SubclassLevel.FOUNDATION);
+        SubclassCard card = createSubclassCard("Berserker", "Deleted card", testExpansion, true, testPath, SubclassLevel.FOUNDATION);
         card.setDeletedAt(LocalDateTime.now());
         subclassCardRepository.save(card);
 
@@ -482,10 +478,9 @@ class SubclassCardControllerIntegrationTest {
         return expansionRepository.save(expansion);
     }
 
-    private Class createClass(String name, String description, Expansion expansion) {
+    private Class createClass(String name, Expansion expansion) {
         Class clazz = Class.builder()
                 .name(name)
-                .description(description)
                 .expansion(expansion)
                 .startingEvasion(10)
                 .startingHitPoints(20)
@@ -493,13 +488,22 @@ class SubclassCardControllerIntegrationTest {
         return classRepository.save(clazz);
     }
 
-    private SubclassCard createSubclassCard(String name, String description, Expansion expansion, Boolean isOfficial, Class associatedClass, SubclassLevel level) {
+    private SubclassPath createSubclassPath(String name, Class clazz, Expansion expansion) {
+        SubclassPath path = SubclassPath.builder()
+                .name(name)
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .build();
+        return subclassPathRepository.save(path);
+    }
+
+    private SubclassCard createSubclassCard(String name, String description, Expansion expansion, Boolean isOfficial, SubclassPath path, SubclassLevel level) {
         SubclassCard card = SubclassCard.builder()
                 .name(name)
                 .description(description)
                 .expansion(expansion)
                 .isOfficial(isOfficial)
-                .associatedClass(associatedClass)
+                .subclassPath(path)
                 .level(level)
                 .build();
         return subclassCardRepository.save(card);

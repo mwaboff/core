@@ -1,6 +1,7 @@
 package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.FeatureType;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -8,6 +9,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 /**
  * Request DTO for updating an existing Feature.
@@ -40,4 +43,15 @@ public class UpdateFeatureRequest {
      */
     @NotNull(message = "Expansion ID is required")
     private Long expansionId;
+
+    /**
+     * IDs of cost tags associated with this feature
+     */
+    private List<Long> costTagIds;
+
+    /**
+     * Cost tags to find or create by label. Merged with costTagIds if both provided.
+     */
+    @Valid
+    private List<CostTagInput> costTags;
 }

@@ -12,7 +12,6 @@ import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -20,28 +19,25 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.WebApplicationContext;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @SpringBootTest
+@AutoConfigureMockMvc
 @TestPropertySource(locations = "classpath:application-test.properties")
 @Transactional
 class AuthControllerIntegrationTest {
 
-        private MockMvc mockMvc;
-
         @Autowired
-        private WebApplicationContext context;
+        private MockMvc mockMvc;
 
         private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -59,20 +55,6 @@ class AuthControllerIntegrationTest {
 
         @Autowired
         private JwtTokenProvider jwtTokenProvider;
-
-        @BeforeEach
-        void setUp() {
-                // Configure MockMvc with Spring Security
-                mockMvc = MockMvcBuilders
-                                .webAppContextSetup(context)
-                                .apply(springSecurity())
-                                .build();
-
-                // Clean up database before each test
-                activeTokenRepository.deleteAll();
-                loginAttemptRepository.deleteAll();
-                userRepository.deleteAll();
-        }
 
         // ==================== REGISTER TESTS ====================
 

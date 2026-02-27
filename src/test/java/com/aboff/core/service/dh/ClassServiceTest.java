@@ -3,8 +3,11 @@ package com.aboff.core.service.dh;
 import com.aboff.core.model.dto.dh.request.CreateClassRequest;
 import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
 import com.aboff.core.model.dto.dh.response.ClassResponse;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Class;
+import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
@@ -186,7 +189,8 @@ class ClassServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
         Domain domain = Domain.builder().id(1L).name("Blade").expansion(expansion).createdAt(LocalDateTime.now()).build();
-        Feature feature = Feature.builder().id(1L).name("Power Attack").featureType(FeatureType.HOPE).expansion(expansion).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Power Attack").featureType(FeatureType.HOPE).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
 
         Class clazz = Class.builder()
                 .id(1L)
@@ -213,6 +217,9 @@ class ClassServiceTest {
         assertThat(result.getContent().get(0).getExpansion()).isNotNull();
         assertThat(result.getContent().get(0).getAssociatedDomains()).isNotNull();
         assertThat(result.getContent().get(0).getHopeFeatures()).isNotNull();
+        FeatureResponse hopeFeature = result.getContent().get(0).getHopeFeatures().get(0);
+        assertThat(hopeFeature.getCostTagIds()).containsExactly(1L);
+        assertThat(hopeFeature.getCostTags()).isNull();
     }
 
     // ==================== GET CLASS BY ID TESTS ====================
@@ -557,5 +564,174 @@ class ClassServiceTest {
         assertThatThrownBy(() -> classService.restoreClass(999L))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Class not found with id: 999");
+    }
+
+    // ==================== FEATURE COST TAG EXPANSION TESTS ====================
+
+    @Test
+    void getAllClasses_WithExpandHopeFeaturesAndCostTags_IncludesFullCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Power Attack").featureType(FeatureType.HOPE).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .hopeFeatures(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        FeatureResponse hopeFeature = result.getContent().get(0).getHopeFeatures().get(0);
+        assertThat(hopeFeature.getCostTagIds()).containsExactly(1L);
+        assertThat(hopeFeature.getCostTags()).isNotNull().hasSize(1);
+        assertThat(hopeFeature.getCostTags().get(0).getLabel()).isEqualTo("3 Hope");
+        assertThat(hopeFeature.getCostTags().get(0).getCategory()).isEqualTo(CostTagCategory.COST);
+    }
+
+    @Test
+    void getAllClasses_WithExpandClassFeaturesAndCostTags_IncludesFullCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(2L).label("1/session").category(CostTagCategory.LIMITATION).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Blade Dance").featureType(FeatureType.CLASS).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .classFeatures(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "classFeatures,costTags");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        FeatureResponse classFeature = result.getContent().get(0).getClassFeatures().get(0);
+        assertThat(classFeature.getCostTagIds()).containsExactly(2L);
+        assertThat(classFeature.getCostTags()).isNotNull().hasSize(1);
+        assertThat(classFeature.getCostTags().get(0).getLabel()).isEqualTo("1/session");
+        assertThat(classFeature.getCostTags().get(0).getCategory()).isEqualTo(CostTagCategory.LIMITATION);
+    }
+
+    @Test
+    void getAllClasses_WithExpandClassFeaturesWithoutCostTags_IncludesCostTagIdsOnly() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(2L).label("1/session").category(CostTagCategory.LIMITATION).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Blade Dance").featureType(FeatureType.CLASS).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .classFeatures(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "classFeatures");
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        FeatureResponse classFeature = result.getContent().get(0).getClassFeatures().get(0);
+        assertThat(classFeature.getCostTagIds()).containsExactly(2L);
+        assertThat(classFeature.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllClasses_WithExpandFeaturesNullCostTags_HandlesNullGracefully() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Power Attack").featureType(FeatureType.HOPE).expansion(expansion)
+                .costTags(null).createdAt(LocalDateTime.now()).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .hopeFeatures(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
+
+        // Assert
+        FeatureResponse hopeFeature = result.getContent().get(0).getHopeFeatures().get(0);
+        assertThat(hopeFeature.getCostTagIds()).isNull();
+        assertThat(hopeFeature.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllClasses_WithExpandFeaturesEmptyCostTags_ReturnsEmptyLists() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Power Attack").featureType(FeatureType.HOPE).expansion(expansion)
+                .costTags(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .hopeFeatures(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
+
+        // Assert
+        FeatureResponse hopeFeature = result.getContent().get(0).getHopeFeatures().get(0);
+        assertThat(hopeFeature.getCostTagIds()).isEmpty();
+        assertThat(hopeFeature.getCostTags()).isEmpty();
     }
 }

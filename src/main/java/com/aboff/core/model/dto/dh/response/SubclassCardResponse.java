@@ -2,7 +2,6 @@ package com.aboff.core.model.dto.dh.response;
 
 import com.aboff.core.model.enums.CardType;
 import com.aboff.core.model.enums.SubclassLevel;
-import com.aboff.core.model.enums.Trait;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -20,9 +19,8 @@ import java.util.List;
  * - By default: returns IDs only for relationships
  * - With ?expand=expansion: includes full expansion object
  * - With ?expand=features: includes full feature objects
- * - With ?expand=associatedClass: includes full class object
- * - With ?expand=associatedDomains: includes full domain objects
- * - Multiple expansions can be comma-separated: ?expand=expansion,features,associatedClass
+ * - With ?expand=subclassPath: includes full subclass path object
+ * - Multiple expansions can be comma-separated: ?expand=expansion,features,subclassPath
  * </p>
  */
 @Data
@@ -55,6 +53,11 @@ public class SubclassCardResponse {
      * ID of the expansion this card belongs to (always included)
      */
     private Long expansionId;
+
+    /**
+     * Name of the expansion this card belongs to (always included)
+     */
+    private String expansionName;
 
     /**
      * Full expansion object (included only when ?expand=expansion is specified)
@@ -92,35 +95,44 @@ public class SubclassCardResponse {
     private List<CardCostTagResponse> costTags;
 
     /**
-     * ID of the associated class (always included)
+     * ID of the class associated with this card's subclass path (always included)
      */
     private Long associatedClassId;
 
     /**
-     * Full class object (included only when ?expand=associatedClass is specified)
+     * Name of the class associated with this card's subclass path (always included)
      */
-    private ClassResponse associatedClass;
+    private String associatedClassName;
+
+    /**
+     * ID of the subclass path this card belongs to (always included)
+     */
+    private Long subclassPathId;
+
+    /**
+     * Name of the subclass path this card belongs to (always included)
+     */
+    private String subclassPathName;
+
+    /**
+     * Full subclass path object (included only when ?expand=subclassPath is specified)
+     */
+    private SubclassPathResponse subclassPath;
+
+    /**
+     * Names of the domains associated with this card's subclass path (always included)
+     */
+    private List<String> domainNames;
+
+    /**
+     * The spellcasting trait for this card's subclass path (always included, null if no spellcasting)
+     */
+    private SubclassPathResponse.TraitInfo spellcastingTrait;
 
     /**
      * The level at which this subclass becomes available
      */
     private SubclassLevel level;
-
-    /**
-     * The trait used for spellcasting with this subclass.
-     * Includes the trait name along with its description and examples.
-     */
-    private TraitInfo spellcastingTrait;
-
-    /**
-     * IDs of associated domains (always included)
-     */
-    private List<Long> associatedDomainIds;
-
-    /**
-     * Full domain objects (included only when ?expand=associatedDomains is specified)
-     */
-    private List<DomainResponse> associatedDomains;
 
     /**
      * Timestamp when the card was created
@@ -136,29 +148,4 @@ public class SubclassCardResponse {
      * Timestamp when the card was soft-deleted (null if not deleted)
      */
     private LocalDateTime deletedAt;
-
-    /**
-     * Nested class containing trait information with metadata.
-     * Includes the trait name along with its description and usage examples.
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class TraitInfo {
-        /**
-         * The trait name (e.g., AGILITY, KNOWLEDGE)
-         */
-        private Trait trait;
-
-        /**
-         * Description of what the trait represents
-         */
-        private String description;
-
-        /**
-         * Examples of when this trait is used
-         */
-        private String examples;
-    }
 }

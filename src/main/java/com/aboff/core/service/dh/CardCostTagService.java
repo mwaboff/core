@@ -1,5 +1,6 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.dto.dh.request.CostTagInput;
 import com.aboff.core.model.dto.dh.request.CreateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
@@ -17,6 +18,8 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -171,6 +174,63 @@ public class CardCostTagService {
         log.info("Restored cost tag with id: {}", id);
 
         return toResponse(restoredTag);
+    }
+
+    /**
+     * Finds an existing cost tag by label (case-insensitive) or creates a new one.
+     *
+     * @param label The label to search for
+     * @param category The category to use if creating a new tag
+     * @return The existing or newly created CardCostTag
+     */
+    @Transactional
+    public CardCostTag findOrCreate(String label, CostTagCategory category) {
+        return cardCostTagRepository.findByLabelIgnoreCaseAndDeletedAtIsNull(label)
+                .map(existing -> {
+                    log.debug("Found existing cost tag with label '{}' (id: {})", label, existing.getId());
+                    return existing;
+                })
+                .orElseGet(() -> {
+                    log.info("Creating new cost tag with label '{}' and category '{}'", label, category);
+                    CardCostTag newTag = CardCostTag.builder()
+                            .label(label)
+                            .category(category)
+                            .build();
+                    return cardCostTagRepository.save(newTag);
+                });
+    }
+
+    /**
+     * Resolves cost tags from both ID-based and label-based inputs, merging the results.
+     * <p>
+     * Returns {@code null} when both inputs are null, signaling that existing tags should not be modified
+     * (used by update operations). Returns an empty set when at least one input is non-null but both are
+     * empty, signaling that tags should be cleared.
+     * </p>
+     *
+     * @param costTagIds Optional list of existing cost tag IDs to look up
+     * @param costTags Optional list of cost tag inputs to find or create by label
+     * @return Merged set of resolved cost tags, or null if both inputs are null
+     */
+    @Transactional
+    public Set<CardCostTag> resolveCostTags(List<Long> costTagIds, List<CostTagInput> costTags) {
+        if (costTagIds == null && costTags == null) {
+            return null;
+        }
+
+        Set<CardCostTag> resolved = new HashSet<>();
+
+        if (costTagIds != null && !costTagIds.isEmpty()) {
+            resolved.addAll(cardCostTagRepository.findAllByIdInAndDeletedAtIsNull(costTagIds));
+        }
+
+        if (costTags != null && !costTags.isEmpty()) {
+            for (CostTagInput input : costTags) {
+                resolved.add(findOrCreate(input.getLabel(), input.getCategory()));
+            }
+        }
+
+        return resolved;
     }
 
     /**

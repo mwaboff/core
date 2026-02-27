@@ -22,14 +22,12 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.context.WebApplicationContext;
 
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -39,14 +37,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Tests all CRUD endpoints for Experience resources with proper authentication and authorization.
  */
 @SpringBootTest
+@AutoConfigureMockMvc
 @TestPropertySource(locations = "classpath:application-test.properties")
 @Transactional
 class ExperienceControllerIntegrationTest {
 
-    private MockMvc mockMvc;
-
     @Autowired
-    private WebApplicationContext context;
+    private MockMvc mockMvc;
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -78,16 +75,6 @@ class ExperienceControllerIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        mockMvc = MockMvcBuilders
-                .webAppContextSetup(context)
-                .apply(springSecurity())
-                .build();
-
-        activeTokenRepository.deleteAll();
-        experienceRepository.deleteAll();
-        characterSheetRepository.deleteAll();
-        userRepository.deleteAll();
-
         player1 = createUserWithRole("player1", "player1@example.com", Role.USER);
         player2 = createUserWithRole("player2", "player2@example.com", Role.USER);
         moderator = createUserWithRole("moderator", "moderator@example.com", Role.MODERATOR);

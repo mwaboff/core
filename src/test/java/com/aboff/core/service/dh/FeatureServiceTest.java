@@ -1,11 +1,14 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.dto.dh.request.CostTagInput;
 import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
@@ -20,8 +23,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,6 +45,9 @@ class FeatureServiceTest {
 
     @Mock
     private ExpansionRepository expansionRepository;
+
+    @Mock
+    private CardCostTagService cardCostTagService;
 
     @InjectMocks
     private FeatureService featureService;
@@ -605,5 +613,362 @@ class FeatureServiceTest {
         assertThatThrownBy(() -> featureService.restoreFeature(999L))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Feature not found with id: 999");
+    }
+
+    // ==================== COST TAG TESTS ====================
+
+    @Test
+    void createFeature_WithCostTagIds_SetsCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .costTagIds(List.of(1L))
+                .build();
+
+        Feature savedFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .costTags(Set.of(costTag))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(eq(List.of(1L)), isNull())).thenReturn(Set.of(costTag));
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCostTagIds()).containsExactly(1L);
+        verify(cardCostTagService).resolveCostTags(eq(List.of(1L)), isNull());
+    }
+
+    @Test
+    void createFeature_WithCostTagInputs_ResolvesAndSetsCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+        List<CostTagInput> costTagInputs = List.of(
+                CostTagInput.builder().label("3 Hope").category(CostTagCategory.COST).build()
+        );
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .costTags(costTagInputs)
+                .build();
+
+        Feature savedFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .costTags(Set.of(costTag))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), eq(costTagInputs))).thenReturn(Set.of(costTag));
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCostTagIds()).containsExactly(1L);
+        verify(cardCostTagService).resolveCostTags(isNull(), eq(costTagInputs));
+    }
+
+    @Test
+    void createFeature_WithBothCostTagIdsAndInputs_MergesBoth() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag1 = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+        CardCostTag costTag2 = CardCostTag.builder().id(2L).label("1/session").category(CostTagCategory.TIMING).build();
+        List<CostTagInput> costTagInputs = List.of(
+                CostTagInput.builder().label("1/session").category(CostTagCategory.TIMING).build()
+        );
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .costTagIds(List.of(1L))
+                .costTags(costTagInputs)
+                .build();
+
+        Feature savedFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .costTags(Set.of(costTag1, costTag2))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(eq(List.of(1L)), eq(costTagInputs))).thenReturn(Set.of(costTag1, costTag2));
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCostTagIds()).containsExactlyInAnyOrder(1L, 2L);
+        verify(cardCostTagService).resolveCostTags(eq(List.of(1L)), eq(costTagInputs));
+    }
+
+    @Test
+    void updateFeature_WithCostTags_UpdatesCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .costTags(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .costTagIds(List.of(1L))
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(eq(List.of(1L)), isNull())).thenReturn(Set.of(costTag));
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCostTagIds()).containsExactly(1L);
+        verify(cardCostTagService).resolveCostTags(eq(List.of(1L)), isNull());
+    }
+
+    @Test
+    void updateFeature_WithEmptyCostTags_ClearsCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .costTags(new HashSet<>(Set.of(costTag)))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .costTagIds(List.of())
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(eq(List.of()), isNull())).thenReturn(new HashSet<>());
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(cardCostTagService).resolveCostTags(eq(List.of()), isNull());
+    }
+
+    @Test
+    void updateFeature_WithNullCostTags_DoesNotChangeCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .costTags(new HashSet<>(Set.of(costTag)))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCostTagIds()).containsExactly(1L);
+    }
+
+    @Test
+    void getFeatureById_WithExpandCostTags_ExpandsCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder()
+                .id(1L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+
+        Feature feature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .costTags(Set.of(costTag))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(feature));
+
+        // Act
+        FeatureResponse result = featureService.getFeatureById(1L, "costTags");
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCostTagIds()).containsExactly(1L);
+        assertThat(result.getCostTags()).isNotNull();
+        assertThat(result.getCostTags()).hasSize(1);
+        assertThat(result.getCostTags().get(0).getLabel()).isEqualTo("3 Hope");
+        assertThat(result.getCostTags().get(0).getCategory()).isEqualTo(CostTagCategory.COST);
+    }
+
+    // ==================== BULK CREATE TESTS ====================
+
+    @Test
+    void createFeaturesBulk_ValidRequests_CreatesAllFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        CreateFeatureRequest request1 = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .build();
+
+        CreateFeatureRequest request2 = CreateFeatureRequest.builder()
+                .name("Arcane Blast")
+                .description("Deal magic damage")
+                .featureType(FeatureType.CLASS)
+                .expansionId(1L)
+                .build();
+
+        Feature savedFeature1 = Feature.builder()
+                .id(1L).name("Healing Touch").description("Restore HP to allies")
+                .featureType(FeatureType.HOPE).expansion(expansion).createdAt(LocalDateTime.now()).build();
+        Feature savedFeature2 = Feature.builder()
+                .id(2L).name("Arcane Blast").description("Deal magic damage")
+                .featureType(FeatureType.CLASS).expansion(expansion).createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureRepository.saveAll(anyList())).thenReturn(List.of(savedFeature1, savedFeature2));
+
+        // Act
+        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request1, request2));
+
+        // Assert
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).getName()).isEqualTo("Healing Touch");
+        assertThat(results.get(1).getName()).isEqualTo("Arcane Blast");
+        verify(featureRepository).saveAll(anyList());
+    }
+
+    @Test
+    void createFeaturesBulk_WithCostTags_ResolvesTagsForEachFeature() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).build();
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .costTagIds(List.of(1L))
+                .build();
+
+        Feature savedFeature = Feature.builder()
+                .id(1L).name("Healing Touch").description("Restore HP to allies")
+                .featureType(FeatureType.HOPE).expansion(expansion)
+                .costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(eq(List.of(1L)), isNull())).thenReturn(Set.of(costTag));
+        when(featureRepository.saveAll(anyList())).thenReturn(List.of(savedFeature));
+
+        // Act
+        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request));
+
+        // Assert
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getCostTagIds()).containsExactly(1L);
+        verify(cardCostTagService).resolveCostTags(eq(List.of(1L)), isNull());
+    }
+
+    @Test
+    void createFeaturesBulk_ExpansionNotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .description("Restore HP to allies")
+                .featureType(FeatureType.HOPE)
+                .expansionId(999L)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> featureService.createFeaturesBulk(List.of(request)))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Expansion not found with id: 999");
+
+        verify(featureRepository, never()).saveAll(anyList());
     }
 }
