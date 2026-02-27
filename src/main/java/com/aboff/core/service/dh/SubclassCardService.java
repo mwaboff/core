@@ -17,7 +17,6 @@ import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -31,7 +30,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.util.ExpandUtil;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -47,7 +45,7 @@ public class SubclassCardService {
 
     private final SubclassCardRepository subclassCardRepository;
     private final ExpansionRepository expansionRepository;
-    private final FeatureRepository featureRepository;
+    private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
     private final SubclassPathService subclassPathService;
 
@@ -150,9 +148,9 @@ public class SubclassCardService {
                 .build();
 
         // Set features if provided
-        if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
-            Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
-            card.setFeatures(features);
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedFeatures != null) {
+            card.setFeatures(resolvedFeatures);
         }
 
         // Set cost tags if provided
@@ -199,9 +197,9 @@ public class SubclassCardService {
                             .level(request.getLevel())
                             .build();
 
-                    if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
-                        Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
-                        card.setFeatures(features);
+                    Set<Feature> bulkResolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+                    if (bulkResolvedFeatures != null) {
+                        card.setFeatures(bulkResolvedFeatures);
                     }
 
                     Set<CardCostTag> bulkResolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
@@ -256,13 +254,9 @@ public class SubclassCardService {
         card.setLevel(request.getLevel());
 
         // Update features
-        if (request.getFeatureIds() != null) {
-            if (request.getFeatureIds().isEmpty()) {
-                card.setFeatures(new HashSet<>());
-            } else {
-                Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
-                card.setFeatures(features);
-            }
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedFeatures != null) {
+            card.setFeatures(resolvedFeatures);
         }
 
         // Update cost tags

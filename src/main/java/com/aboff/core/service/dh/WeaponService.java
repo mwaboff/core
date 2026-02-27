@@ -14,7 +14,6 @@ import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +27,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.util.ExpandUtil;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -43,7 +41,7 @@ public class WeaponService {
 
     private final WeaponRepository weaponRepository;
     private final ExpansionRepository expansionRepository;
-    private final FeatureRepository featureRepository;
+    private final FeatureService featureService;
 
     /**
      * Retrieves a paginated list of weapons.
@@ -139,11 +137,9 @@ public class WeaponService {
                 .damage(toDamageRoll(request.getDamage()))
                 .build();
 
-        if (request.getFeatureId() != null) {
-            Feature feature = featureRepository.findByIdAndDeletedAtIsNull(request.getFeatureId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Feature not found with id: " + request.getFeatureId()));
-            weapon.setFeature(feature);
+        Feature resolvedFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
+        if (resolvedFeature != null) {
+            weapon.setFeature(resolvedFeature);
         }
 
         if (request.getOriginalWeaponId() != null) {
@@ -186,11 +182,9 @@ public class WeaponService {
                             .damage(toDamageRoll(request.getDamage()))
                             .build();
 
-                    if (request.getFeatureId() != null) {
-                        Feature feature = featureRepository.findByIdAndDeletedAtIsNull(request.getFeatureId())
-                                .orElseThrow(() -> new EntityNotFoundException(
-                                        "Feature not found with id: " + request.getFeatureId()));
-                        weapon.setFeature(feature);
+                    Feature bulkResolvedFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
+                    if (bulkResolvedFeature != null) {
+                        weapon.setFeature(bulkResolvedFeature);
                     }
 
                     if (request.getOriginalWeaponId() != null) {
@@ -240,11 +234,9 @@ public class WeaponService {
         weapon.setBurden(request.getBurden());
         weapon.setDamage(toDamageRoll(request.getDamage()));
 
-        if (request.getFeatureId() != null) {
-            Feature feature = featureRepository.findByIdAndDeletedAtIsNull(request.getFeatureId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Feature not found with id: " + request.getFeatureId()));
-            weapon.setFeature(feature);
+        Feature resolvedUpdateFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
+        if (resolvedUpdateFeature != null) {
+            weapon.setFeature(resolvedUpdateFeature);
         } else {
             weapon.setFeature(null);
         }

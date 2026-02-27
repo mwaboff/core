@@ -7,11 +7,13 @@ import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Adversary;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.*;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -27,6 +29,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -59,6 +62,9 @@ class AdversaryControllerIntegrationTest {
 
     @Autowired
     private ExpansionRepository expansionRepository;
+
+    @Autowired
+    private FeatureRepository featureRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -574,6 +580,214 @@ class AdversaryControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(batchRequest))
                 .andExpect(status().isForbidden());
+    }
+
+    // ==================== INLINE FEATURE TESTS ====================
+
+    @Test
+    void createAdversary_WithInlineFeatures_Returns201AndCreatesFeatures() throws Exception {
+        // Arrange
+        String requestJson = """
+            {
+                "name": "Shadow Drake",
+                "tier": 3,
+                "adversaryType": "BRUISER",
+                "difficulty": 10,
+                "majorThreshold": 5,
+                "severeThreshold": 10,
+                "hitPointMax": 30,
+                "stressMax": 10,
+                "expansionId": %d,
+                "features": [
+                    {
+                        "name": "Shadow Breath",
+                        "description": "Exhales a cone of shadow energy",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                    },
+                    {
+                        "name": "Dark Resilience",
+                        "description": "Resistance to shadow damage",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/adversaries")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(2));
+
+        List<Feature> features = featureRepository.findAll();
+        assertThat(features).hasSize(2);
+        assertThat(features).extracting(Feature::getName)
+                .containsExactlyInAnyOrder("Shadow Breath", "Dark Resilience");
+    }
+
+    @Test
+    void createAdversary_WithMixedFeatures_Returns201AndMerges() throws Exception {
+        // Arrange - create existing feature
+        Feature existingFeature = Feature.builder()
+                .name("Existing Adversary Feature")
+                .description("Pre-existing")
+                .featureType(FeatureType.OTHER)
+                .expansion(testExpansion)
+                .build();
+        existingFeature = featureRepository.save(existingFeature);
+
+        String requestJson = """
+            {
+                "name": "Mixed Feature Goblin",
+                "tier": 1,
+                "adversaryType": "MINION",
+                "difficulty": 5,
+                "majorThreshold": 3,
+                "severeThreshold": 6,
+                "expansionId": %d,
+                "featureIds": [%d],
+                "features": [
+                    {
+                        "name": "New Goblin Trick",
+                        "description": "A sneaky trick",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), existingFeature.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/adversaries")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(2));
+
+        assertThat(featureRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void createAdversary_WithInlineFeaturesHavingCostTags_Returns201() throws Exception {
+        // Arrange
+        String requestJson = """
+            {
+                "name": "Cost Tag Adversary",
+                "tier": 2,
+                "adversaryType": "LEADER",
+                "difficulty": 8,
+                "majorThreshold": 5,
+                "severeThreshold": 10,
+                "expansionId": %d,
+                "features": [
+                    {
+                        "name": "Costly Ability",
+                        "description": "An expensive ability",
+                        "featureType": "OTHER",
+                        "expansionId": %d,
+                        "costTags": [
+                            { "label": "Recharge 5-6", "category": "LIMITATION" }
+                        ]
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/adversaries")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureIds.length()").value(1));
+
+        List<Feature> features = featureRepository.findAll();
+        assertThat(features).hasSize(1);
+        assertThat(features.get(0).getCostTags()).hasSize(1);
+    }
+
+    @Test
+    void updateAdversary_WithInlineFeatures_Returns200() throws Exception {
+        // Arrange
+        Adversary adversary = createAdversary("Update Target", testExpansion, false, false,
+                regularUser, AdversaryType.MINION, 1);
+        String requestJson = """
+            {
+                "features": [
+                    {
+                        "name": "Update Feature",
+                        "description": "Added via update",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/adversaries/{id}", adversary.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1));
+
+        assertThat(featureRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void batchCreateAdversaries_WithInlineFeatures_Returns201() throws Exception {
+        // Arrange
+        String batchRequest = """
+            {
+                "adversaries": [
+                    {
+                        "name": "Batch Goblin 1",
+                        "tier": 1,
+                        "adversaryType": "MINION",
+                        "difficulty": 5,
+                        "majorThreshold": 3,
+                        "severeThreshold": 6,
+                        "expansionId": %d,
+                        "features": [
+                            {
+                                "name": "Batch Feature",
+                                "description": "Feature from batch",
+                                "featureType": "OTHER",
+                                "expansionId": %d
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Batch Goblin 2",
+                        "tier": 1,
+                        "adversaryType": "MINION",
+                        "difficulty": 5,
+                        "majorThreshold": 3,
+                        "severeThreshold": 6,
+                        "expansionId": %d
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/adversaries/batch")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(batchRequest))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.totalCreated").value(2));
+
+        assertThat(featureRepository.findAll()).hasSize(1);
     }
 
     // ==================== HELPER METHODS ====================

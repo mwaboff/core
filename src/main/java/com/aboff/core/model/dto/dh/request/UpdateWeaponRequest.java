@@ -79,6 +79,12 @@ public class UpdateWeaponRequest {
     private Long featureId;
 
     /**
+     * Feature to find or create inline. Used if featureId is not provided. featureId takes precedence.
+     */
+    @Valid
+    private FeatureInput feature;
+
+    /**
      * Optional ID of the original weapon if this is a custom copy.
      */
     private Long originalWeaponId;

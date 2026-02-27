@@ -10,7 +10,6 @@ import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,7 +43,7 @@ class ArmorServiceTest {
     private ExpansionRepository expansionRepository;
 
     @Mock
-    private FeatureRepository featureRepository;
+    private FeatureService featureService;
 
     @InjectMocks
     private ArmorService armorService;
@@ -243,7 +242,7 @@ class ArmorServiceTest {
         savedArmor.setFeature(feature);
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(feature));
+        when(featureService.resolveFeature(eq(1L), isNull())).thenReturn(feature);
         when(armorRepository.save(any(Armor.class))).thenReturn(savedArmor);
 
         // Act

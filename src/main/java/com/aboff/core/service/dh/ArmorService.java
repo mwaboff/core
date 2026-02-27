@@ -11,7 +11,7 @@ import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
+
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.util.ExpandUtil;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -39,7 +38,7 @@ public class ArmorService {
 
     private final ArmorRepository armorRepository;
     private final ExpansionRepository expansionRepository;
-    private final FeatureRepository featureRepository;
+    private final FeatureService featureService;
 
     /**
      * Retrieves a paginated list of armors.
@@ -125,11 +124,9 @@ public class ArmorService {
                 .baseScore(request.getBaseScore())
                 .build();
 
-        if (request.getFeatureId() != null) {
-            Feature feature = featureRepository.findByIdAndDeletedAtIsNull(request.getFeatureId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Feature not found with id: " + request.getFeatureId()));
-            armor.setFeature(feature);
+        Feature resolvedFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
+        if (resolvedFeature != null) {
+            armor.setFeature(resolvedFeature);
         }
 
         if (request.getOriginalArmorId() != null) {
@@ -170,11 +167,9 @@ public class ArmorService {
                             .baseScore(request.getBaseScore())
                             .build();
 
-                    if (request.getFeatureId() != null) {
-                        Feature feature = featureRepository.findByIdAndDeletedAtIsNull(request.getFeatureId())
-                                .orElseThrow(() -> new EntityNotFoundException(
-                                        "Feature not found with id: " + request.getFeatureId()));
-                        armor.setFeature(feature);
+                    Feature bulkResolvedFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
+                    if (bulkResolvedFeature != null) {
+                        armor.setFeature(bulkResolvedFeature);
                     }
 
                     if (request.getOriginalArmorId() != null) {
@@ -222,11 +217,9 @@ public class ArmorService {
         armor.setBaseSevereThreshold(request.getBaseSevereThreshold());
         armor.setBaseScore(request.getBaseScore());
 
-        if (request.getFeatureId() != null) {
-            Feature feature = featureRepository.findByIdAndDeletedAtIsNull(request.getFeatureId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Feature not found with id: " + request.getFeatureId()));
-            armor.setFeature(feature);
+        Feature resolvedUpdateFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
+        if (resolvedUpdateFeature != null) {
+            armor.setFeature(resolvedUpdateFeature);
         } else {
             armor.setFeature(null);
         }

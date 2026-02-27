@@ -55,6 +55,12 @@ public class CreateAncestryCardRequest {
     private List<Long> featureIds;
 
     /**
+     * Features to find or create inline. Merged with featureIds if both provided.
+     */
+    @Valid
+    private List<FeatureInput> features;
+
+    /**
      * IDs of cost tags associated with this card
      */
     private List<Long> costTagIds;

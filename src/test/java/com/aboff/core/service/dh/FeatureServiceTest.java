@@ -2,6 +2,7 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CostTagInput;
 import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
+import com.aboff.core.model.dto.dh.request.FeatureInput;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
@@ -970,5 +971,345 @@ class FeatureServiceTest {
                 .hasMessage("Expansion not found with id: 999");
 
         verify(featureRepository, never()).saveAll(anyList());
+    }
+
+    // ==================== FIND OR CREATE TESTS ====================
+
+    @Test
+    void findOrCreate_ExistingFeature_ReturnsExisting() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature existingFeature = Feature.builder()
+                .id(5L).name("Mighty Leap").featureType(FeatureType.ANCESTRY)
+                .expansion(expansion).build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Mighty Leap").featureType(FeatureType.ANCESTRY).expansionId(1L)
+                .description("Jump far").build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "Mighty Leap", 1L, FeatureType.ANCESTRY))
+            .thenReturn(Optional.of(existingFeature));
+
+        // Act
+        Feature result = featureService.findOrCreate(input);
+
+        // Assert
+        assertThat(result).isEqualTo(existingFeature);
+        assertThat(result.getId()).isEqualTo(5L);
+        verify(featureRepository, never()).save(any());
+        verify(expansionRepository, never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    void findOrCreate_ExistingFeatureCaseInsensitive_ReturnsExisting() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature existingFeature = Feature.builder()
+                .id(5L).name("Mighty Leap").featureType(FeatureType.ANCESTRY)
+                .expansion(expansion).build();
+        FeatureInput input = FeatureInput.builder()
+                .name("mighty leap").featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "mighty leap", 1L, FeatureType.ANCESTRY))
+            .thenReturn(Optional.of(existingFeature));
+
+        // Act
+        Feature result = featureService.findOrCreate(input);
+
+        // Assert
+        assertThat(result).isEqualTo(existingFeature);
+        verify(featureRepository, never()).save(any());
+    }
+
+    @Test
+    void findOrCreate_NoMatch_CreatesNewFeature() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Mighty Leap").description("Jump far")
+                .featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+        Feature savedFeature = Feature.builder()
+                .id(10L).name("Mighty Leap").description("Jump far")
+                .featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "Mighty Leap", 1L, FeatureType.ANCESTRY))
+            .thenReturn(Optional.empty());
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        Feature result = featureService.findOrCreate(input);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(10L);
+        assertThat(result.getName()).isEqualTo("Mighty Leap");
+        verify(expansionRepository).findByIdAndDeletedAtIsNull(1L);
+        verify(featureRepository).save(any(Feature.class));
+    }
+
+    @Test
+    void findOrCreate_NoMatch_WithCostTags_CreatesWithTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("1/session").category(CostTagCategory.LIMITATION).build();
+        List<CostTagInput> costTagInputs = List.of(
+                CostTagInput.builder().label("1/session").category(CostTagCategory.LIMITATION).build());
+        FeatureInput input = FeatureInput.builder()
+                .name("Mighty Leap").featureType(FeatureType.ANCESTRY).expansionId(1L)
+                .costTags(costTagInputs).build();
+        Feature savedFeature = Feature.builder()
+                .id(10L).name("Mighty Leap").featureType(FeatureType.ANCESTRY)
+                .expansion(expansion).costTags(Set.of(costTag)).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "Mighty Leap", 1L, FeatureType.ANCESTRY))
+            .thenReturn(Optional.empty());
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), eq(costTagInputs))).thenReturn(Set.of(costTag));
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        Feature result = featureService.findOrCreate(input);
+
+        // Assert
+        assertThat(result.getCostTags()).hasSize(1);
+        verify(cardCostTagService).resolveCostTags(isNull(), eq(costTagInputs));
+    }
+
+    @Test
+    void findOrCreate_NoMatch_WithoutCostTags_CreatesWithoutTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Mighty Leap").featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+        Feature savedFeature = Feature.builder()
+                .id(10L).name("Mighty Leap").featureType(FeatureType.ANCESTRY)
+                .expansion(expansion).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "Mighty Leap", 1L, FeatureType.ANCESTRY))
+            .thenReturn(Optional.empty());
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        Feature result = featureService.findOrCreate(input);
+
+        // Assert
+        assertThat(result.getCostTags()).isNull();
+        verify(cardCostTagService).resolveCostTags(isNull(), isNull());
+    }
+
+    @Test
+    void findOrCreate_ExpansionNotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        FeatureInput input = FeatureInput.builder()
+                .name("Mighty Leap").featureType(FeatureType.ANCESTRY).expansionId(999L).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "Mighty Leap", 999L, FeatureType.ANCESTRY))
+            .thenReturn(Optional.empty());
+        when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> featureService.findOrCreate(input))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Expansion not found with id: 999");
+
+        verify(featureRepository, never()).save(any());
+    }
+
+    // ==================== RESOLVE FEATURES TESTS ====================
+
+    @Test
+    void resolveFeatures_BothNull_ReturnsNull() {
+        // Act
+        Set<Feature> result = featureService.resolveFeatures(null, null);
+
+        // Assert
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void resolveFeatures_BothEmpty_ReturnsEmptySet() {
+        // Act
+        Set<Feature> result = featureService.resolveFeatures(List.of(), List.of());
+
+        // Assert
+        assertThat(result).isEmpty();
+    }
+
+    @Test
+    void resolveFeatures_IdsOnly_ResolvesById() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature feature1 = Feature.builder().id(1L).name("F1").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+        Feature feature2 = Feature.builder().id(2L).name("F2").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+
+        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L, 2L)))
+                .thenReturn(List.of(feature1, feature2));
+
+        // Act
+        Set<Feature> result = featureService.resolveFeatures(List.of(1L, 2L), null);
+
+        // Assert
+        assertThat(result).hasSize(2);
+        assertThat(result).containsExactlyInAnyOrder(feature1, feature2);
+    }
+
+    @Test
+    void resolveFeatures_InputsOnly_FindsOrCreatesEach() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature feature1 = Feature.builder().id(1L).name("F1").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+        Feature feature2 = Feature.builder().id(2L).name("F2").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+
+        FeatureInput input1 = FeatureInput.builder().name("F1").featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+        FeatureInput input2 = FeatureInput.builder().name("F2").featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "F1", 1L, FeatureType.ANCESTRY)).thenReturn(Optional.of(feature1));
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "F2", 1L, FeatureType.ANCESTRY)).thenReturn(Optional.of(feature2));
+
+        // Act
+        Set<Feature> result = featureService.resolveFeatures(null, List.of(input1, input2));
+
+        // Assert
+        assertThat(result).hasSize(2);
+        assertThat(result).containsExactlyInAnyOrder(feature1, feature2);
+    }
+
+    @Test
+    void resolveFeatures_BothProvided_MergesResults() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature feature1 = Feature.builder().id(1L).name("F1").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+        Feature feature2 = Feature.builder().id(2L).name("F2").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+
+        FeatureInput input2 = FeatureInput.builder().name("F2").featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+
+        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(feature1));
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "F2", 1L, FeatureType.ANCESTRY)).thenReturn(Optional.of(feature2));
+
+        // Act
+        Set<Feature> result = featureService.resolveFeatures(List.of(1L), List.of(input2));
+
+        // Assert
+        assertThat(result).hasSize(2);
+        assertThat(result).containsExactlyInAnyOrder(feature1, feature2);
+    }
+
+    @Test
+    void resolveFeatures_DuplicatesBetweenIdsAndInputs_Deduplicates() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature feature = Feature.builder().id(1L).name("F1").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+
+        FeatureInput input = FeatureInput.builder().name("F1").featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+
+        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(feature));
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "F1", 1L, FeatureType.ANCESTRY)).thenReturn(Optional.of(feature));
+
+        // Act
+        Set<Feature> result = featureService.resolveFeatures(List.of(1L), List.of(input));
+
+        // Assert
+        assertThat(result).hasSize(1);
+    }
+
+    @Test
+    void resolveFeatures_IdsNotFound_ReturnsOnlyFound() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature feature = Feature.builder().id(1L).name("F1").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+
+        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L, 999L))).thenReturn(List.of(feature));
+
+        // Act
+        Set<Feature> result = featureService.resolveFeatures(List.of(1L, 999L), null);
+
+        // Assert
+        assertThat(result).hasSize(1);
+        assertThat(result).containsExactly(feature);
+    }
+
+    // ==================== RESOLVE FEATURE (SINGLE) TESTS ====================
+
+    @Test
+    void resolveFeature_BothNull_ReturnsNull() {
+        // Act
+        Feature result = featureService.resolveFeature(null, null);
+
+        // Assert
+        assertThat(result).isNull();
+    }
+
+    @Test
+    void resolveFeature_IdProvided_ResolvesById() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature feature = Feature.builder().id(5L).name("F1").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(5L)).thenReturn(Optional.of(feature));
+
+        // Act
+        Feature result = featureService.resolveFeature(5L, null);
+
+        // Assert
+        assertThat(result).isEqualTo(feature);
+        assertThat(result.getId()).isEqualTo(5L);
+    }
+
+    @Test
+    void resolveFeature_IdNotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        when(featureRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> featureService.resolveFeature(999L, null))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessage("Feature not found with id: 999");
+    }
+
+    @Test
+    void resolveFeature_InputProvided_FindsOrCreates() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature feature = Feature.builder().id(5L).name("F1").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+        FeatureInput input = FeatureInput.builder().name("F1").featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "F1", 1L, FeatureType.ANCESTRY)).thenReturn(Optional.of(feature));
+
+        // Act
+        Feature result = featureService.resolveFeature(null, input);
+
+        // Assert
+        assertThat(result).isEqualTo(feature);
+    }
+
+    @Test
+    void resolveFeature_BothProvided_IdTakesPrecedence() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        Feature feature = Feature.builder().id(5L).name("F1").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+        FeatureInput input = FeatureInput.builder().name("Other").featureType(FeatureType.ANCESTRY).expansionId(1L).build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(5L)).thenReturn(Optional.of(feature));
+
+        // Act
+        Feature result = featureService.resolveFeature(5L, input);
+
+        // Assert
+        assertThat(result).isEqualTo(feature);
+        verify(featureRepository, never()).findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                any(), any(), any());
     }
 }

@@ -16,7 +16,6 @@ import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +51,7 @@ class DomainCardServiceTest {
     private ExpansionRepository expansionRepository;
 
     @Mock
-    private FeatureRepository featureRepository;
+    private FeatureService featureService;
 
     @Mock
     private CardCostTagService cardCostTagService;
@@ -474,7 +473,7 @@ class DomainCardServiceTest {
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
         when(domainRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(domain));
-        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(feature));
+        when(featureService.resolveFeatures(eq(List.of(1L)), isNull())).thenReturn(Set.of(feature));
         when(domainCardRepository.save(any(DomainCard.class))).thenReturn(savedCard);
 
         // Act
@@ -603,6 +602,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
         when(domainRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(domain));
+        when(featureService.resolveFeatures(eq(List.of()), isNull())).thenReturn(new HashSet<>());
         when(domainCardRepository.save(any(DomainCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
