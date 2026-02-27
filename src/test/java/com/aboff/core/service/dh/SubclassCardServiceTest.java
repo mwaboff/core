@@ -2,7 +2,9 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateSubclassCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateSubclassCardRequest;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.SubclassCardResponse;
+import com.aboff.core.model.dto.dh.response.SubclassPathResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Class;
@@ -10,12 +12,11 @@ import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.SubclassCard;
+import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
-import com.aboff.core.repository.dh.ClassRepository;
-import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
@@ -60,10 +61,7 @@ class SubclassCardServiceTest {
     private CardCostTagService cardCostTagService;
 
     @Mock
-    private ClassRepository classRepository;
-
-    @Mock
-    private DomainRepository domainRepository;
+    private SubclassPathService subclassPathService;
 
     @InjectMocks
     private SubclassCardService subclassCardService;
@@ -75,6 +73,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
 
         SubclassCard card1 = SubclassCard.builder()
                 .id(1L)
@@ -82,7 +81,7 @@ class SubclassCardServiceTest {
                 .description("Rage fighter")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .backgroundImageUrl("https://img.url/berserker")
                 .createdAt(LocalDateTime.now())
@@ -94,18 +93,18 @@ class SubclassCardServiceTest {
                 .description("Defender")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.SPECIALIZATION)
                 .backgroundImageUrl("https://img.url/guardian")
                 .createdAt(LocalDateTime.now())
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card1, card2));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null);
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -120,6 +119,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
 
         SubclassCard card = SubclassCard.builder()
                 .id(1L)
@@ -127,22 +127,22 @@ class SubclassCardServiceTest {
                 .description("Rage fighter")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(SubclassLevel.FOUNDATION), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(SubclassLevel.FOUNDATION), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, SubclassLevel.FOUNDATION, null);
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, SubclassLevel.FOUNDATION, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getLevel()).isEqualTo(SubclassLevel.FOUNDATION);
-        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(SubclassLevel.FOUNDATION), any(Pageable.class));
+        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(SubclassLevel.FOUNDATION), any(Pageable.class));
     }
 
     @Test
@@ -150,6 +150,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
 
         SubclassCard card = SubclassCard.builder()
                 .id(1L)
@@ -157,36 +158,37 @@ class SubclassCardServiceTest {
                 .description("Rage fighter")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .createdAt(LocalDateTime.now())
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, 1L, null, null);
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, 1L, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getAssociatedClassId()).isEqualTo(1L);
-        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), any(Pageable.class));
+        assertThat(result.getContent().get(0).getSubclassPathId()).isEqualTo(1L);
+        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
     void getAllSubclassCards_WithLargePage_LimitsTo100() {
         // Arrange
         Page<SubclassCard> cardPage = new PageImpl<>(List.of());
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        subclassCardService.getAllSubclassCards(0, 500, false, null, null, null, null, null);
+        subclassCardService.getAllSubclassCards(0, 500, false, null, null, null, null, null, null);
 
         // Assert
         verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(
+                isNull(),
                 isNull(),
                 isNull(),
                 isNull(),
@@ -200,7 +202,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).createdAt(LocalDateTime.now()).build();
-        Domain domain = Domain.builder().id(1L).name("Blade").expansion(expansion).createdAt(LocalDateTime.now()).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
         CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
         Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
 
@@ -210,19 +212,22 @@ class SubclassCardServiceTest {
                 .description("Rage fighter")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .features(Set.of(feature))
-                .associatedDomains(Set.of(domain))
                 .createdAt(LocalDateTime.now())
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
+        SubclassPathResponse pathResponse = SubclassPathResponse.builder()
+                .id(1L).name("Warden of Renewal").associatedClassId(1L).expansionId(1L).build();
+        when(subclassPathService.toResponse(eq(path), anySet())).thenReturn(pathResponse);
+
         // Act
-        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, "expansion,features,associatedClass,associatedDomains");
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, "expansion,features,subclassPath");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -230,8 +235,8 @@ class SubclassCardServiceTest {
         assertThat(result.getContent().get(0).getFeatures()).isNotNull();
         assertThat(result.getContent().get(0).getFeatures().get(0).getCostTagIds()).containsExactly(10L);
         assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags()).isNull();
-        assertThat(result.getContent().get(0).getAssociatedClass()).isNotNull();
-        assertThat(result.getContent().get(0).getAssociatedDomains()).isNotNull();
+        assertThat(result.getContent().get(0).getSubclassPath()).isNotNull();
+        assertThat(result.getContent().get(0).getSubclassPath().getName()).isEqualTo("Warden of Renewal");
     }
 
     @Test
@@ -239,6 +244,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).createdAt(LocalDateTime.now()).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
         CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
         Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
 
@@ -248,18 +254,18 @@ class SubclassCardServiceTest {
                 .description("Rage fighter")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .features(Set.of(feature))
                 .createdAt(LocalDateTime.now())
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, "features");
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, "features");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -273,6 +279,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).createdAt(LocalDateTime.now()).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
         CardCostTag costTag = CardCostTag.builder().id(10L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
         Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
 
@@ -282,18 +289,18 @@ class SubclassCardServiceTest {
                 .description("Rage fighter")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .features(Set.of(feature))
                 .createdAt(LocalDateTime.now())
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, "features,costTags");
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, "features,costTags");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -305,13 +312,14 @@ class SubclassCardServiceTest {
         assertThat(result.getContent().get(0).getFeatures().get(0).getCostTags().get(0).getCategory()).isEqualTo(CostTagCategory.COST);
     }
 
-    // ==================== GET SUBCLASS CARD BY ID TESTS ====================
-
     @Test
-    void getSubclassCardById_ValidId_ReturnsCard() {
+    void getAllSubclassCards_WithExpandFeaturesNullCostTags_HandlesNullGracefully() {
         // Arrange
-        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
-        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).createdAt(LocalDateTime.now()).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
+        Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion)
+                .costTags(null).createdAt(LocalDateTime.now()).build();
 
         SubclassCard card = SubclassCard.builder()
                 .id(1L)
@@ -319,7 +327,177 @@ class SubclassCardServiceTest {
                 .description("Rage fighter")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
+                .level(SubclassLevel.FOUNDATION)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, "features,costTags");
+
+        // Assert
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).isNull();
+        assertThat(featureResponse.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllSubclassCards_WithExpandFeaturesEmptyCostTags_ReturnsEmptyLists() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).createdAt(LocalDateTime.now()).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
+        Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion)
+                .costTags(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        SubclassCard card = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansion(expansion)
+                .isOfficial(true)
+                .subclassPath(path)
+                .level(SubclassLevel.FOUNDATION)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, "features,costTags");
+
+        // Assert
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).isEmpty();
+        assertThat(featureResponse.getCostTags()).isEmpty();
+    }
+
+    @Test
+    void getAllSubclassCards_AlwaysIncludesExpansionNameAndDomainNames() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        Domain domain1 = Domain.builder().id(1L).name("Blade").build();
+        Domain domain2 = Domain.builder().id(2L).name("Bone").build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz)
+                .expansion(expansion).associatedDomains(Set.of(domain1, domain2)).build();
+
+        SubclassCard card = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansion(expansion)
+                .isOfficial(true)
+                .subclassPath(path)
+                .level(SubclassLevel.FOUNDATION)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, null);
+
+        // Assert
+        SubclassCardResponse response = result.getContent().get(0);
+        assertThat(response.getExpansionName()).isEqualTo("Core Rulebook");
+        assertThat(response.getAssociatedClassId()).isEqualTo(1L);
+        assertThat(response.getAssociatedClassName()).isEqualTo("Warrior");
+        assertThat(response.getSubclassPathName()).isEqualTo("Warden of Renewal");
+        assertThat(response.getDomainNames()).containsExactly("Blade", "Bone");
+        assertThat(response.getSpellcastingTrait()).isNull();
+    }
+
+    @Test
+    void getAllSubclassCards_WithSpellcastingTrait_IncludesTraitInfo() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Wizard").expansion(expansion).startingEvasion(8).startingHitPoints(14).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("School of Arcana").associatedClass(clazz)
+                .expansion(expansion).spellcastingTrait(Trait.KNOWLEDGE).build();
+
+        SubclassCard card = SubclassCard.builder()
+                .id(1L)
+                .name("Arcane Scholar")
+                .description("A scholar of the arcane")
+                .expansion(expansion)
+                .isOfficial(true)
+                .subclassPath(path)
+                .level(SubclassLevel.FOUNDATION)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, null);
+
+        // Assert
+        SubclassCardResponse response = result.getContent().get(0);
+        assertThat(response.getSpellcastingTrait()).isNotNull();
+        assertThat(response.getSpellcastingTrait().getTrait()).isEqualTo(Trait.KNOWLEDGE);
+        assertThat(response.getSpellcastingTrait().getDescription()).isEqualTo(Trait.KNOWLEDGE.getDescription());
+        assertThat(response.getSpellcastingTrait().getExamples()).isEqualTo(Trait.KNOWLEDGE.getExamples());
+    }
+
+    @Test
+    void getAllSubclassCards_NullAssociatedDomains_ReturnEmptyDomainNames() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz)
+                .expansion(expansion).associatedDomains(null).build();
+
+        SubclassCard card = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansion(expansion)
+                .isOfficial(true)
+                .subclassPath(path)
+                .level(SubclassLevel.FOUNDATION)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<SubclassCardResponse> result = subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, null);
+
+        // Assert
+        assertThat(result.getContent().get(0).getDomainNames()).isEmpty();
+    }
+
+    // ==================== GET SUBCLASS CARD BY ID TESTS ====================
+
+    @Test
+    void getSubclassCardById_ValidId_ReturnsCard() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
+
+        SubclassCard card = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansion(expansion)
+                .isOfficial(true)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .backgroundImageUrl("https://img.url/berserker")
                 .createdAt(LocalDateTime.now())
@@ -357,19 +535,18 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
         Feature feature = Feature.builder().id(1L).name("Rage").featureType(FeatureType.CLASS).expansion(expansion).build();
-        Domain domain = Domain.builder().id(1L).name("Blade").expansion(expansion).build();
 
         CreateSubclassCardRequest request = CreateSubclassCardRequest.builder()
                 .name("Berserker")
                 .description("Rage fighter")
                 .expansionId(1L)
                 .isOfficial(true)
-                .associatedClassId(1L)
+                .subclassPathId(1L)
                 .level(SubclassLevel.FOUNDATION)
                 .backgroundImageUrl("https://img.url/berserker")
                 .featureIds(List.of(1L))
-                .associatedDomainIds(List.of(1L))
                 .build();
 
         SubclassCard savedCard = SubclassCard.builder()
@@ -378,16 +555,15 @@ class SubclassCardServiceTest {
                 .description("Rage fighter")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .backgroundImageUrl("https://img.url/berserker")
                 .createdAt(LocalDateTime.now())
                 .build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(subclassPathService.resolvePath(eq(1L), isNull(), isNull(), eq(1L))).thenReturn(path);
         when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(feature));
-        when(domainRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(domain));
         when(subclassCardRepository.save(any(SubclassCard.class))).thenReturn(savedCard);
 
         // Act
@@ -397,114 +573,8 @@ class SubclassCardServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Berserker");
+        assertThat(result.getSubclassPathId()).isEqualTo(1L);
         verify(subclassCardRepository).save(any(SubclassCard.class));
-    }
-
-    @Test
-    void createSubclassCard_ClassNotFound_ThrowsEntityNotFoundException() {
-        // Arrange
-        CreateSubclassCardRequest request = CreateSubclassCardRequest.builder()
-                .name("Berserker")
-                .description("Rage fighter")
-                .expansionId(1L)
-                .isOfficial(true)
-                .associatedClassId(999L)
-                .level(SubclassLevel.FOUNDATION)
-                .build();
-
-        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(classRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
-
-        // Act & Assert
-        assertThatThrownBy(() -> subclassCardService.createSubclassCard(request))
-                .isInstanceOf(EntityNotFoundException.class)
-                .hasMessage("Class not found with id: 999");
-
-        verify(subclassCardRepository, never()).save(any());
-    }
-
-    @Test
-    void createSubclassCard_WithSpellcastingTrait_CreatesCardWithTraitInfo() {
-        // Arrange
-        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
-        Class clazz = Class.builder().id(1L).name("Mage").expansion(expansion).startingEvasion(8).startingHitPoints(15).build();
-
-        CreateSubclassCardRequest request = CreateSubclassCardRequest.builder()
-                .name("Elementalist")
-                .description("Master of elemental magic")
-                .expansionId(1L)
-                .isOfficial(true)
-                .associatedClassId(1L)
-                .level(SubclassLevel.FOUNDATION)
-                .spellcastingTrait(Trait.KNOWLEDGE)
-                .build();
-
-        SubclassCard savedCard = SubclassCard.builder()
-                .id(1L)
-                .name("Elementalist")
-                .description("Master of elemental magic")
-                .expansion(expansion)
-                .isOfficial(true)
-                .associatedClass(clazz)
-                .level(SubclassLevel.FOUNDATION)
-                .spellcastingTrait(Trait.KNOWLEDGE)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
-        when(subclassCardRepository.save(any(SubclassCard.class))).thenReturn(savedCard);
-
-        // Act
-        SubclassCardResponse result = subclassCardService.createSubclassCard(request);
-
-        // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getSpellcastingTrait()).isNotNull();
-        assertThat(result.getSpellcastingTrait().getTrait()).isEqualTo(Trait.KNOWLEDGE);
-        assertThat(result.getSpellcastingTrait().getDescription()).isEqualTo(Trait.KNOWLEDGE.getDescription());
-        assertThat(result.getSpellcastingTrait().getExamples()).isEqualTo(Trait.KNOWLEDGE.getExamples());
-        verify(subclassCardRepository).save(argThat(card -> card.getSpellcastingTrait() == Trait.KNOWLEDGE));
-    }
-
-    @Test
-    void createSubclassCard_WithoutSpellcastingTrait_CreatesCardWithNullTrait() {
-        // Arrange
-        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
-        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
-
-        CreateSubclassCardRequest request = CreateSubclassCardRequest.builder()
-                .name("Berserker")
-                .description("Rage fighter")
-                .expansionId(1L)
-                .isOfficial(true)
-                .associatedClassId(1L)
-                .level(SubclassLevel.FOUNDATION)
-                .build();
-
-        SubclassCard savedCard = SubclassCard.builder()
-                .id(1L)
-                .name("Berserker")
-                .description("Rage fighter")
-                .expansion(expansion)
-                .isOfficial(true)
-                .associatedClass(clazz)
-                .level(SubclassLevel.FOUNDATION)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
-        when(subclassCardRepository.save(any(SubclassCard.class))).thenReturn(savedCard);
-
-        // Act
-        SubclassCardResponse result = subclassCardService.createSubclassCard(request);
-
-        // Assert
-        assertThat(result).isNotNull();
-        assertThat(result.getSpellcastingTrait()).isNull();
-        verify(subclassCardRepository).save(argThat(card -> card.getSpellcastingTrait() == null));
     }
 
     // ==================== CREATE SUBCLASS CARDS BULK TESTS ====================
@@ -514,13 +584,14 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
 
         CreateSubclassCardRequest request1 = CreateSubclassCardRequest.builder()
                 .name("Berserker")
                 .description("Rage fighter")
                 .expansionId(1L)
                 .isOfficial(true)
-                .associatedClassId(1L)
+                .subclassPathId(1L)
                 .level(SubclassLevel.FOUNDATION)
                 .build();
 
@@ -529,20 +600,20 @@ class SubclassCardServiceTest {
                 .description("Defender")
                 .expansionId(1L)
                 .isOfficial(true)
-                .associatedClassId(1L)
+                .subclassPathId(1L)
                 .level(SubclassLevel.SPECIALIZATION)
                 .build();
 
         SubclassCard savedCard1 = SubclassCard.builder().id(1L).name("Berserker").description("Rage fighter")
-                .expansion(expansion).isOfficial(true).associatedClass(clazz).level(SubclassLevel.FOUNDATION)
+                .expansion(expansion).isOfficial(true).subclassPath(path).level(SubclassLevel.FOUNDATION)
                 .createdAt(LocalDateTime.now()).build();
 
         SubclassCard savedCard2 = SubclassCard.builder().id(2L).name("Guardian").description("Defender")
-                .expansion(expansion).isOfficial(true).associatedClass(clazz).level(SubclassLevel.SPECIALIZATION)
+                .expansion(expansion).isOfficial(true).subclassPath(path).level(SubclassLevel.SPECIALIZATION)
                 .createdAt(LocalDateTime.now()).build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(subclassPathService.resolvePath(eq(1L), isNull(), isNull(), eq(1L))).thenReturn(path);
         when(subclassCardRepository.saveAll(anyList())).thenReturn(List.of(savedCard1, savedCard2));
 
         // Act
@@ -562,6 +633,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
 
         SubclassCard existingCard = SubclassCard.builder()
                 .id(1L)
@@ -569,10 +641,9 @@ class SubclassCardServiceTest {
                 .description("Old description")
                 .expansion(expansion)
                 .isOfficial(false)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .features(new HashSet<>())
-                .associatedDomains(new HashSet<>())
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -581,16 +652,15 @@ class SubclassCardServiceTest {
                 .description("Updated description")
                 .expansionId(1L)
                 .isOfficial(true)
-                .associatedClassId(1L)
+                .subclassPathId(1L)
                 .level(SubclassLevel.SPECIALIZATION)
                 .backgroundImageUrl("https://img.url/updated")
                 .featureIds(List.of())
-                .associatedDomainIds(List.of())
                 .build();
 
         when(subclassCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(subclassPathService.resolvePath(eq(1L), isNull(), isNull(), eq(1L))).thenReturn(path);
         when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
@@ -611,7 +681,7 @@ class SubclassCardServiceTest {
                 .description("Updated description")
                 .expansionId(1L)
                 .isOfficial(true)
-                .associatedClassId(1L)
+                .subclassPathId(1L)
                 .level(SubclassLevel.SPECIALIZATION)
                 .build();
 
@@ -625,95 +695,6 @@ class SubclassCardServiceTest {
         verify(subclassCardRepository, never()).save(any());
     }
 
-    @Test
-    void updateSubclassCard_UpdateSpellcastingTrait_UpdatesTraitSuccessfully() {
-        // Arrange
-        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
-        Class clazz = Class.builder().id(1L).name("Mage").expansion(expansion).startingEvasion(8).startingHitPoints(15).build();
-
-        SubclassCard existingCard = SubclassCard.builder()
-                .id(1L)
-                .name("Elementalist")
-                .description("Master of elemental magic")
-                .expansion(expansion)
-                .isOfficial(true)
-                .associatedClass(clazz)
-                .level(SubclassLevel.FOUNDATION)
-                .spellcastingTrait(Trait.KNOWLEDGE)
-                .features(new HashSet<>())
-                .associatedDomains(new HashSet<>())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        UpdateSubclassCardRequest request = UpdateSubclassCardRequest.builder()
-                .name("Elementalist")
-                .description("Master of elemental magic")
-                .expansionId(1L)
-                .isOfficial(true)
-                .associatedClassId(1L)
-                .level(SubclassLevel.FOUNDATION)
-                .spellcastingTrait(Trait.INSTINCT)
-                .build();
-
-        when(subclassCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
-        when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        // Act
-        SubclassCardResponse result = subclassCardService.updateSubclassCard(1L, request);
-
-        // Assert
-        assertThat(result.getSpellcastingTrait()).isNotNull();
-        assertThat(result.getSpellcastingTrait().getTrait()).isEqualTo(Trait.INSTINCT);
-        assertThat(result.getSpellcastingTrait().getDescription()).isEqualTo(Trait.INSTINCT.getDescription());
-        assertThat(result.getSpellcastingTrait().getExamples()).isEqualTo(Trait.INSTINCT.getExamples());
-        verify(subclassCardRepository).save(argThat(card -> card.getSpellcastingTrait() == Trait.INSTINCT));
-    }
-
-    @Test
-    void updateSubclassCard_RemoveSpellcastingTrait_SetsTraitToNull() {
-        // Arrange
-        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
-        Class clazz = Class.builder().id(1L).name("Mage").expansion(expansion).startingEvasion(8).startingHitPoints(15).build();
-
-        SubclassCard existingCard = SubclassCard.builder()
-                .id(1L)
-                .name("Elementalist")
-                .description("Master of elemental magic")
-                .expansion(expansion)
-                .isOfficial(true)
-                .associatedClass(clazz)
-                .level(SubclassLevel.FOUNDATION)
-                .spellcastingTrait(Trait.KNOWLEDGE)
-                .features(new HashSet<>())
-                .associatedDomains(new HashSet<>())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        UpdateSubclassCardRequest request = UpdateSubclassCardRequest.builder()
-                .name("Elementalist")
-                .description("Master of elemental magic")
-                .expansionId(1L)
-                .isOfficial(true)
-                .associatedClassId(1L)
-                .level(SubclassLevel.FOUNDATION)
-                .spellcastingTrait(null)
-                .build();
-
-        when(subclassCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
-        when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        // Act
-        SubclassCardResponse result = subclassCardService.updateSubclassCard(1L, request);
-
-        // Assert
-        assertThat(result.getSpellcastingTrait()).isNull();
-        verify(subclassCardRepository).save(argThat(card -> card.getSpellcastingTrait() == null));
-    }
-
     // ==================== DELETE SUBCLASS CARD TESTS ====================
 
     @Test
@@ -721,6 +702,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
 
         SubclassCard card = SubclassCard.builder()
                 .id(1L)
@@ -728,7 +710,7 @@ class SubclassCardServiceTest {
                 .description("To be deleted")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -762,6 +744,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
 
         SubclassCard deletedCard = SubclassCard.builder()
                 .id(1L)
@@ -769,7 +752,7 @@ class SubclassCardServiceTest {
                 .description("Deleted")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .createdAt(LocalDateTime.now())
                 .deletedAt(LocalDateTime.now())
@@ -791,6 +774,7 @@ class SubclassCardServiceTest {
         // Arrange
         Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
         Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).build();
 
         SubclassCard activeCard = SubclassCard.builder()
                 .id(1L)
@@ -798,7 +782,7 @@ class SubclassCardServiceTest {
                 .description("Active")
                 .expansion(expansion)
                 .isOfficial(true)
-                .associatedClass(clazz)
+                .subclassPath(path)
                 .level(SubclassLevel.FOUNDATION)
                 .createdAt(LocalDateTime.now())
                 .build();

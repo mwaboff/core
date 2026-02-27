@@ -38,9 +38,10 @@ public class SubclassCardController {
      * @param includeDeleted Whether to include soft-deleted cards (default: false, ADMIN+ only)
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
-     * @param associatedClassId Optional filter for associated class ID
+     * @param associatedClassId Optional filter for associated class ID (via subclass path)
+     * @param subclassPathId Optional filter for subclass path ID
      * @param level Optional filter for subclass level
-     * @param expand Comma-separated list of relationships to expand (e.g., "expansion,features,associatedClass")
+     * @param expand Comma-separated list of relationships to expand (e.g., "expansion,features,subclassPath")
      * @return Paginated response containing subclass cards
      */
     @GetMapping
@@ -51,11 +52,12 @@ public class SubclassCardController {
             @RequestParam(required = false) Long expansionId,
             @RequestParam(required = false) Boolean isOfficial,
             @RequestParam(required = false) Long associatedClassId,
+            @RequestParam(required = false) Long subclassPathId,
             @RequestParam(required = false) SubclassLevel level,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<SubclassCardResponse> response = subclassCardService.getAllSubclassCards(
-                page, size, includeDeleted, expansionId, isOfficial, associatedClassId, level, expand);
+                page, size, includeDeleted, expansionId, isOfficial, associatedClassId, subclassPathId, level, expand);
 
         return ResponseEntity.ok(response);
     }
@@ -64,7 +66,7 @@ public class SubclassCardController {
      * Retrieves a single subclass card by ID.
      *
      * @param id The card ID
-     * @param expand Comma-separated list of relationships to expand (e.g., "expansion,features,associatedClass")
+     * @param expand Comma-separated list of relationships to expand (e.g., "expansion,features,subclassPath")
      * @return SubclassCardResponse containing the card details
      */
     @GetMapping("/{id}")

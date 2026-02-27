@@ -3,21 +3,19 @@ package com.aboff.core.service.dh;
 import com.aboff.core.model.dto.dh.request.CreateSubclassCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateSubclassCardRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
-import com.aboff.core.model.dto.dh.response.ClassResponse;
-import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.SubclassCardResponse;
+import com.aboff.core.model.dto.dh.response.SubclassPathResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.CardCostTag;
-import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.SubclassCard;
+import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.enums.SubclassLevel;
-import com.aboff.core.repository.dh.ClassRepository;
-import com.aboff.core.repository.dh.DomainRepository;
+import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
@@ -51,8 +49,7 @@ public class SubclassCardService {
     private final ExpansionRepository expansionRepository;
     private final FeatureRepository featureRepository;
     private final CardCostTagService cardCostTagService;
-    private final ClassRepository classRepository;
-    private final DomainRepository domainRepository;
+    private final SubclassPathService subclassPathService;
 
     /**
      * Retrieves a paginated list of subclass cards.
@@ -62,7 +59,8 @@ public class SubclassCardService {
      * @param includeDeleted Whether to include soft-deleted cards
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
-     * @param associatedClassId Optional filter for associated class ID
+     * @param associatedClassId Optional filter for associated class ID (via subclass path)
+     * @param subclassPathId Optional filter for subclass path ID
      * @param level Optional filter for subclass level
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing subclass cards
@@ -75,6 +73,7 @@ public class SubclassCardService {
             Long expansionId,
             Boolean isOfficial,
             Long associatedClassId,
+            Long subclassPathId,
             SubclassLevel level,
             String expand) {
 
@@ -83,9 +82,9 @@ public class SubclassCardService {
         Page<SubclassCard> cardPage;
 
         if (includeDeleted) {
-            cardPage = subclassCardRepository.findAllWithFilters(expansionId, isOfficial, associatedClassId, level, pageable);
+            cardPage = subclassCardRepository.findAllWithFilters(expansionId, isOfficial, associatedClassId, subclassPathId, level, pageable);
         } else {
-            cardPage = subclassCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, associatedClassId, level, pageable);
+            cardPage = subclassCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, associatedClassId, subclassPathId, level, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -124,6 +123,7 @@ public class SubclassCardService {
      * @param request The creation request containing card details
      * @return SubclassCardResponse containing the created card
      * @throws EntityNotFoundException if referenced entities are not found
+     * @throws IllegalArgumentException if subclass path resolution fails
      */
     @Transactional
     public SubclassCardResponse createSubclassCard(CreateSubclassCardRequest request) {
@@ -133,9 +133,11 @@ public class SubclassCardService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
 
-        Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Class not found with id: " + request.getAssociatedClassId()));
+        SubclassPath path = subclassPathService.resolvePath(
+                request.getSubclassPathId(),
+                request.getSubclassPath(),
+                request.getAssociatedClassId(),
+                request.getExpansionId());
 
         SubclassCard card = SubclassCard.builder()
                 .name(request.getName())
@@ -143,9 +145,8 @@ public class SubclassCardService {
                 .expansion(expansion)
                 .isOfficial(request.getIsOfficial())
                 .backgroundImageUrl(request.getBackgroundImageUrl())
-                .associatedClass(associatedClass)
+                .subclassPath(path)
                 .level(request.getLevel())
-                .spellcastingTrait(request.getSpellcastingTrait())
                 .build();
 
         // Set features if provided
@@ -158,12 +159,6 @@ public class SubclassCardService {
         Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
         if (resolvedTags != null) {
             card.setCostTags(resolvedTags);
-        }
-
-        // Set associated domains if provided
-        if (request.getAssociatedDomainIds() != null && !request.getAssociatedDomainIds().isEmpty()) {
-            Set<Domain> domains = new HashSet<>(domainRepository.findAllByIdInAndDeletedAtIsNull(request.getAssociatedDomainIds()));
-            card.setAssociatedDomains(domains);
         }
 
         SubclassCard savedCard = subclassCardRepository.save(card);
@@ -188,9 +183,11 @@ public class SubclassCardService {
                             .orElseThrow(() -> new EntityNotFoundException(
                                     "Expansion not found with id: " + request.getExpansionId()));
 
-                    Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
-                            .orElseThrow(() -> new EntityNotFoundException(
-                                    "Class not found with id: " + request.getAssociatedClassId()));
+                    SubclassPath path = subclassPathService.resolvePath(
+                            request.getSubclassPathId(),
+                            request.getSubclassPath(),
+                            request.getAssociatedClassId(),
+                            request.getExpansionId());
 
                     SubclassCard card = SubclassCard.builder()
                             .name(request.getName())
@@ -198,9 +195,8 @@ public class SubclassCardService {
                             .expansion(expansion)
                             .isOfficial(request.getIsOfficial())
                             .backgroundImageUrl(request.getBackgroundImageUrl())
-                            .associatedClass(associatedClass)
+                            .subclassPath(path)
                             .level(request.getLevel())
-                            .spellcastingTrait(request.getSpellcastingTrait())
                             .build();
 
                     if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
@@ -211,11 +207,6 @@ public class SubclassCardService {
                     Set<CardCostTag> bulkResolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
                     if (bulkResolvedTags != null) {
                         card.setCostTags(bulkResolvedTags);
-                    }
-
-                    if (request.getAssociatedDomainIds() != null && !request.getAssociatedDomainIds().isEmpty()) {
-                        Set<Domain> domains = new HashSet<>(domainRepository.findAllByIdInAndDeletedAtIsNull(request.getAssociatedDomainIds()));
-                        card.setAssociatedDomains(domains);
                     }
 
                     return card;
@@ -237,6 +228,7 @@ public class SubclassCardService {
      * @param request The update request containing new card details
      * @return SubclassCardResponse containing the updated card
      * @throws EntityNotFoundException if the card or referenced entities are not found
+     * @throws IllegalArgumentException if subclass path resolution fails
      */
     @Transactional
     public SubclassCardResponse updateSubclassCard(Long id, UpdateSubclassCardRequest request) {
@@ -249,18 +241,19 @@ public class SubclassCardService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
 
-        Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Class not found with id: " + request.getAssociatedClassId()));
+        SubclassPath path = subclassPathService.resolvePath(
+                request.getSubclassPathId(),
+                request.getSubclassPath(),
+                request.getAssociatedClassId(),
+                request.getExpansionId());
 
         card.setName(request.getName());
         card.setDescription(request.getDescription());
         card.setExpansion(expansion);
         card.setIsOfficial(request.getIsOfficial());
         card.setBackgroundImageUrl(request.getBackgroundImageUrl());
-        card.setAssociatedClass(associatedClass);
+        card.setSubclassPath(path);
         card.setLevel(request.getLevel());
-        card.setSpellcastingTrait(request.getSpellcastingTrait());
 
         // Update features
         if (request.getFeatureIds() != null) {
@@ -276,16 +269,6 @@ public class SubclassCardService {
         Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
         if (resolvedTags != null) {
             card.setCostTags(resolvedTags);
-        }
-
-        // Update associated domains
-        if (request.getAssociatedDomainIds() != null) {
-            if (request.getAssociatedDomainIds().isEmpty()) {
-                card.setAssociatedDomains(new HashSet<>());
-            } else {
-                Set<Domain> domains = new HashSet<>(domainRepository.findAllByIdInAndDeletedAtIsNull(request.getAssociatedDomainIds()));
-                card.setAssociatedDomains(domains);
-            }
         }
 
         SubclassCard updatedCard = subclassCardRepository.save(card);
@@ -354,34 +337,29 @@ public class SubclassCardService {
                 .description(card.getDescription())
                 .cardType(card.getCardType())
                 .expansionId(card.getExpansion().getId())
+                .expansionName(card.getExpansion().getName())
                 .isOfficial(card.getIsOfficial())
                 .backgroundImageUrl(card.getBackgroundImageUrl())
-                .associatedClassId(card.getAssociatedClass().getId())
+                .associatedClassId(card.getSubclassPath().getAssociatedClass().getId())
+                .associatedClassName(card.getSubclassPath().getAssociatedClass().getName())
+                .subclassPathId(card.getSubclassPath().getId())
+                .subclassPathName(card.getSubclassPath().getName())
+                .domainNames(card.getSubclassPath().getAssociatedDomains() != null
+                        ? card.getSubclassPath().getAssociatedDomains().stream()
+                                .map(Domain::getName)
+                                .sorted()
+                                .collect(Collectors.toList())
+                        : List.of())
+                .spellcastingTrait(buildTraitInfo(card.getSubclassPath().getSpellcastingTrait()))
                 .level(card.getLevel())
                 .createdAt(card.getCreatedAt())
                 .lastModifiedAt(card.getLastModifiedAt())
                 .deletedAt(card.getDeletedAt());
 
-        // Add spellcasting trait info if present
-        if (card.getSpellcastingTrait() != null) {
-            builder.spellcastingTrait(SubclassCardResponse.TraitInfo.builder()
-                    .trait(card.getSpellcastingTrait())
-                    .description(card.getSpellcastingTrait().getDescription())
-                    .examples(card.getSpellcastingTrait().getExamples())
-                    .build());
-        }
-
         // Always include feature IDs
         if (card.getFeatures() != null) {
             builder.featureIds(card.getFeatures().stream()
                     .map(Feature::getId)
-                    .collect(Collectors.toList()));
-        }
-
-        // Always include associated domain IDs
-        if (card.getAssociatedDomains() != null) {
-            builder.associatedDomainIds(card.getAssociatedDomains().stream()
-                    .map(Domain::getId)
                     .collect(Collectors.toList()));
         }
 
@@ -459,39 +437,28 @@ public class SubclassCardService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand associated class if requested (but avoid infinite recursion - don't expand nested relationships)
-        if (expand.contains("associatedClass")) {
-            Class clazz = card.getAssociatedClass();
-            builder.associatedClass(ClassResponse.builder()
-                    .id(clazz.getId())
-                    .name(clazz.getName())
-                    .description(clazz.getDescription())
-                    .expansionId(clazz.getExpansion().getId())
-                    .startingClassItems(clazz.getStartingClassItems())
-                    .startingEvasion(clazz.getStartingEvasion())
-                    .startingHitPoints(clazz.getStartingHitPoints())
-                    .createdAt(clazz.getCreatedAt())
-                    .lastModifiedAt(clazz.getLastModifiedAt())
-                    .deletedAt(clazz.getDeletedAt())
-                    .build());
-        }
-
-        // Expand associated domains if requested
-        if (expand.contains("associatedDomains") && card.getAssociatedDomains() != null) {
-            builder.associatedDomains(card.getAssociatedDomains().stream()
-                    .map(domain -> DomainResponse.builder()
-                            .id(domain.getId())
-                            .name(domain.getName())
-                            .iconUrl(domain.getIconUrl())
-                            .description(domain.getDescription())
-                            .expansionId(domain.getExpansion().getId())
-                            .createdAt(domain.getCreatedAt())
-                            .lastModifiedAt(domain.getLastModifiedAt())
-                            .deletedAt(domain.getDeletedAt())
-                            .build())
-                    .collect(Collectors.toList()));
+        // Expand subclass path if requested
+        if (expand.contains("subclassPath")) {
+            builder.subclassPath(subclassPathService.toResponse(card.getSubclassPath(), expand));
         }
 
         return builder.build();
+    }
+
+    /**
+     * Builds a TraitInfo response from a Trait enum value.
+     *
+     * @param trait The trait enum value, may be null
+     * @return TraitInfo with trait metadata, or null if trait is null
+     */
+    private SubclassPathResponse.TraitInfo buildTraitInfo(Trait trait) {
+        if (trait == null) {
+            return null;
+        }
+        return SubclassPathResponse.TraitInfo.builder()
+                .trait(trait)
+                .description(trait.getDescription())
+                .examples(trait.getExamples())
+                .build();
     }
 }

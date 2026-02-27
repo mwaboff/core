@@ -298,6 +298,66 @@ class AncestryCardServiceTest {
         assertThat(featureResponse.getCostTags().get(0).getCategory()).isEqualTo(CostTagCategory.COST);
     }
 
+    @Test
+    void getAllAncestryCards_WithExpandFeaturesNullCostTags_HandlesNullGracefully() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Tough").featureType(FeatureType.ANCESTRY).expansion(expansion)
+                .costTags(null).createdAt(LocalDateTime.now()).build();
+
+        AncestryCard card = AncestryCard.builder()
+                .id(1L)
+                .name("Human")
+                .description("Versatile ancestry")
+                .expansion(expansion)
+                .isOfficial(true)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features,costTags");
+
+        // Assert
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).isNull();
+        assertThat(featureResponse.getCostTags()).isNull();
+    }
+
+    @Test
+    void getAllAncestryCards_WithExpandFeaturesEmptyCostTags_ReturnsEmptyLists() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Tough").featureType(FeatureType.ANCESTRY).expansion(expansion)
+                .costTags(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        AncestryCard card = AncestryCard.builder()
+                .id(1L)
+                .name("Human")
+                .description("Versatile ancestry")
+                .expansion(expansion)
+                .isOfficial(true)
+                .features(Set.of(feature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features,costTags");
+
+        // Assert
+        FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
+        assertThat(featureResponse.getCostTagIds()).isEmpty();
+        assertThat(featureResponse.getCostTags()).isEmpty();
+    }
+
     // ==================== GET ANCESTRY CARD BY ID TESTS ====================
 
     @Test

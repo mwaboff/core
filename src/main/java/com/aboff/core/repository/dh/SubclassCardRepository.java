@@ -24,7 +24,8 @@ public interface SubclassCardRepository extends JpaRepository<SubclassCard, Long
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
-     * @param associatedClassId Optional filter for associated class ID
+     * @param associatedClassId Optional filter for associated class ID (via subclass path)
+     * @param subclassPathId Optional filter for subclass path ID
      * @param level Optional filter for subclass level
      * @param pageable Pagination information
      * @return Page of non-deleted subclass cards matching the criteria
@@ -32,12 +33,14 @@ public interface SubclassCardRepository extends JpaRepository<SubclassCard, Long
     @Query("SELECT s FROM SubclassCard s WHERE s.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR s.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR s.isOfficial = :isOfficial) " +
-           "AND (:associatedClassId IS NULL OR s.associatedClass.id = :associatedClassId) " +
+           "AND (:associatedClassId IS NULL OR s.subclassPath.associatedClass.id = :associatedClassId) " +
+           "AND (:subclassPathId IS NULL OR s.subclassPath.id = :subclassPathId) " +
            "AND (:level IS NULL OR s.level = :level)")
     Page<SubclassCard> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("associatedClassId") Long associatedClassId,
+            @Param("subclassPathId") Long subclassPathId,
             @Param("level") SubclassLevel level,
             Pageable pageable);
 
@@ -46,7 +49,8 @@ public interface SubclassCardRepository extends JpaRepository<SubclassCard, Long
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
-     * @param associatedClassId Optional filter for associated class ID
+     * @param associatedClassId Optional filter for associated class ID (via subclass path)
+     * @param subclassPathId Optional filter for subclass path ID
      * @param level Optional filter for subclass level
      * @param pageable Pagination information
      * @return Page of all subclass cards matching the criteria
@@ -54,12 +58,14 @@ public interface SubclassCardRepository extends JpaRepository<SubclassCard, Long
     @Query("SELECT s FROM SubclassCard s WHERE " +
            "(:expansionId IS NULL OR s.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR s.isOfficial = :isOfficial) " +
-           "AND (:associatedClassId IS NULL OR s.associatedClass.id = :associatedClassId) " +
+           "AND (:associatedClassId IS NULL OR s.subclassPath.associatedClass.id = :associatedClassId) " +
+           "AND (:subclassPathId IS NULL OR s.subclassPath.id = :subclassPathId) " +
            "AND (:level IS NULL OR s.level = :level)")
     Page<SubclassCard> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("associatedClassId") Long associatedClassId,
+            @Param("subclassPathId") Long subclassPathId,
             @Param("level") SubclassLevel level,
             Pageable pageable);
 

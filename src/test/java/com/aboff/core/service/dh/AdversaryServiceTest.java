@@ -1589,6 +1589,37 @@ class AdversaryServiceTest {
         assertThat(expandedFeature.getCostTags()).isNull();
     }
 
+    @Test
+    void getAdversaryById_WithExpandFeaturesEmptyCostTags_ReturnsEmptyLists() {
+        // Arrange
+        setupAuthenticationWith(regularUserDetails);
+
+        Feature feature = Feature.builder()
+                .id(1L)
+                .name("Fire Breath")
+                .featureType(FeatureType.OTHER)
+                .expansion(expansion)
+                .costTags(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Adversary adversary = createTestAdversary(1L, "Dragon", expansion, regularUser);
+        adversary.setIsPublic(true);
+        adversary.setFeatures(new HashSet<>(Set.of(feature)));
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+
+        // Act
+        AdversaryResponse result = adversaryService.getAdversaryById(1L, "features,costTags", authentication);
+
+        // Assert
+        assertThat(result.getFeatures()).isNotNull();
+        assertThat(result.getFeatures()).hasSize(1);
+        var expandedFeature = result.getFeatures().iterator().next();
+        assertThat(expandedFeature.getCostTagIds()).isEmpty();
+        assertThat(expandedFeature.getCostTags()).isEmpty();
+    }
+
     // ==================== DAMAGE ROLL TESTS ====================
 
     @Test

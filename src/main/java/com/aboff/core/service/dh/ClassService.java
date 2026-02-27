@@ -2,9 +2,11 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateClassRequest;
 import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.ClassResponse;
 import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.QuestionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
@@ -434,32 +436,80 @@ public class ClassService {
         // Expand hope features if requested
         if (expand.contains("hopeFeatures") && clazz.getHopeFeatures() != null) {
             builder.hopeFeatures(clazz.getHopeFeatures().stream()
-                    .map(feature -> FeatureResponse.builder()
-                            .id(feature.getId())
-                            .name(feature.getName())
-                            .description(feature.getDescription())
-                            .featureType(feature.getFeatureType())
-                            .expansionId(feature.getExpansion().getId())
-                            .createdAt(feature.getCreatedAt())
-                            .lastModifiedAt(feature.getLastModifiedAt())
-                            .deletedAt(feature.getDeletedAt())
-                            .build())
+                    .map(feature -> {
+                        FeatureResponse.FeatureResponseBuilder featureBuilder = FeatureResponse.builder()
+                                .id(feature.getId())
+                                .name(feature.getName())
+                                .description(feature.getDescription())
+                                .featureType(feature.getFeatureType())
+                                .expansionId(feature.getExpansion().getId())
+                                .createdAt(feature.getCreatedAt())
+                                .lastModifiedAt(feature.getLastModifiedAt())
+                                .deletedAt(feature.getDeletedAt());
+
+                        // Always include cost tag IDs
+                        if (feature.getCostTags() != null) {
+                            featureBuilder.costTagIds(feature.getCostTags().stream()
+                                    .map(CardCostTag::getId)
+                                    .collect(Collectors.toList()));
+                        }
+
+                        // Expand cost tags if requested
+                        if (expand.contains("costTags") && feature.getCostTags() != null) {
+                            featureBuilder.costTags(feature.getCostTags().stream()
+                                    .map(tag -> CardCostTagResponse.builder()
+                                            .id(tag.getId())
+                                            .label(tag.getLabel())
+                                            .category(tag.getCategory())
+                                            .createdAt(tag.getCreatedAt())
+                                            .lastModifiedAt(tag.getLastModifiedAt())
+                                            .deletedAt(tag.getDeletedAt())
+                                            .build())
+                                    .collect(Collectors.toList()));
+                        }
+
+                        return featureBuilder.build();
+                    })
                     .collect(Collectors.toList()));
         }
 
         // Expand class features if requested
         if (expand.contains("classFeatures") && clazz.getClassFeatures() != null) {
             builder.classFeatures(clazz.getClassFeatures().stream()
-                    .map(feature -> FeatureResponse.builder()
-                            .id(feature.getId())
-                            .name(feature.getName())
-                            .description(feature.getDescription())
-                            .featureType(feature.getFeatureType())
-                            .expansionId(feature.getExpansion().getId())
-                            .createdAt(feature.getCreatedAt())
-                            .lastModifiedAt(feature.getLastModifiedAt())
-                            .deletedAt(feature.getDeletedAt())
-                            .build())
+                    .map(feature -> {
+                        FeatureResponse.FeatureResponseBuilder featureBuilder = FeatureResponse.builder()
+                                .id(feature.getId())
+                                .name(feature.getName())
+                                .description(feature.getDescription())
+                                .featureType(feature.getFeatureType())
+                                .expansionId(feature.getExpansion().getId())
+                                .createdAt(feature.getCreatedAt())
+                                .lastModifiedAt(feature.getLastModifiedAt())
+                                .deletedAt(feature.getDeletedAt());
+
+                        // Always include cost tag IDs
+                        if (feature.getCostTags() != null) {
+                            featureBuilder.costTagIds(feature.getCostTags().stream()
+                                    .map(CardCostTag::getId)
+                                    .collect(Collectors.toList()));
+                        }
+
+                        // Expand cost tags if requested
+                        if (expand.contains("costTags") && feature.getCostTags() != null) {
+                            featureBuilder.costTags(feature.getCostTags().stream()
+                                    .map(tag -> CardCostTagResponse.builder()
+                                            .id(tag.getId())
+                                            .label(tag.getLabel())
+                                            .category(tag.getCategory())
+                                            .createdAt(tag.getCreatedAt())
+                                            .lastModifiedAt(tag.getLastModifiedAt())
+                                            .deletedAt(tag.getDeletedAt())
+                                            .build())
+                                    .collect(Collectors.toList()));
+                        }
+
+                        return featureBuilder.build();
+                    })
                     .collect(Collectors.toList()));
         }
 
