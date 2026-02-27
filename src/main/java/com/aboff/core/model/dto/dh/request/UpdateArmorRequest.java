@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -63,6 +64,12 @@ public class UpdateArmorRequest {
      * Optional ID of the feature granted by this armor.
      */
     private Long featureId;
+
+    /**
+     * Feature to find or create inline. Used if featureId is not provided. featureId takes precedence.
+     */
+    @Valid
+    private FeatureInput feature;
 
     /**
      * Optional ID of the original armor if this is a custom copy.

@@ -13,7 +13,6 @@ import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.repository.dh.AncestryCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,7 +25,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.util.ExpandUtil;
 
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -42,7 +40,7 @@ public class AncestryCardService {
 
     private final AncestryCardRepository ancestryCardRepository;
     private final ExpansionRepository expansionRepository;
-    private final FeatureRepository featureRepository;
+    private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
 
     /**
@@ -129,9 +127,9 @@ public class AncestryCardService {
                 .build();
 
         // Set features if provided
-        if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
-            Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
-            card.setFeatures(features);
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedFeatures != null) {
+            card.setFeatures(resolvedFeatures);
         }
 
         // Set cost tags if provided
@@ -170,9 +168,9 @@ public class AncestryCardService {
                             .backgroundImageUrl(request.getBackgroundImageUrl())
                             .build();
 
-                    if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
-                        Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
-                        card.setFeatures(features);
+                    Set<Feature> bulkResolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+                    if (bulkResolvedFeatures != null) {
+                        card.setFeatures(bulkResolvedFeatures);
                     }
 
                     Set<CardCostTag> bulkResolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
@@ -218,13 +216,9 @@ public class AncestryCardService {
         card.setBackgroundImageUrl(request.getBackgroundImageUrl());
 
         // Update features
-        if (request.getFeatureIds() != null) {
-            if (request.getFeatureIds().isEmpty()) {
-                card.setFeatures(new HashSet<>());
-            } else {
-                Set<Feature> features = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds()));
-                card.setFeatures(features);
-            }
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedFeatures != null) {
+            card.setFeatures(resolvedFeatures);
         }
 
         // Update cost tags

@@ -68,4 +68,21 @@ public interface FeatureRepository extends JpaRepository<Feature, Long> {
      */
     @Query("SELECT f FROM Feature f WHERE f.id IN :ids AND f.deletedAt IS NULL")
     List<Feature> findAllByIdInAndDeletedAtIsNull(@Param("ids") List<Long> ids);
+
+    /**
+     * Finds a non-deleted feature by name (case-insensitive), expansion, and feature type.
+     *
+     * @param name The feature name to match case-insensitively
+     * @param expansionId The expansion ID to match
+     * @param featureType The feature type to match
+     * @return Optional containing the matching feature if found and not deleted
+     */
+    @Query("SELECT f FROM Feature f WHERE LOWER(f.name) = LOWER(:name) " +
+           "AND f.expansion.id = :expansionId " +
+           "AND f.featureType = :featureType " +
+           "AND f.deletedAt IS NULL")
+    Optional<Feature> findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+            @Param("name") String name,
+            @Param("expansionId") Long expansionId,
+            @Param("featureType") FeatureType featureType);
 }

@@ -25,7 +25,7 @@ import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
+
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
@@ -68,7 +68,7 @@ public class AdversaryService {
 
     private final AdversaryRepository adversaryRepository;
     private final ExpansionRepository expansionRepository;
-    private final FeatureRepository featureRepository;
+    private final FeatureService featureService;
     private final ExperienceRepository experienceRepository;
     private final UserRepository userRepository;
     private final RoleHierarchyService roleHierarchyService;
@@ -207,10 +207,11 @@ public class AdversaryService {
             adversary.setExperiences(experiences);
         }
 
-        if (request.getFeatureIds() != null && !request.getFeatureIds().isEmpty()) {
-            List<Feature> features = featureRepository.findAllByIdInAndDeletedAtIsNull(
-                    new ArrayList<>(request.getFeatureIds()));
-            adversary.setFeatures(new HashSet<>(features));
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(
+                request.getFeatureIds() != null ? new ArrayList<>(request.getFeatureIds()) : null,
+                request.getFeatures());
+        if (resolvedFeatures != null) {
+            adversary.setFeatures(resolvedFeatures);
         }
 
         Adversary savedAdversary = adversaryRepository.save(adversary);
@@ -344,10 +345,11 @@ public class AdversaryService {
                     experienceRepository.findAllById(request.getExperienceIds()));
             adversary.setExperiences(experiences);
         }
-        if (request.getFeatureIds() != null) {
-            List<Feature> features = featureRepository.findAllByIdInAndDeletedAtIsNull(
-                    new ArrayList<>(request.getFeatureIds()));
-            adversary.setFeatures(new HashSet<>(features));
+        Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(
+                request.getFeatureIds() != null ? new ArrayList<>(request.getFeatureIds()) : null,
+                request.getFeatures());
+        if (resolvedUpdateFeatures != null) {
+            adversary.setFeatures(resolvedUpdateFeatures);
         }
 
         Adversary updatedAdversary = adversaryRepository.save(adversary);

@@ -24,6 +24,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.util.ExpandUtil;
 
+import com.aboff.core.model.dto.dh.request.FeatureInput;
+
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -249,6 +252,105 @@ public class FeatureService {
         return savedFeatures.stream()
                 .map(feature -> toResponse(feature, Set.of()))
                 .toList();
+    }
+
+    /**
+     * Finds an existing feature by name+expansion+type (case-insensitive) or creates a new one.
+     * When no match is found, a new feature is created with the provided details including
+     * any cost tags resolved via {@link CardCostTagService#resolveCostTags}.
+     *
+     * @param input The feature input containing name, type, expansion, and optional cost tags
+     * @return The existing or newly created Feature entity
+     * @throws EntityNotFoundException if the expansion referenced by the input does not exist
+     */
+    @Transactional
+    public Feature findOrCreate(FeatureInput input) {
+        return featureRepository
+                .findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                        input.getName(), input.getExpansionId(), input.getFeatureType())
+                .map(existing -> {
+                    log.debug("Found existing feature with name '{}' (id: {})", input.getName(), existing.getId());
+                    return existing;
+                })
+                .orElseGet(() -> {
+                    log.info("Creating new feature with name '{}', type '{}', expansion '{}'",
+                            input.getName(), input.getFeatureType(), input.getExpansionId());
+                    Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
+                            .orElseThrow(() -> new EntityNotFoundException(
+                                    "Expansion not found with id: " + input.getExpansionId()));
+                    Feature feature = Feature.builder()
+                            .name(input.getName())
+                            .description(input.getDescription())
+                            .featureType(input.getFeatureType())
+                            .expansion(expansion)
+                            .build();
+                    Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(
+                            input.getCostTagIds(), input.getCostTags());
+                    if (resolvedTags != null) {
+                        feature.setCostTags(resolvedTags);
+                    }
+                    return featureRepository.save(feature);
+                });
+    }
+
+    /**
+     * Resolves features from both ID-based and input-based sources, merging the results.
+     * <p>
+     * Returns {@code null} when both inputs are null, signaling that existing features should not be modified
+     * (used by update operations). Returns an empty set when at least one input is non-null but both are
+     * empty, signaling that features should be cleared.
+     * </p>
+     *
+     * @param featureIds Optional list of existing feature IDs to look up
+     * @param features Optional list of feature inputs to find or create
+     * @return Merged set of resolved features, or null if both inputs are null
+     */
+    @Transactional
+    public Set<Feature> resolveFeatures(List<Long> featureIds, List<FeatureInput> features) {
+        if (featureIds == null && features == null) {
+            return null;
+        }
+
+        Set<Feature> resolved = new HashSet<>();
+
+        if (featureIds != null && !featureIds.isEmpty()) {
+            resolved.addAll(featureRepository.findAllByIdInAndDeletedAtIsNull(featureIds));
+        }
+
+        if (features != null && !features.isEmpty()) {
+            for (FeatureInput input : features) {
+                resolved.add(findOrCreate(input));
+            }
+        }
+
+        return resolved;
+    }
+
+    /**
+     * Resolves a single feature from either an ID or an inline input.
+     * <p>
+     * Returns {@code null} when both inputs are null, signaling that the existing feature should not be modified.
+     * When both are provided, the ID takes precedence.
+     * </p>
+     *
+     * @param featureId Optional ID of an existing feature
+     * @param feature Optional inline feature input to find or create
+     * @return The resolved Feature entity, or null if both inputs are null
+     * @throws EntityNotFoundException if the feature ID does not match any non-deleted feature
+     */
+    @Transactional
+    public Feature resolveFeature(Long featureId, FeatureInput feature) {
+        if (featureId == null && feature == null) {
+            return null;
+        }
+
+        if (featureId != null) {
+            return featureRepository.findByIdAndDeletedAtIsNull(featureId)
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Feature not found with id: " + featureId));
+        }
+
+        return findOrCreate(feature);
     }
 
     /**

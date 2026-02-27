@@ -6,11 +6,13 @@ import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.*;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -60,6 +62,9 @@ class WeaponControllerIntegrationTest {
 
     @Autowired
     private ExpansionRepository expansionRepository;
+
+    @Autowired
+    private FeatureRepository featureRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -471,6 +476,165 @@ class WeaponControllerIntegrationTest {
         mockMvc.perform(post("/api/dh/weapons/{id}/restore", 99999L)
                         .cookie(new Cookie("AUTH_TOKEN", adminToken)))
                 .andExpect(status().isNotFound());
+    }
+
+    // ==================== INLINE FEATURE TESTS ====================
+
+    @Test
+    void createWeapon_WithInlineFeature_Returns201AndCreatesFeature() throws Exception {
+        // Arrange
+        String requestJson = """
+            {
+                "name": "Flaming Sword",
+                "description": "A sword wreathed in flame",
+                "expansionId": %d,
+                "isOfficial": true,
+                "isPrimary": true,
+                "trait": "STRENGTH",
+                "range": "MELEE",
+                "burden": "ONE_HANDED",
+                "damage": { "diceCount": 2, "diceType": "D10", "modifier": 3, "damageType": "PHYSICAL" },
+                "feature": {
+                    "name": "Flame Burst",
+                    "description": "Deal extra fire damage",
+                    "featureType": "OTHER",
+                    "expansionId": %d,
+                    "costTags": [
+                        { "label": "1/rest", "category": "LIMITATION" }
+                    ]
+                }
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/weapons")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureId").isNumber());
+
+        // Verify feature and cost tag were created
+        List<Feature> features = featureRepository.findAll();
+        assertThat(features).hasSize(1);
+        assertThat(features.get(0).getName()).isEqualTo("Flame Burst");
+        assertThat(features.get(0).getCostTags()).hasSize(1);
+    }
+
+    @Test
+    void createWeapon_WithBothIdAndInline_IdTakesPrecedence() throws Exception {
+        // Arrange - create an existing feature
+        Feature existingFeature = Feature.builder()
+                .name("Existing Weapon Feature")
+                .description("Pre-existing")
+                .featureType(FeatureType.OTHER)
+                .expansion(testExpansion)
+                .build();
+        existingFeature = featureRepository.save(existingFeature);
+
+        String requestJson = """
+            {
+                "name": "Precedence Sword",
+                "expansionId": %d,
+                "isOfficial": true,
+                "isPrimary": true,
+                "trait": "STRENGTH",
+                "range": "MELEE",
+                "burden": "ONE_HANDED",
+                "damage": { "diceCount": 1, "diceType": "D8", "damageType": "PHYSICAL" },
+                "featureId": %d,
+                "feature": {
+                    "name": "Should Be Ignored",
+                    "featureType": "OTHER",
+                    "expansionId": %d
+                }
+            }
+            """.formatted(testExpansion.getId(), existingFeature.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/weapons")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureId").value(existingFeature.getId()));
+
+        // Only the existing feature should be in DB (no new one created)
+        assertThat(featureRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void createWeapon_WithInlineFeatureHavingCostTags_Returns201() throws Exception {
+        // Arrange
+        String requestJson = """
+            {
+                "name": "Tagged Weapon",
+                "expansionId": %d,
+                "isOfficial": true,
+                "isPrimary": true,
+                "trait": "FINESSE",
+                "range": "MELEE",
+                "burden": "ONE_HANDED",
+                "damage": { "diceCount": 1, "diceType": "D6", "damageType": "PHYSICAL" },
+                "feature": {
+                    "name": "Quick Strike",
+                    "description": "A fast attack",
+                    "featureType": "OTHER",
+                    "expansionId": %d,
+                    "costTags": [
+                        { "label": "1/session", "category": "TIMING" },
+                        { "label": "Close range", "category": "LIMITATION" }
+                    ]
+                }
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/weapons")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureId").isNumber());
+
+        List<Feature> features = featureRepository.findAll();
+        assertThat(features).hasSize(1);
+        assertThat(features.get(0).getCostTags()).hasSize(2);
+    }
+
+    @Test
+    void updateWeapon_WithInlineFeature_Returns200() throws Exception {
+        // Arrange
+        Weapon weapon = createWeapon("Update Target", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED);
+        String requestJson = """
+            {
+                "name": "Updated Weapon",
+                "expansionId": %d,
+                "isOfficial": true,
+                "isPrimary": true,
+                "trait": "STRENGTH",
+                "range": "MELEE",
+                "burden": "ONE_HANDED",
+                "damage": { "diceCount": 2, "diceType": "D10", "modifier": 3, "damageType": "PHYSICAL" },
+                "feature": {
+                    "name": "New Feature Via Update",
+                    "description": "Added during update",
+                    "featureType": "OTHER",
+                    "expansionId": %d
+                }
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/weapons/{id}", weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.featureId").isNumber());
+
+        assertThat(featureRepository.findAll()).hasSize(1);
+        assertThat(featureRepository.findAll().get(0).getName()).isEqualTo("New Feature Via Update");
     }
 
     // ==================== HELPER METHODS ====================

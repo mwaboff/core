@@ -20,7 +20,6 @@ import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
@@ -64,7 +63,7 @@ class AdversaryServiceTest {
     private ExpansionRepository expansionRepository;
 
     @Mock
-    private FeatureRepository featureRepository;
+    private FeatureService featureService;
 
     @Mock
     private ExperienceRepository experienceRepository;
@@ -632,7 +631,7 @@ class AdversaryServiceTest {
         savedAdversary.setFeatures(new HashSet<>(Set.of(feature)));
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureRepository.findAllByIdInAndDeletedAtIsNull(anyList())).thenReturn(List.of(feature));
+        when(featureService.resolveFeatures(anyList(), isNull())).thenReturn(Set.of(feature));
         when(adversaryRepository.save(any(Adversary.class))).thenReturn(savedAdversary);
 
         // Act

@@ -13,6 +13,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -133,6 +134,12 @@ public class UpdateAdversaryRequest {
      * Replaces existing features when provided.
      */
     private Set<Long> featureIds;
+
+    /**
+     * Features to find or create inline. Merged with featureIds if both provided.
+     */
+    @Valid
+    private List<FeatureInput> features;
 
     /**
      * Nested DTO for damage roll information.

@@ -6,12 +6,15 @@ import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.AncestryCard;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.AncestryCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.security.JwtTokenProvider;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +25,7 @@ import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,6 +63,9 @@ class AncestryCardControllerIntegrationTest {
 
     @Autowired
     private ExpansionRepository expansionRepository;
+
+    @Autowired
+    private FeatureRepository featureRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -424,6 +431,297 @@ class AncestryCardControllerIntegrationTest {
         mockMvc.perform(post("/api/dh/cards/ancestry/{id}/restore", 99999L)
                         .cookie(new Cookie("AUTH_TOKEN", adminToken)))
                 .andExpect(status().isNotFound());
+    }
+
+    // ==================== INLINE FEATURE TESTS ====================
+
+    @Test
+    void createAncestryCard_WithInlineFeatures_Returns201AndCreatesFeatures() throws Exception {
+        // Arrange
+        String requestJson = """
+            {
+                "name": "Ribbet Ancestry",
+                "description": "Frog-like humanoids",
+                "expansionId": %d,
+                "isOfficial": true,
+                "features": [
+                    {
+                        "name": "Mighty Leap",
+                        "description": "Jump great distances",
+                        "featureType": "ANCESTRY",
+                        "expansionId": %d
+                    },
+                    {
+                        "name": "Amphibious",
+                        "description": "Breathe underwater",
+                        "featureType": "ANCESTRY",
+                        "expansionId": %d
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/ancestry")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(2));
+
+        // Verify features were actually created in the database
+        List<Feature> features = featureRepository.findAll();
+        assertThat(features).hasSize(2);
+        assertThat(features).extracting(Feature::getName)
+                .containsExactlyInAnyOrder("Mighty Leap", "Amphibious");
+    }
+
+    @Test
+    void createAncestryCard_WithMixedFeatures_Returns201AndMerges() throws Exception {
+        // Arrange - create an existing feature first
+        Feature existingFeature = Feature.builder()
+                .name("Existing Feature")
+                .description("Pre-existing feature")
+                .featureType(com.aboff.core.model.enums.FeatureType.ANCESTRY)
+                .expansion(testExpansion)
+                .build();
+        existingFeature = featureRepository.save(existingFeature);
+
+        String requestJson = """
+            {
+                "name": "Mixed Ancestry",
+                "description": "Mixed feature ancestry",
+                "expansionId": %d,
+                "isOfficial": true,
+                "featureIds": [%d],
+                "features": [
+                    {
+                        "name": "New Inline Feature",
+                        "description": "A brand new feature",
+                        "featureType": "ANCESTRY",
+                        "expansionId": %d
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), existingFeature.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/ancestry")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(2));
+
+        // Verify both features exist
+        assertThat(featureRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void createAncestryCard_WithInlineFeaturesHavingCostTags_Returns201() throws Exception {
+        // Arrange
+        String requestJson = """
+            {
+                "name": "Cost Tag Ancestry",
+                "description": "Ancestry with cost tags on features",
+                "expansionId": %d,
+                "isOfficial": true,
+                "features": [
+                    {
+                        "name": "Costly Feature",
+                        "description": "A feature with cost tags",
+                        "featureType": "ANCESTRY",
+                        "expansionId": %d,
+                        "costTags": [
+                            { "label": "1/session", "category": "LIMITATION" }
+                        ]
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/ancestry")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1));
+
+        // Verify feature and cost tag were created
+        List<Feature> features = featureRepository.findAll();
+        assertThat(features).hasSize(1);
+        assertThat(features.get(0).getName()).isEqualTo("Costly Feature");
+        assertThat(features.get(0).getCostTags()).hasSize(1);
+    }
+
+    @Test
+    void createAncestryCard_WithInvalidFeatureInput_Returns400() throws Exception {
+        // Arrange - missing required featureType
+        String requestJson = """
+            {
+                "name": "Invalid Feature Card",
+                "description": "Card with invalid feature",
+                "expansionId": %d,
+                "isOfficial": true,
+                "features": [
+                    {
+                        "name": "Missing Type Feature",
+                        "description": "This feature has no type"
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/ancestry")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createAncestryCard_WithInlineFeatureInvalidExpansion_Returns404() throws Exception {
+        // Arrange
+        String requestJson = """
+            {
+                "name": "Bad Expansion Card",
+                "description": "Card with feature referencing bad expansion",
+                "expansionId": %d,
+                "isOfficial": true,
+                "features": [
+                    {
+                        "name": "Bad Expansion Feature",
+                        "description": "References non-existent expansion",
+                        "featureType": "ANCESTRY",
+                        "expansionId": 99999
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/ancestry")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateAncestryCard_WithInlineFeatures_Returns200() throws Exception {
+        // Arrange
+        AncestryCard card = createAncestryCard("Update Target", "Original", testExpansion, true);
+        String requestJson = """
+            {
+                "name": "Updated Card",
+                "description": "Updated description",
+                "expansionId": %d,
+                "isOfficial": true,
+                "features": [
+                    {
+                        "name": "Update Feature",
+                        "description": "Added via update",
+                        "featureType": "ANCESTRY",
+                        "expansionId": %d
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/cards/ancestry/{id}", card.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1));
+
+        assertThat(featureRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void createAncestryCardBulk_WithInlineFeatures_Returns201() throws Exception {
+        // Arrange
+        String requestJson = """
+            [
+                {
+                    "name": "Bulk Card 1",
+                    "description": "First bulk card",
+                    "expansionId": %d,
+                    "isOfficial": true,
+                    "features": [
+                        {
+                            "name": "Bulk Feature",
+                            "description": "Feature from bulk",
+                            "featureType": "ANCESTRY",
+                            "expansionId": %d
+                        }
+                    ]
+                },
+                {
+                    "name": "Bulk Card 2",
+                    "description": "Second bulk card with existing IDs only",
+                    "expansionId": %d,
+                    "isOfficial": true
+                }
+            ]
+            """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/ancestry/bulk")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$").isArray())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].featureIds.length()").value(1));
+
+        assertThat(featureRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void createAncestryCard_SameInlineFeatureTwice_ReusesSameFeature() throws Exception {
+        // Arrange - same inline feature in two separate requests
+        String featureJson = """
+            { "name": "Mighty Leap", "featureType": "ANCESTRY", "expansionId": %d }
+            """.formatted(testExpansion.getId());
+        String request1 = """
+            { "name": "Card A", "expansionId": %d, "isOfficial": true, "features": [%s] }
+            """.formatted(testExpansion.getId(), featureJson);
+        String request2 = """
+            { "name": "Card B", "expansionId": %d, "isOfficial": true, "features": [%s] }
+            """.formatted(testExpansion.getId(), featureJson);
+
+        // Act - create two cards
+        MvcResult result1 = mockMvc.perform(post("/api/dh/cards/ancestry")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request1))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        MvcResult result2 = mockMvc.perform(post("/api/dh/cards/ancestry")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(request2))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        // Assert - only one feature created, shared by both cards
+        assertThat(featureRepository.findAll()).hasSize(1);
+
+        JsonNode card1 = objectMapper.readTree(result1.getResponse().getContentAsString());
+        JsonNode card2 = objectMapper.readTree(result2.getResponse().getContentAsString());
+        assertThat(card1.get("featureIds").get(0).asLong())
+                .isEqualTo(card2.get("featureIds").get(0).asLong());
     }
 
     // ==================== HELPER METHODS ====================

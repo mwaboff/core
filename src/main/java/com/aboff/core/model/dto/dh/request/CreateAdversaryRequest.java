@@ -15,6 +15,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -134,6 +135,12 @@ public class CreateAdversaryRequest {
      * IDs of features to associate with this adversary.
      */
     private Set<Long> featureIds;
+
+    /**
+     * Features to find or create inline. Merged with featureIds if both provided.
+     */
+    @Valid
+    private List<FeatureInput> features;
 
     /**
      * Whether this adversary is publicly visible to other users.

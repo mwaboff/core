@@ -14,7 +14,6 @@ import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.AncestryCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,7 +49,7 @@ class AncestryCardServiceTest {
     private ExpansionRepository expansionRepository;
 
     @Mock
-    private FeatureRepository featureRepository;
+    private FeatureService featureService;
 
     @Mock
     private CardCostTagService cardCostTagService;
@@ -429,7 +428,7 @@ class AncestryCardServiceTest {
                 .build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(feature));
+        when(featureService.resolveFeatures(eq(List.of(1L)), isNull())).thenReturn(Set.of(feature));
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenReturn(savedCard);
 
         // Act
@@ -679,6 +678,7 @@ class AncestryCardServiceTest {
 
         when(ancestryCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(eq(List.of()), isNull())).thenReturn(new HashSet<>());
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
