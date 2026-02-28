@@ -2,7 +2,9 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateClassRequest;
 import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.ClassResponse;
+import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.CardCostTag;
@@ -11,6 +13,7 @@ import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.QuestionType;
@@ -34,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -61,6 +65,9 @@ class ClassServiceTest {
 
     @Mock
     private QuestionRepository questionRepository;
+
+    @Mock
+    private FeatureService featureService;
 
     @InjectMocks
     private ClassService classService;
@@ -208,6 +215,7 @@ class ClassServiceTest {
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
         when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
         PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "expansion,associatedDomains,hopeFeatures");
@@ -590,6 +598,7 @@ class ClassServiceTest {
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
         when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
         PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
@@ -625,6 +634,7 @@ class ClassServiceTest {
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
         when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
         PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "classFeatures,costTags");
@@ -660,6 +670,7 @@ class ClassServiceTest {
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
         when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
         PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "classFeatures");
@@ -693,6 +704,7 @@ class ClassServiceTest {
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
         when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
         PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
@@ -725,6 +737,7 @@ class ClassServiceTest {
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
         when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
         PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
@@ -733,5 +746,35 @@ class ClassServiceTest {
         FeatureResponse hopeFeature = result.getContent().get(0).getHopeFeatures().get(0);
         assertThat(hopeFeature.getCostTagIds()).isEmpty();
         assertThat(hopeFeature.getCostTags()).isEmpty();
+    }
+
+    /**
+     * Helper to build a FeatureResponse from a Feature entity and expand set,
+     * mirroring the behavior of FeatureService.toResponse().
+     */
+    private FeatureResponse buildFeatureResponse(Feature f, Set<String> exp) {
+        FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                .id(f.getId()).name(f.getName()).description(f.getDescription())
+                .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+        if (f.getCostTags() != null) {
+            fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+        }
+        if (exp.contains("costTags") && f.getCostTags() != null) {
+            fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                    .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                    .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                    .build()).collect(Collectors.toList()));
+        }
+        if (f.getModifiers() != null) {
+            fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+        }
+        if (exp.contains("modifiers") && f.getModifiers() != null) {
+            fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                    .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                    .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                    .build()).collect(Collectors.toList()));
+        }
+        return fb.build();
     }
 }

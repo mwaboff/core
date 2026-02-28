@@ -2,11 +2,16 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
+import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.*;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -24,6 +29,8 @@ import org.springframework.data.domain.Pageable;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -140,19 +147,47 @@ class WeaponServiceTest {
         Feature feature = Feature.builder().id(1L).name("Keen Edge").featureType(FeatureType.OTHER).expansion(expansion).createdAt(LocalDateTime.now()).build();
 
         Weapon weapon = createTestWeapon(1L, "Longsword", expansion);
-        weapon.setFeature(feature);
+        weapon.setFeatures(Set.of(feature));
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
         when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, "expansion,feature");
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, "expansion,features");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansion()).isNotNull();
-        assertThat(result.getContent().get(0).getFeature()).isNotNull();
+        assertThat(result.getContent().get(0).getFeatures()).isNotNull();
+        assertThat(result.getContent().get(0).getFeatures()).hasSize(1);
     }
 
     // ==================== GET WEAPON BY ID TESTS ====================
@@ -275,21 +310,21 @@ class WeaponServiceTest {
                         .diceType(DiceType.D10)
                         .damageType(DamageType.MAGIC)
                         .build())
-                .featureId(1L)
+                .featureIds(List.of(1L))
                 .build();
 
         Weapon savedWeapon = createTestWeapon(1L, "Magic Sword", expansion);
-        savedWeapon.setFeature(feature);
+        savedWeapon.setFeatures(Set.of(feature));
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeature(eq(1L), isNull())).thenReturn(feature);
+        when(featureService.resolveFeatures(eq(List.of(1L)), isNull())).thenReturn(Set.of(feature));
         when(weaponRepository.save(any(Weapon.class))).thenReturn(savedWeapon);
 
         // Act
         WeaponResponse result = weaponService.createWeapon(request);
 
         // Assert
-        assertThat(result.getFeatureId()).isEqualTo(1L);
+        assertThat(result.getFeatureIds()).containsExactly(1L);
     }
 
     // ==================== CREATE WEAPONS BULK TESTS ====================

@@ -2,10 +2,13 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateLootRequest;
 import com.aboff.core.model.dto.dh.request.UpdateLootRequest;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.LootResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
+import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.LootRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -19,8 +22,10 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -39,6 +44,9 @@ class LootServiceTest {
 
     @Mock
     private ExpansionRepository expansionRepository;
+
+    @Mock
+    private FeatureService featureService;
 
     @InjectMocks
     private LootService lootService;
@@ -451,6 +459,181 @@ class LootServiceTest {
         // Assert
         assertThat(result.getOriginalLoot()).isNotNull();
         assertThat(result.getOriginalLoot().getName()).isEqualTo("Health Potion");
+    }
+
+    // ==================== FEATURE TESTS ====================
+
+    @Test
+    void createLoot_WithFeatureIds_AttachesFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature feature = Feature.builder().id(1L).name("Healing").featureType(FeatureType.OTHER).expansion(expansion).build();
+
+        CreateLootRequest request = CreateLootRequest.builder()
+                .name("Magic Potion")
+                .expansionId(1L)
+                .tier(1)
+                .isOfficial(true)
+                .isConsumable(true)
+                .description("A magical potion")
+                .featureIds(List.of(1L))
+                .build();
+
+        Loot savedLoot = createTestLoot(1L, "Magic Potion", expansion);
+        savedLoot.setFeatures(Set.of(feature));
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(eq(List.of(1L)), isNull())).thenReturn(Set.of(feature));
+        when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
+
+        // Act
+        LootResponse result = lootService.createLoot(request);
+
+        // Assert
+        assertThat(result.getFeatureIds()).containsExactly(1L);
+        verify(featureService).resolveFeatures(eq(List.of(1L)), isNull());
+    }
+
+    @Test
+    void createLoot_WithInlineFeatures_AttachesFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature feature = Feature.builder().id(2L).name("Restore").featureType(FeatureType.OTHER).expansion(expansion).build();
+
+        CreateLootRequest request = CreateLootRequest.builder()
+                .name("Healing Herb")
+                .expansionId(1L)
+                .tier(1)
+                .isOfficial(true)
+                .isConsumable(true)
+                .description("A healing herb")
+                .features(List.of())
+                .build();
+
+        Loot savedLoot = createTestLoot(1L, "Healing Herb", expansion);
+        savedLoot.setFeatures(Set.of(feature));
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), eq(List.of()))).thenReturn(Set.of(feature));
+        when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
+
+        // Act
+        LootResponse result = lootService.createLoot(request);
+
+        // Assert
+        assertThat(result.getFeatureIds()).containsExactly(2L);
+    }
+
+    @Test
+    void updateLoot_WithFeatures_UpdatesFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature feature = Feature.builder().id(1L).name("Enhanced Healing").featureType(FeatureType.OTHER).expansion(expansion).build();
+
+        Loot existingLoot = createTestLoot(1L, "Potion", expansion);
+
+        UpdateLootRequest request = UpdateLootRequest.builder()
+                .name("Enhanced Potion")
+                .expansionId(1L)
+                .tier(2)
+                .isOfficial(true)
+                .isConsumable(true)
+                .description("Enhanced version")
+                .featureIds(List.of(1L))
+                .build();
+
+        when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingLoot));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(eq(List.of(1L)), isNull())).thenReturn(Set.of(feature));
+        when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> {
+            Loot saved = invocation.getArgument(0);
+            saved.setFeatures(Set.of(feature));
+            return saved;
+        });
+
+        // Act
+        LootResponse result = lootService.updateLoot(1L, request);
+
+        // Assert
+        assertThat(result.getFeatureIds()).containsExactly(1L);
+        verify(featureService).resolveFeatures(eq(List.of(1L)), isNull());
+    }
+
+    @Test
+    void updateLoot_WithNullFeatures_DoesNotModifyFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Loot existingLoot = createTestLoot(1L, "Potion", expansion);
+
+        UpdateLootRequest request = UpdateLootRequest.builder()
+                .name("Same Potion")
+                .expansionId(1L)
+                .tier(1)
+                .isOfficial(true)
+                .isConsumable(true)
+                .description("Same potion")
+                .build();
+
+        when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingLoot));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        lootService.updateLoot(1L, request);
+
+        // Assert
+        verify(featureService).resolveFeatures(isNull(), isNull());
+    }
+
+    @Test
+    void getLootById_WithExpandFeatures_ExpandsFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Feature feature = Feature.builder().id(1L).name("Healing").featureType(FeatureType.OTHER).expansion(expansion).createdAt(LocalDateTime.now()).build();
+
+        Loot loot = createTestLoot(1L, "Healing Potion", expansion);
+        loot.setFeatures(Set.of(feature));
+
+        when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(loot));
+        when(featureService.toResponse(any(Feature.class), anySet())).thenReturn(
+                FeatureResponse.builder()
+                        .id(1L)
+                        .name("Healing")
+                        .featureType(FeatureType.OTHER)
+                        .expansionId(1L)
+                        .build()
+        );
+
+        // Act
+        LootResponse result = lootService.getLootById(1L, "features");
+
+        // Assert
+        assertThat(result.getFeatureIds()).containsExactly(1L);
+        assertThat(result.getFeatures()).hasSize(1);
+        assertThat(result.getFeatures().get(0).getName()).isEqualTo("Healing");
+        verify(featureService).toResponse(any(Feature.class), anySet());
+    }
+
+    @Test
+    void getLootById_WithoutExpandFeatures_IncludesOnlyIds() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature feature = Feature.builder().id(1L).name("Healing").featureType(FeatureType.OTHER).expansion(expansion).build();
+
+        Loot loot = createTestLoot(1L, "Healing Potion", expansion);
+        loot.setFeatures(Set.of(feature));
+
+        when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(loot));
+
+        // Act
+        LootResponse result = lootService.getLootById(1L, null);
+
+        // Assert
+        assertThat(result.getFeatureIds()).containsExactly(1L);
+        assertThat(result.getFeatures()).isNull();
+        verify(featureService, never()).toResponse(any(Feature.class), anySet());
     }
 
     // ==================== HELPER METHODS ====================

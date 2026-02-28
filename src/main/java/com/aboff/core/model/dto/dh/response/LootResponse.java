@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Response DTO for Loot entities.
@@ -14,8 +15,9 @@ import java.time.LocalDateTime;
  * <p>
  * Supports expansion via the ?expand parameter:
  * <ul>
- *   <li>By default: returns expansionId, originalLootId only</li>
+ *   <li>By default: returns expansionId, featureIds, originalLootId only</li>
  *   <li>With ?expand=expansion: includes full expansion object</li>
+ *   <li>With ?expand=features: includes full feature objects</li>
  *   <li>With ?expand=originalLoot: includes full original loot object</li>
  * </ul>
  * </p>
@@ -66,6 +68,16 @@ public class LootResponse {
      * Description of the loot item.
      */
     private String description;
+
+    /**
+     * IDs of features granted by this loot (always included when present).
+     */
+    private List<Long> featureIds;
+
+    /**
+     * Full feature objects (included only when ?expand=features is specified).
+     */
+    private List<FeatureResponse> features;
 
     /**
      * ID of the original loot if this is a custom copy (null if original).

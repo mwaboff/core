@@ -4,7 +4,7 @@ import com.aboff.core.model.dto.dh.request.CreateArmorRequest;
 import com.aboff.core.model.dto.dh.request.UpdateArmorRequest;
 import com.aboff.core.model.dto.dh.response.ArmorResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
-import com.aboff.core.model.dto.dh.response.FeatureResponse;
+
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.Expansion;
@@ -26,6 +26,7 @@ import com.aboff.core.util.ExpandUtil;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing Armor entities.
@@ -127,9 +128,9 @@ public class ArmorService {
                 .baseScore(request.getBaseScore())
                 .build();
 
-        Feature resolvedFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
-        if (resolvedFeature != null) {
-            armor.setFeature(resolvedFeature);
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedFeatures != null) {
+            armor.setFeatures(resolvedFeatures);
         }
 
         if (request.getOriginalArmorId() != null) {
@@ -171,9 +172,9 @@ public class ArmorService {
                             .baseScore(request.getBaseScore())
                             .build();
 
-                    Feature bulkResolvedFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
-                    if (bulkResolvedFeature != null) {
-                        armor.setFeature(bulkResolvedFeature);
+                    Set<Feature> bulkResolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+                    if (bulkResolvedFeatures != null) {
+                        armor.setFeatures(bulkResolvedFeatures);
                     }
 
                     if (request.getOriginalArmorId() != null) {
@@ -222,11 +223,9 @@ public class ArmorService {
         armor.setBaseSevereThreshold(request.getBaseSevereThreshold());
         armor.setBaseScore(request.getBaseScore());
 
-        Feature resolvedUpdateFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
-        if (resolvedUpdateFeature != null) {
-            armor.setFeature(resolvedUpdateFeature);
-        } else {
-            armor.setFeature(null);
+        Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedUpdateFeatures != null) {
+            armor.setFeatures(resolvedUpdateFeatures);
         }
 
         if (request.getOriginalArmorId() != null) {
@@ -311,8 +310,10 @@ public class ArmorService {
                 .lastModifiedAt(armor.getLastModifiedAt())
                 .deletedAt(armor.getDeletedAt());
 
-        if (armor.getFeature() != null) {
-            builder.featureId(armor.getFeature().getId());
+        if (armor.getFeatures() != null && !armor.getFeatures().isEmpty()) {
+            builder.featureIds(armor.getFeatures().stream()
+                    .map(Feature::getId)
+                    .collect(Collectors.toList()));
         }
 
         if (armor.getOriginalArmor() != null) {
@@ -331,18 +332,10 @@ public class ArmorService {
                     .build());
         }
 
-        if (expand.contains("feature") && armor.getFeature() != null) {
-            Feature feature = armor.getFeature();
-            builder.feature(FeatureResponse.builder()
-                    .id(feature.getId())
-                    .name(feature.getName())
-                    .description(feature.getDescription())
-                    .featureType(feature.getFeatureType())
-                    .expansionId(feature.getExpansion().getId())
-                    .createdAt(feature.getCreatedAt())
-                    .lastModifiedAt(feature.getLastModifiedAt())
-                    .deletedAt(feature.getDeletedAt())
-                    .build());
+        if (expand.contains("features") && armor.getFeatures() != null && !armor.getFeatures().isEmpty()) {
+            builder.features(armor.getFeatures().stream()
+                    .map(f -> featureService.toResponse(f, expand))
+                    .collect(Collectors.toList()));
         }
 
         if (expand.contains("originalArmor") && armor.getOriginalArmor() != null) {

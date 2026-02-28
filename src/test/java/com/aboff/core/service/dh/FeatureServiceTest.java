@@ -3,14 +3,18 @@ package com.aboff.core.service.dh;
 import com.aboff.core.model.dto.dh.request.CostTagInput;
 import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
 import com.aboff.core.model.dto.dh.request.FeatureInput;
+import com.aboff.core.model.dto.dh.request.FeatureModifierInput;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.model.enums.ModifierOperation;
+import com.aboff.core.model.enums.ModifierTarget;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -49,6 +53,9 @@ class FeatureServiceTest {
 
     @Mock
     private CardCostTagService cardCostTagService;
+
+    @Mock
+    private FeatureModifierService featureModifierService;
 
     @InjectMocks
     private FeatureService featureService;
@@ -879,6 +886,355 @@ class FeatureServiceTest {
         assertThat(result.getCostTags().get(0).getCategory()).isEqualTo(CostTagCategory.COST);
     }
 
+    // ==================== MODIFIER TESTS ====================
+
+    @Test
+    void createFeature_WithModifierIds_SetsModifiers() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(1L).target(ModifierTarget.STRENGTH).operation(ModifierOperation.ADD).value(1).build();
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansionId(1L)
+                .modifierIds(List.of(1L))
+                .build();
+
+        Feature savedFeature = Feature.builder()
+                .id(1L)
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansion(expansion)
+                .modifiers(Set.of(modifier))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureModifierService.resolveModifiers(eq(List.of(1L)), isNull())).thenReturn(Set.of(modifier));
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getModifierIds()).containsExactly(1L);
+        verify(featureModifierService).resolveModifiers(eq(List.of(1L)), isNull());
+    }
+
+    @Test
+    void createFeature_WithModifierInputs_ResolvesAndSetsModifiers() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(1L).target(ModifierTarget.EVASION).operation(ModifierOperation.ADD).value(-1).build();
+        List<FeatureModifierInput> modifierInputs = List.of(
+                FeatureModifierInput.builder()
+                        .target(ModifierTarget.EVASION)
+                        .operation(ModifierOperation.ADD)
+                        .value(-1)
+                        .build()
+        );
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Heavy Armor Training")
+                .description("Reduces evasion")
+                .featureType(FeatureType.CLASS)
+                .expansionId(1L)
+                .modifiers(modifierInputs)
+                .build();
+
+        Feature savedFeature = Feature.builder()
+                .id(1L)
+                .name("Heavy Armor Training")
+                .description("Reduces evasion")
+                .featureType(FeatureType.CLASS)
+                .expansion(expansion)
+                .modifiers(Set.of(modifier))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureModifierService.resolveModifiers(isNull(), eq(modifierInputs))).thenReturn(Set.of(modifier));
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getModifierIds()).containsExactly(1L);
+        verify(featureModifierService).resolveModifiers(isNull(), eq(modifierInputs));
+    }
+
+    @Test
+    void createFeature_WithBothModifierIdsAndInputs_MergesBoth() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier1 = FeatureModifier.builder()
+                .id(1L).target(ModifierTarget.STRENGTH).operation(ModifierOperation.ADD).value(1).build();
+        FeatureModifier modifier2 = FeatureModifier.builder()
+                .id(2L).target(ModifierTarget.EVASION).operation(ModifierOperation.ADD).value(-1).build();
+        List<FeatureModifierInput> modifierInputs = List.of(
+                FeatureModifierInput.builder()
+                        .target(ModifierTarget.EVASION)
+                        .operation(ModifierOperation.ADD)
+                        .value(-1)
+                        .build()
+        );
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Balanced Stance")
+                .description("Boosts strength, reduces evasion")
+                .featureType(FeatureType.CLASS)
+                .expansionId(1L)
+                .modifierIds(List.of(1L))
+                .modifiers(modifierInputs)
+                .build();
+
+        Feature savedFeature = Feature.builder()
+                .id(1L)
+                .name("Balanced Stance")
+                .description("Boosts strength, reduces evasion")
+                .featureType(FeatureType.CLASS)
+                .expansion(expansion)
+                .modifiers(Set.of(modifier1, modifier2))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureModifierService.resolveModifiers(eq(List.of(1L)), eq(modifierInputs)))
+                .thenReturn(Set.of(modifier1, modifier2));
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getModifierIds()).containsExactlyInAnyOrder(1L, 2L);
+        verify(featureModifierService).resolveModifiers(eq(List.of(1L)), eq(modifierInputs));
+    }
+
+    @Test
+    void updateFeature_WithModifiers_UpdatesModifiers() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(1L).target(ModifierTarget.STRENGTH).operation(ModifierOperation.ADD).value(1).build();
+
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansion(expansion)
+                .modifiers(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansionId(1L)
+                .modifierIds(List.of(1L))
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureModifierService.resolveModifiers(eq(List.of(1L)), isNull())).thenReturn(Set.of(modifier));
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getModifierIds()).containsExactly(1L);
+        verify(featureModifierService).resolveModifiers(eq(List.of(1L)), isNull());
+    }
+
+    @Test
+    void updateFeature_WithEmptyModifiers_ClearsModifiers() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(1L).target(ModifierTarget.STRENGTH).operation(ModifierOperation.ADD).value(1).build();
+
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansion(expansion)
+                .modifiers(new HashSet<>(Set.of(modifier)))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansionId(1L)
+                .modifierIds(List.of())
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureModifierService.resolveModifiers(eq(List.of()), isNull())).thenReturn(new HashSet<>());
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(featureModifierService).resolveModifiers(eq(List.of()), isNull());
+    }
+
+    @Test
+    void updateFeature_WithNullModifiers_DoesNotChangeModifiers() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(1L).target(ModifierTarget.STRENGTH).operation(ModifierOperation.ADD).value(1).build();
+
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansion(expansion)
+                .modifiers(new HashSet<>(Set.of(modifier)))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansionId(1L)
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureModifierService.resolveModifiers(isNull(), isNull())).thenReturn(null);
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getModifierIds()).containsExactly(1L);
+    }
+
+    @Test
+    void toResponse_IncludesModifierIdsAlways() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(5L).target(ModifierTarget.EVASION).operation(ModifierOperation.ADD).value(-1).build();
+
+        Feature feature = Feature.builder()
+                .id(1L)
+                .name("Heavy Armor Training")
+                .description("Reduces evasion")
+                .featureType(FeatureType.CLASS)
+                .expansion(expansion)
+                .modifiers(Set.of(modifier))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(feature));
+
+        // Act
+        FeatureResponse result = featureService.getFeatureById(1L, null);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getModifierIds()).containsExactly(5L);
+        assertThat(result.getModifiers()).isNull();
+    }
+
+    @Test
+    void toResponse_ExpandsModifiersWhenRequested() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(5L)
+                .target(ModifierTarget.EVASION)
+                .operation(ModifierOperation.ADD)
+                .value(-1)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Feature feature = Feature.builder()
+                .id(1L)
+                .name("Heavy Armor Training")
+                .description("Reduces evasion")
+                .featureType(FeatureType.CLASS)
+                .expansion(expansion)
+                .modifiers(Set.of(modifier))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(feature));
+
+        // Act
+        FeatureResponse result = featureService.getFeatureById(1L, "modifiers");
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getModifierIds()).containsExactly(5L);
+        assertThat(result.getModifiers()).isNotNull();
+        assertThat(result.getModifiers()).hasSize(1);
+        assertThat(result.getModifiers().get(0).getTarget()).isEqualTo(ModifierTarget.EVASION);
+        assertThat(result.getModifiers().get(0).getOperation()).isEqualTo(ModifierOperation.ADD);
+        assertThat(result.getModifiers().get(0).getValue()).isEqualTo(-1);
+    }
+
+    @Test
+    void findOrCreate_NoMatch_WithModifiers_CreatesWithModifiers() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(1L).target(ModifierTarget.STRENGTH).operation(ModifierOperation.ADD).value(1).build();
+        List<FeatureModifierInput> modifierInputs = List.of(
+                FeatureModifierInput.builder()
+                        .target(ModifierTarget.STRENGTH)
+                        .operation(ModifierOperation.ADD)
+                        .value(1)
+                        .build()
+        );
+        FeatureInput input = FeatureInput.builder()
+                .name("Mighty Leap").featureType(FeatureType.ANCESTRY).expansionId(1L)
+                .modifiers(modifierInputs).build();
+        Feature savedFeature = Feature.builder()
+                .id(10L).name("Mighty Leap").featureType(FeatureType.ANCESTRY)
+                .expansion(expansion).modifiers(Set.of(modifier)).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                "Mighty Leap", 1L, FeatureType.ANCESTRY))
+            .thenReturn(Optional.empty());
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureModifierService.resolveModifiers(isNull(), eq(modifierInputs))).thenReturn(Set.of(modifier));
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        Feature result = featureService.findOrCreate(input);
+
+        // Assert
+        assertThat(result.getModifiers()).hasSize(1);
+        verify(featureModifierService).resolveModifiers(isNull(), eq(modifierInputs));
+    }
+
     // ==================== BULK CREATE TESTS ====================
 
     @Test
@@ -971,6 +1327,40 @@ class FeatureServiceTest {
                 .hasMessage("Expansion not found with id: 999");
 
         verify(featureRepository, never()).saveAll(anyList());
+    }
+
+    @Test
+    void createFeaturesBulk_WithModifiers_ResolvesModifiersForEachFeature() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureModifier modifier = FeatureModifier.builder()
+                .id(1L).target(ModifierTarget.STRENGTH).operation(ModifierOperation.ADD).value(1).build();
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Mighty Presence")
+                .description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY)
+                .expansionId(1L)
+                .modifierIds(List.of(1L))
+                .build();
+
+        Feature savedFeature = Feature.builder()
+                .id(1L).name("Mighty Presence").description("Boosts strength")
+                .featureType(FeatureType.ANCESTRY).expansion(expansion)
+                .modifiers(Set.of(modifier)).createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureModifierService.resolveModifiers(eq(List.of(1L)), isNull())).thenReturn(Set.of(modifier));
+        when(featureRepository.saveAll(anyList())).thenReturn(List.of(savedFeature));
+
+        // Act
+        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request));
+
+        // Assert
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getModifierIds()).containsExactly(1L);
+        verify(featureModifierService).resolveModifiers(eq(List.of(1L)), isNull());
     }
 
     // ==================== FIND OR CREATE TESTS ====================

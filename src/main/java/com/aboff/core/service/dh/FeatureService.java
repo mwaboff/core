@@ -4,11 +4,13 @@ import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
+import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
@@ -43,6 +45,7 @@ public class FeatureService {
     private final FeatureRepository featureRepository;
     private final ExpansionRepository expansionRepository;
     private final CardCostTagService cardCostTagService;
+    private final FeatureModifierService featureModifierService;
 
     /**
      * Retrieves a paginated list of features.
@@ -130,6 +133,13 @@ public class FeatureService {
             feature.setCostTags(resolvedTags);
         }
 
+        // Set modifiers if provided
+        Set<FeatureModifier> resolvedModifiers = featureModifierService.resolveModifiers(
+                request.getModifierIds(), request.getModifiers());
+        if (resolvedModifiers != null) {
+            feature.setModifiers(resolvedModifiers);
+        }
+
         Feature savedFeature = featureRepository.save(feature);
         log.info("Created feature with id: {}", savedFeature.getId());
 
@@ -163,6 +173,13 @@ public class FeatureService {
         Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
         if (resolvedTags != null) {
             feature.setCostTags(resolvedTags);
+        }
+
+        // Update modifiers
+        Set<FeatureModifier> resolvedModifiers = featureModifierService.resolveModifiers(
+                request.getModifierIds(), request.getModifiers());
+        if (resolvedModifiers != null) {
+            feature.setModifiers(resolvedModifiers);
         }
 
         Feature updatedFeature = featureRepository.save(feature);
@@ -242,6 +259,12 @@ public class FeatureService {
                         feature.setCostTags(bulkResolvedTags);
                     }
 
+                    Set<FeatureModifier> bulkResolvedModifiers = featureModifierService.resolveModifiers(
+                            request.getModifierIds(), request.getModifiers());
+                    if (bulkResolvedModifiers != null) {
+                        feature.setModifiers(bulkResolvedModifiers);
+                    }
+
                     return feature;
                 })
                 .toList();
@@ -288,6 +311,11 @@ public class FeatureService {
                             input.getCostTagIds(), input.getCostTags());
                     if (resolvedTags != null) {
                         feature.setCostTags(resolvedTags);
+                    }
+                    Set<FeatureModifier> resolvedModifiers = featureModifierService.resolveModifiers(
+                            input.getModifierIds(), input.getModifiers());
+                    if (resolvedModifiers != null) {
+                        feature.setModifiers(resolvedModifiers);
                     }
                     return featureRepository.save(feature);
                 });
@@ -360,7 +388,7 @@ public class FeatureService {
      * @param expand Set of relationships to expand
      * @return FeatureResponse DTO
      */
-    private FeatureResponse toResponse(Feature feature, Set<String> expand) {
+    public FeatureResponse toResponse(Feature feature, Set<String> expand) {
         FeatureResponse.FeatureResponseBuilder builder = FeatureResponse.builder()
                 .id(feature.getId())
                 .name(feature.getName())
@@ -400,6 +428,28 @@ public class FeatureService {
                             .createdAt(tag.getCreatedAt())
                             .lastModifiedAt(tag.getLastModifiedAt())
                             .deletedAt(tag.getDeletedAt())
+                            .build())
+                    .collect(Collectors.toList()));
+        }
+
+        // Always include modifier IDs
+        if (feature.getModifiers() != null) {
+            builder.modifierIds(feature.getModifiers().stream()
+                    .map(FeatureModifier::getId)
+                    .collect(Collectors.toList()));
+        }
+
+        // Expand modifiers if requested
+        if (expand.contains("modifiers") && feature.getModifiers() != null) {
+            builder.modifiers(feature.getModifiers().stream()
+                    .map(modifier -> FeatureModifierResponse.builder()
+                            .id(modifier.getId())
+                            .target(modifier.getTarget())
+                            .operation(modifier.getOperation())
+                            .value(modifier.getValue())
+                            .createdAt(modifier.getCreatedAt())
+                            .lastModifiedAt(modifier.getLastModifiedAt())
+                            .deletedAt(modifier.getDeletedAt())
                             .build())
                     .collect(Collectors.toList()));
         }

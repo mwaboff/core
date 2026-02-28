@@ -6,6 +6,7 @@ import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.LootResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.LootRepository;
@@ -24,6 +25,7 @@ import com.aboff.core.util.ExpandUtil;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing Loot entities.
@@ -36,6 +38,7 @@ public class LootService {
 
     private final LootRepository lootRepository;
     private final ExpansionRepository expansionRepository;
+    private final FeatureService featureService;
 
     /**
      * Retrieves a paginated list of loot items.
@@ -125,6 +128,11 @@ public class LootService {
                 .description(request.getDescription())
                 .build();
 
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedFeatures != null) {
+            loot.setFeatures(resolvedFeatures);
+        }
+
         if (request.getOriginalLootId() != null) {
             Loot originalLoot = lootRepository.findByIdAndDeletedAtIsNull(request.getOriginalLootId())
                     .orElseThrow(() -> new EntityNotFoundException(
@@ -162,6 +170,11 @@ public class LootService {
                             .isConsumable(request.getIsConsumable())
                             .description(request.getDescription())
                             .build();
+
+                    Set<Feature> bulkResolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+                    if (bulkResolvedFeatures != null) {
+                        loot.setFeatures(bulkResolvedFeatures);
+                    }
 
                     if (request.getOriginalLootId() != null) {
                         Loot originalLoot = lootRepository.findByIdAndDeletedAtIsNull(request.getOriginalLootId())
@@ -207,6 +220,11 @@ public class LootService {
         loot.setIsOfficial(request.getIsOfficial());
         loot.setIsConsumable(request.getIsConsumable());
         loot.setDescription(request.getDescription());
+
+        Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedUpdateFeatures != null) {
+            loot.setFeatures(resolvedUpdateFeatures);
+        }
 
         if (request.getOriginalLootId() != null) {
             Loot originalLoot = lootRepository.findByIdAndDeletedAtIsNull(request.getOriginalLootId())
@@ -289,6 +307,12 @@ public class LootService {
                 .lastModifiedAt(loot.getLastModifiedAt())
                 .deletedAt(loot.getDeletedAt());
 
+        if (loot.getFeatures() != null && !loot.getFeatures().isEmpty()) {
+            builder.featureIds(loot.getFeatures().stream()
+                    .map(Feature::getId)
+                    .collect(Collectors.toList()));
+        }
+
         if (loot.getOriginalLoot() != null) {
             builder.originalLootId(loot.getOriginalLoot().getId());
         }
@@ -303,6 +327,12 @@ public class LootService {
                     .lastModifiedAt(expansion.getLastModifiedAt())
                     .deletedAt(expansion.getDeletedAt())
                     .build());
+        }
+
+        if (expand.contains("features") && loot.getFeatures() != null && !loot.getFeatures().isEmpty()) {
+            builder.features(loot.getFeatures().stream()
+                    .map(f -> featureService.toResponse(f, expand))
+                    .collect(Collectors.toList()));
         }
 
         if (expand.contains("originalLoot") && loot.getOriginalLoot() != null) {

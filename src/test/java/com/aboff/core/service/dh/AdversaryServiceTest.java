@@ -7,6 +7,8 @@ import com.aboff.core.model.dto.dh.request.UpdateAdversaryRequest;
 import com.aboff.core.model.dto.dh.response.AdversaryResponse;
 import com.aboff.core.model.dto.dh.response.BatchCreateAdversaryResponse;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
+import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.User;
@@ -15,6 +17,7 @@ import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.enums.*;
 import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
@@ -41,6 +44,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -1426,6 +1430,33 @@ class AdversaryServiceTest {
         adversary.setFeatures(new HashSet<>(Set.of(feature)));
 
         when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         AdversaryResponse result = adversaryService.getAdversaryById(1L, "features", authentication);
@@ -1465,6 +1496,33 @@ class AdversaryServiceTest {
         adversary.setFeatures(new HashSet<>(Set.of(feature)));
 
         when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         AdversaryResponse result = adversaryService.getAdversaryById(1L, "expansion,creator,features", authentication);
@@ -1502,6 +1560,33 @@ class AdversaryServiceTest {
         adversary.setFeatures(new HashSet<>(Set.of(feature)));
 
         when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         AdversaryResponse result = adversaryService.getAdversaryById(1L, "features,costTags", authentication);
@@ -1545,6 +1630,33 @@ class AdversaryServiceTest {
         adversary.setFeatures(new HashSet<>(Set.of(feature)));
 
         when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         AdversaryResponse result = adversaryService.getAdversaryById(1L, "features", authentication);
@@ -1576,6 +1688,33 @@ class AdversaryServiceTest {
         adversary.setFeatures(new HashSet<>(Set.of(feature)));
 
         when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         AdversaryResponse result = adversaryService.getAdversaryById(1L, "features,costTags", authentication);
@@ -1607,6 +1746,33 @@ class AdversaryServiceTest {
         adversary.setFeatures(new HashSet<>(Set.of(feature)));
 
         when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         AdversaryResponse result = adversaryService.getAdversaryById(1L, "features,costTags", authentication);

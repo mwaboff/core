@@ -29,7 +29,16 @@
     "tier": 1,
     "isOfficial": true,
     "isConsumable": false,
-    "description": "A set of fine metal picks and tension wrenches used to open locks."
+    "description": "A set of fine metal picks and tension wrenches used to open locks.",
+    "features": [{
+      "name": "Precision Tools",
+      "description": "When you make a Finesse roll to pick a lock, you may add +1 to your result.",
+      "featureType": "ITEM",
+      "expansionId": 1,
+      "modifiers": [
+        { "target": "FINESSE", "operation": "ADD", "value": 1 }
+      ]
+    }]
   },
   {
     "name": "Adventurer's Pack",
@@ -45,7 +54,16 @@
     "tier": 1,
     "isOfficial": true,
     "isConsumable": false,
-    "description": "A dark gemstone that pulses faintly with an inner light. Its purpose is unknown."
+    "description": "A dark gemstone that pulses faintly with an inner light. Its purpose is unknown.",
+    "features": [{
+      "name": "Eldritch Resonance",
+      "description": "While holding this gemstone, you feel a connection to arcane forces. Add +1 to Knowledge rolls.",
+      "featureType": "ITEM",
+      "expansionId": 1,
+      "modifiers": [
+        { "target": "KNOWLEDGE", "operation": "ADD", "value": 1 }
+      ]
+    }]
   },
   {
     "name": "Antidote",

@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -9,6 +10,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 /**
  * Request DTO for creating a new Loot item.
@@ -56,6 +59,17 @@ public class CreateLootRequest {
      * Optional description of the loot item.
      */
     private String description;
+
+    /**
+     * Optional list of existing feature IDs to associate with this loot.
+     */
+    private List<Long> featureIds;
+
+    /**
+     * Optional list of features to find or create inline.
+     */
+    @Valid
+    private List<FeatureInput> features;
 
     /**
      * Optional ID of the original loot if this is a custom copy.

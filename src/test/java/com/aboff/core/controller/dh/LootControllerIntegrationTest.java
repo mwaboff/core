@@ -5,11 +5,14 @@ import com.aboff.core.model.dto.dh.request.UpdateLootRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
+import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.repository.dh.LootRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -59,6 +62,9 @@ class LootControllerIntegrationTest {
 
     @Autowired
     private ExpansionRepository expansionRepository;
+
+    @Autowired
+    private FeatureRepository featureRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -421,6 +427,112 @@ class LootControllerIntegrationTest {
         mockMvc.perform(post("/api/dh/loot/{id}/restore", 99999L)
                         .cookie(new Cookie("AUTH_TOKEN", adminToken)))
                 .andExpect(status().isNotFound());
+    }
+
+    // ==================== FEATURE TESTS ====================
+
+    @Test
+    void createLoot_WithFeatureIds_Returns201WithFeatures() throws Exception {
+        // Arrange
+        Feature feature = Feature.builder()
+                .name("Healing Aura")
+                .description("Grants healing over time")
+                .featureType(FeatureType.OTHER)
+                .expansion(testExpansion)
+                .build();
+        feature = featureRepository.save(feature);
+
+        CreateLootRequest request = CreateLootRequest.builder()
+                .name("Healing Crystal")
+                .expansionId(testExpansion.getId())
+                .tier(2)
+                .isOfficial(true)
+                .isConsumable(false)
+                .description("A crystal that heals")
+                .featureIds(List.of(feature.getId()))
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/loot")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.name").value("Healing Crystal"))
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1))
+                .andExpect(jsonPath("$.featureIds[0]").value(feature.getId()));
+    }
+
+    @Test
+    void createLoot_WithInlineFeature_Returns201AndCreatesFeature() throws Exception {
+        // Arrange
+        String requestJson = """
+            {
+                "name": "Magic Ring",
+                "expansionId": %d,
+                "tier": 2,
+                "isOfficial": true,
+                "isConsumable": false,
+                "description": "A ring with magical properties",
+                "features": [
+                    {
+                        "name": "Protection Aura",
+                        "description": "Grants minor protection",
+                        "featureType": "ITEM",
+                        "expansionId": %d
+                    }
+                ]
+            }
+            """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/loot")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1));
+
+        List<Feature> features = featureRepository.findAll();
+        assertThat(features).hasSize(1);
+        assertThat(features.get(0).getName()).isEqualTo("Protection Aura");
+    }
+
+    @Test
+    void getLootById_WithExpandFeatures_ReturnsFullFeatures() throws Exception {
+        // Arrange
+        Feature feature = Feature.builder()
+                .name("Lucky Charm")
+                .description("Grants luck")
+                .featureType(FeatureType.OTHER)
+                .expansion(testExpansion)
+                .build();
+        feature = featureRepository.save(feature);
+
+        Loot loot = Loot.builder()
+                .name("Lucky Coin")
+                .expansion(testExpansion)
+                .tier(1)
+                .isOfficial(true)
+                .isConsumable(false)
+                .description("A coin that brings luck")
+                .features(new java.util.HashSet<>(java.util.Set.of(feature)))
+                .build();
+        loot = lootRepository.save(loot);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/loot/{id}", loot.getId())
+                        .param("expand", "features")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1))
+                .andExpect(jsonPath("$.features").isArray())
+                .andExpect(jsonPath("$.features.length()").value(1))
+                .andExpect(jsonPath("$.features[0].name").value("Lucky Charm"));
     }
 
     // ==================== HELPER METHODS ====================

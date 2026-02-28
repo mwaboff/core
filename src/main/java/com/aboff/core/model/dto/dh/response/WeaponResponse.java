@@ -12,6 +12,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Response DTO for Weapon entities.
@@ -19,9 +20,9 @@ import java.time.LocalDateTime;
  * <p>
  * Supports expansion via the ?expand parameter:
  * <ul>
- *   <li>By default: returns expansionId, featureId, originalWeaponId only</li>
+ *   <li>By default: returns expansionId, featureIds, originalWeaponId only</li>
  *   <li>With ?expand=expansion: includes full expansion object</li>
- *   <li>With ?expand=feature: includes full feature object</li>
+ *   <li>With ?expand=features: includes full feature objects</li>
  *   <li>With ?expand=originalWeapon: includes full original weapon object</li>
  * </ul>
  * </p>
@@ -89,14 +90,14 @@ public class WeaponResponse {
     private DamageRollResponse damage;
 
     /**
-     * ID of the feature granted by this weapon (null if none).
+     * IDs of features granted by this weapon (null if none).
      */
-    private Long featureId;
+    private List<Long> featureIds;
 
     /**
-     * Full feature object (included only when ?expand=feature is specified).
+     * Full feature objects (included only when ?expand=features is specified).
      */
-    private FeatureResponse feature;
+    private List<FeatureResponse> features;
 
     /**
      * ID of the original weapon if this is a custom copy (null if original).
