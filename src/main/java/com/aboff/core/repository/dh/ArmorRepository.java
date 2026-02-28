@@ -28,10 +28,12 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
      */
     @Query("SELECT a FROM Armor a WHERE a.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR a.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
+           "AND (:tier IS NULL OR a.tier = :tier)")
     Page<Armor> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("tier") Integer tier,
             Pageable pageable);
 
     /**
@@ -44,10 +46,12 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
      */
     @Query("SELECT a FROM Armor a WHERE " +
            "(:expansionId IS NULL OR a.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
+           "AND (:tier IS NULL OR a.tier = :tier)")
     Page<Armor> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("tier") Integer tier,
             Pageable pageable);
 
     /**

@@ -62,11 +62,11 @@ class WeaponServiceTest {
         weapon2.setTrait(Trait.FINESSE);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon1, weapon2));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -84,16 +84,16 @@ class WeaponServiceTest {
         Weapon weapon = createTestWeapon(1L, "Longsword", expansion);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, Trait.STRENGTH, null, null, null, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, Trait.STRENGTH, null, null, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getTrait()).isEqualTo(Trait.STRENGTH);
-        verify(weaponRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(weaponRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -105,11 +105,11 @@ class WeaponServiceTest {
         weapon.setRange(Range.FAR);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(Range.FAR), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(Range.FAR), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, Range.FAR, null, null, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, Range.FAR, null, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -120,15 +120,15 @@ class WeaponServiceTest {
     void getAllWeapons_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Weapon> weaponPage = new PageImpl<>(List.of());
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        weaponService.getAllWeapons(0, 500, false, null, null, null, null, null, null, null);
+        weaponService.getAllWeapons(0, 500, false, null, null, null, null, null, null, null, null);
 
         // Assert
         verify(weaponRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -143,11 +143,11 @@ class WeaponServiceTest {
         weapon.setFeature(feature);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, "expansion,feature");
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, "expansion,feature");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -200,6 +200,7 @@ class WeaponServiceTest {
         CreateWeaponRequest request = CreateWeaponRequest.builder()
                 .name("Longsword")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -264,6 +265,7 @@ class WeaponServiceTest {
         CreateWeaponRequest request = CreateWeaponRequest.builder()
                 .name("Magic Sword")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -300,6 +302,7 @@ class WeaponServiceTest {
         CreateWeaponRequest request1 = CreateWeaponRequest.builder()
                 .name("Longsword")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -314,6 +317,7 @@ class WeaponServiceTest {
         CreateWeaponRequest request2 = CreateWeaponRequest.builder()
                 .name("Shortbow")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.FINESSE)
@@ -355,6 +359,7 @@ class WeaponServiceTest {
         UpdateWeaponRequest request = UpdateWeaponRequest.builder()
                 .name("Updated Name")
                 .expansionId(1L)
+                .tier(2)
                 .isOfficial(true)
                 .isPrimary(false)
                 .trait(Trait.AGILITY)
@@ -390,6 +395,7 @@ class WeaponServiceTest {
         UpdateWeaponRequest request = UpdateWeaponRequest.builder()
                 .name("Updated Name")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -501,6 +507,7 @@ class WeaponServiceTest {
         CreateWeaponRequest request = CreateWeaponRequest.builder()
                 .name("Magic Staff")
                 .expansionId(1L)
+                .tier(2)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.KNOWLEDGE)
@@ -518,6 +525,7 @@ class WeaponServiceTest {
                 .id(1L)
                 .name("Magic Staff")
                 .expansion(expansion)
+                .tier(2)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.KNOWLEDGE)
@@ -552,6 +560,7 @@ class WeaponServiceTest {
                 .id(id)
                 .name(name)
                 .expansion(expansion)
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)

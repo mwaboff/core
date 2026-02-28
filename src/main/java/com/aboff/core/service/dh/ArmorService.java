@@ -48,6 +48,7 @@ public class ArmorService {
      * @param includeDeleted Whether to include soft-deleted armors
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param tier Optional filter for armor tier (1–4)
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing armors
      */
@@ -58,6 +59,7 @@ public class ArmorService {
             boolean includeDeleted,
             Long expansionId,
             Boolean isOfficial,
+            Integer tier,
             String expand) {
 
         size = Math.min(size, 100);
@@ -65,9 +67,9 @@ public class ArmorService {
         Page<Armor> armorPage;
 
         if (includeDeleted) {
-            armorPage = armorRepository.findAllWithFilters(expansionId, isOfficial, pageable);
+            armorPage = armorRepository.findAllWithFilters(expansionId, isOfficial, tier, pageable);
         } else {
-            armorPage = armorRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
+            armorPage = armorRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, tier, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -118,6 +120,7 @@ public class ArmorService {
         Armor armor = Armor.builder()
                 .name(request.getName())
                 .expansion(expansion)
+                .tier(request.getTier())
                 .isOfficial(request.getIsOfficial())
                 .baseMajorThreshold(request.getBaseMajorThreshold())
                 .baseSevereThreshold(request.getBaseSevereThreshold())
@@ -161,6 +164,7 @@ public class ArmorService {
                     Armor armor = Armor.builder()
                             .name(request.getName())
                             .expansion(expansion)
+                            .tier(request.getTier())
                             .isOfficial(request.getIsOfficial())
                             .baseMajorThreshold(request.getBaseMajorThreshold())
                             .baseSevereThreshold(request.getBaseSevereThreshold())
@@ -212,6 +216,7 @@ public class ArmorService {
 
         armor.setName(request.getName());
         armor.setExpansion(expansion);
+        armor.setTier(request.getTier());
         armor.setIsOfficial(request.getIsOfficial());
         armor.setBaseMajorThreshold(request.getBaseMajorThreshold());
         armor.setBaseSevereThreshold(request.getBaseSevereThreshold());
@@ -297,6 +302,7 @@ public class ArmorService {
                 .id(armor.getId())
                 .name(armor.getName())
                 .expansionId(armor.getExpansion().getId())
+                .tier(armor.getTier())
                 .isOfficial(armor.getIsOfficial())
                 .baseMajorThreshold(armor.getBaseMajorThreshold())
                 .baseSevereThreshold(armor.getBaseSevereThreshold())

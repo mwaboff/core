@@ -37,6 +37,7 @@ public class ArmorController {
      * @param includeDeleted Whether to include soft-deleted armors (default: false, ADMIN+ only)
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param tier Optional filter for armor tier (1–4)
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,feature,originalArmor")
      * @return Paginated response containing armors
      */
@@ -47,10 +48,11 @@ public class ArmorController {
             @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(required = false) Long expansionId,
             @RequestParam(required = false) Boolean isOfficial,
+            @RequestParam(required = false) Integer tier,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<ArmorResponse> response = armorService.getAllArmors(
-                page, size, includeDeleted, expansionId, isOfficial, expand);
+                page, size, includeDeleted, expansionId, isOfficial, tier, expand);
 
         return ResponseEntity.ok(response);
     }

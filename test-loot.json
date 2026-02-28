@@ -1,0 +1,66 @@
+[
+  {
+    "name": "Healing Potion",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isConsumable": true,
+    "description": "A small vial of glowing red liquid. When consumed, heal 1d8 hit points."
+  },
+  {
+    "name": "Rope (50 ft)",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isConsumable": false,
+    "description": "A sturdy hempen rope, useful for climbing, binding, or securing objects."
+  },
+  {
+    "name": "Torch",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isConsumable": true,
+    "description": "A wooden torch that provides bright light in a close radius for one hour."
+  },
+  {
+    "name": "Lockpicking Tools",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isConsumable": false,
+    "description": "A set of fine metal picks and tension wrenches used to open locks."
+  },
+  {
+    "name": "Adventurer's Pack",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isConsumable": false,
+    "description": "A sturdy backpack containing bedroll, rations, waterskin, flint and steel, and a small knife."
+  },
+  {
+    "name": "Mysterious Gemstone",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isConsumable": false,
+    "description": "A dark gemstone that pulses faintly with an inner light. Its purpose is unknown."
+  },
+  {
+    "name": "Antidote",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isConsumable": true,
+    "description": "A small vial of bitter liquid that neutralizes most common poisons when consumed."
+  },
+  {
+    "name": "Map Fragment",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isConsumable": false,
+    "description": "A torn piece of parchment showing part of an unfamiliar region. Could lead to treasure or danger."
+  }
+]

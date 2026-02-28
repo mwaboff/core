@@ -26,6 +26,7 @@ public interface DomainCardRepository extends JpaRepository<DomainCard, Long> {
      * @param isOfficial Optional filter for official status
      * @param associatedDomainId Optional filter for associated domain ID
      * @param type Optional filter for domain card type
+     * @param level Optional filter for card level
      * @param pageable Pagination information
      * @return Page of non-deleted domain cards matching the criteria
      */
@@ -33,12 +34,14 @@ public interface DomainCardRepository extends JpaRepository<DomainCard, Long> {
            "AND (:expansionId IS NULL OR d.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial) " +
            "AND (:associatedDomainId IS NULL OR d.associatedDomain.id = :associatedDomainId) " +
-           "AND (:type IS NULL OR d.type = :type)")
+           "AND (:type IS NULL OR d.type = :type) " +
+           "AND (:level IS NULL OR d.level = :level)")
     Page<DomainCard> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("associatedDomainId") Long associatedDomainId,
             @Param("type") DomainCardType type,
+            @Param("level") Integer level,
             Pageable pageable);
 
     /**
@@ -48,6 +51,7 @@ public interface DomainCardRepository extends JpaRepository<DomainCard, Long> {
      * @param isOfficial Optional filter for official status
      * @param associatedDomainId Optional filter for associated domain ID
      * @param type Optional filter for domain card type
+     * @param level Optional filter for card level
      * @param pageable Pagination information
      * @return Page of all domain cards matching the criteria
      */
@@ -55,12 +59,14 @@ public interface DomainCardRepository extends JpaRepository<DomainCard, Long> {
            "(:expansionId IS NULL OR d.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial) " +
            "AND (:associatedDomainId IS NULL OR d.associatedDomain.id = :associatedDomainId) " +
-           "AND (:type IS NULL OR d.type = :type)")
+           "AND (:type IS NULL OR d.type = :type) " +
+           "AND (:level IS NULL OR d.level = :level)")
     Page<DomainCard> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("associatedDomainId") Long associatedDomainId,
             @Param("type") DomainCardType type,
+            @Param("level") Integer level,
             Pageable pageable);
 
     /**

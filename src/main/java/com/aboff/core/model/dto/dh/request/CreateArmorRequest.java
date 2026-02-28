@@ -1,6 +1,8 @@
 package com.aboff.core.model.dto.dh.request;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -32,6 +34,14 @@ public class CreateArmorRequest {
      */
     @NotNull(message = "Expansion ID is required")
     private Long expansionId;
+
+    /**
+     * The tier level of the armor (1–4).
+     */
+    @NotNull(message = "Tier is required")
+    @Min(value = 1, message = "Tier must be at least 1")
+    @Max(value = 4, message = "Tier must be at most 4")
+    private Integer tier;
 
     /**
      * Whether this armor is from official game content.

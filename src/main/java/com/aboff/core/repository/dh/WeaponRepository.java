@@ -39,7 +39,8 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
            "AND (:trait IS NULL OR w.trait = :trait) " +
            "AND (:range IS NULL OR w.range = :range) " +
            "AND (:burden IS NULL OR w.burden = :burden) " +
-           "AND (:isPrimary IS NULL OR w.isPrimary = :isPrimary)")
+           "AND (:isPrimary IS NULL OR w.isPrimary = :isPrimary) " +
+           "AND (:tier IS NULL OR w.tier = :tier)")
     Page<Weapon> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
@@ -47,6 +48,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
             @Param("range") Range range,
             @Param("burden") Burden burden,
             @Param("isPrimary") Boolean isPrimary,
+            @Param("tier") Integer tier,
             Pageable pageable);
 
     /**
@@ -67,7 +69,8 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
            "AND (:trait IS NULL OR w.trait = :trait) " +
            "AND (:range IS NULL OR w.range = :range) " +
            "AND (:burden IS NULL OR w.burden = :burden) " +
-           "AND (:isPrimary IS NULL OR w.isPrimary = :isPrimary)")
+           "AND (:isPrimary IS NULL OR w.isPrimary = :isPrimary) " +
+           "AND (:tier IS NULL OR w.tier = :tier)")
     Page<Weapon> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
@@ -75,6 +78,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
             @Param("range") Range range,
             @Param("burden") Burden burden,
             @Param("isPrimary") Boolean isPrimary,
+            @Param("tier") Integer tier,
             Pageable pageable);
 
     /**

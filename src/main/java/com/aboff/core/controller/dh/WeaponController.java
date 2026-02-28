@@ -44,6 +44,7 @@ public class WeaponController {
      * @param range Optional filter for weapon range
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
+     * @param tier Optional filter for weapon tier (1–4)
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,feature,originalWeapon")
      * @return Paginated response containing weapons
      */
@@ -58,10 +59,11 @@ public class WeaponController {
             @RequestParam(required = false) Range range,
             @RequestParam(required = false) Burden burden,
             @RequestParam(required = false) Boolean isPrimary,
+            @RequestParam(required = false) Integer tier,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<WeaponResponse> response = weaponService.getAllWeapons(
-                page, size, includeDeleted, expansionId, isOfficial, trait, range, burden, isPrimary, expand);
+                page, size, includeDeleted, expansionId, isOfficial, trait, range, burden, isPrimary, tier, expand);
 
         return ResponseEntity.ok(response);
     }

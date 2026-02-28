@@ -191,6 +191,7 @@ class WeaponControllerIntegrationTest {
         CreateWeaponRequest request = CreateWeaponRequest.builder()
                 .name("Longsword")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -224,6 +225,7 @@ class WeaponControllerIntegrationTest {
         CreateWeaponRequest request = CreateWeaponRequest.builder()
                 .name("Longsword")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -253,6 +255,7 @@ class WeaponControllerIntegrationTest {
         CreateWeaponRequest request1 = CreateWeaponRequest.builder()
                 .name("Longsword")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -266,6 +269,7 @@ class WeaponControllerIntegrationTest {
         CreateWeaponRequest request2 = CreateWeaponRequest.builder()
                 .name("Shortbow")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.FINESSE)
@@ -296,6 +300,7 @@ class WeaponControllerIntegrationTest {
         CreateWeaponRequest request = CreateWeaponRequest.builder()
                 .name("Longsword")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -325,6 +330,7 @@ class WeaponControllerIntegrationTest {
         UpdateWeaponRequest request = UpdateWeaponRequest.builder()
                 .name("Greater Longsword")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -357,6 +363,7 @@ class WeaponControllerIntegrationTest {
         UpdateWeaponRequest request = UpdateWeaponRequest.builder()
                 .name("Greater Longsword")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -382,6 +389,7 @@ class WeaponControllerIntegrationTest {
         UpdateWeaponRequest request = UpdateWeaponRequest.builder()
                 .name("Greater Longsword")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
                 .isPrimary(true)
                 .trait(Trait.STRENGTH)
@@ -488,6 +496,7 @@ class WeaponControllerIntegrationTest {
                 "name": "Flaming Sword",
                 "description": "A sword wreathed in flame",
                 "expansionId": %d,
+                "tier": 1,
                 "isOfficial": true,
                 "isPrimary": true,
                 "trait": "STRENGTH",
@@ -536,6 +545,7 @@ class WeaponControllerIntegrationTest {
             {
                 "name": "Precedence Sword",
                 "expansionId": %d,
+                "tier": 1,
                 "isOfficial": true,
                 "isPrimary": true,
                 "trait": "STRENGTH",
@@ -570,6 +580,7 @@ class WeaponControllerIntegrationTest {
             {
                 "name": "Tagged Weapon",
                 "expansionId": %d,
+                "tier": 1,
                 "isOfficial": true,
                 "isPrimary": true,
                 "trait": "FINESSE",
@@ -610,6 +621,7 @@ class WeaponControllerIntegrationTest {
             {
                 "name": "Updated Weapon",
                 "expansionId": %d,
+                "tier": 1,
                 "isOfficial": true,
                 "isPrimary": true,
                 "trait": "STRENGTH",
@@ -672,9 +684,15 @@ class WeaponControllerIntegrationTest {
 
     private Weapon createWeapon(String name, Expansion expansion, Boolean isOfficial, Boolean isPrimary,
                                 Trait trait, Range range, Burden burden) {
+        return createWeapon(name, expansion, isOfficial, isPrimary, trait, range, burden, 1);
+    }
+
+    private Weapon createWeapon(String name, Expansion expansion, Boolean isOfficial, Boolean isPrimary,
+                                Trait trait, Range range, Burden burden, Integer tier) {
         Weapon weapon = Weapon.builder()
                 .name(name)
                 .expansion(expansion)
+                .tier(tier)
                 .isOfficial(isOfficial)
                 .isPrimary(isPrimary)
                 .trait(trait)
