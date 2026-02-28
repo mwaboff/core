@@ -60,11 +60,11 @@ class ArmorServiceTest {
         armor2.setBaseScore(3);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor1, armor2));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null);
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -82,31 +82,31 @@ class ArmorServiceTest {
         Armor armor = createTestArmor(1L, "Leather Armor", expansion);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
+        when(armorRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, 1L, null, null);
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, 1L, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(armorRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
+        verify(armorRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
     void getAllArmors_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Armor> armorPage = new PageImpl<>(List.of());
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        armorService.getAllArmors(0, 500, false, null, null, null);
+        armorService.getAllArmors(0, 500, false, null, null, null, null);
 
         // Assert
         verify(armorRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(),
+                isNull(), isNull(), isNull(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -121,11 +121,11 @@ class ArmorServiceTest {
         armor.setFeature(feature);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, "expansion,feature");
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, "expansion,feature");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -179,6 +179,7 @@ class ArmorServiceTest {
         CreateArmorRequest request = CreateArmorRequest.builder()
                 .name("Leather Armor")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
                 .baseMajorThreshold(5)
                 .baseSevereThreshold(10)
@@ -231,6 +232,7 @@ class ArmorServiceTest {
         CreateArmorRequest request = CreateArmorRequest.builder()
                 .name("Magic Shield")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
                 .baseMajorThreshold(7)
                 .baseSevereThreshold(14)
@@ -262,6 +264,7 @@ class ArmorServiceTest {
         CreateArmorRequest request1 = CreateArmorRequest.builder()
                 .name("Leather Armor")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
                 .baseMajorThreshold(5)
                 .baseSevereThreshold(10)
@@ -271,6 +274,7 @@ class ArmorServiceTest {
         CreateArmorRequest request2 = CreateArmorRequest.builder()
                 .name("Plate Mail")
                 .expansionId(1L)
+                .tier(2)
                 .isOfficial(true)
                 .baseMajorThreshold(8)
                 .baseSevereThreshold(16)
@@ -306,6 +310,7 @@ class ArmorServiceTest {
         UpdateArmorRequest request = UpdateArmorRequest.builder()
                 .name("Updated Name")
                 .expansionId(1L)
+                .tier(2)
                 .isOfficial(true)
                 .baseMajorThreshold(7)
                 .baseSevereThreshold(14)
@@ -333,6 +338,7 @@ class ArmorServiceTest {
         UpdateArmorRequest request = UpdateArmorRequest.builder()
                 .name("Updated Name")
                 .expansionId(1L)
+                .tier(2)
                 .isOfficial(true)
                 .baseMajorThreshold(5)
                 .baseSevereThreshold(10)
@@ -436,6 +442,7 @@ class ArmorServiceTest {
                 .id(id)
                 .name(name)
                 .expansion(expansion)
+                .tier(1)
                 .isOfficial(true)
                 .baseMajorThreshold(5)
                 .baseSevereThreshold(10)

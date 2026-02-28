@@ -1,0 +1,1 @@
+ALTER TABLE loot ADD COLUMN is_consumable BOOLEAN NOT NULL DEFAULT false;

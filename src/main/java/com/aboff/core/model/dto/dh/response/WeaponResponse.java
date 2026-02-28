@@ -54,6 +54,11 @@ public class WeaponResponse {
     private ExpansionResponse expansion;
 
     /**
+     * The tier level of the weapon (1–4).
+     */
+    private Integer tier;
+
+    /**
      * Whether this weapon is from official game content.
      */
     private Boolean isOfficial;

@@ -45,6 +45,8 @@ public class LootService {
      * @param includeDeleted Whether to include soft-deleted loot
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param tier Optional filter for loot tier (1–4)
+     * @param isConsumable Optional filter for consumable status
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing loot items
      */
@@ -55,6 +57,8 @@ public class LootService {
             boolean includeDeleted,
             Long expansionId,
             Boolean isOfficial,
+            Integer tier,
+            Boolean isConsumable,
             String expand) {
 
         size = Math.min(size, 100);
@@ -62,9 +66,9 @@ public class LootService {
         Page<Loot> lootPage;
 
         if (includeDeleted) {
-            lootPage = lootRepository.findAllWithFilters(expansionId, isOfficial, pageable);
+            lootPage = lootRepository.findAllWithFilters(expansionId, isOfficial, tier, isConsumable, pageable);
         } else {
-            lootPage = lootRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
+            lootPage = lootRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, tier, isConsumable, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -115,7 +119,9 @@ public class LootService {
         Loot loot = Loot.builder()
                 .name(request.getName())
                 .expansion(expansion)
+                .tier(request.getTier())
                 .isOfficial(request.getIsOfficial())
+                .isConsumable(request.getIsConsumable())
                 .description(request.getDescription())
                 .build();
 
@@ -151,7 +157,9 @@ public class LootService {
                     Loot loot = Loot.builder()
                             .name(request.getName())
                             .expansion(expansion)
+                            .tier(request.getTier())
                             .isOfficial(request.getIsOfficial())
+                            .isConsumable(request.getIsConsumable())
                             .description(request.getDescription())
                             .build();
 
@@ -195,7 +203,9 @@ public class LootService {
 
         loot.setName(request.getName());
         loot.setExpansion(expansion);
+        loot.setTier(request.getTier());
         loot.setIsOfficial(request.getIsOfficial());
+        loot.setIsConsumable(request.getIsConsumable());
         loot.setDescription(request.getDescription());
 
         if (request.getOriginalLootId() != null) {
@@ -271,7 +281,9 @@ public class LootService {
                 .id(loot.getId())
                 .name(loot.getName())
                 .expansionId(loot.getExpansion().getId())
+                .tier(loot.getTier())
                 .isOfficial(loot.getIsOfficial())
+                .isConsumable(loot.getIsConsumable())
                 .description(loot.getDescription())
                 .createdAt(loot.getCreatedAt())
                 .lastModifiedAt(loot.getLastModifiedAt())

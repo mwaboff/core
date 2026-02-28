@@ -149,6 +149,23 @@ class DomainCardControllerIntegrationTest {
     }
 
     @Test
+    void getAllDomainCards_FilterByLevel_ReturnsFiltered() throws Exception {
+        // Arrange
+        createDomainCard("Fireball", "Fire spell", testExpansion, true, testDomain, 1, 1, DomainCardType.SPELL);
+        createDomainCard("Greater Fireball", "Greater fire spell", testExpansion, true, testDomain, 3, 2, DomainCardType.SPELL);
+        createDomainCard("Flame Shield", "Fire armor", testExpansion, true, testDomain, 3, 2, DomainCardType.ABILITY);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/cards/domain")
+                        .param("level", "3")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.content[0].level").value(3))
+                .andExpect(jsonPath("$.content[1].level").value(3));
+    }
+
+    @Test
     void getAllDomainCards_WithExpand_IncludesAssociatedDomain() throws Exception {
         // Arrange
         createDomainCard("Fireball", "Fire spell", testExpansion, true, testDomain, 1, 1, DomainCardType.SPELL);

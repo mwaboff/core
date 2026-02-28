@@ -37,6 +37,8 @@ public class LootController {
      * @param includeDeleted Whether to include soft-deleted loot (default: false, ADMIN+ only)
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param tier Optional filter for loot tier (1–4)
+     * @param isConsumable Optional filter for consumable status
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,originalLoot")
      * @return Paginated response containing loot items
      */
@@ -47,10 +49,12 @@ public class LootController {
             @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(required = false) Long expansionId,
             @RequestParam(required = false) Boolean isOfficial,
+            @RequestParam(required = false) Integer tier,
+            @RequestParam(required = false) Boolean isConsumable,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<LootResponse> response = lootService.getAllLoot(
-                page, size, includeDeleted, expansionId, isOfficial, expand);
+                page, size, includeDeleted, expansionId, isOfficial, tier, isConsumable, expand);
 
         return ResponseEntity.ok(response);
     }

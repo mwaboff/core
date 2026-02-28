@@ -185,7 +185,9 @@ class LootControllerIntegrationTest {
         CreateLootRequest request = CreateLootRequest.builder()
                 .name("Health Potion")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(true)
                 .description("Restores health when consumed")
                 .build();
 
@@ -208,7 +210,9 @@ class LootControllerIntegrationTest {
         CreateLootRequest request = CreateLootRequest.builder()
                 .name("Health Potion")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(true)
                 .description("Restores health")
                 .build();
 
@@ -230,12 +234,16 @@ class LootControllerIntegrationTest {
         CreateLootRequest request1 = CreateLootRequest.builder()
                 .name("Health Potion")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(true)
                 .build();
         CreateLootRequest request2 = CreateLootRequest.builder()
                 .name("Rope")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(false)
                 .description("50 feet of rope")
                 .build();
         List<CreateLootRequest> requests = List.of(request1, request2);
@@ -258,7 +266,9 @@ class LootControllerIntegrationTest {
         CreateLootRequest request = CreateLootRequest.builder()
                 .name("Health Potion")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(true)
                 .build();
         List<CreateLootRequest> requests = List.of(request);
 
@@ -279,7 +289,9 @@ class LootControllerIntegrationTest {
         UpdateLootRequest request = UpdateLootRequest.builder()
                 .name("Greater Health Potion")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
+                .isConsumable(true)
                 .description("Restores more health")
                 .build();
 
@@ -301,7 +313,9 @@ class LootControllerIntegrationTest {
         UpdateLootRequest request = UpdateLootRequest.builder()
                 .name("Greater Health Potion")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
+                .isConsumable(true)
                 .description("Restores more health")
                 .build();
 
@@ -319,7 +333,9 @@ class LootControllerIntegrationTest {
         UpdateLootRequest request = UpdateLootRequest.builder()
                 .name("Greater Health Potion")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
+                .isConsumable(false)
                 .build();
 
         // Act & Assert
@@ -441,10 +457,20 @@ class LootControllerIntegrationTest {
     }
 
     private Loot createLoot(String name, Expansion expansion, Boolean isOfficial, String description) {
+        return createLoot(name, expansion, isOfficial, description, 1);
+    }
+
+    private Loot createLoot(String name, Expansion expansion, Boolean isOfficial, String description, Integer tier) {
+        return createLoot(name, expansion, isOfficial, description, tier, false);
+    }
+
+    private Loot createLoot(String name, Expansion expansion, Boolean isOfficial, String description, Integer tier, Boolean isConsumable) {
         Loot loot = Loot.builder()
                 .name(name)
                 .expansion(expansion)
+                .tier(tier)
                 .isOfficial(isOfficial)
+                .isConsumable(isConsumable)
                 .description(description)
                 .build();
         return lootRepository.save(loot);

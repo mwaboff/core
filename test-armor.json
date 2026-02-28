@@ -1,0 +1,62 @@
+[
+  {
+    "name": "Leather Armor",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "baseMajorThreshold": 7,
+    "baseSevereThreshold": 13,
+    "baseScore": 2
+  },
+  {
+    "name": "Chain Mail",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "baseMajorThreshold": 8,
+    "baseSevereThreshold": 15,
+    "baseScore": 4
+  },
+  {
+    "name": "Plate Armor",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "baseMajorThreshold": 10,
+    "baseSevereThreshold": 18,
+    "baseScore": 6,
+    "feature": {
+      "name": "Heavy Plating",
+      "description": "When you take physical damage, reduce it by 1 (to a minimum of 1).",
+      "featureType": "CLASS",
+      "expansionId": 1
+    }
+  },
+  {
+    "name": "Robes",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "baseMajorThreshold": 5,
+    "baseSevereThreshold": 10,
+    "baseScore": 0
+  },
+  {
+    "name": "Studded Leather",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "baseMajorThreshold": 8,
+    "baseSevereThreshold": 14,
+    "baseScore": 3
+  },
+  {
+    "name": "Hide Armor",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "baseMajorThreshold": 7,
+    "baseSevereThreshold": 14,
+    "baseScore": 3
+  }
+]

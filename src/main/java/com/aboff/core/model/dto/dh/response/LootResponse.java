@@ -48,9 +48,19 @@ public class LootResponse {
     private ExpansionResponse expansion;
 
     /**
+     * The tier level of the loot (1–4), representing rarity.
+     */
+    private Integer tier;
+
+    /**
      * Whether this loot is from official game content.
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this loot item is consumable.
+     */
+    private Boolean isConsumable;
 
     /**
      * Description of the loot item.

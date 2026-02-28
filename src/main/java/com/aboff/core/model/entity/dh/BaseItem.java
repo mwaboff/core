@@ -47,6 +47,14 @@ public abstract class BaseItem extends BaseEntity {
     private String name;
 
     /**
+     * The tier level of the item (1–4).
+     * For weapons and armor, this represents the power tier.
+     * For loot, this maps to rarity: 1=Common, 2=Uncommon, 3=Rare, 4=Legendary.
+     */
+    @Column(name = "tier", nullable = false)
+    private Integer tier;
+
+    /**
      * The expansion this item belongs to.
      */
     @ManyToOne(fetch = FetchType.LAZY)

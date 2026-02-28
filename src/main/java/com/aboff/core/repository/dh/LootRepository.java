@@ -28,10 +28,14 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
      */
     @Query("SELECT l FROM Loot l WHERE l.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR l.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial) " +
+           "AND (:tier IS NULL OR l.tier = :tier) " +
+           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable)")
     Page<Loot> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("tier") Integer tier,
+            @Param("isConsumable") Boolean isConsumable,
             Pageable pageable);
 
     /**
@@ -39,15 +43,21 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param tier Optional filter for tier
+     * @param isConsumable Optional filter for consumable status
      * @param pageable Pagination information
      * @return Page of all loot matching the criteria
      */
     @Query("SELECT l FROM Loot l WHERE " +
            "(:expansionId IS NULL OR l.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial) " +
+           "AND (:tier IS NULL OR l.tier = :tier) " +
+           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable)")
     Page<Loot> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("tier") Integer tier,
+            @Param("isConsumable") Boolean isConsumable,
             Pageable pageable);
 
     /**

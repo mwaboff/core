@@ -39,6 +39,13 @@ import lombok.experimental.SuperBuilder;
 public class Loot extends BaseItem {
 
     /**
+     * Whether this loot item is consumable (e.g., potions, scrolls, food).
+     * Consumable items are typically single-use and removed from inventory after use.
+     */
+    @Column(name = "is_consumable", nullable = false)
+    private Boolean isConsumable;
+
+    /**
      * Detailed description of the loot item.
      * Describes what the item is, its appearance, potential uses, and any relevant
      * narrative or mechanical effects. Can be quite lengthy for complex or important items.

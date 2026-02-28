@@ -172,6 +172,7 @@ class ArmorControllerIntegrationTest {
         CreateArmorRequest request = CreateArmorRequest.builder()
                 .name("Leather Armor")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .baseMajorThreshold(5)
                 .baseSevereThreshold(10)
@@ -199,6 +200,7 @@ class ArmorControllerIntegrationTest {
         CreateArmorRequest request = CreateArmorRequest.builder()
                 .name("Leather Armor")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .baseMajorThreshold(5)
                 .baseSevereThreshold(10)
@@ -223,6 +225,7 @@ class ArmorControllerIntegrationTest {
         CreateArmorRequest request1 = CreateArmorRequest.builder()
                 .name("Leather Armor")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .baseMajorThreshold(5)
                 .baseSevereThreshold(10)
@@ -231,6 +234,7 @@ class ArmorControllerIntegrationTest {
         CreateArmorRequest request2 = CreateArmorRequest.builder()
                 .name("Plate Mail")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
                 .baseMajorThreshold(8)
                 .baseSevereThreshold(16)
@@ -256,6 +260,7 @@ class ArmorControllerIntegrationTest {
         CreateArmorRequest request = CreateArmorRequest.builder()
                 .name("Leather Armor")
                 .expansionId(testExpansion.getId())
+                .tier(1)
                 .isOfficial(true)
                 .baseMajorThreshold(5)
                 .baseSevereThreshold(10)
@@ -280,6 +285,7 @@ class ArmorControllerIntegrationTest {
         UpdateArmorRequest request = UpdateArmorRequest.builder()
                 .name("Reinforced Leather Armor")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
                 .baseMajorThreshold(6)
                 .baseSevereThreshold(12)
@@ -306,6 +312,7 @@ class ArmorControllerIntegrationTest {
         UpdateArmorRequest request = UpdateArmorRequest.builder()
                 .name("Reinforced Leather Armor")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
                 .baseMajorThreshold(6)
                 .baseSevereThreshold(12)
@@ -326,6 +333,7 @@ class ArmorControllerIntegrationTest {
         UpdateArmorRequest request = UpdateArmorRequest.builder()
                 .name("Reinforced Leather Armor")
                 .expansionId(testExpansion.getId())
+                .tier(2)
                 .isOfficial(true)
                 .baseMajorThreshold(6)
                 .baseSevereThreshold(12)
@@ -452,9 +460,15 @@ class ArmorControllerIntegrationTest {
 
     private Armor createArmor(String name, Expansion expansion, Boolean isOfficial,
                               Integer baseMajorThreshold, Integer baseSevereThreshold, Integer baseScore) {
+        return createArmor(name, expansion, isOfficial, baseMajorThreshold, baseSevereThreshold, baseScore, 1);
+    }
+
+    private Armor createArmor(String name, Expansion expansion, Boolean isOfficial,
+                              Integer baseMajorThreshold, Integer baseSevereThreshold, Integer baseScore, Integer tier) {
         Armor armor = Armor.builder()
                 .name(name)
                 .expansion(expansion)
+                .tier(tier)
                 .isOfficial(isOfficial)
                 .baseMajorThreshold(baseMajorThreshold)
                 .baseSevereThreshold(baseSevereThreshold)

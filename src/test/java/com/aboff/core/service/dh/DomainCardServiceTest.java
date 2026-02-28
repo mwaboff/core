@@ -99,11 +99,11 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card1, card2));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, null);
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -133,16 +133,16 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(DomainCardType.SPELL), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(DomainCardType.SPELL), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, DomainCardType.SPELL, null);
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, DomainCardType.SPELL, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getType()).isEqualTo(DomainCardType.SPELL);
-        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(DomainCardType.SPELL), any(Pageable.class));
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(DomainCardType.SPELL), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -165,30 +165,63 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, 1L, null, null);
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, 1L, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getAssociatedDomainId()).isEqualTo(1L);
-        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), any(Pageable.class));
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void getAllDomainCards_WithLevelFilter_ReturnsFilteredCards() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).build();
+
+        DomainCard card = DomainCard.builder()
+                .id(1L)
+                .name("Fireball")
+                .description("Cast fire spell")
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedDomain(domain)
+                .level(3)
+                .recallCost(2)
+                .type(DomainCardType.SPELL)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(3), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, 3, null);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getLevel()).isEqualTo(3);
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(3), any(Pageable.class));
     }
 
     @Test
     void getAllDomainCards_WithLargePage_LimitsTo100() {
         // Arrange
         Page<DomainCard> cardPage = new PageImpl<>(List.of());
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        domainCardService.getAllDomainCards(0, 500, false, null, null, null, null, null);
+        domainCardService.getAllDomainCards(0, 500, false, null, null, null, null, null, null);
 
         // Assert
         verify(domainCardRepository).findByDeletedAtIsNullAndFilters(
+                isNull(),
                 isNull(),
                 isNull(),
                 isNull(),
@@ -221,11 +254,11 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "expansion,features,associatedDomain");
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, null, "expansion,features,associatedDomain");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -263,11 +296,11 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "features,costTags");
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, null, "features,costTags");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -303,11 +336,11 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "features");
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, null, "features");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -339,11 +372,11 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "features,costTags");
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, null, "features,costTags");
 
         // Assert
         FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
@@ -374,11 +407,11 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, "features,costTags");
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, null, "features,costTags");
 
         // Assert
         FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);

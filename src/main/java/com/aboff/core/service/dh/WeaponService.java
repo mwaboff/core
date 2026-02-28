@@ -55,6 +55,7 @@ public class WeaponService {
      * @param range Optional filter for weapon range
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
+     * @param tier Optional filter for weapon tier (1–4)
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing weapons
      */
@@ -69,6 +70,7 @@ public class WeaponService {
             Range range,
             Burden burden,
             Boolean isPrimary,
+            Integer tier,
             String expand) {
 
         size = Math.min(size, 100);
@@ -76,9 +78,9 @@ public class WeaponService {
         Page<Weapon> weaponPage;
 
         if (includeDeleted) {
-            weaponPage = weaponRepository.findAllWithFilters(expansionId, isOfficial, trait, range, burden, isPrimary, pageable);
+            weaponPage = weaponRepository.findAllWithFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, pageable);
         } else {
-            weaponPage = weaponRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, trait, range, burden, isPrimary, pageable);
+            weaponPage = weaponRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -129,6 +131,7 @@ public class WeaponService {
         Weapon weapon = Weapon.builder()
                 .name(request.getName())
                 .expansion(expansion)
+                .tier(request.getTier())
                 .isOfficial(request.getIsOfficial())
                 .isPrimary(request.getIsPrimary())
                 .trait(request.getTrait())
@@ -174,6 +177,7 @@ public class WeaponService {
                     Weapon weapon = Weapon.builder()
                             .name(request.getName())
                             .expansion(expansion)
+                            .tier(request.getTier())
                             .isOfficial(request.getIsOfficial())
                             .isPrimary(request.getIsPrimary())
                             .trait(request.getTrait())
@@ -227,6 +231,7 @@ public class WeaponService {
 
         weapon.setName(request.getName());
         weapon.setExpansion(expansion);
+        weapon.setTier(request.getTier());
         weapon.setIsOfficial(request.getIsOfficial());
         weapon.setIsPrimary(request.getIsPrimary());
         weapon.setTrait(request.getTrait());
@@ -344,6 +349,7 @@ public class WeaponService {
                 .id(weapon.getId())
                 .name(weapon.getName())
                 .expansionId(weapon.getExpansion().getId())
+                .tier(weapon.getTier())
                 .isOfficial(weapon.getIsOfficial())
                 .isPrimary(weapon.getIsPrimary())
                 .trait(weapon.getTrait())

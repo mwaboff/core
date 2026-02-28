@@ -49,6 +49,11 @@ public class ArmorResponse {
     private ExpansionResponse expansion;
 
     /**
+     * The tier level of the armor (1–4).
+     */
+    private Integer tier;
+
+    /**
      * Whether this armor is from official game content.
      */
     private Boolean isOfficial;

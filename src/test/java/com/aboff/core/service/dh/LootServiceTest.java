@@ -54,11 +54,11 @@ class LootServiceTest {
         Loot loot2 = createTestLoot(2L, "Rope", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot1, loot2));
-        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, null, null);
+        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, null, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -76,16 +76,16 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, 1L, null, null);
+        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, 1L, null, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(lootRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
+        verify(lootRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -96,11 +96,11 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(true), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(true), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, true, null);
+        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, true, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -111,15 +111,15 @@ class LootServiceTest {
     void getAllLoot_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Loot> lootPage = new PageImpl<>(List.of());
-        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        lootService.getAllLoot(0, 500, false, null, null, null);
+        lootService.getAllLoot(0, 500, false, null, null, null, null, null);
 
         // Assert
         verify(lootRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -132,11 +132,11 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, null, "expansion");
+        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, null, null, null, "expansion");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -188,7 +188,9 @@ class LootServiceTest {
         CreateLootRequest request = CreateLootRequest.builder()
                 .name("Health Potion")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(true)
                 .description("Restores health when consumed")
                 .build();
 
@@ -235,7 +237,9 @@ class LootServiceTest {
         CreateLootRequest request = CreateLootRequest.builder()
                 .name("Custom Health Potion")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(false)
+                .isConsumable(true)
                 .description("A modified version")
                 .originalLootId(1L)
                 .build();
@@ -264,13 +268,17 @@ class LootServiceTest {
         CreateLootRequest request1 = CreateLootRequest.builder()
                 .name("Health Potion")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(true)
                 .build();
 
         CreateLootRequest request2 = CreateLootRequest.builder()
                 .name("Rope")
                 .expansionId(1L)
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(false)
                 .description("50 feet of rope")
                 .build();
 
@@ -303,7 +311,9 @@ class LootServiceTest {
         UpdateLootRequest request = UpdateLootRequest.builder()
                 .name("Updated Name")
                 .expansionId(1L)
+                .tier(2)
                 .isOfficial(true)
+                .isConsumable(false)
                 .description("Updated description")
                 .build();
 
@@ -326,7 +336,9 @@ class LootServiceTest {
         UpdateLootRequest request = UpdateLootRequest.builder()
                 .name("Updated Name")
                 .expansionId(1L)
+                .tier(2)
                 .isOfficial(true)
+                .isConsumable(false)
                 .build();
 
         when(lootRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
@@ -448,7 +460,9 @@ class LootServiceTest {
                 .id(id)
                 .name(name)
                 .expansion(expansion)
+                .tier(1)
                 .isOfficial(true)
+                .isConsumable(false)
                 .description("Restores health when consumed")
                 .createdAt(LocalDateTime.now())
                 .build();

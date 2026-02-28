@@ -1,0 +1,136 @@
+[
+  {
+    "name": "Longbow",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isPrimary": true,
+    "trait": "FINESSE",
+    "range": "FAR",
+    "burden": "TWO_HANDED",
+    "damage": {
+      "diceCount": 1,
+      "diceType": "D8",
+      "modifier": 0,
+      "damageType": "PHYSICAL"
+    }
+  },
+  {
+    "name": "Shortsword",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isPrimary": true,
+    "trait": "AGILITY",
+    "range": "MELEE",
+    "burden": "ONE_HANDED",
+    "damage": {
+      "diceCount": 1,
+      "diceType": "D6",
+      "modifier": 0,
+      "damageType": "PHYSICAL"
+    }
+  },
+  {
+    "name": "Greatsword",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isPrimary": true,
+    "trait": "STRENGTH",
+    "range": "MELEE",
+    "burden": "TWO_HANDED",
+    "damage": {
+      "diceCount": 1,
+      "diceType": "D10",
+      "modifier": 0,
+      "damageType": "PHYSICAL"
+    }
+  },
+  {
+    "name": "Dagger",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isPrimary": false,
+    "trait": "FINESSE",
+    "range": "VERY_CLOSE",
+    "burden": "ONE_HANDED",
+    "damage": {
+      "diceCount": 1,
+      "diceType": "D4",
+      "modifier": 0,
+      "damageType": "PHYSICAL"
+    }
+  },
+  {
+    "name": "Arcane Staff",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isPrimary": true,
+    "trait": "KNOWLEDGE",
+    "range": "CLOSE",
+    "burden": "TWO_HANDED",
+    "damage": {
+      "diceCount": 1,
+      "diceType": "D8",
+      "modifier": 0,
+      "damageType": "MAGIC"
+    },
+    "feature": {
+      "name": "Arcane Focus",
+      "description": "When you cast a spell using this staff, you may add +1 to your spell damage.",
+      "featureType": "CLASS",
+      "expansionId": 1
+    }
+  },
+  {
+    "name": "Handaxe",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isPrimary": false,
+    "trait": "STRENGTH",
+    "range": "VERY_CLOSE",
+    "burden": "ONE_HANDED",
+    "damage": {
+      "diceCount": 1,
+      "diceType": "D6",
+      "modifier": 0,
+      "damageType": "PHYSICAL"
+    }
+  },
+  {
+    "name": "Wand of Light",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isPrimary": true,
+    "trait": "PRESENCE",
+    "range": "FAR",
+    "burden": "ONE_HANDED",
+    "damage": {
+      "diceCount": 1,
+      "diceType": "D6",
+      "modifier": 0,
+      "damageType": "MAGIC"
+    }
+  },
+  {
+    "name": "Spear",
+    "expansionId": 1,
+    "tier": 1,
+    "isOfficial": true,
+    "isPrimary": true,
+    "trait": "INSTINCT",
+    "range": "CLOSE",
+    "burden": "ONE_HANDED",
+    "damage": {
+      "diceCount": 1,
+      "diceType": "D8",
+      "modifier": 0,
+      "damageType": "PHYSICAL"
+    }
+  }
+]

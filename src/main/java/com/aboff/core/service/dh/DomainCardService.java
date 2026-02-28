@@ -58,6 +58,7 @@ public class DomainCardService {
      * @param isOfficial Optional filter for official status
      * @param associatedDomainId Optional filter for associated domain ID
      * @param type Optional filter for domain card type
+     * @param level Optional filter for card level
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing domain cards
      */
@@ -70,6 +71,7 @@ public class DomainCardService {
             Boolean isOfficial,
             Long associatedDomainId,
             DomainCardType type,
+            Integer level,
             String expand) {
 
         size = Math.min(size, 100);
@@ -77,9 +79,9 @@ public class DomainCardService {
         Page<DomainCard> cardPage;
 
         if (includeDeleted) {
-            cardPage = domainCardRepository.findAllWithFilters(expansionId, isOfficial, associatedDomainId, type, pageable);
+            cardPage = domainCardRepository.findAllWithFilters(expansionId, isOfficial, associatedDomainId, type, level, pageable);
         } else {
-            cardPage = domainCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, associatedDomainId, type, pageable);
+            cardPage = domainCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, associatedDomainId, type, level, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);

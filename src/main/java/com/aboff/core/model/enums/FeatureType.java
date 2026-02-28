@@ -14,6 +14,8 @@ public enum FeatureType {
     COMMUNITY,
     /** Domain feature type. */
     DOMAIN,
+    /** Item feature type. */
+    ITEM,
     /** Other feature type. */
     OTHER,
     /** Subclass feature type. */

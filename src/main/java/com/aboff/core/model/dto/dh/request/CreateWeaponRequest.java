@@ -6,6 +6,8 @@ import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Trait;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -35,6 +37,14 @@ public class CreateWeaponRequest {
      */
     @NotNull(message = "Expansion ID is required")
     private Long expansionId;
+
+    /**
+     * The tier level of the weapon (1–4).
+     */
+    @NotNull(message = "Tier is required")
+    @Min(value = 1, message = "Tier must be at least 1")
+    @Max(value = 4, message = "Tier must be at most 4")
+    private Integer tier;
 
     /**
      * Whether this weapon is from official game content.
