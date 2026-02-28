@@ -3,6 +3,8 @@ package com.aboff.core.service.dh;
 import com.aboff.core.model.dto.dh.request.CreateAncestryCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAncestryCardRequest;
 import com.aboff.core.model.dto.dh.response.AncestryCardResponse;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
+import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.AncestryCard;
@@ -10,6 +12,7 @@ import com.aboff.core.model.dto.dh.request.CostTagInput;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.AncestryCardRepository;
@@ -29,6 +32,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -219,6 +223,33 @@ class AncestryCardServiceTest {
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
         when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "expansion,features");
@@ -252,6 +283,33 @@ class AncestryCardServiceTest {
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
         when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features");
@@ -283,6 +341,33 @@ class AncestryCardServiceTest {
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
         when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features,costTags");
@@ -317,6 +402,33 @@ class AncestryCardServiceTest {
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
         when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features,costTags");
@@ -347,6 +459,33 @@ class AncestryCardServiceTest {
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
         when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
+            Feature f = invocation.getArgument(0);
+            Set<String> exp = invocation.getArgument(1);
+            FeatureResponse.FeatureResponseBuilder fb = FeatureResponse.builder()
+                    .id(f.getId()).name(f.getName()).description(f.getDescription())
+                    .featureType(f.getFeatureType()).expansionId(f.getExpansion().getId())
+                    .createdAt(f.getCreatedAt()).lastModifiedAt(f.getLastModifiedAt()).deletedAt(f.getDeletedAt());
+            if (f.getCostTags() != null) {
+                fb.costTagIds(f.getCostTags().stream().map(CardCostTag::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("costTags") && f.getCostTags() != null) {
+                fb.costTags(f.getCostTags().stream().map(tag -> CardCostTagResponse.builder()
+                        .id(tag.getId()).label(tag.getLabel()).category(tag.getCategory())
+                        .createdAt(tag.getCreatedAt()).lastModifiedAt(tag.getLastModifiedAt()).deletedAt(tag.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            if (f.getModifiers() != null) {
+                fb.modifierIds(f.getModifiers().stream().map(FeatureModifier::getId).collect(Collectors.toList()));
+            }
+            if (exp.contains("modifiers") && f.getModifiers() != null) {
+                fb.modifiers(f.getModifiers().stream().map(mod -> FeatureModifierResponse.builder()
+                        .id(mod.getId()).target(mod.getTarget()).operation(mod.getOperation()).value(mod.getValue())
+                        .createdAt(mod.getCreatedAt()).lastModifiedAt(mod.getLastModifiedAt()).deletedAt(mod.getDeletedAt())
+                        .build()).collect(Collectors.toList()));
+            }
+            return fb.build();
+        });
 
         // Act
         PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features,costTags");

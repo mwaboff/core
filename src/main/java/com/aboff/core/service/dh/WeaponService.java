@@ -3,7 +3,7 @@ package com.aboff.core.service.dh;
 import com.aboff.core.model.dto.dh.request.CreateWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
-import com.aboff.core.model.dto.dh.response.FeatureResponse;
+
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
@@ -29,6 +29,7 @@ import com.aboff.core.util.ExpandUtil;
 
 import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Service for managing Weapon entities.
@@ -140,9 +141,9 @@ public class WeaponService {
                 .damage(toDamageRoll(request.getDamage()))
                 .build();
 
-        Feature resolvedFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
-        if (resolvedFeature != null) {
-            weapon.setFeature(resolvedFeature);
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedFeatures != null) {
+            weapon.setFeatures(resolvedFeatures);
         }
 
         if (request.getOriginalWeaponId() != null) {
@@ -186,9 +187,9 @@ public class WeaponService {
                             .damage(toDamageRoll(request.getDamage()))
                             .build();
 
-                    Feature bulkResolvedFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
-                    if (bulkResolvedFeature != null) {
-                        weapon.setFeature(bulkResolvedFeature);
+                    Set<Feature> bulkResolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+                    if (bulkResolvedFeatures != null) {
+                        weapon.setFeatures(bulkResolvedFeatures);
                     }
 
                     if (request.getOriginalWeaponId() != null) {
@@ -239,11 +240,9 @@ public class WeaponService {
         weapon.setBurden(request.getBurden());
         weapon.setDamage(toDamageRoll(request.getDamage()));
 
-        Feature resolvedUpdateFeature = featureService.resolveFeature(request.getFeatureId(), request.getFeature());
-        if (resolvedUpdateFeature != null) {
-            weapon.setFeature(resolvedUpdateFeature);
-        } else {
-            weapon.setFeature(null);
+        Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        if (resolvedUpdateFeatures != null) {
+            weapon.setFeatures(resolvedUpdateFeatures);
         }
 
         if (request.getOriginalWeaponId() != null) {
@@ -369,8 +368,10 @@ public class WeaponService {
                     .build());
         }
 
-        if (weapon.getFeature() != null) {
-            builder.featureId(weapon.getFeature().getId());
+        if (weapon.getFeatures() != null && !weapon.getFeatures().isEmpty()) {
+            builder.featureIds(weapon.getFeatures().stream()
+                    .map(Feature::getId)
+                    .collect(Collectors.toList()));
         }
 
         if (weapon.getOriginalWeapon() != null) {
@@ -389,18 +390,10 @@ public class WeaponService {
                     .build());
         }
 
-        if (expand.contains("feature") && weapon.getFeature() != null) {
-            Feature feature = weapon.getFeature();
-            builder.feature(FeatureResponse.builder()
-                    .id(feature.getId())
-                    .name(feature.getName())
-                    .description(feature.getDescription())
-                    .featureType(feature.getFeatureType())
-                    .expansionId(feature.getExpansion().getId())
-                    .createdAt(feature.getCreatedAt())
-                    .lastModifiedAt(feature.getLastModifiedAt())
-                    .deletedAt(feature.getDeletedAt())
-                    .build());
+        if (expand.contains("features") && weapon.getFeatures() != null && !weapon.getFeatures().isEmpty()) {
+            builder.features(weapon.getFeatures().stream()
+                    .map(f -> featureService.toResponse(f, expand))
+                    .collect(Collectors.toList()));
         }
 
         if (expand.contains("originalWeapon") && weapon.getOriginalWeapon() != null) {

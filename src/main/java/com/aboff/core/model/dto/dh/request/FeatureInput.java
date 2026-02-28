@@ -45,4 +45,11 @@ public class FeatureInput {
     /** Cost tags to find or create by label. Merged with costTagIds if both provided. */
     @Valid
     private List<CostTagInput> costTags;
+
+    /** IDs of existing modifiers to associate with this feature. */
+    private List<Long> modifierIds;
+
+    /** Modifiers to find or create by (target, operation, value). Merged with modifierIds if both provided. */
+    @Valid
+    private List<FeatureModifierInput> modifiers;
 }

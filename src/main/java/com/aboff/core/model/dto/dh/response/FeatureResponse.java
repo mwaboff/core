@@ -15,8 +15,10 @@ import java.util.List;
  * Represents special abilities and traits in the Daggerheart TTRPG system.
  * <p>
  * Supports expansion via the ?expand parameter:
- * - By default: returns expansionId only
+ * - By default: returns expansionId, costTagIds, and modifierIds only
  * - With ?expand=expansion: includes full expansion object
+ * - With ?expand=costTags: includes full cost tag objects
+ * - With ?expand=modifiers: includes full modifier objects
  * </p>
  */
 @Data
@@ -64,6 +66,16 @@ public class FeatureResponse {
      * Full cost tag objects (included only when ?expand=costTags is specified)
      */
     private List<CardCostTagResponse> costTags;
+
+    /**
+     * IDs of modifiers associated with this feature (always included)
+     */
+    private List<Long> modifierIds;
+
+    /**
+     * Full modifier objects (included only when ?expand=modifiers is specified)
+     */
+    private List<FeatureModifierResponse> modifiers;
 
     /**
      * Timestamp when the feature was created

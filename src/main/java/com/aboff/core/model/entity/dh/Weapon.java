@@ -23,7 +23,7 @@ import lombok.experimental.SuperBuilder;
  *   <li><strong>Range:</strong> The effective distance category (MELEE, CLOSE, FAR, etc.)</li>
  *   <li><strong>Burden:</strong> Whether the weapon requires one or two hands to wield</li>
  *   <li><strong>Damage:</strong> The damage dice and type dealt on a successful hit</li>
- *   <li><strong>Feature:</strong> Optional special ability or effect granted by the weapon</li>
+ *   <li><strong>Features:</strong> Optional special abilities or effects granted by the weapon</li>
  * </ul>
  * <p>
  * Custom weapons can be created by users as copies of official weapons,
@@ -32,6 +32,14 @@ import lombok.experimental.SuperBuilder;
  */
 @Entity
 @Table(name = "weapons")
+@AssociationOverride(
+    name = "features",
+    joinTable = @JoinTable(
+        name = "weapon_features",
+        joinColumns = @JoinColumn(name = "weapon_id"),
+        inverseJoinColumns = @JoinColumn(name = "feature_id")
+    )
+)
 @Data
 @EqualsAndHashCode(callSuper = false)
 @SuperBuilder
@@ -78,14 +86,6 @@ public class Weapon extends BaseItem {
      */
     @Embedded
     private DamageRoll damage;
-
-    /**
-     * Optional special feature granted by this weapon.
-     * Examples might include special abilities, bonus effects, or unique mechanics.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "feature_id")
-    private Feature feature;
 
     /**
      * Reference to the original official weapon if this is a custom weapon.

@@ -78,12 +78,15 @@
       "modifier": 0,
       "damageType": "MAGIC"
     },
-    "feature": {
+    "features": [{
       "name": "Arcane Focus",
       "description": "When you cast a spell using this staff, you may add +1 to your spell damage.",
       "featureType": "CLASS",
-      "expansionId": 1
-    }
+      "expansionId": 1,
+      "modifiers": [
+        { "target": "KNOWLEDGE", "operation": "ADD", "value": 1 }
+      ]
+    }]
   },
   {
     "name": "Handaxe",

@@ -9,6 +9,8 @@ import lombok.Setter;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Abstract base class for all item types in the Daggerheart TTRPG system.
@@ -30,8 +32,13 @@ import java.time.LocalDateTime;
  *   <li>Expansion association</li>
  *   <li>Official vs custom content tracking</li>
  *   <li>User ownership for custom items</li>
+ *   <li>Feature associations (multiple features per item)</li>
  *   <li>Soft delete support</li>
  * </ul>
+ * <p>
+ * Subclasses must use {@code @AssociationOverride} to specify their own join table
+ * for the {@code features} relationship (e.g., weapon_features, armor_features, loot_features).
+ * </p>
  */
 @MappedSuperclass
 @Getter
@@ -75,6 +82,18 @@ public abstract class BaseItem extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
     private User createdBy;
+
+    /**
+     * The features associated with this item.
+     * Subclasses override the join table name via {@code @AssociationOverride}.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "item_features",
+        joinColumns = @JoinColumn(name = "item_id"),
+        inverseJoinColumns = @JoinColumn(name = "feature_id")
+    )
+    private Set<Feature> features = new HashSet<>();
 
     /**
      * Timestamp indicating when this item was soft-deleted.

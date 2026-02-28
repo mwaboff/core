@@ -361,40 +361,7 @@ public class DomainCardService {
         // Expand features if requested
         if (expand.contains("features") && card.getFeatures() != null) {
             builder.features(card.getFeatures().stream()
-                    .map(feature -> {
-                        FeatureResponse.FeatureResponseBuilder featureBuilder = FeatureResponse.builder()
-                                .id(feature.getId())
-                                .name(feature.getName())
-                                .description(feature.getDescription())
-                                .featureType(feature.getFeatureType())
-                                .expansionId(feature.getExpansion().getId())
-                                .createdAt(feature.getCreatedAt())
-                                .lastModifiedAt(feature.getLastModifiedAt())
-                                .deletedAt(feature.getDeletedAt());
-
-                        // Always include cost tag IDs
-                        if (feature.getCostTags() != null) {
-                            featureBuilder.costTagIds(feature.getCostTags().stream()
-                                    .map(CardCostTag::getId)
-                                    .collect(Collectors.toList()));
-                        }
-
-                        // Expand cost tags if requested
-                        if (expand.contains("costTags") && feature.getCostTags() != null) {
-                            featureBuilder.costTags(feature.getCostTags().stream()
-                                    .map(tag -> CardCostTagResponse.builder()
-                                            .id(tag.getId())
-                                            .label(tag.getLabel())
-                                            .category(tag.getCategory())
-                                            .createdAt(tag.getCreatedAt())
-                                            .lastModifiedAt(tag.getLastModifiedAt())
-                                            .deletedAt(tag.getDeletedAt())
-                                            .build())
-                                    .collect(Collectors.toList()));
-                        }
-
-                        return featureBuilder.build();
-                    })
+                    .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
         }
 

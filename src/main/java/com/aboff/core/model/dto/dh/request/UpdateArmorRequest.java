@@ -13,6 +13,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
+
 /**
  * Request DTO for updating an existing Armor.
  */
@@ -71,15 +73,15 @@ public class UpdateArmorRequest {
     private Integer baseScore;
 
     /**
-     * Optional ID of the feature granted by this armor.
+     * Optional list of feature IDs to associate with this armor.
      */
-    private Long featureId;
+    private List<Long> featureIds;
 
     /**
-     * Feature to find or create inline. Used if featureId is not provided. featureId takes precedence.
+     * Features to find or create inline. Used if featureIds is not provided. featureIds takes precedence.
      */
     @Valid
-    private FeatureInput feature;
+    private List<FeatureInput> features;
 
     /**
      * Optional ID of the original armor if this is a custom copy.

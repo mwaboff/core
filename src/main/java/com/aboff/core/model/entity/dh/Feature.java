@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -65,6 +66,17 @@ public class Feature extends BaseEntity {
         inverseJoinColumns = @JoinColumn(name = "card_cost_tag_id")
     )
     private Set<CardCostTag> costTags;
+
+    /**
+     * The modifiers associated with this feature that adjust character attributes.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "feature_feature_modifiers",
+        joinColumns = @JoinColumn(name = "feature_id"),
+        inverseJoinColumns = @JoinColumn(name = "feature_modifier_id")
+    )
+    private Set<FeatureModifier> modifiers = new HashSet<>();
 
     /**
      * Timestamp indicating when this feature was soft-deleted.

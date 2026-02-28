@@ -31,6 +31,14 @@ import lombok.experimental.SuperBuilder;
  */
 @Entity
 @Table(name = "loot")
+@AssociationOverride(
+    name = "features",
+    joinTable = @JoinTable(
+        name = "loot_features",
+        joinColumns = @JoinColumn(name = "loot_id"),
+        inverseJoinColumns = @JoinColumn(name = "feature_id")
+    )
+)
 @Data
 @EqualsAndHashCode(callSuper = false)
 @SuperBuilder

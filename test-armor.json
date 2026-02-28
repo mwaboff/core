@@ -15,7 +15,16 @@
     "isOfficial": true,
     "baseMajorThreshold": 8,
     "baseSevereThreshold": 15,
-    "baseScore": 4
+    "baseScore": 4,
+    "features": [{
+      "name": "Cumbersome",
+      "description": "The weight and rigidity of chain mail reduces your ability to dodge incoming attacks.",
+      "featureType": "CLASS",
+      "expansionId": 1,
+      "modifiers": [
+        { "target": "EVASION", "operation": "ADD", "value": -1 }
+      ]
+    }]
   },
   {
     "name": "Plate Armor",
@@ -25,12 +34,12 @@
     "baseMajorThreshold": 10,
     "baseSevereThreshold": 18,
     "baseScore": 6,
-    "feature": {
+    "features": [{
       "name": "Heavy Plating",
       "description": "When you take physical damage, reduce it by 1 (to a minimum of 1).",
       "featureType": "CLASS",
       "expansionId": 1
-    }
+    }]
   },
   {
     "name": "Robes",

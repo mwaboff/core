@@ -503,15 +503,17 @@ class WeaponControllerIntegrationTest {
                 "range": "MELEE",
                 "burden": "ONE_HANDED",
                 "damage": { "diceCount": 2, "diceType": "D10", "modifier": 3, "damageType": "PHYSICAL" },
-                "feature": {
-                    "name": "Flame Burst",
-                    "description": "Deal extra fire damage",
-                    "featureType": "OTHER",
-                    "expansionId": %d,
-                    "costTags": [
-                        { "label": "1/rest", "category": "LIMITATION" }
-                    ]
-                }
+                "features": [
+                    {
+                        "name": "Flame Burst",
+                        "description": "Deal extra fire damage",
+                        "featureType": "OTHER",
+                        "expansionId": %d,
+                        "costTags": [
+                            { "label": "1/rest", "category": "LIMITATION" }
+                        ]
+                    }
+                ]
             }
             """.formatted(testExpansion.getId(), testExpansion.getId());
 
@@ -521,7 +523,8 @@ class WeaponControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.featureId").isNumber());
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1));
 
         // Verify feature and cost tag were created
         List<Feature> features = featureRepository.findAll();
@@ -531,7 +534,7 @@ class WeaponControllerIntegrationTest {
     }
 
     @Test
-    void createWeapon_WithBothIdAndInline_IdTakesPrecedence() throws Exception {
+    void createWeapon_WithBothIdsAndInline_MergesBothSources() throws Exception {
         // Arrange - create an existing feature
         Feature existingFeature = Feature.builder()
                 .name("Existing Weapon Feature")
@@ -543,7 +546,7 @@ class WeaponControllerIntegrationTest {
 
         String requestJson = """
             {
-                "name": "Precedence Sword",
+                "name": "Multi-Feature Sword",
                 "expansionId": %d,
                 "tier": 1,
                 "isOfficial": true,
@@ -552,12 +555,14 @@ class WeaponControllerIntegrationTest {
                 "range": "MELEE",
                 "burden": "ONE_HANDED",
                 "damage": { "diceCount": 1, "diceType": "D8", "damageType": "PHYSICAL" },
-                "featureId": %d,
-                "feature": {
-                    "name": "Should Be Ignored",
-                    "featureType": "OTHER",
-                    "expansionId": %d
-                }
+                "featureIds": [%d],
+                "features": [
+                    {
+                        "name": "Inline Feature",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                    }
+                ]
             }
             """.formatted(testExpansion.getId(), existingFeature.getId(), testExpansion.getId());
 
@@ -567,10 +572,11 @@ class WeaponControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.featureId").value(existingFeature.getId()));
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(2));
 
-        // Only the existing feature should be in DB (no new one created)
-        assertThat(featureRepository.findAll()).hasSize(1);
+        // Both the existing feature and the new inline feature should be in DB
+        assertThat(featureRepository.findAll()).hasSize(2);
     }
 
     @Test
@@ -587,16 +593,18 @@ class WeaponControllerIntegrationTest {
                 "range": "MELEE",
                 "burden": "ONE_HANDED",
                 "damage": { "diceCount": 1, "diceType": "D6", "damageType": "PHYSICAL" },
-                "feature": {
-                    "name": "Quick Strike",
-                    "description": "A fast attack",
-                    "featureType": "OTHER",
-                    "expansionId": %d,
-                    "costTags": [
-                        { "label": "1/session", "category": "TIMING" },
-                        { "label": "Close range", "category": "LIMITATION" }
-                    ]
-                }
+                "features": [
+                    {
+                        "name": "Quick Strike",
+                        "description": "A fast attack",
+                        "featureType": "OTHER",
+                        "expansionId": %d,
+                        "costTags": [
+                            { "label": "1/session", "category": "TIMING" },
+                            { "label": "Close range", "category": "LIMITATION" }
+                        ]
+                    }
+                ]
             }
             """.formatted(testExpansion.getId(), testExpansion.getId());
 
@@ -606,7 +614,8 @@ class WeaponControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.featureId").isNumber());
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1));
 
         List<Feature> features = featureRepository.findAll();
         assertThat(features).hasSize(1);
@@ -628,12 +637,14 @@ class WeaponControllerIntegrationTest {
                 "range": "MELEE",
                 "burden": "ONE_HANDED",
                 "damage": { "diceCount": 2, "diceType": "D10", "modifier": 3, "damageType": "PHYSICAL" },
-                "feature": {
-                    "name": "New Feature Via Update",
-                    "description": "Added during update",
-                    "featureType": "OTHER",
-                    "expansionId": %d
-                }
+                "features": [
+                    {
+                        "name": "New Feature Via Update",
+                        "description": "Added during update",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                    }
+                ]
             }
             """.formatted(testExpansion.getId(), testExpansion.getId());
 
@@ -643,7 +654,8 @@ class WeaponControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.featureId").isNumber());
+                .andExpect(jsonPath("$.featureIds").isArray())
+                .andExpect(jsonPath("$.featureIds.length()").value(1));
 
         assertThat(featureRepository.findAll()).hasSize(1);
         assertThat(featureRepository.findAll().get(0).getName()).isEqualTo("New Feature Via Update");

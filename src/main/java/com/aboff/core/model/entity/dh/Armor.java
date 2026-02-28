@@ -30,6 +30,14 @@ import lombok.experimental.SuperBuilder;
  */
 @Entity
 @Table(name = "armors")
+@AssociationOverride(
+    name = "features",
+    joinTable = @JoinTable(
+        name = "armor_features",
+        joinColumns = @JoinColumn(name = "armor_id"),
+        inverseJoinColumns = @JoinColumn(name = "feature_id")
+    )
+)
 @Data
 @EqualsAndHashCode(callSuper = false)
 @SuperBuilder
@@ -59,14 +67,6 @@ public class Armor extends BaseItem {
      */
     @Column(name = "base_score", nullable = false)
     private Integer baseScore;
-
-    /**
-     * Optional special feature granted by this armor.
-     * Examples might include special abilities, resistances, or unique protective effects.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "feature_id")
-    private Feature feature;
 
     /**
      * Reference to the original official armor if this is a custom armor.

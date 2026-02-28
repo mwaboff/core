@@ -1,16 +1,21 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
+import com.aboff.core.model.dto.dh.request.FeatureModifierInput;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.model.enums.ModifierOperation;
+import com.aboff.core.model.enums.ModifierTarget;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureModifierRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +32,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -59,6 +66,9 @@ class FeatureControllerIntegrationTest {
 
     @Autowired
     private ExpansionRepository expansionRepository;
+
+    @Autowired
+    private FeatureModifierRepository featureModifierRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -449,6 +459,210 @@ class FeatureControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // ==================== CREATE FEATURE WITH MODIFIERS TESTS ====================
+
+    @Test
+    void createFeature_WithInlineModifiers_Returns201WithModifierIds() throws Exception {
+        // Arrange
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Modifier Feature")
+                .description("Feature with inline modifiers")
+                .featureType(FeatureType.CLASS)
+                .expansionId(testExpansion.getId())
+                .modifiers(List.of(
+                        FeatureModifierInput.builder()
+                                .target(ModifierTarget.STRENGTH)
+                                .operation(ModifierOperation.ADD)
+                                .value(1)
+                                .build(),
+                        FeatureModifierInput.builder()
+                                .target(ModifierTarget.EVASION)
+                                .operation(ModifierOperation.ADD)
+                                .value(-1)
+                                .build()
+                ))
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/features")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.name").value("Modifier Feature"))
+                .andExpect(jsonPath("$.modifierIds").isArray())
+                .andExpect(jsonPath("$.modifierIds.length()").value(2));
+    }
+
+    @Test
+    void createFeature_WithModifierIds_Returns201WithModifierIds() throws Exception {
+        // Arrange
+        FeatureModifier existingModifier = createModifier(ModifierTarget.STRENGTH, ModifierOperation.ADD, 1);
+
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Feature With Existing Modifier")
+                .description("Feature referencing existing modifier by ID")
+                .featureType(FeatureType.HOPE)
+                .expansionId(testExpansion.getId())
+                .modifierIds(List.of(existingModifier.getId()))
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/features")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.modifierIds").isArray())
+                .andExpect(jsonPath("$.modifierIds.length()").value(1))
+                .andExpect(jsonPath("$.modifierIds[0]").value(existingModifier.getId()));
+    }
+
+    // ==================== GET FEATURE WITH EXPAND MODIFIERS TESTS ====================
+
+    @Test
+    void getFeatureById_WithExpandModifiers_IncludesModifierObjects() throws Exception {
+        // Arrange
+        FeatureModifier modifier = createModifier(ModifierTarget.STRENGTH, ModifierOperation.ADD, 2);
+        Feature feature = Feature.builder()
+                .name("Expandable Feature")
+                .description("Feature with modifiers to expand")
+                .featureType(FeatureType.CLASS)
+                .expansion(testExpansion)
+                .modifiers(new java.util.HashSet<>(Set.of(modifier)))
+                .build();
+        feature = featureRepository.save(feature);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/features/{id}", feature.getId())
+                        .param("expand", "modifiers")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.modifierIds").isArray())
+                .andExpect(jsonPath("$.modifierIds.length()").value(1))
+                .andExpect(jsonPath("$.modifiers").isArray())
+                .andExpect(jsonPath("$.modifiers.length()").value(1))
+                .andExpect(jsonPath("$.modifiers[0].target").value("STRENGTH"))
+                .andExpect(jsonPath("$.modifiers[0].operation").value("ADD"))
+                .andExpect(jsonPath("$.modifiers[0].value").value(2));
+    }
+
+    @Test
+    void getFeatureById_WithoutExpandModifiers_ReturnsOnlyModifierIds() throws Exception {
+        // Arrange
+        FeatureModifier modifier = createModifier(ModifierTarget.EVASION, ModifierOperation.ADD, -1);
+        Feature feature = Feature.builder()
+                .name("Feature Without Expand")
+                .description("Should only return modifier IDs")
+                .featureType(FeatureType.OTHER)
+                .expansion(testExpansion)
+                .modifiers(new java.util.HashSet<>(Set.of(modifier)))
+                .build();
+        feature = featureRepository.save(feature);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/features/{id}", feature.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.modifierIds").isArray())
+                .andExpect(jsonPath("$.modifierIds.length()").value(1))
+                .andExpect(jsonPath("$.modifiers").doesNotExist());
+    }
+
+    @Test
+    void getAllFeatures_WithExpandModifiers_IncludesModifierObjects() throws Exception {
+        // Arrange
+        FeatureModifier modifier = createModifier(ModifierTarget.HIT_POINT_MAX, ModifierOperation.ADD, 5);
+        Feature feature = Feature.builder()
+                .name("List Expand Feature")
+                .description("Test expand on list endpoint")
+                .featureType(FeatureType.HOPE)
+                .expansion(testExpansion)
+                .modifiers(new java.util.HashSet<>(Set.of(modifier)))
+                .build();
+        featureRepository.save(feature);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/features")
+                        .param("expand", "modifiers")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].modifiers").isArray())
+                .andExpect(jsonPath("$.content[0].modifiers[0].target").value("HIT_POINT_MAX"));
+    }
+
+    // ==================== UPDATE FEATURE MODIFIERS TESTS ====================
+
+    @Test
+    void updateFeature_WithModifiers_ReplacesExistingModifiers() throws Exception {
+        // Arrange
+        FeatureModifier originalModifier = createModifier(ModifierTarget.STRENGTH, ModifierOperation.ADD, 1);
+        Feature feature = Feature.builder()
+                .name("Original Feature")
+                .description("Feature with original modifier")
+                .featureType(FeatureType.CLASS)
+                .expansion(testExpansion)
+                .modifiers(new java.util.HashSet<>(Set.of(originalModifier)))
+                .build();
+        feature = featureRepository.save(feature);
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .name("Updated Feature")
+                .description("Feature with new modifiers")
+                .featureType(FeatureType.CLASS)
+                .expansionId(testExpansion.getId())
+                .modifiers(List.of(
+                        FeatureModifierInput.builder()
+                                .target(ModifierTarget.EVASION)
+                                .operation(ModifierOperation.ADD)
+                                .value(-2)
+                                .build()
+                ))
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/features/{id}", feature.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.modifierIds").isArray())
+                .andExpect(jsonPath("$.modifierIds.length()").value(1));
+    }
+
+    @Test
+    void updateFeature_WithNullModifiers_PreservesExistingModifiers() throws Exception {
+        // Arrange
+        FeatureModifier modifier = createModifier(ModifierTarget.STRENGTH, ModifierOperation.ADD, 1);
+        Feature feature = Feature.builder()
+                .name("Preserve Modifiers")
+                .description("Modifiers should be preserved when null")
+                .featureType(FeatureType.HOPE)
+                .expansion(testExpansion)
+                .modifiers(new java.util.HashSet<>(Set.of(modifier)))
+                .build();
+        feature = featureRepository.save(feature);
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .name("Updated Name Only")
+                .description("Modifiers should be preserved when null")
+                .featureType(FeatureType.HOPE)
+                .expansionId(testExpansion.getId())
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/features/{id}", feature.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Updated Name Only"))
+                .andExpect(jsonPath("$.modifierIds").isArray())
+                .andExpect(jsonPath("$.modifierIds.length()").value(1))
+                .andExpect(jsonPath("$.modifierIds[0]").value(modifier.getId()));
+    }
+
     // ==================== HELPER METHODS ====================
 
     private User createUserWithRole(String username, String email, Role role) {
@@ -490,5 +704,14 @@ class FeatureControllerIntegrationTest {
                 .expansion(expansion)
                 .build();
         return featureRepository.save(feature);
+    }
+
+    private FeatureModifier createModifier(ModifierTarget target, ModifierOperation operation, Integer value) {
+        FeatureModifier modifier = FeatureModifier.builder()
+                .target(target)
+                .operation(operation)
+                .value(value)
+                .build();
+        return featureModifierRepository.save(modifier);
     }
 }
