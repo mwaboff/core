@@ -2,6 +2,7 @@ package com.aboff.core.repository.dh;
 
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.Burden;
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Trait;
 import org.springframework.data.domain.Page;
@@ -30,6 +31,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
      * @param range Optional filter for weapon range
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
+     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
      * @param pageable Pagination information
      * @return Page of non-deleted weapons matching the criteria
      */
@@ -40,7 +42,8 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
            "AND (:range IS NULL OR w.range = :range) " +
            "AND (:burden IS NULL OR w.burden = :burden) " +
            "AND (:isPrimary IS NULL OR w.isPrimary = :isPrimary) " +
-           "AND (:tier IS NULL OR w.tier = :tier)")
+           "AND (:tier IS NULL OR w.tier = :tier) " +
+           "AND (:damageType IS NULL OR w.damage.damageType = :damageType)")
     Page<Weapon> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
@@ -49,6 +52,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
             @Param("burden") Burden burden,
             @Param("isPrimary") Boolean isPrimary,
             @Param("tier") Integer tier,
+            @Param("damageType") DamageType damageType,
             Pageable pageable);
 
     /**
@@ -60,6 +64,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
      * @param range Optional filter for weapon range
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
+     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
      * @param pageable Pagination information
      * @return Page of all weapons matching the criteria
      */
@@ -70,7 +75,8 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
            "AND (:range IS NULL OR w.range = :range) " +
            "AND (:burden IS NULL OR w.burden = :burden) " +
            "AND (:isPrimary IS NULL OR w.isPrimary = :isPrimary) " +
-           "AND (:tier IS NULL OR w.tier = :tier)")
+           "AND (:tier IS NULL OR w.tier = :tier) " +
+           "AND (:damageType IS NULL OR w.damage.damageType = :damageType)")
     Page<Weapon> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
@@ -79,6 +85,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
             @Param("burden") Burden burden,
             @Param("isPrimary") Boolean isPrimary,
             @Param("tier") Integer tier,
+            @Param("damageType") DamageType damageType,
             Pageable pageable);
 
     /**

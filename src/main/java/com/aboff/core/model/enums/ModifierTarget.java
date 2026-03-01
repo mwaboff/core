@@ -25,7 +25,10 @@ public enum ModifierTarget {
     HOPE_MAX("Modifies the character's maximum Hope"),
     ARMOR_MAX("Modifies the character's maximum Armor slots"),
     GOLD("Modifies the character's starting Gold"),
-    ATTACK_ROLL("Modifies the character's attack roll result");
+    ATTACK_ROLL("Modifies the character's attack roll result"),
+    DAMAGE_ROLL("Modifies the character's damage roll result"),
+    PRIMARY_DAMAGE_ROLL("Modifies the character's primary damage roll result"),
+    ARMOR_SCORE("Modifies the character's armor score");
 
     private final String description;
 

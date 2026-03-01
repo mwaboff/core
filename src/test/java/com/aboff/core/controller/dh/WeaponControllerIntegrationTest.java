@@ -146,6 +146,80 @@ class WeaponControllerIntegrationTest {
     }
 
     @Test
+    void getAllWeapons_FilterByDamageTypePhysical_ReturnsOnlyPhysicalWeapons() throws Exception {
+        // Arrange
+        createWeaponWithDamageType("Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED, DamageType.PHYSICAL);
+        createWeaponWithDamageType("Magic Staff", testExpansion, true, true, Trait.INSTINCT, Range.FAR, Burden.TWO_HANDED, DamageType.MAGIC);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("damageType", "PHYSICAL")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Longsword"))
+                .andExpect(jsonPath("$.content[0].damage.damageType").value("PHYSICAL"));
+    }
+
+    @Test
+    void getAllWeapons_FilterByDamageTypeMagic_ReturnsOnlyMagicWeapons() throws Exception {
+        // Arrange
+        createWeaponWithDamageType("Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED, DamageType.PHYSICAL);
+        createWeaponWithDamageType("Magic Staff", testExpansion, true, true, Trait.INSTINCT, Range.FAR, Burden.TWO_HANDED, DamageType.MAGIC);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("damageType", "MAGIC")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Magic Staff"))
+                .andExpect(jsonPath("$.content[0].damage.damageType").value("MAGIC"));
+    }
+
+    @Test
+    void getAllWeapons_WithNoDamageTypeFilter_ReturnsAllWeapons() throws Exception {
+        // Arrange
+        createWeaponWithDamageType("Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED, DamageType.PHYSICAL);
+        createWeaponWithDamageType("Magic Staff", testExpansion, true, true, Trait.INSTINCT, Range.FAR, Burden.TWO_HANDED, DamageType.MAGIC);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/weapons")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void getAllWeapons_WithInvalidDamageType_ReturnsError() throws Exception {
+        // Act & Assert - passing an invalid enum value triggers a type conversion error
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("damageType", "INVALID")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().is5xxServerError());
+    }
+
+    @Test
+    void getAllWeapons_FilterByDamageTypeAndTrait_CombinesFilters() throws Exception {
+        // Arrange - create weapons with different combinations of trait and damage type
+        createWeaponWithDamageType("Physical Sword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED, DamageType.PHYSICAL);
+        createWeaponWithDamageType("Magic Staff", testExpansion, true, true, Trait.INSTINCT, Range.FAR, Burden.TWO_HANDED, DamageType.MAGIC);
+        createWeaponWithDamageType("Enchanted Blade", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED, DamageType.MAGIC);
+
+        // Act & Assert - filter by both STRENGTH trait and MAGIC damage type
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("trait", "STRENGTH")
+                        .param("damageType", "MAGIC")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Enchanted Blade"))
+                .andExpect(jsonPath("$.content[0].trait").value("STRENGTH"))
+                .andExpect(jsonPath("$.content[0].damage.damageType").value("MAGIC"));
+    }
+
+    @Test
     void getAllWeapons_WithExpand_IncludesExpansion() throws Exception {
         // Arrange
         createWeapon("Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED);
@@ -715,6 +789,30 @@ class WeaponControllerIntegrationTest {
                         .diceType(DiceType.D10)
                         .modifier(3)
                         .damageType(DamageType.PHYSICAL)
+                        .build())
+                .build();
+        return weaponRepository.save(weapon);
+    }
+
+    /**
+     * Creates a weapon with a specific damage type for testing damage type filtering.
+     */
+    private Weapon createWeaponWithDamageType(String name, Expansion expansion, Boolean isOfficial, Boolean isPrimary,
+                                              Trait trait, Range range, Burden burden, DamageType damageType) {
+        Weapon weapon = Weapon.builder()
+                .name(name)
+                .expansion(expansion)
+                .tier(1)
+                .isOfficial(isOfficial)
+                .isPrimary(isPrimary)
+                .trait(trait)
+                .range(range)
+                .burden(burden)
+                .damage(DamageRoll.builder()
+                        .diceCount(2)
+                        .diceType(DiceType.D10)
+                        .modifier(3)
+                        .damageType(damageType)
                         .build())
                 .build();
         return weaponRepository.save(weapon);

@@ -11,6 +11,7 @@ import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.Burden;
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -57,6 +58,7 @@ public class WeaponService {
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param tier Optional filter for weapon tier (1–4)
+     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing weapons
      */
@@ -72,6 +74,7 @@ public class WeaponService {
             Burden burden,
             Boolean isPrimary,
             Integer tier,
+            DamageType damageType,
             String expand) {
 
         size = Math.min(size, 100);
@@ -79,9 +82,9 @@ public class WeaponService {
         Page<Weapon> weaponPage;
 
         if (includeDeleted) {
-            weaponPage = weaponRepository.findAllWithFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, pageable);
+            weaponPage = weaponRepository.findAllWithFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
         } else {
-            weaponPage = weaponRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, pageable);
+            weaponPage = weaponRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
