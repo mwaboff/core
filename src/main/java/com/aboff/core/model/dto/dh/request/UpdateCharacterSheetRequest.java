@@ -216,6 +216,11 @@ public class UpdateCharacterSheetRequest {
      */
     private List<Long> subclassCardIds;
 
+    /**
+     * Updated IDs of domain cards (null to leave unchanged)
+     */
+    private List<Long> domainCardIds;
+
     // ========== Inventory IDs ==========
 
     /**

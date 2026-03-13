@@ -549,6 +549,7 @@ class SubclassCardServiceTest {
         // Assert
         SubclassCardResponse response = result.getContent().get(0);
         assertThat(response.getExpansionName()).isEqualTo("Core Rulebook");
+        assertThat(response.getDomainIds()).containsExactly(1L, 2L);
         assertThat(response.getAssociatedClassId()).isEqualTo(1L);
         assertThat(response.getAssociatedClassName()).isEqualTo("Warrior");
         assertThat(response.getSubclassPathName()).isEqualTo("Warden of Renewal");
@@ -618,6 +619,7 @@ class SubclassCardServiceTest {
 
         // Assert
         assertThat(result.getContent().get(0).getDomainNames()).isEmpty();
+        assertThat(result.getContent().get(0).getDomainIds()).isEmpty();
     }
 
     // ==================== GET SUBCLASS CARD BY ID TESTS ====================

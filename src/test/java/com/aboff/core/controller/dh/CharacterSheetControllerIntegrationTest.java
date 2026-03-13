@@ -5,10 +5,14 @@ import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
+import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.DomainCardRepository;
+import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
+import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -57,6 +61,15 @@ class CharacterSheetControllerIntegrationTest {
 
     @Autowired
     private ExperienceRepository experienceRepository;
+
+    @Autowired
+    private DomainCardRepository domainCardRepository;
+
+    @Autowired
+    private DomainRepository domainRepository;
+
+    @Autowired
+    private ExpansionRepository expansionRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -502,6 +515,64 @@ class CharacterSheetControllerIntegrationTest {
         assertThat(foundExp.getCharacterSheet().isDeleted()).isTrue();
     }
 
+    // ==================== DOMAIN CARD TESTS ====================
+
+    @Test
+    void createCharacterSheet_WithDomainCards_Returns201() throws Exception {
+        // Arrange
+        DomainCard domainCard = createDomainCard("Blade Strike");
+        CreateCharacterSheetRequest request = createValidRequest();
+        request.setDomainCardIds(java.util.List.of(domainCard.getId()));
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.domainCardIds").isArray())
+                .andExpect(jsonPath("$.domainCardIds.length()").value(1))
+                .andExpect(jsonPath("$.domainCardIds[0]").value(domainCard.getId()));
+    }
+
+    @Test
+    void updateCharacterSheet_WithDomainCards_Returns200() throws Exception {
+        // Arrange
+        DomainCard domainCard = createDomainCard("Bone Shield");
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .domainCardIds(java.util.List.of(domainCard.getId()))
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.domainCardIds").isArray())
+                .andExpect(jsonPath("$.domainCardIds.length()").value(1))
+                .andExpect(jsonPath("$.domainCardIds[0]").value(domainCard.getId()));
+    }
+
+    @Test
+    void getCharacterSheetById_WithDomainCardsExpand_IncludesFullObjects() throws Exception {
+        // Arrange
+        DomainCard domainCard = createDomainCard("Blade Strike");
+        testSheet.setDomainCards(new java.util.HashSet<>(java.util.Set.of(domainCard)));
+        characterSheetRepository.save(testSheet);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .param("expand", "domainCards")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.domainCardIds").isArray())
+                .andExpect(jsonPath("$.domainCardIds.length()").value(1))
+                .andExpect(jsonPath("$.domainCards").isArray())
+                .andExpect(jsonPath("$.domainCards.length()").value(1))
+                .andExpect(jsonPath("$.domainCards[0].name").value("Blade Strike"));
+    }
+
     // ==================== HELPER METHODS ====================
 
     private User createUserWithRole(String username, String email, Role role) {
@@ -569,6 +640,31 @@ class CharacterSheetControllerIntegrationTest {
                 .createdBy(createdBy)
                 .build();
         return experienceRepository.save(exp);
+    }
+
+    private DomainCard createDomainCard(String name) {
+        Expansion expansion = Expansion.builder()
+                .name("Test Expansion " + name)
+                .isPublished(true)
+                .build();
+        expansion = expansionRepository.save(expansion);
+
+        Domain domain = Domain.builder()
+                .name("Test Domain " + name)
+                .expansion(expansion)
+                .build();
+        domain = domainRepository.save(domain);
+
+        DomainCard card = DomainCard.builder()
+                .name(name)
+                .expansion(expansion)
+                .isOfficial(true)
+                .associatedDomain(domain)
+                .level(1)
+                .recallCost(0)
+                .type(DomainCardType.SPELL)
+                .build();
+        return domainCardRepository.save(card);
     }
 
     private CreateCharacterSheetRequest createValidRequest() {

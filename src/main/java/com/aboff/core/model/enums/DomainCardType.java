@@ -19,6 +19,7 @@ public enum DomainCardType {
      */
     ABILITY,
 
+
     /**
      * Transformation domain card type.
      */

@@ -57,6 +57,7 @@ public class CharacterSheetService {
     private final CommunityCardRepository communityCardRepository;
     private final AncestryCardRepository ancestryCardRepository;
     private final SubclassCardRepository subclassCardRepository;
+    private final DomainCardRepository domainCardRepository;
     private final LootRepository lootRepository;
     private final RoleHierarchyService roleHierarchyService;
 
@@ -221,6 +222,15 @@ public class CharacterSheetService {
                 subclassCards.add(card);
             }
             characterSheet.setSubclassCards(subclassCards);
+        }
+        if (request.getDomainCardIds() != null) {
+            Set<DomainCard> domainCards = new HashSet<>();
+            for (Long cardId : request.getDomainCardIds()) {
+                DomainCard card = domainCardRepository.findById(cardId)
+                        .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
+                domainCards.add(card);
+            }
+            characterSheet.setDomainCards(domainCards);
         }
 
         // Set inventory collections if provided
@@ -422,6 +432,15 @@ public class CharacterSheetService {
             }
             characterSheet.setSubclassCards(subclassCards);
         }
+        if (request.getDomainCardIds() != null) {
+            Set<DomainCard> domainCards = new HashSet<>();
+            for (Long cardId : request.getDomainCardIds()) {
+                DomainCard card = domainCardRepository.findById(cardId)
+                        .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
+                domainCards.add(card);
+            }
+            characterSheet.setDomainCards(domainCards);
+        }
 
         // Update inventory collections (replace entire collection if provided)
         if (request.getInventoryWeaponIds() != null) {
@@ -575,6 +594,7 @@ public class CharacterSheetService {
      * - communityCards: List of community card objects
      * - ancestryCards: List of ancestry card objects
      * - subclassCards: List of subclass card objects
+     * - domainCards: List of domain card objects
      * - inventoryWeapons: List of weapon objects in inventory
      * - inventoryArmors: List of armor objects in inventory
      * - inventoryItems: List of loot objects in inventory
@@ -628,6 +648,7 @@ public class CharacterSheetService {
         builder.communityCardIds(sheet.getCommunityCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
         builder.ancestryCardIds(sheet.getAncestryCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
         builder.subclassCardIds(sheet.getSubclassCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
+        builder.domainCardIds(sheet.getDomainCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
 
         // Always include IDs for inventory
         builder.inventoryWeaponIds(sheet.getInventoryWeapons().stream().map(weapon -> weapon.getId()).collect(Collectors.toList()));
@@ -700,6 +721,13 @@ public class CharacterSheetService {
         if (expand.contains("subclassCards")) {
             builder.subclassCards(sheet.getSubclassCards().stream()
                     .map(this::toSubclassCardResponse)
+                    .collect(Collectors.toList()));
+        }
+
+        // Expand domain cards if requested
+        if (expand.contains("domainCards")) {
+            builder.domainCards(sheet.getDomainCards().stream()
+                    .map(this::toDomainCardResponse)
                     .collect(Collectors.toList()));
         }
 
@@ -806,6 +834,26 @@ public class CharacterSheetService {
                 .id(card.getId())
                 .name(card.getName())
                 .expansionId(card.getExpansion() != null ? card.getExpansion().getId() : null)
+                .createdAt(card.getCreatedAt())
+                .lastModifiedAt(card.getLastModifiedAt())
+                .build();
+    }
+
+    /**
+     * Converts a DomainCard entity to DomainCardResponse DTO with basic fields.
+     *
+     * @param card The domain card entity
+     * @return DomainCardResponse DTO
+     */
+    private DomainCardResponse toDomainCardResponse(DomainCard card) {
+        return DomainCardResponse.builder()
+                .id(card.getId())
+                .name(card.getName())
+                .expansionId(card.getExpansion() != null ? card.getExpansion().getId() : null)
+                .associatedDomainId(card.getAssociatedDomain() != null ? card.getAssociatedDomain().getId() : null)
+                .level(card.getLevel())
+                .recallCost(card.getRecallCost())
+                .type(card.getType())
                 .createdAt(card.getCreatedAt())
                 .lastModifiedAt(card.getLastModifiedAt())
                 .build();

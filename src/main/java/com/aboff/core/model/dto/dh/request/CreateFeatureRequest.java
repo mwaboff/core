@@ -2,7 +2,6 @@ package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.FeatureType;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -23,7 +22,6 @@ public class CreateFeatureRequest {
     /**
      * Name of the feature
      */
-    @NotBlank(message = "Feature name is required")
     @Size(max = 200, message = "Feature name must not exceed 200 characters")
     private String name;
 

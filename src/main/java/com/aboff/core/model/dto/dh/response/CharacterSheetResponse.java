@@ -23,6 +23,7 @@ import java.util.List;
  * - communityCards: List of community card objects
  * - ancestryCards: List of ancestry card objects
  * - subclassCards: List of subclass card objects
+ * - domainCards: List of domain card objects
  * - inventoryWeapons: List of weapon objects in inventory
  * - inventoryArmors: List of armor objects in inventory
  * - inventoryItems: List of loot objects in inventory
@@ -260,6 +261,17 @@ public class CharacterSheetResponse {
      * Full subclass card objects (included only when ?expand=subclassCards is specified)
      */
     private List<SubclassCardResponse> subclassCards;
+
+    /**
+     * IDs of domain cards (always included)
+     */
+    private List<Long> domainCardIds;
+
+    /**
+     * Full domain card objects (included only when ?expand=domainCards is specified)
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<DomainCardResponse> domainCards;
 
     // ========== Inventory ==========
 

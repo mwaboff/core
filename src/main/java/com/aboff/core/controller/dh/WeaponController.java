@@ -5,6 +5,7 @@ import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.enums.Burden;
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.service.dh.WeaponService;
@@ -45,6 +46,7 @@ public class WeaponController {
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param tier Optional filter for weapon tier (1–4)
+     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,feature,originalWeapon")
      * @return Paginated response containing weapons
      */
@@ -60,10 +62,11 @@ public class WeaponController {
             @RequestParam(required = false) Burden burden,
             @RequestParam(required = false) Boolean isPrimary,
             @RequestParam(required = false) Integer tier,
+            @RequestParam(required = false) DamageType damageType,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<WeaponResponse> response = weaponService.getAllWeapons(
-                page, size, includeDeleted, expansionId, isOfficial, trait, range, burden, isPrimary, tier, expand);
+                page, size, includeDeleted, expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, expand);
 
         return ResponseEntity.ok(response);
     }

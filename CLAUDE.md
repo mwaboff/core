@@ -159,7 +159,7 @@ Game content uses official/public/custom pattern:
 ## Database Migrations
 
 - **Always use `./scripts/create-migration.sh <name>`** - Never manually create migration filenames
-- **Prefer new migrations over modifying existing** - Create new migration for schema changes
+- **Always use new migrations over modifying existing** - Create new migration for schema changes
 - Naming: `V{timestamp}__{description}.sql`
 
 ## Environment

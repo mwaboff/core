@@ -242,6 +242,11 @@ public class CreateCharacterSheetRequest {
      */
     private List<Long> subclassCardIds;
 
+    /**
+     * IDs of domain cards associated with this character (optional)
+     */
+    private List<Long> domainCardIds;
+
     // ========== Inventory IDs ==========
 
     /**

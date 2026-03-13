@@ -21,52 +21,54 @@ public interface DomainCardRepository extends JpaRepository<DomainCard, Long> {
 
     /**
      * Finds all non-deleted domain cards with optional filters.
+     * Supports filtering by multiple associated domain IDs and/or multiple levels.
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
-     * @param associatedDomainId Optional filter for associated domain ID
+     * @param associatedDomainIds Optional list of associated domain IDs to filter by
      * @param type Optional filter for domain card type
-     * @param level Optional filter for card level
+     * @param levels Optional list of levels to filter by
      * @param pageable Pagination information
      * @return Page of non-deleted domain cards matching the criteria
      */
     @Query("SELECT d FROM DomainCard d WHERE d.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR d.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial) " +
-           "AND (:associatedDomainId IS NULL OR d.associatedDomain.id = :associatedDomainId) " +
+           "AND (:associatedDomainIds IS NULL OR d.associatedDomain.id IN :associatedDomainIds) " +
            "AND (:type IS NULL OR d.type = :type) " +
-           "AND (:level IS NULL OR d.level = :level)")
+           "AND (:levels IS NULL OR d.level IN :levels)")
     Page<DomainCard> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
-            @Param("associatedDomainId") Long associatedDomainId,
+            @Param("associatedDomainIds") List<Long> associatedDomainIds,
             @Param("type") DomainCardType type,
-            @Param("level") Integer level,
+            @Param("levels") List<Integer> levels,
             Pageable pageable);
 
     /**
      * Finds all domain cards with optional filters, including soft-deleted ones.
+     * Supports filtering by multiple associated domain IDs and/or multiple levels.
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
-     * @param associatedDomainId Optional filter for associated domain ID
+     * @param associatedDomainIds Optional list of associated domain IDs to filter by
      * @param type Optional filter for domain card type
-     * @param level Optional filter for card level
+     * @param levels Optional list of levels to filter by
      * @param pageable Pagination information
      * @return Page of all domain cards matching the criteria
      */
     @Query("SELECT d FROM DomainCard d WHERE " +
            "(:expansionId IS NULL OR d.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial) " +
-           "AND (:associatedDomainId IS NULL OR d.associatedDomain.id = :associatedDomainId) " +
+           "AND (:associatedDomainIds IS NULL OR d.associatedDomain.id IN :associatedDomainIds) " +
            "AND (:type IS NULL OR d.type = :type) " +
-           "AND (:level IS NULL OR d.level = :level)")
+           "AND (:levels IS NULL OR d.level IN :levels)")
     Page<DomainCard> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
-            @Param("associatedDomainId") Long associatedDomainId,
+            @Param("associatedDomainIds") List<Long> associatedDomainIds,
             @Param("type") DomainCardType type,
-            @Param("level") Integer level,
+            @Param("levels") List<Integer> levels,
             Pageable pageable);
 
     /**

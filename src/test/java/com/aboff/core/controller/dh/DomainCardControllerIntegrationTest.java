@@ -141,7 +141,7 @@ class DomainCardControllerIntegrationTest {
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/cards/domain")
-                        .param("associatedDomainId", testDomain.getId().toString())
+                        .param("associatedDomainIds", testDomain.getId().toString())
                         .cookie(new Cookie("AUTH_TOKEN", userToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
@@ -157,7 +157,7 @@ class DomainCardControllerIntegrationTest {
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/cards/domain")
-                        .param("level", "3")
+                        .param("levels", "3")
                         .cookie(new Cookie("AUTH_TOKEN", userToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(2))

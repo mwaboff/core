@@ -2,7 +2,6 @@ package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.FeatureType;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -23,8 +22,7 @@ import java.util.List;
 @AllArgsConstructor
 public class FeatureInput {
 
-    /** Name of the feature. Matched case-insensitively against existing features within the same expansion and type. */
-    @NotBlank(message = "Feature name is required")
+    /** Name of the feature. When provided, matched case-insensitively against existing features within the same expansion and type. */
     @Size(max = 200, message = "Feature name must not exceed 200 characters")
     private String name;
 

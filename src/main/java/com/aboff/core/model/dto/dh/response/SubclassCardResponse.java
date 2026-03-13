@@ -125,6 +125,11 @@ public class SubclassCardResponse {
     private List<String> domainNames;
 
     /**
+     * IDs of the domains associated with this card's subclass path (always included)
+     */
+    private List<Long> domainIds;
+
+    /**
      * The spellcasting trait for this card's subclass path (always included, null if no spellcasting)
      */
     private SubclassPathResponse.TraitInfo spellcastingTrait;
