@@ -288,37 +288,51 @@ public class FeatureService {
      */
     @Transactional
     public Feature findOrCreate(FeatureInput input) {
-        return featureRepository
-                .findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
-                        input.getName(), input.getExpansionId(), input.getFeatureType())
-                .map(existing -> {
-                    log.debug("Found existing feature with name '{}' (id: {})", input.getName(), existing.getId());
-                    return existing;
-                })
-                .orElseGet(() -> {
-                    log.info("Creating new feature with name '{}', type '{}', expansion '{}'",
-                            input.getName(), input.getFeatureType(), input.getExpansionId());
-                    Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
-                            .orElseThrow(() -> new EntityNotFoundException(
-                                    "Expansion not found with id: " + input.getExpansionId()));
-                    Feature feature = Feature.builder()
-                            .name(input.getName())
-                            .description(input.getDescription())
-                            .featureType(input.getFeatureType())
-                            .expansion(expansion)
-                            .build();
-                    Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(
-                            input.getCostTagIds(), input.getCostTags());
-                    if (resolvedTags != null) {
-                        feature.setCostTags(resolvedTags);
-                    }
-                    Set<FeatureModifier> resolvedModifiers = featureModifierService.resolveModifiers(
-                            input.getModifierIds(), input.getModifiers());
-                    if (resolvedModifiers != null) {
-                        feature.setModifiers(resolvedModifiers);
-                    }
-                    return featureRepository.save(feature);
-                });
+        // Only attempt to find an existing feature if a name is provided
+        if (input.getName() != null && !input.getName().isBlank()) {
+            return featureRepository
+                    .findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                            input.getName(), input.getExpansionId(), input.getFeatureType())
+                    .map(existing -> {
+                        log.debug("Found existing feature with name '{}' (id: {})", input.getName(), existing.getId());
+                        return existing;
+                    })
+                    .orElseGet(() -> createFeatureFromInput(input));
+        }
+
+        return createFeatureFromInput(input);
+    }
+
+    /**
+     * Creates a new Feature entity from a FeatureInput, resolving expansion, cost tags, and modifiers.
+     *
+     * @param input The feature input containing details for the new feature
+     * @return The newly created and persisted Feature entity
+     * @throws EntityNotFoundException if the expansion referenced by the input does not exist
+     */
+    private Feature createFeatureFromInput(FeatureInput input) {
+        log.info("Creating new feature with name '{}', type '{}', expansion '{}'",
+                input.getName(), input.getFeatureType(), input.getExpansionId());
+        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Expansion not found with id: " + input.getExpansionId()));
+        Feature feature = Feature.builder()
+                .name(input.getName())
+                .description(input.getDescription())
+                .featureType(input.getFeatureType())
+                .expansion(expansion)
+                .build();
+        Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(
+                input.getCostTagIds(), input.getCostTags());
+        if (resolvedTags != null) {
+            feature.setCostTags(resolvedTags);
+        }
+        Set<FeatureModifier> resolvedModifiers = featureModifierService.resolveModifiers(
+                input.getModifierIds(), input.getModifiers());
+        if (resolvedModifiers != null) {
+            feature.setModifiers(resolvedModifiers);
+        }
+        return featureRepository.save(feature);
     }
 
     /**

@@ -376,6 +376,39 @@ class FeatureServiceTest {
     }
 
     @Test
+    void createFeature_NullName_CreatesFeatureSuccessfully() {
+        // Arrange
+        Expansion expansion = Expansion.builder()
+                .id(1L).name("Core Rulebook").isPublished(true).build();
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name(null)
+                .description("A nameless feature")
+                .featureType(FeatureType.DOMAIN)
+                .expansionId(1L)
+                .build();
+        Feature savedFeature = Feature.builder()
+                .id(1L).name(null).description("A nameless feature")
+                .featureType(FeatureType.DOMAIN).expansion(expansion).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureModifierService.resolveModifiers(isNull(), isNull())).thenReturn(null);
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request);
+
+        // Assert
+        assertThat(result.getName()).isNull();
+        assertThat(result.getDescription()).isEqualTo("A nameless feature");
+        verify(featureRepository).save(argThat(feature ->
+                feature.getName() == null &&
+                        feature.getDescription().equals("A nameless feature")
+        ));
+    }
+
+    @Test
     void createFeature_ExpansionNotFound_ThrowsEntityNotFoundException() {
         // Arrange
         CreateFeatureRequest request = CreateFeatureRequest.builder()
@@ -1233,6 +1266,59 @@ class FeatureServiceTest {
         // Assert
         assertThat(result.getModifiers()).hasSize(1);
         verify(featureModifierService).resolveModifiers(isNull(), eq(modifierInputs));
+    }
+
+    @Test
+    void findOrCreate_NullName_SkipsLookupAndCreatesDirectly() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        FeatureInput input = FeatureInput.builder()
+                .name(null).description("A nameless feature")
+                .featureType(FeatureType.DOMAIN).expansionId(1L).build();
+        Feature savedFeature = Feature.builder()
+                .id(11L).name(null).description("A nameless feature")
+                .featureType(FeatureType.DOMAIN).expansion(expansion).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureModifierService.resolveModifiers(isNull(), isNull())).thenReturn(null);
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        Feature result = featureService.findOrCreate(input);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(11L);
+        assertThat(result.getName()).isNull();
+        verify(featureRepository, never()).findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                any(), anyLong(), any());
+        verify(featureRepository).save(any(Feature.class));
+    }
+
+    @Test
+    void findOrCreate_BlankName_SkipsLookupAndCreatesDirectly() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core").isPublished(true).build();
+        FeatureInput input = FeatureInput.builder()
+                .name("   ").description("A blank-named feature")
+                .featureType(FeatureType.DOMAIN).expansionId(1L).build();
+        Feature savedFeature = Feature.builder()
+                .id(12L).name("   ").description("A blank-named feature")
+                .featureType(FeatureType.DOMAIN).expansion(expansion).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(cardCostTagService.resolveCostTags(isNull(), isNull())).thenReturn(null);
+        when(featureModifierService.resolveModifiers(isNull(), isNull())).thenReturn(null);
+        when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
+
+        // Act
+        Feature result = featureService.findOrCreate(input);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(12L);
+        verify(featureRepository, never()).findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
+                any(), anyLong(), any());
+        verify(featureRepository).save(any(Feature.class));
     }
 
     // ==================== BULK CREATE TESTS ====================

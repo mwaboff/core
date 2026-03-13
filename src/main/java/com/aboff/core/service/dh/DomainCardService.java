@@ -50,15 +50,16 @@ public class DomainCardService {
 
     /**
      * Retrieves a paginated list of domain cards.
+     * Results are sorted by level ascending, then by name alphabetically.
      *
      * @param page Zero-based page number
      * @param size Number of items per page
      * @param includeDeleted Whether to include soft-deleted cards
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
-     * @param associatedDomainId Optional filter for associated domain ID
+     * @param associatedDomainIds Optional list of associated domain IDs to filter by
      * @param type Optional filter for domain card type
-     * @param level Optional filter for card level
+     * @param levels Optional list of levels to filter by
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing domain cards
      */
@@ -69,19 +70,20 @@ public class DomainCardService {
             boolean includeDeleted,
             Long expansionId,
             Boolean isOfficial,
-            Long associatedDomainId,
+            List<Long> associatedDomainIds,
             DomainCardType type,
-            Integer level,
+            List<Integer> levels,
             String expand) {
 
         size = Math.min(size, 100);
-        Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
+        Pageable pageable = PageRequest.of(page, size,
+                Sort.by("level").ascending().and(Sort.by("name").ascending()));
         Page<DomainCard> cardPage;
 
         if (includeDeleted) {
-            cardPage = domainCardRepository.findAllWithFilters(expansionId, isOfficial, associatedDomainId, type, level, pageable);
+            cardPage = domainCardRepository.findAllWithFilters(expansionId, isOfficial, associatedDomainIds, type, levels, pageable);
         } else {
-            cardPage = domainCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, associatedDomainId, type, level, pageable);
+            cardPage = domainCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, associatedDomainIds, type, levels, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);

@@ -344,6 +344,12 @@ public class SubclassCardService {
                                 .sorted()
                                 .collect(Collectors.toList())
                         : List.of())
+                .domainIds(card.getSubclassPath().getAssociatedDomains() != null
+                        ? card.getSubclassPath().getAssociatedDomains().stream()
+                                .map(Domain::getId)
+                                .sorted()
+                                .collect(Collectors.toList())
+                        : List.of())
                 .spellcastingTrait(buildTraitInfo(card.getSubclassPath().getSpellcastingTrait()))
                 .level(card.getLevel())
                 .createdAt(card.getCreatedAt())

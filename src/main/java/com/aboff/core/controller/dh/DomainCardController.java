@@ -32,15 +32,16 @@ public class DomainCardController {
 
     /**
      * Retrieves a paginated list of domain cards.
+     * Results are sorted by level ascending, then by name alphabetically.
      *
      * @param page Zero-based page number (default: 0)
      * @param size Number of items per page (default: 20, max: 100)
      * @param includeDeleted Whether to include soft-deleted cards (default: false, ADMIN+ only)
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
-     * @param associatedDomainId Optional filter for associated domain ID
+     * @param associatedDomainIds Optional list of associated domain IDs to filter by
      * @param type Optional filter for domain card type
-     * @param level Optional filter for card level
+     * @param levels Optional list of levels to filter by
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,features,associatedDomain")
      * @return Paginated response containing domain cards
      */
@@ -51,13 +52,13 @@ public class DomainCardController {
             @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(required = false) Long expansionId,
             @RequestParam(required = false) Boolean isOfficial,
-            @RequestParam(required = false) Long associatedDomainId,
+            @RequestParam(required = false) List<Long> associatedDomainIds,
             @RequestParam(required = false) DomainCardType type,
-            @RequestParam(required = false) Integer level,
+            @RequestParam(required = false) List<Integer> levels,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<DomainCardResponse> response = domainCardService.getAllDomainCards(
-                page, size, includeDeleted, expansionId, isOfficial, associatedDomainId, type, level, expand);
+                page, size, includeDeleted, expansionId, isOfficial, associatedDomainIds, type, levels, expand);
 
         return ResponseEntity.ok(response);
     }

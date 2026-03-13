@@ -169,16 +169,16 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(List.of(1L)), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, 1L, null, null, null);
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, List.of(1L), null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getAssociatedDomainId()).isEqualTo(1L);
-        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), any(Pageable.class));
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(List.of(1L)), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -201,16 +201,16 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(3), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(List.of(3)), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, 3, null);
+        PagedResponse<DomainCardResponse> result = domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, List.of(3), null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getLevel()).isEqualTo(3);
-        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(3), any(Pageable.class));
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(List.of(3)), any(Pageable.class));
     }
 
     @Test

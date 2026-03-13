@@ -68,6 +68,9 @@ class CharacterSheetServiceTest {
     private SubclassCardRepository subclassCardRepository;
 
     @Mock
+    private DomainCardRepository domainCardRepository;
+
+    @Mock
     private LootRepository lootRepository;
 
     @Mock
@@ -93,6 +96,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -107,6 +111,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -141,6 +146,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -173,6 +179,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -205,6 +212,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -243,6 +251,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -302,6 +311,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -371,6 +381,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -754,6 +765,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -889,6 +901,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -995,6 +1008,114 @@ class CharacterSheetServiceTest {
                 .hasMessageContaining("CommunityCard not found with id: 999");
     }
 
+    @Test
+    void createCharacterSheet_WithDomainCards_SetsDomainCards() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Domain domain = Domain.builder().id(1L).name("Blade").build();
+        DomainCard domainCard = DomainCard.builder().id(1L).name("Blade Strike").associatedDomain(domain).level(1).recallCost(0).build();
+
+        CreateCharacterSheetRequest request = CreateCharacterSheetRequest.builder()
+                .name("Aragorn")
+                .level(5)
+                .evasion(10)
+                .armorMax(5)
+                .armorMarked(0)
+                .majorDamageThreshold(3)
+                .severeDamageThreshold(6)
+                .agilityModifier(0)
+                .agilityMarked(false)
+                .strengthModifier(0)
+                .strengthMarked(false)
+                .finesseModifier(0)
+                .finesseMarked(false)
+                .instinctModifier(0)
+                .instinctMarked(false)
+                .presenceModifier(0)
+                .presenceMarked(false)
+                .knowledgeModifier(0)
+                .knowledgeMarked(false)
+                .hitPointMax(10)
+                .hitPointMarked(0)
+                .stressMax(6)
+                .stressMarked(0)
+                .hopeMax(3)
+                .hopeMarked(0)
+                .gold(50)
+                .domainCardIds(List.of(1L))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(domainCardRepository.findById(1L)).thenReturn(Optional.of(domainCard));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setInventoryWeapons(new HashSet<>());
+            saved.setInventoryArmors(new HashSet<>());
+            saved.setInventoryItems(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getDomainCardIds()).contains(1L);
+    }
+
+    @Test
+    void createCharacterSheet_WithInvalidDomainCardId_ThrowsEntityNotFoundException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+
+        CreateCharacterSheetRequest request = CreateCharacterSheetRequest.builder()
+                .name("Aragorn")
+                .level(5)
+                .evasion(10)
+                .armorMax(5)
+                .armorMarked(0)
+                .majorDamageThreshold(3)
+                .severeDamageThreshold(6)
+                .agilityModifier(0)
+                .agilityMarked(false)
+                .strengthModifier(0)
+                .strengthMarked(false)
+                .finesseModifier(0)
+                .finesseMarked(false)
+                .instinctModifier(0)
+                .instinctMarked(false)
+                .presenceModifier(0)
+                .presenceMarked(false)
+                .knowledgeModifier(0)
+                .knowledgeMarked(false)
+                .hitPointMax(10)
+                .hitPointMarked(0)
+                .stressMax(6)
+                .stressMarked(0)
+                .hopeMax(3)
+                .hopeMarked(0)
+                .gold(50)
+                .domainCardIds(List.of(999L))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(domainCardRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("DomainCard not found with id: 999");
+    }
+
     // ==================== UPDATE CHARACTER SHEET TESTS ====================
 
     @Test
@@ -1032,6 +1153,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1084,6 +1206,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1163,6 +1286,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1216,6 +1340,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1267,6 +1392,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1330,6 +1456,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1383,6 +1510,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1438,6 +1566,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1489,6 +1618,7 @@ class CharacterSheetServiceTest {
             CharacterSheet saved = invocation.getArgument(0);
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1540,6 +1670,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
+            saved.setDomainCards(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
             saved.setExperiences(new HashSet<>());
@@ -1624,6 +1755,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>(List.of(communityCard)))
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -1651,5 +1783,107 @@ class CharacterSheetServiceTest {
         assertThat(result.getActiveArmor().getName()).isEqualTo("Plate Mail");
         assertThat(result.getCommunityCards()).hasSize(1);
         assertThat(result.getCommunityCards().get(0).getName()).isEqualTo("Nomad");
+    }
+
+    // ==================== DOMAIN CARD TESTS ====================
+
+    @Test
+    void updateCharacterSheet_WithDomainCards_UpdatesDomainCards() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Domain domain = Domain.builder().id(1L).name("Blade").build();
+        DomainCard domainCard = DomainCard.builder().id(1L).name("Blade Strike").associatedDomain(domain).level(1).recallCost(0).build();
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .level(5)
+                .owner(owner)
+                .evasion(10)
+                .armorMax(5)
+                .armorMarked(0)
+                .majorDamageThreshold(3)
+                .severeDamageThreshold(6)
+                .hitPointMax(10)
+                .hitPointMarked(0)
+                .stressMax(6)
+                .stressMarked(0)
+                .hopeMax(3)
+                .hopeMarked(0)
+                .build();
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .domainCardIds(List.of(1L))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(domainCardRepository.findById(1L)).thenReturn(Optional.of(domainCard));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setInventoryWeapons(new HashSet<>());
+            saved.setInventoryArmors(new HashSet<>());
+            saved.setInventoryItems(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getDomainCardIds()).contains(1L);
+        verify(domainCardRepository).findById(1L);
+    }
+
+    @Test
+    void getCharacterSheetById_WithDomainCardsExpansion_IncludesDomainCards() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Domain domain = Domain.builder().id(1L).name("Blade").build();
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").build();
+        DomainCard domainCard = DomainCard.builder()
+                .id(1L)
+                .name("Blade Strike")
+                .expansion(expansion)
+                .associatedDomain(domain)
+                .level(1)
+                .recallCost(0)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .level(5)
+                .owner(owner)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>(List.of(domainCard)))
+                .inventoryWeapons(new HashSet<>())
+                .inventoryArmors(new HashSet<>())
+                .inventoryItems(new HashSet<>())
+                .experiences(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "domainCards");
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getDomainCardIds()).contains(1L);
+        assertThat(result.getDomainCards()).isNotNull();
+        assertThat(result.getDomainCards()).hasSize(1);
+        assertThat(result.getDomainCards().get(0).getName()).isEqualTo("Blade Strike");
+        assertThat(result.getDomainCards().get(0).getAssociatedDomainId()).isEqualTo(1L);
     }
 }

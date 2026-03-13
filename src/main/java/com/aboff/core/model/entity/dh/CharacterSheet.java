@@ -26,7 +26,7 @@ import java.util.Set;
  *   <li>Resources (hit points, stress, hope)</li>
  *   <li>Economy (gold)</li>
  *   <li>Equipment (active weapons and armor)</li>
- *   <li>Collections (community cards, ancestry cards, subclass cards)</li>
+ *   <li>Collections (community cards, ancestry cards, subclass cards, domain cards)</li>
  *   <li>Inventory (weapons, armor, and loot items)</li>
  *   <li>Experiences (narrative bonuses from character history)</li>
  * </ul>
@@ -378,6 +378,20 @@ public class CharacterSheet extends BaseEntity {
     )
     @Builder.Default
     private Set<SubclassCard> subclassCards = new HashSet<>();
+
+    /**
+     * Domain cards associated with this character.
+     * Domain cards represent magical or specialized abilities tied to specific
+     * domains. Characters gain domain cards through their subclass progression.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "character_sheet_domain_cards",
+        joinColumns = @JoinColumn(name = "character_sheet_id"),
+        inverseJoinColumns = @JoinColumn(name = "domain_card_id")
+    )
+    @Builder.Default
+    private Set<DomainCard> domainCards = new HashSet<>();
 
     // ========== Inventory ==========
 
