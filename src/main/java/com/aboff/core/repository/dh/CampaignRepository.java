@@ -109,7 +109,7 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
      */
     @Query("SELECT c FROM Campaign c WHERE c.deletedAt IS NULL AND " +
            "(:creatorId IS NULL OR c.creator.id = :creatorId) AND " +
-           "(:name IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')))")
+           "(:name IS NULL OR LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
     Page<Campaign> findActiveWithFilters(
             @Param("creatorId") Long creatorId,
             @Param("name") String name,

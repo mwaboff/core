@@ -101,7 +101,7 @@ public interface CharacterSheetRepository extends JpaRepository<CharacterSheet, 
      */
     @Query("SELECT cs FROM CharacterSheet cs WHERE cs.deletedAt IS NULL AND " +
            "(:ownerId IS NULL OR cs.owner.id = :ownerId) AND " +
-           "(:name IS NULL OR LOWER(cs.name) LIKE LOWER(CONCAT('%', :name, '%'))) AND " +
+           "(:name IS NULL OR LOWER(cs.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) AND " +
            "(:minLevel IS NULL OR cs.level >= :minLevel) AND " +
            "(:maxLevel IS NULL OR cs.level <= :maxLevel)")
     Page<CharacterSheet> findActiveWithFilters(

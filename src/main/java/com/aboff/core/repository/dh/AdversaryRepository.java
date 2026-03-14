@@ -47,7 +47,7 @@ public interface AdversaryRepository extends JpaRepository<Adversary, Long> {
            "AND (:tier IS NULL OR a.tier = :tier) " +
            "AND (:adversaryType IS NULL OR a.adversaryType = :adversaryType) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
-           "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :name, '%')))")
+           "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
     Page<Adversary> findAccessibleWithFilters(
             @Param("userId") Long userId,
             @Param("expansionId") Long expansionId,
@@ -76,7 +76,7 @@ public interface AdversaryRepository extends JpaRepository<Adversary, Long> {
            "AND (:tier IS NULL OR a.tier = :tier) " +
            "AND (:adversaryType IS NULL OR a.adversaryType = :adversaryType) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
-           "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', :name, '%')))")
+           "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
     Page<Adversary> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("tier") Integer tier,

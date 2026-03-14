@@ -44,7 +44,7 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
            "AND (:campaignId IS NULL OR e.campaign.id = :campaignId) " +
            "AND (:tier IS NULL OR e.tier = :tier) " +
            "AND (:isOfficial IS NULL OR e.isOfficial = :isOfficial) " +
-           "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :name, '%')))")
+           "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
     Page<Encounter> findAccessibleWithFilters(
             @Param("userId") Long userId,
             @Param("campaignId") Long campaignId,
@@ -70,7 +70,7 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
            "AND (:campaignId IS NULL OR e.campaign.id = :campaignId) " +
            "AND (:tier IS NULL OR e.tier = :tier) " +
            "AND (:isOfficial IS NULL OR e.isOfficial = :isOfficial) " +
-           "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', :name, '%')))")
+           "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
     Page<Encounter> findAllWithFilters(
             @Param("campaignId") Long campaignId,
             @Param("tier") Integer tier,
