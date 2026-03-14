@@ -42,6 +42,12 @@ public class UpdateCharacterSheetRequest {
     @Max(value = 10, message = "Level must not exceed 10")
     private Integer level;
 
+    /**
+     * Updated proficiency bonus
+     */
+    @Min(value = 1, message = "Proficiency must be at least 1")
+    private Integer proficiency;
+
     // ========== Combat Attributes ==========
 
     /**

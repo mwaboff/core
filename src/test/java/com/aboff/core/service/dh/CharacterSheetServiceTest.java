@@ -75,6 +75,9 @@ class CharacterSheetServiceTest {
     private LootRepository lootRepository;
 
     @Mock
+    private CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
+
+    @Mock
     private RoleHierarchyService roleHierarchyService;
 
     @Mock
@@ -118,7 +121,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -133,7 +136,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -168,7 +171,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -201,7 +204,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -234,7 +237,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -273,7 +276,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -333,7 +336,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -403,7 +406,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -787,7 +790,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -923,7 +926,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1175,7 +1178,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1228,7 +1231,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1308,7 +1311,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1362,7 +1365,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1414,7 +1417,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1478,7 +1481,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1532,7 +1535,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1588,7 +1591,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1640,7 +1643,7 @@ class CharacterSheetServiceTest {
             CharacterSheet saved = invocation.getArgument(0);
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryWeapons(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
@@ -1692,7 +1695,7 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setDomainCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
             saved.setInventoryArmors(new HashSet<>());
             saved.setInventoryItems(new HashSet<>());
             saved.setExperiences(new HashSet<>());
@@ -1777,7 +1780,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>(List.of(communityCard)))
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
@@ -1893,13 +1896,20 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>(List.of(domainCard)))
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())
                 .experiences(new HashSet<>())
                 .createdAt(LocalDateTime.now())
                 .build();
+
+        CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                .id(1L)
+                .characterSheet(sheet)
+                .domainCard(domainCard)
+                .equipped(true)
+                .build();
+        sheet.setCharacterSheetDomainCards(new HashSet<>(List.of(csdc)));
 
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(domainCardService.toResponse(any(DomainCard.class), anySet()))
@@ -1936,7 +1946,7 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .domainCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
                 .inventoryWeapons(new HashSet<>())
                 .inventoryArmors(new HashSet<>())
                 .inventoryItems(new HashSet<>())

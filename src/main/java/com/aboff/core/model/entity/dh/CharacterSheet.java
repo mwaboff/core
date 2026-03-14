@@ -72,6 +72,16 @@ public class CharacterSheet extends BaseEntity {
     @Builder.Default
     private Integer level = 1;
 
+    /**
+     * The character's proficiency bonus.
+     * Proficiency represents the character's general competence and is added to
+     * certain rolls. Characters start with a proficiency of 1 and can increase it
+     * through advancement choices.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer proficiency = 1;
+
     // ========== Combat Attributes ==========
 
     /**
@@ -380,18 +390,14 @@ public class CharacterSheet extends BaseEntity {
     private Set<SubclassCard> subclassCards = new HashSet<>();
 
     /**
-     * Domain cards associated with this character.
-     * Domain cards represent magical or specialized abilities tied to specific
-     * domains. Characters gain domain cards through their subclass progression.
+     * Domain card associations for this character.
+     * Each association tracks a domain card and whether it is currently equipped
+     * or stored in the vault. Domain cards represent magical or specialized abilities
+     * tied to specific domains.
      */
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "character_sheet_domain_cards",
-        joinColumns = @JoinColumn(name = "character_sheet_id"),
-        inverseJoinColumns = @JoinColumn(name = "domain_card_id")
-    )
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private Set<DomainCard> domainCards = new HashSet<>();
+    private Set<CharacterSheetDomainCard> characterSheetDomainCards = new HashSet<>();
 
     // ========== Inventory ==========
 
@@ -459,6 +465,16 @@ public class CharacterSheet extends BaseEntity {
     @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private Set<Companion> companions = new HashSet<>();
+
+    // ========== Advancement Logs ==========
+
+    /**
+     * Advancement logs recording each level-up event for this character.
+     * Each log entry tracks the level transition, tier, and advancement choices made.
+     */
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<CharacterAdvancementLog> advancementLogs = new HashSet<>();
 
     // ========== Soft Deletion ==========
 

@@ -558,7 +558,12 @@ class CharacterSheetControllerIntegrationTest {
     void getCharacterSheetById_WithDomainCardsExpand_IncludesFullObjects() throws Exception {
         // Arrange
         DomainCard domainCard = createDomainCard("Blade Strike");
-        testSheet.setDomainCards(new java.util.HashSet<>(java.util.Set.of(domainCard)));
+        CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                .characterSheet(testSheet)
+                .domainCard(domainCard)
+                .equipped(true)
+                .build();
+        testSheet.setCharacterSheetDomainCards(new java.util.HashSet<>(java.util.Set.of(csdc)));
         characterSheetRepository.save(testSheet);
 
         // Act & Assert
