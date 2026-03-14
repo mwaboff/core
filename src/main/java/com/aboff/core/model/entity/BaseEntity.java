@@ -68,6 +68,42 @@ import java.time.LocalDateTime;
 public abstract class BaseEntity {
 
     /**
+     * Compares entities by their database identity (id).
+     * <p>
+     * Two entities are equal if they are the same instance, or if they have the same
+     * concrete class and the same non-null id. Entities with a null id (not yet persisted)
+     * are only equal to themselves. This avoids including lazy-loaded associations in
+     * equality checks, which would cause {@link java.util.ConcurrentModificationException}
+     * during Hibernate collection initialization.
+     * </p>
+     *
+     * @param o the object to compare to
+     * @return true if both entities represent the same database row
+     */
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        BaseEntity that = (BaseEntity) o;
+        return id != null && id.equals(that.id);
+    }
+
+    /**
+     * Returns a stable hash code based on the entity's concrete class.
+     * <p>
+     * Using {@code getClass().hashCode()} keeps the hash code stable across the entity
+     * lifecycle (before and after persistence), which is a requirement for safe use in
+     * hash-based collections. Identity comparisons fall back to {@link #equals(Object)}.
+     * </p>
+     *
+     * @return stable hash code based on the concrete class
+     */
+    @Override
+    public int hashCode() {
+        return getClass().hashCode();
+    }
+
+    /**
      * Primary key identifier for the entity.
      * <p>
      * Uses database identity generation strategy for auto-incrementing values.

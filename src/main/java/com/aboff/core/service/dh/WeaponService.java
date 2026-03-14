@@ -346,7 +346,7 @@ public class WeaponService {
      * @param expand Set of relationships to expand
      * @return WeaponResponse DTO
      */
-    private WeaponResponse toResponse(Weapon weapon, Set<String> expand) {
+    public WeaponResponse toResponse(Weapon weapon, Set<String> expand) {
         WeaponResponse.WeaponResponseBuilder builder = WeaponResponse.builder()
                 .id(weapon.getId())
                 .name(weapon.getName())

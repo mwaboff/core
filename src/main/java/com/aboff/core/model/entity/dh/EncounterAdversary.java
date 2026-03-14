@@ -19,7 +19,7 @@ import lombok.experimental.SuperBuilder;
 @Entity
 @Table(name = "encounter_adversaries")
 @Data
-@EqualsAndHashCode(callSuper = false)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor

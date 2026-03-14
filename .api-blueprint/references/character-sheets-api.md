@@ -422,7 +422,9 @@ curl -X DELETE -b "AUTH_TOKEN=<token>" \
 
 The `expand` query parameter accepts a comma-separated list of relationship names. When a relationship is expanded, the full object is included in the response alongside the ID field (which is always present).
 
-**Supported expand values:**
+Expand options come in two categories: **item/card expansion** (top-level, brings related objects into the character sheet response) and **nested expansion** (applied within the already-expanded item or card objects).
+
+### Item / Card Expand Options
 
 | Value                  | Description                                  | Adds Field                  | Type                        |
 |------------------------|----------------------------------------------|-----------------------------|-----------------------------|
@@ -439,7 +441,29 @@ The `expand` query parameter accepts a comma-separated list of relationship name
 | `inventoryArmors`      | All armor pieces in inventory                | `inventoryArmors`           | `ArmorResponse[]`           |
 | `inventoryItems`       | All loot items in inventory                  | `inventoryItems`            | `LootResponse[]`            |
 
-**Example:** `?expand=owner,experiences,activePrimaryWeapon,inventoryWeapons`
+### Nested Expand Options
+
+These options apply **within** expanded weapons, armor, cards, and loot items. They have no effect unless at least one item/card expand option is also present.
+
+| Value       | Description                                                                                   | Applies To                                                                    |
+|-------------|-----------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------|
+| `features`  | Replaces `featureIds` arrays with full `FeatureResponse` objects on expanded items and cards  | Weapons, Armor, Loot, AncestryCard, CommunityCard, SubclassCard, DomainCard  |
+| `costTags`  | Replaces `costTagIds` arrays with full `CardCostTagResponse` objects on expanded cards and features | Cards (directly), Features (when `features` is also expanded)          |
+| `modifiers` | Replaces `modifierIds` arrays with full `FeatureModifierResponse` objects on expanded features | Features (requires `features` to also be expanded)                           |
+| `expansion` | Replaces `expansionId` with a full `ExpansionResponse` object on expanded items, cards, and features | Weapons, Armor, Loot, Cards, Features (when `features` is also expanded) |
+
+### Combining Expand Options
+
+Nested options compose freely with any item/card expand options. Examples:
+
+| Query String                                        | Effect                                                                              |
+|-----------------------------------------------------|-------------------------------------------------------------------------------------|
+| `?expand=activePrimaryWeapon,features`              | Returns the primary weapon with its features fully populated                        |
+| `?expand=domainCards,features,costTags`             | Returns domain cards with full feature objects, each feature with full cost tags    |
+| `?expand=inventoryWeapons,features,modifiers`       | Returns inventory weapons with full features, each feature with full modifiers      |
+| `?expand=ancestryCards,features,expansion`          | Returns ancestry cards with full features, and each item/card's expansion populated |
+| `?expand=domainCards,features,costTags,modifiers`   | Returns domain cards with features, their cost tags, and their modifiers all expanded |
+| `?expand=owner,experiences,activePrimaryWeapon,inventoryWeapons` | Returns owner, experiences, and both weapon slots/inventory |
 
 Null fields are omitted from JSON responses (uses `@JsonInclude(NON_NULL)`). Equipment expand fields (activePrimaryWeapon, activeSecondaryWeapon, activeArmor) are only included if the equipment slot is actually occupied.
 
@@ -647,25 +671,29 @@ Returned when expanding `experiences`.
 
 ### WeaponResponse
 
-Returned when expanding `activePrimaryWeapon`, `activeSecondaryWeapon`, or `inventoryWeapons`. Note: when returned from CharacterSheet expansion, only basic fields are populated (id, name, expansionId, featureIds, originalWeaponId, createdAt, lastModifiedAt).
+Returned when expanding `activePrimaryWeapon`, `activeSecondaryWeapon`, or `inventoryWeapons`. All fields are populated when the weapon is expanded from a character sheet.
 
-| Field              | Type                        | Notes                                 |
-|--------------------|-----------------------------|---------------------------------------|
-| `id`               | long                        | --                                    |
-| `name`             | string                      | --                                    |
-| `expansionId`      | long                        | Omitted if null                       |
-| `tier`             | integer                     | 1-4                                   |
-| `isOfficial`       | boolean                     | --                                    |
-| `isPrimary`        | boolean                     | --                                    |
-| `trait`            | Trait enum                  | Attack trait                          |
-| `range`            | Range enum                  | --                                    |
-| `burden`           | Burden enum                 | --                                    |
-| `damage`           | DamageRollResponse          | --                                    |
-| `featureIds`       | long[]                      | --                                    |
-| `originalWeaponId` | long                        | Omitted if null                       |
-| `createdAt`        | datetime                    | --                                    |
-| `lastModifiedAt`   | datetime                    | --                                    |
-| `deletedAt`        | datetime                    | Omitted if null                       |
+Add `?expand=features` to also expand feature objects within the weapon. Add `?expand=expansion` to expand the expansion object. Add `?expand=features,modifiers` to also expand modifiers within each feature.
+
+| Field              | Type                        | Notes                                                         |
+|--------------------|-----------------------------|---------------------------------------------------------------|
+| `id`               | long                        | --                                                            |
+| `name`             | string                      | --                                                            |
+| `expansionId`      | long                        | Omitted if null                                               |
+| `expansion`        | ExpansionResponse           | Only with `?expand=expansion`; omitted otherwise              |
+| `tier`             | integer                     | 1-4                                                           |
+| `isOfficial`       | boolean                     | --                                                            |
+| `isPrimary`        | boolean                     | --                                                            |
+| `trait`            | Trait enum                  | Attack trait                                                  |
+| `range`            | Range enum                  | --                                                            |
+| `burden`           | Burden enum                 | --                                                            |
+| `damage`           | DamageRollResponse          | --                                                            |
+| `featureIds`       | long[]                      | Always present                                                |
+| `features`         | FeatureResponse[]           | Only with `?expand=features`; omitted otherwise               |
+| `originalWeaponId` | long                        | Omitted if null                                               |
+| `createdAt`        | datetime                    | --                                                            |
+| `lastModifiedAt`   | datetime                    | --                                                            |
+| `deletedAt`        | datetime                    | Omitted if null                                               |
 
 #### DamageRollResponse (nested in WeaponResponse)
 
@@ -679,108 +707,217 @@ Returned when expanding `activePrimaryWeapon`, `activeSecondaryWeapon`, or `inve
 
 ### ArmorResponse
 
-Returned when expanding `activeArmor` or `inventoryArmors`. Note: when returned from CharacterSheet expansion, only basic fields are populated (id, name, expansionId, featureIds, originalArmorId, createdAt, lastModifiedAt).
+Returned when expanding `activeArmor` or `inventoryArmors`. All fields are populated when the armor is expanded from a character sheet.
 
-| Field                | Type     | Notes                          |
-|----------------------|----------|--------------------------------|
-| `id`                 | long     | --                             |
-| `name`               | string   | --                             |
-| `expansionId`        | long     | Omitted if null                |
-| `tier`               | integer  | 1-4                            |
-| `isOfficial`         | boolean  | --                             |
-| `baseMajorThreshold` | integer  | --                             |
-| `baseSevereThreshold`| integer  | --                             |
-| `baseScore`          | integer  | --                             |
-| `featureIds`         | long[]   | --                             |
-| `originalArmorId`    | long     | Omitted if null                |
-| `createdAt`          | datetime | --                             |
-| `lastModifiedAt`     | datetime | --                             |
-| `deletedAt`          | datetime | Omitted if null                |
+Add `?expand=features` to also expand feature objects within the armor. Add `?expand=expansion` to expand the expansion object. Add `?expand=features,modifiers` to also expand modifiers within each feature.
+
+| Field                | Type              | Notes                                                         |
+|----------------------|-------------------|---------------------------------------------------------------|
+| `id`                 | long              | --                                                            |
+| `name`               | string            | --                                                            |
+| `expansionId`        | long              | Omitted if null                                               |
+| `expansion`          | ExpansionResponse | Only with `?expand=expansion`; omitted otherwise              |
+| `tier`               | integer           | 1-4                                                           |
+| `isOfficial`         | boolean           | --                                                            |
+| `baseMajorThreshold` | integer           | --                                                            |
+| `baseSevereThreshold`| integer           | --                                                            |
+| `baseScore`          | integer           | --                                                            |
+| `featureIds`         | long[]            | Always present                                                |
+| `features`           | FeatureResponse[] | Only with `?expand=features`; omitted otherwise               |
+| `originalArmorId`    | long              | Omitted if null                                               |
+| `createdAt`          | datetime          | --                                                            |
+| `lastModifiedAt`     | datetime          | --                                                            |
+| `deletedAt`          | datetime          | Omitted if null                                               |
 
 ### CommunityCardResponse
 
-Returned when expanding `communityCards`. Note: when returned from CharacterSheet expansion, only basic fields are populated (id, name, expansionId, createdAt, lastModifiedAt).
+Returned when expanding `communityCards`. All fields are populated when the card is expanded from a character sheet.
 
-| Field              | Type              | Notes                          |
-|--------------------|-------------------|--------------------------------|
-| `id`               | long              | --                             |
-| `name`             | string            | --                             |
-| `description`      | string            | --                             |
-| `cardType`         | CardType enum     | Always `COMMUNITY`             |
-| `expansionId`      | long              | Omitted if null                |
-| `isOfficial`       | boolean           | --                             |
-| `backgroundImageUrl`| string           | Omitted if null                |
-| `featureIds`       | long[]            | --                             |
-| `costTagIds`       | long[]            | --                             |
-| `createdAt`        | datetime          | --                             |
-| `lastModifiedAt`   | datetime          | --                             |
-| `deletedAt`        | datetime          | Omitted if null                |
+Add `?expand=features` to also expand feature objects on the card. Add `?expand=costTags` to expand cost tag objects directly on the card (and within features if `features` is also expanded). Add `?expand=expansion` to expand the expansion object.
+
+| Field               | Type                    | Notes                                                         |
+|---------------------|-------------------------|---------------------------------------------------------------|
+| `id`                | long                    | --                                                            |
+| `name`              | string                  | --                                                            |
+| `description`       | string                  | --                                                            |
+| `cardType`          | CardType enum           | Always `COMMUNITY`                                            |
+| `expansionId`       | long                    | Omitted if null                                               |
+| `expansion`         | ExpansionResponse       | Only with `?expand=expansion`; omitted otherwise              |
+| `isOfficial`        | boolean                 | --                                                            |
+| `backgroundImageUrl`| string                  | Omitted if null                                               |
+| `featureIds`        | long[]                  | Always present                                                |
+| `features`          | FeatureResponse[]       | Only with `?expand=features`; omitted otherwise               |
+| `costTagIds`        | long[]                  | Always present                                                |
+| `costTags`          | CardCostTagResponse[]   | Only with `?expand=costTags`; omitted otherwise               |
+| `createdAt`         | datetime                | --                                                            |
+| `lastModifiedAt`    | datetime                | --                                                            |
+| `deletedAt`         | datetime                | Omitted if null                                               |
 
 ### AncestryCardResponse
 
-Returned when expanding `ancestryCards`. Note: when returned from CharacterSheet expansion, only basic fields are populated (id, name, expansionId, createdAt, lastModifiedAt).
+Returned when expanding `ancestryCards`. All fields are populated when the card is expanded from a character sheet.
 
-| Field              | Type              | Notes                          |
-|--------------------|-------------------|--------------------------------|
-| `id`               | long              | --                             |
-| `name`             | string            | --                             |
-| `description`      | string            | --                             |
-| `cardType`         | CardType enum     | Always `ANCESTRY`              |
-| `expansionId`      | long              | Omitted if null                |
-| `isOfficial`       | boolean           | --                             |
-| `backgroundImageUrl`| string           | Omitted if null                |
-| `featureIds`       | long[]            | --                             |
-| `costTagIds`       | long[]            | --                             |
-| `createdAt`        | datetime          | --                             |
-| `lastModifiedAt`   | datetime          | --                             |
-| `deletedAt`        | datetime          | Omitted if null                |
+Add `?expand=features` to also expand feature objects on the card. Add `?expand=costTags` to expand cost tag objects directly on the card (and within features if `features` is also expanded). Add `?expand=expansion` to expand the expansion object.
+
+| Field               | Type                    | Notes                                                         |
+|---------------------|-------------------------|---------------------------------------------------------------|
+| `id`                | long                    | --                                                            |
+| `name`              | string                  | --                                                            |
+| `description`       | string                  | --                                                            |
+| `cardType`          | CardType enum           | Always `ANCESTRY`                                             |
+| `expansionId`       | long                    | Omitted if null                                               |
+| `expansion`         | ExpansionResponse       | Only with `?expand=expansion`; omitted otherwise              |
+| `isOfficial`        | boolean                 | --                                                            |
+| `backgroundImageUrl`| string                  | Omitted if null                                               |
+| `featureIds`        | long[]                  | Always present                                                |
+| `features`          | FeatureResponse[]       | Only with `?expand=features`; omitted otherwise               |
+| `costTagIds`        | long[]                  | Always present                                                |
+| `costTags`          | CardCostTagResponse[]   | Only with `?expand=costTags`; omitted otherwise               |
+| `createdAt`         | datetime                | --                                                            |
+| `lastModifiedAt`    | datetime                | --                                                            |
+| `deletedAt`         | datetime                | Omitted if null                                               |
 
 ### SubclassCardResponse
 
-Returned when expanding `subclassCards`. Note: when returned from CharacterSheet expansion, only basic fields are populated (id, name, expansionId, createdAt, lastModifiedAt).
+Returned when expanding `subclassCards`. All fields are populated when the card is expanded from a character sheet.
 
-| Field                | Type              | Notes                          |
-|----------------------|-------------------|--------------------------------|
-| `id`                 | long              | --                             |
-| `name`               | string            | --                             |
-| `description`        | string            | --                             |
-| `cardType`           | CardType enum     | Always `SUBCLASS`              |
-| `expansionId`        | long              | Omitted if null                |
-| `expansionName`      | string            | --                             |
-| `isOfficial`         | boolean           | --                             |
-| `backgroundImageUrl` | string            | Omitted if null                |
-| `featureIds`         | long[]            | --                             |
-| `costTagIds`         | long[]            | --                             |
-| `associatedClassId`  | long              | --                             |
-| `associatedClassName`| string            | --                             |
-| `subclassPathId`     | long              | --                             |
-| `subclassPathName`   | string            | --                             |
-| `domainNames`        | string[]          | --                             |
-| `domainIds`          | long[]            | --                             |
-| `spellcastingTrait`  | TraitInfo         | Null if no spellcasting        |
-| `level`              | SubclassLevel enum| --                             |
-| `createdAt`          | datetime          | --                             |
-| `lastModifiedAt`     | datetime          | --                             |
-| `deletedAt`          | datetime          | Omitted if null                |
+Add `?expand=features` to also expand feature objects on the card. Add `?expand=costTags` to expand cost tag objects directly on the card (and within features if `features` is also expanded). Add `?expand=expansion` to expand the expansion object.
+
+| Field                | Type                    | Notes                                                         |
+|----------------------|-------------------------|---------------------------------------------------------------|
+| `id`                 | long                    | --                                                            |
+| `name`               | string                  | --                                                            |
+| `description`        | string                  | --                                                            |
+| `cardType`           | CardType enum           | Always `SUBCLASS`                                             |
+| `expansionId`        | long                    | Omitted if null                                               |
+| `expansion`          | ExpansionResponse       | Only with `?expand=expansion`; omitted otherwise              |
+| `expansionName`      | string                  | --                                                            |
+| `isOfficial`         | boolean                 | --                                                            |
+| `backgroundImageUrl` | string                  | Omitted if null                                               |
+| `featureIds`         | long[]                  | Always present                                                |
+| `features`           | FeatureResponse[]       | Only with `?expand=features`; omitted otherwise               |
+| `costTagIds`         | long[]                  | Always present                                                |
+| `costTags`           | CardCostTagResponse[]   | Only with `?expand=costTags`; omitted otherwise               |
+| `associatedClassId`  | long                    | --                                                            |
+| `associatedClassName`| string                  | --                                                            |
+| `subclassPathId`     | long                    | --                                                            |
+| `subclassPathName`   | string                  | --                                                            |
+| `domainNames`        | string[]                | --                                                            |
+| `domainIds`          | long[]                  | --                                                            |
+| `spellcastingTrait`  | TraitInfo               | Null if no spellcasting                                       |
+| `level`              | SubclassLevel enum      | --                                                            |
+| `createdAt`          | datetime                | --                                                            |
+| `lastModifiedAt`     | datetime                | --                                                            |
+| `deletedAt`          | datetime                | Omitted if null                                               |
 
 ### LootResponse
 
-Returned when expanding `inventoryItems`. Note: when returned from CharacterSheet expansion, only basic fields are populated (id, name, expansionId, createdAt, lastModifiedAt).
+Returned when expanding `inventoryItems`. All fields are populated when the loot item is expanded from a character sheet.
 
-| Field            | Type     | Notes                          |
-|------------------|----------|--------------------------------|
-| `id`             | long     | --                             |
-| `name`           | string   | --                             |
-| `expansionId`    | long     | Omitted if null                |
-| `tier`           | integer  | 1-4                            |
-| `isOfficial`     | boolean  | --                             |
-| `isConsumable`   | boolean  | --                             |
-| `description`    | string   | --                             |
-| `featureIds`     | long[]   | --                             |
-| `originalLootId` | long     | Omitted if null                |
-| `createdAt`      | datetime | --                             |
-| `lastModifiedAt` | datetime | --                             |
-| `deletedAt`      | datetime | Omitted if null                |
+Add `?expand=features` to also expand feature objects within the loot item. Add `?expand=expansion` to expand the expansion object. Add `?expand=features,modifiers` to also expand modifiers within each feature.
+
+| Field            | Type              | Notes                                                         |
+|------------------|-------------------|---------------------------------------------------------------|
+| `id`             | long              | --                                                            |
+| `name`           | string            | --                                                            |
+| `expansionId`    | long              | Omitted if null                                               |
+| `expansion`      | ExpansionResponse | Only with `?expand=expansion`; omitted otherwise              |
+| `tier`           | integer           | 1-4                                                           |
+| `isOfficial`     | boolean           | --                                                            |
+| `isConsumable`   | boolean           | --                                                            |
+| `description`    | string            | --                                                            |
+| `featureIds`     | long[]            | Always present                                                |
+| `features`       | FeatureResponse[] | Only with `?expand=features`; omitted otherwise               |
+| `originalLootId` | long              | Omitted if null                                               |
+| `createdAt`      | datetime          | --                                                            |
+| `lastModifiedAt` | datetime          | --                                                            |
+| `deletedAt`      | datetime          | Omitted if null                                               |
+
+### DomainCardResponse
+
+Returned when expanding `domainCards`. All fields are populated when the card is expanded from a character sheet.
+
+Add `?expand=features` to also expand feature objects on the card. Add `?expand=costTags` to expand cost tag objects directly on the card (and within features if `features` is also expanded). Add `?expand=expansion` to expand the expansion object.
+
+| Field                | Type                    | Notes                                                         |
+|----------------------|-------------------------|---------------------------------------------------------------|
+| `id`                 | long                    | --                                                            |
+| `name`               | string                  | --                                                            |
+| `description`        | string                  | --                                                            |
+| `cardType`           | CardType enum           | Always `DOMAIN`                                               |
+| `expansionId`        | long                    | Omitted if null                                               |
+| `expansion`          | ExpansionResponse       | Only with `?expand=expansion`; omitted otherwise              |
+| `isOfficial`         | boolean                 | --                                                            |
+| `backgroundImageUrl` | string                  | Omitted if null                                               |
+| `featureIds`         | long[]                  | Always present                                                |
+| `features`           | FeatureResponse[]       | Only with `?expand=features`; omitted otherwise               |
+| `costTagIds`         | long[]                  | Always present                                                |
+| `costTags`           | CardCostTagResponse[]   | Only with `?expand=costTags`; omitted otherwise               |
+| `associatedDomainId` | long                    | --                                                            |
+| `level`              | integer                 | Level requirement for the card                                |
+| `recallCost`         | integer                 | Cost to recall/use this card (>= 0)                           |
+| `type`               | DomainCardType enum     | `SPELL`, `GRIMOIRE`, `ABILITY`, `TRANSFORMATION`, or `WILD`   |
+| `createdAt`          | datetime                | --                                                            |
+| `lastModifiedAt`     | datetime                | --                                                            |
+| `deletedAt`          | datetime                | Omitted if null                                               |
+
+### FeatureResponse
+
+Returned within expanded items and cards when `?expand=features` is used. Includes the full feature definition. Nested cost tags and modifiers can be further expanded with `?expand=costTags` and `?expand=modifiers` respectively.
+
+| Field            | Type                        | Notes                                                         |
+|------------------|-----------------------------|---------------------------------------------------------------|
+| `id`             | long                        | --                                                            |
+| `name`           | string                      | Omitted if null                                               |
+| `description`    | string                      | Omitted if null                                               |
+| `featureType`    | FeatureType enum            | e.g., `HOPE`, `ANCESTRY`, `CLASS`, `DOMAIN`, `ITEM`, etc.    |
+| `expansionId`    | long                        | --                                                            |
+| `expansion`      | ExpansionResponse           | Only with `?expand=expansion`; omitted otherwise              |
+| `costTagIds`     | long[]                      | Always present                                                |
+| `costTags`       | CardCostTagResponse[]       | Only with `?expand=costTags`; omitted otherwise               |
+| `modifierIds`    | long[]                      | Always present                                                |
+| `modifiers`      | FeatureModifierResponse[]   | Only with `?expand=modifiers`; omitted otherwise              |
+| `createdAt`      | datetime                    | --                                                            |
+| `lastModifiedAt` | datetime                    | --                                                            |
+| `deletedAt`      | datetime                    | Omitted if null                                               |
+
+### CardCostTagResponse
+
+Returned within expanded cards and features when `?expand=costTags` is used.
+
+| Field            | Type                | Notes                                                         |
+|------------------|---------------------|---------------------------------------------------------------|
+| `id`             | long                | --                                                            |
+| `label`          | string              | Display label, e.g., `"3 Hope"`, `"1/session"`, `"Close range"` |
+| `category`       | CostTagCategory enum| `COST`, `LIMITATION`, or `TIMING`                             |
+| `createdAt`      | datetime            | --                                                            |
+| `lastModifiedAt` | datetime            | --                                                            |
+| `deletedAt`      | datetime            | Omitted if null                                               |
+
+### FeatureModifierResponse
+
+Returned within expanded features when `?expand=modifiers` is used (requires `?expand=features` to also be present).
+
+| Field            | Type                    | Notes                                                         |
+|------------------|-------------------------|---------------------------------------------------------------|
+| `id`             | long                    | --                                                            |
+| `target`         | ModifierTarget enum     | The character attribute this modifier affects                 |
+| `operation`      | ModifierOperation enum  | `ADD`, `SET`, or `MULTIPLY`                                   |
+| `value`          | integer                 | The numeric value used in the operation                       |
+| `createdAt`      | datetime                | --                                                            |
+| `lastModifiedAt` | datetime                | --                                                            |
+
+### ExpansionResponse
+
+Returned within expanded items, cards, and features when `?expand=expansion` is used.
+
+| Field            | Type     | Notes |
+|------------------|----------|-------|
+| `id`             | long     | --    |
+| `name`           | string   | --    |
+| `isPublished`    | boolean  | --    |
+| `createdAt`      | datetime | --    |
+| `lastModifiedAt` | datetime | --    |
 
 ### ErrorResponse
 
@@ -880,6 +1017,70 @@ The six core character traits in Daggerheart.
 | `ADMIN`     | Administrative access                |
 | `MODERATOR` | Can bypass ownership checks          |
 | `USER`      | Standard authenticated user          |
+
+### FeatureType
+
+| Value       | Description                        |
+|-------------|------------------------------------|
+| `HOPE`      | Hope feature type                  |
+| `ANCESTRY`  | Ancestry feature type              |
+| `CLASS`     | Class feature type                 |
+| `COMMUNITY` | Community feature type             |
+| `DOMAIN`    | Domain feature type                |
+| `ITEM`      | Item feature type                  |
+| `SUBCLASS`  | Subclass feature type              |
+| `OTHER`     | Other feature type                 |
+
+### DomainCardType
+
+| Value            | Description                  |
+|------------------|------------------------------|
+| `SPELL`          | Spell domain card            |
+| `GRIMOIRE`       | Grimoire domain card         |
+| `ABILITY`        | Ability domain card          |
+| `TRANSFORMATION` | Transformation domain card   |
+| `WILD`           | Wild domain card             |
+
+### CostTagCategory
+
+| Value        | Description                                                         |
+|--------------|---------------------------------------------------------------------|
+| `COST`       | Resource expenditure tags (e.g., "3 Hope", "1 Stress")              |
+| `LIMITATION` | Restriction or requirement tags (e.g., "Close range")               |
+| `TIMING`     | Frequency or action type tags (e.g., "1/session", "Action")         |
+
+### ModifierTarget
+
+| Value                   | Description                                         |
+|-------------------------|-----------------------------------------------------|
+| `AGILITY`               | Modifies the character's Agility trait score        |
+| `STRENGTH`              | Modifies the character's Strength trait score       |
+| `FINESSE`               | Modifies the character's Finesse trait score        |
+| `INSTINCT`              | Modifies the character's Instinct trait score       |
+| `PRESENCE`              | Modifies the character's Presence trait score       |
+| `KNOWLEDGE`             | Modifies the character's Knowledge trait score      |
+| `EVASION`               | Modifies the character's Evasion defense value      |
+| `MAJOR_DAMAGE_THRESHOLD`| Modifies the character's Major damage threshold     |
+| `SEVERE_DAMAGE_THRESHOLD`| Modifies the character's Severe damage threshold   |
+| `HIT_POINT_MAX`         | Modifies the character's maximum Hit Points         |
+| `STRESS_MAX`            | Modifies the character's maximum Stress capacity    |
+| `HOPE_MAX`              | Modifies the character's maximum Hope               |
+| `ARMOR_MAX`             | Modifies the character's maximum Armor slots        |
+| `GOLD`                  | Modifies the character's starting Gold              |
+| `ATTACK_ROLL`           | Modifies the character's attack roll result         |
+| `DAMAGE_ROLL`           | Modifies the character's damage roll result         |
+| `PRIMARY_DAMAGE_ROLL`   | Modifies the character's primary damage roll result |
+| `ARMOR_SCORE`           | Modifies the character's armor score                |
+
+### ModifierOperation
+
+Evaluated in this order: SET first, then MULTIPLY, then ADD.
+
+| Value      | Description                                             |
+|------------|---------------------------------------------------------|
+| `ADD`      | Adds the value to the target attribute                  |
+| `SET`      | Sets the target attribute to the specified value        |
+| `MULTIPLY` | Multiplies the target attribute by the specified value  |
 
 ---
 

@@ -18,7 +18,7 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "ancestry_cards")
 @DiscriminatorValue("ANCESTRY")
 @Data
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 public class AncestryCard extends Card {

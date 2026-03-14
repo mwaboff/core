@@ -20,7 +20,7 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "domain_cards")
 @DiscriminatorValue("DOMAIN")
 @Data
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor

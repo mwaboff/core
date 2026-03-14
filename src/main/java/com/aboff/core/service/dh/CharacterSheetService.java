@@ -60,6 +60,13 @@ public class CharacterSheetService {
     private final DomainCardRepository domainCardRepository;
     private final LootRepository lootRepository;
     private final RoleHierarchyService roleHierarchyService;
+    private final WeaponService weaponService;
+    private final ArmorService armorService;
+    private final CommunityCardService communityCardService;
+    private final AncestryCardService ancestryCardService;
+    private final SubclassCardService subclassCardService;
+    private final DomainCardService domainCardService;
+    private final LootService lootService;
 
     /**
      * Retrieves a paginated list of character sheets.
@@ -598,6 +605,10 @@ public class CharacterSheetService {
      * - inventoryWeapons: List of weapon objects in inventory
      * - inventoryArmors: List of armor objects in inventory
      * - inventoryItems: List of loot objects in inventory
+     * - features: Full feature objects within weapons, armor, cards, and loot items
+     * - costTags: Full cost tag objects within features and cards
+     * - modifiers: Full feature modifier objects within features
+     * - expansion: Full expansion objects within weapons, armor, cards, and loot items
      * </p>
      *
      * @param sheet The character sheet entity
@@ -690,65 +701,65 @@ public class CharacterSheetService {
 
         // Expand active primary weapon if requested
         if (expand.contains("activePrimaryWeapon") && sheet.getActivePrimaryWeapon() != null) {
-            builder.activePrimaryWeapon(toWeaponResponse(sheet.getActivePrimaryWeapon()));
+            builder.activePrimaryWeapon(toWeaponResponse(sheet.getActivePrimaryWeapon(), expand));
         }
 
         // Expand active secondary weapon if requested
         if (expand.contains("activeSecondaryWeapon") && sheet.getActiveSecondaryWeapon() != null) {
-            builder.activeSecondaryWeapon(toWeaponResponse(sheet.getActiveSecondaryWeapon()));
+            builder.activeSecondaryWeapon(toWeaponResponse(sheet.getActiveSecondaryWeapon(), expand));
         }
 
         // Expand active armor if requested
         if (expand.contains("activeArmor") && sheet.getActiveArmor() != null) {
-            builder.activeArmor(toArmorResponse(sheet.getActiveArmor()));
+            builder.activeArmor(toArmorResponse(sheet.getActiveArmor(), expand));
         }
 
         // Expand community cards if requested
         if (expand.contains("communityCards")) {
             builder.communityCards(sheet.getCommunityCards().stream()
-                    .map(this::toCommunityCardResponse)
+                    .map(card -> toCommunityCardResponse(card, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand ancestry cards if requested
         if (expand.contains("ancestryCards")) {
             builder.ancestryCards(sheet.getAncestryCards().stream()
-                    .map(this::toAncestryCardResponse)
+                    .map(card -> toAncestryCardResponse(card, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand subclass cards if requested
         if (expand.contains("subclassCards")) {
             builder.subclassCards(sheet.getSubclassCards().stream()
-                    .map(this::toSubclassCardResponse)
+                    .map(card -> toSubclassCardResponse(card, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand domain cards if requested
         if (expand.contains("domainCards")) {
             builder.domainCards(sheet.getDomainCards().stream()
-                    .map(this::toDomainCardResponse)
+                    .map(card -> toDomainCardResponse(card, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand inventory weapons if requested
         if (expand.contains("inventoryWeapons")) {
             builder.inventoryWeapons(sheet.getInventoryWeapons().stream()
-                    .map(this::toWeaponResponse)
+                    .map(weapon -> toWeaponResponse(weapon, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand inventory armors if requested
         if (expand.contains("inventoryArmors")) {
             builder.inventoryArmors(sheet.getInventoryArmors().stream()
-                    .map(this::toArmorResponse)
+                    .map(armor -> toArmorResponse(armor, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand inventory items if requested
         if (expand.contains("inventoryItems")) {
             builder.inventoryItems(sheet.getInventoryItems().stream()
-                    .map(this::toLootResponse)
+                    .map(item -> toLootResponse(item, expand))
                     .collect(Collectors.toList()));
         }
 
@@ -756,122 +767,79 @@ public class CharacterSheetService {
     }
 
     /**
-     * Converts a Weapon entity to WeaponResponse DTO with basic fields.
+     * Converts a Weapon entity to WeaponResponse DTO, delegating to WeaponService for expand support.
      *
      * @param weapon The weapon entity
+     * @param expand Set of relationships to expand
      * @return WeaponResponse DTO
      */
-    private WeaponResponse toWeaponResponse(Weapon weapon) {
-        return WeaponResponse.builder()
-                .id(weapon.getId())
-                .name(weapon.getName())
-                .expansionId(weapon.getExpansion() != null ? weapon.getExpansion().getId() : null)
-                .featureIds(weapon.getFeatures() != null ? weapon.getFeatures().stream().map(f -> f.getId()).toList() : null)
-                .originalWeaponId(weapon.getOriginalWeapon() != null ? weapon.getOriginalWeapon().getId() : null)
-                .createdAt(weapon.getCreatedAt())
-                .lastModifiedAt(weapon.getLastModifiedAt())
-                .build();
+    private WeaponResponse toWeaponResponse(Weapon weapon, Set<String> expand) {
+        return weaponService.toResponse(weapon, expand);
     }
 
     /**
-     * Converts an Armor entity to ArmorResponse DTO with basic fields.
+     * Converts an Armor entity to ArmorResponse DTO, delegating to ArmorService for expand support.
      *
      * @param armor The armor entity
+     * @param expand Set of relationships to expand
      * @return ArmorResponse DTO
      */
-    private ArmorResponse toArmorResponse(Armor armor) {
-        return ArmorResponse.builder()
-                .id(armor.getId())
-                .name(armor.getName())
-                .expansionId(armor.getExpansion() != null ? armor.getExpansion().getId() : null)
-                .featureIds(armor.getFeatures() != null ? armor.getFeatures().stream().map(f -> f.getId()).toList() : null)
-                .originalArmorId(armor.getOriginalArmor() != null ? armor.getOriginalArmor().getId() : null)
-                .createdAt(armor.getCreatedAt())
-                .lastModifiedAt(armor.getLastModifiedAt())
-                .build();
+    private ArmorResponse toArmorResponse(Armor armor, Set<String> expand) {
+        return armorService.toResponse(armor, expand);
     }
 
     /**
-     * Converts a CommunityCard entity to CommunityCardResponse DTO with basic fields.
+     * Converts a CommunityCard entity to CommunityCardResponse DTO, delegating to CommunityCardService for expand support.
      *
      * @param card The community card entity
+     * @param expand Set of relationships to expand
      * @return CommunityCardResponse DTO
      */
-    private CommunityCardResponse toCommunityCardResponse(CommunityCard card) {
-        return CommunityCardResponse.builder()
-                .id(card.getId())
-                .name(card.getName())
-                .expansionId(card.getExpansion() != null ? card.getExpansion().getId() : null)
-                .createdAt(card.getCreatedAt())
-                .lastModifiedAt(card.getLastModifiedAt())
-                .build();
+    private CommunityCardResponse toCommunityCardResponse(CommunityCard card, Set<String> expand) {
+        return communityCardService.toResponse(card, expand);
     }
 
     /**
-     * Converts an AncestryCard entity to AncestryCardResponse DTO with basic fields.
+     * Converts an AncestryCard entity to AncestryCardResponse DTO, delegating to AncestryCardService for expand support.
      *
      * @param card The ancestry card entity
+     * @param expand Set of relationships to expand
      * @return AncestryCardResponse DTO
      */
-    private AncestryCardResponse toAncestryCardResponse(AncestryCard card) {
-        return AncestryCardResponse.builder()
-                .id(card.getId())
-                .name(card.getName())
-                .expansionId(card.getExpansion() != null ? card.getExpansion().getId() : null)
-                .createdAt(card.getCreatedAt())
-                .lastModifiedAt(card.getLastModifiedAt())
-                .build();
+    private AncestryCardResponse toAncestryCardResponse(AncestryCard card, Set<String> expand) {
+        return ancestryCardService.toResponse(card, expand);
     }
 
     /**
-     * Converts a SubclassCard entity to SubclassCardResponse DTO with basic fields.
+     * Converts a SubclassCard entity to SubclassCardResponse DTO, delegating to SubclassCardService for expand support.
      *
      * @param card The subclass card entity
+     * @param expand Set of relationships to expand
      * @return SubclassCardResponse DTO
      */
-    private SubclassCardResponse toSubclassCardResponse(SubclassCard card) {
-        return SubclassCardResponse.builder()
-                .id(card.getId())
-                .name(card.getName())
-                .expansionId(card.getExpansion() != null ? card.getExpansion().getId() : null)
-                .createdAt(card.getCreatedAt())
-                .lastModifiedAt(card.getLastModifiedAt())
-                .build();
+    private SubclassCardResponse toSubclassCardResponse(SubclassCard card, Set<String> expand) {
+        return subclassCardService.toResponse(card, expand);
     }
 
     /**
-     * Converts a DomainCard entity to DomainCardResponse DTO with basic fields.
+     * Converts a DomainCard entity to DomainCardResponse DTO, delegating to DomainCardService for expand support.
      *
      * @param card The domain card entity
+     * @param expand Set of relationships to expand
      * @return DomainCardResponse DTO
      */
-    private DomainCardResponse toDomainCardResponse(DomainCard card) {
-        return DomainCardResponse.builder()
-                .id(card.getId())
-                .name(card.getName())
-                .expansionId(card.getExpansion() != null ? card.getExpansion().getId() : null)
-                .associatedDomainId(card.getAssociatedDomain() != null ? card.getAssociatedDomain().getId() : null)
-                .level(card.getLevel())
-                .recallCost(card.getRecallCost())
-                .type(card.getType())
-                .createdAt(card.getCreatedAt())
-                .lastModifiedAt(card.getLastModifiedAt())
-                .build();
+    private DomainCardResponse toDomainCardResponse(DomainCard card, Set<String> expand) {
+        return domainCardService.toResponse(card, expand);
     }
 
     /**
-     * Converts a Loot entity to LootResponse DTO with basic fields.
+     * Converts a Loot entity to LootResponse DTO, delegating to LootService for expand support.
      *
      * @param loot The loot entity
+     * @param expand Set of relationships to expand
      * @return LootResponse DTO
      */
-    private LootResponse toLootResponse(Loot loot) {
-        return LootResponse.builder()
-                .id(loot.getId())
-                .name(loot.getName())
-                .expansionId(loot.getExpansion() != null ? loot.getExpansion().getId() : null)
-                .createdAt(loot.getCreatedAt())
-                .lastModifiedAt(loot.getLastModifiedAt())
-                .build();
+    private LootResponse toLootResponse(Loot loot, Set<String> expand) {
+        return lootService.toResponse(loot, expand);
     }
 }

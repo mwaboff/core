@@ -286,7 +286,7 @@ public class CommunityCardService {
      * @param expand Set of relationships to expand
      * @return CommunityCardResponse DTO
      */
-    private CommunityCardResponse toResponse(CommunityCard card, Set<String> expand) {
+    public CommunityCardResponse toResponse(CommunityCard card, Set<String> expand) {
         CommunityCardResponse.CommunityCardResponseBuilder builder = CommunityCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())

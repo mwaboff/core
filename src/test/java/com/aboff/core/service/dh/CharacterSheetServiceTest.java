@@ -3,7 +3,7 @@ package com.aboff.core.service.dh;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
-import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
+import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
@@ -33,6 +33,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -75,6 +76,27 @@ class CharacterSheetServiceTest {
 
     @Mock
     private RoleHierarchyService roleHierarchyService;
+
+    @Mock
+    private WeaponService weaponService;
+
+    @Mock
+    private ArmorService armorService;
+
+    @Mock
+    private CommunityCardService communityCardService;
+
+    @Mock
+    private AncestryCardService ancestryCardService;
+
+    @Mock
+    private SubclassCardService subclassCardService;
+
+    @Mock
+    private DomainCardService domainCardService;
+
+    @Mock
+    private LootService lootService;
 
     @Mock
     private Authentication authentication;
@@ -1766,6 +1788,12 @@ class CharacterSheetServiceTest {
         exp.setCharacterSheet(sheet);
 
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(weaponService.toResponse(any(Weapon.class), anySet()))
+                .thenReturn(WeaponResponse.builder().id(1L).name("Longsword").build());
+        when(armorService.toResponse(any(Armor.class), anySet()))
+                .thenReturn(ArmorResponse.builder().id(1L).name("Plate Mail").build());
+        when(communityCardService.toResponse(any(CommunityCard.class), anySet()))
+                .thenReturn(CommunityCardResponse.builder().id(1L).name("Nomad").build());
 
         // Act
         CharacterSheetResponse result = characterSheetService.getCharacterSheetById(
@@ -1874,6 +1902,12 @@ class CharacterSheetServiceTest {
                 .build();
 
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(domainCardService.toResponse(any(DomainCard.class), anySet()))
+                .thenReturn(DomainCardResponse.builder()
+                        .id(1L)
+                        .name("Blade Strike")
+                        .associatedDomainId(1L)
+                        .build());
 
         // Act
         CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "domainCards");
@@ -1885,5 +1919,52 @@ class CharacterSheetServiceTest {
         assertThat(result.getDomainCards()).hasSize(1);
         assertThat(result.getDomainCards().get(0).getName()).isEqualTo("Blade Strike");
         assertThat(result.getDomainCards().get(0).getAssociatedDomainId()).isEqualTo(1L);
+    }
+
+    @Test
+    void getCharacterSheetById_WithFeaturesExpand_ExpandsNestedFeaturesOnWeapon() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Weapon primaryWeapon = Weapon.builder().id(1L).name("Longsword").build();
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .level(5)
+                .owner(owner)
+                .activePrimaryWeapon(primaryWeapon)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .domainCards(new HashSet<>())
+                .inventoryWeapons(new HashSet<>())
+                .inventoryArmors(new HashSet<>())
+                .inventoryItems(new HashSet<>())
+                .experiences(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        List<FeatureResponse> features = List.of(
+                FeatureResponse.builder().id(10L).name("Parry").build()
+        );
+        WeaponResponse weaponResponseWithFeatures = WeaponResponse.builder()
+                .id(1L)
+                .name("Longsword")
+                .features(features)
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(weaponService.toResponse(any(Weapon.class), anySet())).thenReturn(weaponResponseWithFeatures);
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(
+                1L, "activePrimaryWeapon,features");
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getActivePrimaryWeapon()).isNotNull();
+        assertThat(result.getActivePrimaryWeapon().getFeatures()).isNotNull();
+        assertThat(result.getActivePrimaryWeapon().getFeatures()).hasSize(1);
+        assertThat(result.getActivePrimaryWeapon().getFeatures().get(0).getName()).isEqualTo("Parry");
     }
 }
