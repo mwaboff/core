@@ -34,7 +34,7 @@ import java.util.List;
 @Entity
 @Table(name = "encounters")
 @Data
-@EqualsAndHashCode(callSuper = false)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor

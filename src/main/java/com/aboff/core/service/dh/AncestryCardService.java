@@ -286,7 +286,7 @@ public class AncestryCardService {
      * @param expand Set of relationships to expand
      * @return AncestryCardResponse DTO
      */
-    private AncestryCardResponse toResponse(AncestryCard card, Set<String> expand) {
+    public AncestryCardResponse toResponse(AncestryCard card, Set<String> expand) {
         AncestryCardResponse.AncestryCardResponseBuilder builder = AncestryCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())

@@ -324,7 +324,7 @@ public class SubclassCardService {
      * @param expand Set of relationships to expand
      * @return SubclassCardResponse DTO
      */
-    private SubclassCardResponse toResponse(SubclassCard card, Set<String> expand) {
+    public SubclassCardResponse toResponse(SubclassCard card, Set<String> expand) {
         SubclassCardResponse.SubclassCardResponseBuilder builder = SubclassCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())

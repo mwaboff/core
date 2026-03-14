@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
 @Entity
 @Table(name = "card_cost_tags")
 @Data
-@EqualsAndHashCode(callSuper = false)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor

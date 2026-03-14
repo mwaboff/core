@@ -22,7 +22,7 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "subclass_cards")
 @DiscriminatorValue("SUBCLASS")
 @Data
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor

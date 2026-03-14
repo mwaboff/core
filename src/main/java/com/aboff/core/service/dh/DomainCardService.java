@@ -323,7 +323,7 @@ public class DomainCardService {
      * @param expand Set of relationships to expand
      * @return DomainCardResponse DTO
      */
-    private DomainCardResponse toResponse(DomainCard card, Set<String> expand) {
+    public DomainCardResponse toResponse(DomainCard card, Set<String> expand) {
         DomainCardResponse.DomainCardResponseBuilder builder = DomainCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())

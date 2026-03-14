@@ -41,7 +41,7 @@ import java.util.Set;
 @Entity
 @Table(name = "adversaries")
 @Data
-@EqualsAndHashCode(callSuper = false)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor

@@ -294,7 +294,7 @@ public class LootService {
      * @param expand Set of relationships to expand
      * @return LootResponse DTO
      */
-    private LootResponse toResponse(Loot loot, Set<String> expand) {
+    public LootResponse toResponse(Loot loot, Set<String> expand) {
         LootResponse.LootResponseBuilder builder = LootResponse.builder()
                 .id(loot.getId())
                 .name(loot.getName())

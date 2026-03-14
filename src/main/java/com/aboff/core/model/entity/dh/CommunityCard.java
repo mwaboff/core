@@ -18,7 +18,7 @@ import lombok.experimental.SuperBuilder;
 @Table(name = "community_cards")
 @DiscriminatorValue("COMMUNITY")
 @Data
-@EqualsAndHashCode(callSuper = true)
+@EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
 @NoArgsConstructor
 public class CommunityCard extends Card {

@@ -296,7 +296,7 @@ public class ArmorService {
      * @param expand Set of relationships to expand
      * @return ArmorResponse DTO
      */
-    private ArmorResponse toResponse(Armor armor, Set<String> expand) {
+    public ArmorResponse toResponse(Armor armor, Set<String> expand) {
         ArmorResponse.ArmorResponseBuilder builder = ArmorResponse.builder()
                 .id(armor.getId())
                 .name(armor.getName())
