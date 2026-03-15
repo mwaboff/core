@@ -529,7 +529,7 @@ public class CharacterSheetService {
      * @param operation The operation being performed (for error message)
      * @throws InsufficientPermissionsException if the user lacks permission
      */
-    private void validateAccess(CharacterSheet characterSheet, Authentication auth, String operation) {
+    void validateAccess(CharacterSheet characterSheet, Authentication auth, String operation) {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
@@ -615,7 +615,7 @@ public class CharacterSheetService {
      * @param expand Set of relationships to expand
      * @return CharacterSheetResponse DTO
      */
-    private CharacterSheetResponse toResponse(CharacterSheet sheet, Set<String> expand) {
+    CharacterSheetResponse toResponse(CharacterSheet sheet, Set<String> expand) {
         CharacterSheetResponse.CharacterSheetResponseBuilder builder = CharacterSheetResponse.builder()
                 .id(sheet.getId())
                 .name(sheet.getName())
