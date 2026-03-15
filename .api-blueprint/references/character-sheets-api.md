@@ -418,6 +418,275 @@ curl -X DELETE -b "AUTH_TOKEN=<token>" \
 
 ---
 
+### Get Level-Up Options
+
+```
+GET /api/dh/character-sheets/{id}/level-up-options
+```
+
+**Authorization:** Any authenticated user (character sheet owner or MODERATOR/ADMIN/OWNER role).
+
+Returns the available advancement options for the character's next level-up, including which advancements are still available in the current tier, domain card constraints, and tier transition information.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description          |
+|-----------|------|----------|----------------------|
+| `id`      | long | Yes      | Character sheet ID   |
+
+**Response:** `200 OK` with `LevelUpOptionsResponse`
+
+**Example Request:**
+
+```bash
+curl -b "AUTH_TOKEN=<token>" \
+  "http://localhost:8080/api/dh/character-sheets/1/level-up-options"
+```
+
+**Example Response:**
+
+```json
+{
+  "currentLevel": 4,
+  "nextLevel": 5,
+  "currentTier": 2,
+  "nextTier": 3,
+  "isTierTransition": true,
+  "availableAdvancements": [
+    {
+      "type": "BOOST_TRAITS",
+      "description": "+1 to two unmarked traits, mark them",
+      "limitPerTier": 3,
+      "usedInTier": 1,
+      "remaining": 2,
+      "mutuallyExclusiveWith": null
+    },
+    {
+      "type": "GAIN_HP",
+      "description": "+1 hit point max",
+      "limitPerTier": 2,
+      "usedInTier": 0,
+      "remaining": 2,
+      "mutuallyExclusiveWith": null
+    },
+    {
+      "type": "GAIN_STRESS",
+      "description": "+1 stress max",
+      "limitPerTier": 2,
+      "usedInTier": 1,
+      "remaining": 1,
+      "mutuallyExclusiveWith": null
+    },
+    {
+      "type": "BOOST_EXPERIENCES",
+      "description": "+1 modifier to two experiences",
+      "limitPerTier": 1,
+      "usedInTier": 0,
+      "remaining": 1,
+      "mutuallyExclusiveWith": null
+    },
+    {
+      "type": "GAIN_DOMAIN_CARD",
+      "description": "Choose a domain card of appropriate level",
+      "limitPerTier": 1,
+      "usedInTier": 0,
+      "remaining": 1,
+      "mutuallyExclusiveWith": null
+    },
+    {
+      "type": "BOOST_EVASION",
+      "description": "+1 evasion",
+      "limitPerTier": 1,
+      "usedInTier": 0,
+      "remaining": 1,
+      "mutuallyExclusiveWith": null
+    },
+    {
+      "type": "UPGRADE_SUBCLASS",
+      "description": "Take upgraded subclass card (Tier 3+)",
+      "limitPerTier": 3,
+      "usedInTier": 0,
+      "remaining": 3,
+      "mutuallyExclusiveWith": "MULTICLASS"
+    },
+    {
+      "type": "BOOST_PROFICIENCY",
+      "description": "+1 proficiency (Tier 3+)",
+      "limitPerTier": 2,
+      "usedInTier": 0,
+      "remaining": 2,
+      "mutuallyExclusiveWith": null
+    },
+    {
+      "type": "MULTICLASS",
+      "description": "Choose additional class (Tier 3+)",
+      "limitPerTier": 3,
+      "usedInTier": 0,
+      "remaining": 3,
+      "mutuallyExclusiveWith": "UPGRADE_SUBCLASS"
+    }
+  ],
+  "domainCardLevelCap": 7,
+  "accessibleDomainIds": [1, 3],
+  "equippedDomainCardCount": 4,
+  "maxEquippedDomainCards": 5
+}
+```
+
+**Error Status Codes:**
+
+| Status | Condition                                                  |
+|--------|------------------------------------------------------------|
+| `400`  | Character is already at max level (10)                     |
+| `401`  | Missing or invalid authentication token                    |
+| `403`  | Not the character owner and not MODERATOR+                 |
+| `404`  | Character sheet not found or soft-deleted                  |
+
+---
+
+### Perform Level-Up
+
+```
+POST /api/dh/character-sheets/{id}/level-up
+```
+
+**Authorization:** Character sheet owner OR MODERATOR/ADMIN/OWNER role.
+
+Performs a level-up on the character, applying tier achievements (if transitioning tiers), two chosen advancements, damage threshold increases, a new domain card, and optional domain card trades. All changes are applied atomically.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description          |
+|-----------|------|----------|----------------------|
+| `id`      | long | Yes      | Character sheet ID   |
+
+**Request Body:** `LevelUpRequest` (JSON)
+
+**Response:** `200 OK` with `LevelUpResponse`
+
+**Example Request:**
+
+```bash
+curl -X POST -b "AUTH_TOKEN=<token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "advancements": [
+      {
+        "type": "BOOST_TRAITS",
+        "boostTraits": ["AGILITY", "STRENGTH"]
+      },
+      {
+        "type": "GAIN_HP"
+      }
+    ],
+    "newExperienceDescription": "Defeated the Shadow King",
+    "newDomainCardId": 15,
+    "equipNewDomainCard": true,
+    "unequipDomainCardId": 8,
+    "trades": [
+      {
+        "tradedOutDomainCardIds": [3],
+        "tradedInDomainCardIds": [12],
+        "equipTradedInCardIds": []
+      }
+    ]
+  }' \
+  "http://localhost:8080/api/dh/character-sheets/1/level-up"
+```
+
+**Example Response:**
+
+```json
+{
+  "characterSheet": {
+    "id": 1,
+    "name": "Aragorn",
+    "level": 5,
+    "proficiency": 2,
+    "evasion": 10,
+    "hitPointMax": 11,
+    "stressMax": 6,
+    "majorDamageThreshold": 4,
+    "severeDamageThreshold": 7,
+    "agilityModifier": 1,
+    "agilityMarked": true,
+    "strengthModifier": 1,
+    "strengthMarked": true,
+    "equippedDomainCardIds": [9, 10, 11, 12, 15],
+    "vaultDomainCardIds": [8],
+    "domainCardIds": [8, 9, 10, 11, 12, 15],
+    "...": "other fields"
+  },
+  "advancementLogId": 4,
+  "appliedChanges": [
+    "Tier transition: created experience 'Defeated the Shadow King' (+2), proficiency +1, cleared marked traits",
+    "Applied BOOST_TRAITS: +1 AGILITY (marked), +1 STRENGTH (marked)",
+    "Applied GAIN_HP: +1 hit point max (now 11)",
+    "Damage thresholds: +1 major (now 4), +1 severe (now 7)",
+    "Added domain card 15 (equipped)",
+    "Trade: removed [3], added [12]"
+  ]
+}
+```
+
+**Error Status Codes:**
+
+| Status | Condition                                                              |
+|--------|------------------------------------------------------------------------|
+| `400`  | Character is already at max level (10)                                 |
+| `400`  | Validation failure (wrong number of advancements, invalid types, etc.) |
+| `400`  | Advancement type not available in target tier                          |
+| `400`  | Advancement type usage exceeded for tier                               |
+| `400`  | Mutual exclusion violation (UPGRADE_SUBCLASS vs MULTICLASS)            |
+| `400`  | BOOST_TRAITS: traits already marked or wrong count                     |
+| `400`  | BOOST_EXPERIENCES: experience IDs invalid or wrong count               |
+| `400`  | Domain card not from accessible domain or exceeds level cap            |
+| `400`  | Equipped domain card count would exceed 5                              |
+| `400`  | Trade validation failure (unequal count, invalid cards)                |
+| `400`  | Missing `newExperienceDescription` at tier transition                  |
+| `401`  | Missing or invalid authentication token                                |
+| `403`  | Not the character owner and not MODERATOR+                             |
+| `404`  | Character sheet not found or soft-deleted                              |
+| `404`  | Referenced domain card, subclass card, or experience not found         |
+
+---
+
+### Undo Level-Up
+
+```
+DELETE /api/dh/character-sheets/{id}/level-up
+```
+
+**Authorization:** Character sheet owner OR MODERATOR/ADMIN/OWNER role.
+
+Undoes the most recent level-up for the character, reversing all changes including tier achievements, advancements, damage thresholds, domain card additions, and domain card trades. Can be called repeatedly to undo multiple level-ups (e.g., level 7 to 6 to 5 to 4).
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description          |
+|-----------|------|----------|----------------------|
+| `id`      | long | Yes      | Character sheet ID   |
+
+**Response:** `200 OK` with `CharacterSheetResponse` (the character sheet after undoing the level-up)
+
+**Example Request:**
+
+```bash
+curl -X DELETE -b "AUTH_TOKEN=<token>" \
+  "http://localhost:8080/api/dh/character-sheets/1/level-up"
+```
+
+**Error Status Codes:**
+
+| Status | Condition                                                  |
+|--------|------------------------------------------------------------|
+| `400`  | No advancement log exists (character has never leveled up) |
+| `401`  | Missing or invalid authentication token                    |
+| `403`  | Not the character owner and not MODERATOR+                 |
+| `404`  | Character sheet not found or soft-deleted                  |
+
+---
+
 ## Expansion Support
 
 The `expand` query parameter accepts a comma-separated list of relationship names. When a relationship is expanded, the full object is included in the response alongside the ID field (which is always present).
@@ -436,7 +705,9 @@ Expand options come in two categories: **item/card expansion** (top-level, bring
 | `communityCards`       | All assigned community cards                 | `communityCards`            | `CommunityCardResponse[]`   |
 | `ancestryCards`        | All assigned ancestry cards                  | `ancestryCards`             | `AncestryCardResponse[]`    |
 | `subclassCards`        | All assigned subclass cards                  | `subclassCards`             | `SubclassCardResponse[]`    |
-| `domainCards`          | All assigned domain cards                    | `domainCards`               | `DomainCardResponse[]`      |
+| `domainCards`          | All assigned domain cards (equipped + vault) | `domainCards`               | `DomainCardResponse[]`      |
+| `equippedDomainCards`  | Equipped domain cards only (max 5)           | `equippedDomainCards`       | `DomainCardResponse[]`      |
+| `vaultDomainCards`     | Vault (unequipped) domain cards              | `vaultDomainCards`          | `DomainCardResponse[]`      |
 | `inventoryWeapons`     | All weapons in inventory                     | `inventoryWeapons`          | `WeaponResponse[]`          |
 | `inventoryArmors`      | All armor pieces in inventory                | `inventoryArmors`           | `ArmorResponse[]`           |
 | `inventoryItems`       | All loot items in inventory                  | `inventoryItems`            | `LootResponse[]`            |
@@ -575,6 +846,7 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `do
 | `name`                   | string                    | Yes            | --                                         |
 | `pronouns`               | string                    | No             | Omitted if null                            |
 | `level`                  | integer                   | Yes            | --                                         |
+| `proficiency`            | integer                   | Yes            | Character's proficiency bonus (starts at 1) |
 | `evasion`                | integer                   | Yes            | --                                         |
 | `armorMax`               | integer                   | Yes            | --                                         |
 | `armorMarked`            | integer                   | Yes            | --                                         |
@@ -613,8 +885,12 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `do
 | `ancestryCards`          | AncestryCardResponse[]    | No             | Only with `?expand=ancestryCards`          |
 | `subclassCardIds`        | long[]                    | Yes            | --                                         |
 | `subclassCards`          | SubclassCardResponse[]    | No             | Only with `?expand=subclassCards`          |
-| `domainCardIds`          | long[]                    | Yes            | --                                         |
+| `domainCardIds`          | long[]                    | Yes            | Union of equipped + vault (backward compat) |
 | `domainCards`            | DomainCardResponse[]      | No             | Only with `?expand=domainCards`            |
+| `equippedDomainCardIds`  | long[]                    | Yes            | IDs of equipped domain cards (max 5)       |
+| `equippedDomainCards`    | DomainCardResponse[]      | No             | Only with `?expand=equippedDomainCards`    |
+| `vaultDomainCardIds`     | long[]                    | Yes            | IDs of vault (unequipped) domain cards     |
+| `vaultDomainCards`       | DomainCardResponse[]      | No             | Only with `?expand=vaultDomainCards`       |
 | `inventoryWeaponIds`     | long[]                    | Yes            | --                                         |
 | `inventoryWeapons`       | WeaponResponse[]          | No             | Only with `?expand=inventoryWeapons`       |
 | `inventoryArmorIds`      | long[]                    | Yes            | --                                         |
@@ -636,6 +912,96 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `do
 | `totalPages`    | integer | Total number of pages                    |
 | `currentPage`   | integer | Current page number (zero-based)         |
 | `pageSize`      | integer | Number of items per page                 |
+
+### LevelUpRequest
+
+Request body for the `POST /api/dh/character-sheets/{id}/level-up` endpoint.
+
+| Field                      | Type                       | Required | Validation / Notes                                                     |
+|----------------------------|----------------------------|----------|------------------------------------------------------------------------|
+| `advancements`             | AdvancementChoice[]        | Yes      | Exactly 2 items (`@Size(min=2, max=2)`)                               |
+| `newExperienceDescription` | string                     | Cond.    | Required at tier transitions (levels 2, 5, 8). Description for the new experience created during tier achievement. |
+| `newDomainCardId`          | long                       | Yes      | ID of the domain card to add in Step 4. Must be from an accessible domain and within the tier's level cap. |
+| `equipNewDomainCard`       | boolean                    | No       | Default `false`. Whether to equip the new domain card (equipped count must not exceed 5). |
+| `unequipDomainCardId`      | long                       | No       | ID of a currently equipped domain card to unequip, to make room when at 5 equipped. |
+| `trades`                   | DomainCardTradeRequest[]   | No       | Optional list of equal-swap domain card trades.                        |
+
+### AdvancementChoice
+
+One of the two advancement choices included in a `LevelUpRequest`.
+
+| Field                       | Type    | Required     | Validation / Notes                                                              |
+|-----------------------------|---------|--------------|---------------------------------------------------------------------------------|
+| `type`                      | AdvancementType | Yes  | The advancement type to apply. Must be available in the target tier.             |
+| `boostTraits`               | Trait[] | BOOST_TRAITS | Exactly 2 currently unmarked traits.                                            |
+| `boostExperienceIds`        | long[]  | BOOST_EXPERIENCES | Exactly 2 experience IDs belonging to the character.                       |
+| `domainCardId`              | long    | GAIN_DOMAIN_CARD | ID of a domain card from an accessible domain, within level cap.            |
+| `equipDomainCard`           | boolean | No           | Default `false`. For GAIN_DOMAIN_CARD: whether to equip the gained card.        |
+| `subclassCardId`            | long    | UPGRADE_SUBCLASS | ID of the next-level subclass card in a path the character already has.     |
+| `multiclassSubclassPathId`  | long    | MULTICLASS   | ID of a subclass path belonging to a class the character doesn't already have.  |
+| `multiclassFoundationCardId`| long    | MULTICLASS   | ID of the FOUNDATION-level card from the chosen subclass path.                  |
+
+**Field usage by AdvancementType:**
+
+| AdvancementType     | Required Fields                                           |
+|---------------------|-----------------------------------------------------------|
+| `BOOST_TRAITS`      | `boostTraits` (2 Trait values)                            |
+| `GAIN_HP`           | None (type only)                                          |
+| `GAIN_STRESS`       | None (type only)                                          |
+| `BOOST_EXPERIENCES` | `boostExperienceIds` (2 experience IDs)                   |
+| `GAIN_DOMAIN_CARD`  | `domainCardId`, optionally `equipDomainCard`              |
+| `BOOST_EVASION`     | None (type only)                                          |
+| `UPGRADE_SUBCLASS`  | `subclassCardId`                                          |
+| `BOOST_PROFICIENCY` | None (type only)                                          |
+| `MULTICLASS`        | `multiclassSubclassPathId`, `multiclassFoundationCardId`  |
+
+### DomainCardTradeRequest
+
+Represents an equal-swap trade of domain cards during level-up. Multiple trades can be included in a single level-up.
+
+| Field                  | Type   | Required | Validation / Notes                                                          |
+|------------------------|--------|----------|-----------------------------------------------------------------------------|
+| `tradedOutDomainCardIds` | long[] | Yes    | IDs of domain cards the character currently owns to give up. Not empty.     |
+| `tradedInDomainCardIds`  | long[] | Yes    | IDs of domain cards to receive. Must be same count as traded out. Not empty. Cards must be from accessible domains and within level cap. |
+| `equipTradedInCardIds`   | long[] | No     | Subset of `tradedInDomainCardIds` to equip. Total equipped count must not exceed 5 after all operations. |
+
+### LevelUpOptionsResponse
+
+Returned by `GET /api/dh/character-sheets/{id}/level-up-options`.
+
+| Field                    | Type                      | Description                                                         |
+|--------------------------|---------------------------|---------------------------------------------------------------------|
+| `currentLevel`           | integer                   | Character's current level                                           |
+| `nextLevel`              | integer                   | Level the character will reach after level-up                       |
+| `currentTier`            | integer                   | Tier for the current level                                          |
+| `nextTier`               | integer                   | Tier for the next level                                             |
+| `isTierTransition`       | boolean                   | `true` if leveling up crosses a tier boundary (levels 2, 5, 8)     |
+| `availableAdvancements`  | AvailableAdvancement[]    | List of advancement types available for the next level-up           |
+| `domainCardLevelCap`     | integer (nullable)        | Maximum domain card level for the next tier. `null` means uncapped (Tier 4). |
+| `accessibleDomainIds`    | long[]                    | IDs of domains accessible to the character (determined by subclass paths) |
+| `equippedDomainCardCount`| integer                   | Number of currently equipped domain cards                           |
+| `maxEquippedDomainCards` | integer                   | Maximum equipped domain cards (always 5)                            |
+
+#### AvailableAdvancement (nested in LevelUpOptionsResponse)
+
+| Field                  | Type             | Description                                                        |
+|------------------------|------------------|--------------------------------------------------------------------|
+| `type`                 | AdvancementType  | The advancement type                                               |
+| `description`          | string           | Human-readable description of what this advancement does           |
+| `limitPerTier`         | integer          | Maximum times this advancement can be chosen within a single tier  |
+| `usedInTier`           | integer          | How many times this advancement has already been used in the current/next tier |
+| `remaining`            | integer          | How many more times this advancement can be chosen (`limitPerTier - usedInTier`) |
+| `mutuallyExclusiveWith`| string (nullable)| If non-null, the AdvancementType name that is mutually exclusive with this one within a tier |
+
+### LevelUpResponse
+
+Returned by `POST /api/dh/character-sheets/{id}/level-up`.
+
+| Field              | Type                    | Description                                                       |
+|--------------------|-------------------------|-------------------------------------------------------------------|
+| `characterSheet`   | CharacterSheetResponse  | The updated character sheet after all level-up changes are applied |
+| `advancementLogId` | long                    | ID of the created advancement log entry (used internally for undo)|
+| `appliedChanges`   | string[]                | Human-readable summary of all changes applied during the level-up |
 
 ---
 
