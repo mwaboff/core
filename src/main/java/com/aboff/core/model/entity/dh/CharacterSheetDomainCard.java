@@ -19,7 +19,7 @@ import lombok.experimental.SuperBuilder;
  * </p>
  */
 @Entity
-@Table(name = "character_sheet_domain_cards_equipped")
+@Table(name = "character_sheet_domain_cards")
 @Data
 @EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder

@@ -17,7 +17,7 @@ import lombok.experimental.SuperBuilder;
  * </p>
  */
 @Entity
-@Table(name = "character_advancement_logs")
+@Table(name = "character_advancement_log")
 @Data
 @EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
