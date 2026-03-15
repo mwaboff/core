@@ -13,7 +13,7 @@ import java.util.Optional;
  * Repository for CharacterSheetDomainCard entity operations.
  * <p>
  * Provides data access methods for managing the association between character sheets
- * and domain cards, including queries for finding cards by equipped status.
+ * and domain cards, including equipped status tracking.
  * </p>
  */
 @Repository
@@ -23,34 +23,34 @@ public interface CharacterSheetDomainCardRepository extends JpaRepository<Charac
      * Finds all domain card associations for a specific character sheet.
      *
      * @param characterSheetId the ID of the character sheet
-     * @return list of domain card associations for the character sheet
+     * @return list of domain card associations
      */
     List<CharacterSheetDomainCard> findByCharacterSheetId(Long characterSheetId);
 
     /**
-     * Finds domain card associations for a character sheet filtered by equipped status.
+     * Finds a domain card association by character sheet ID and domain card ID.
      *
-     * @param characterSheetId the ID of the character sheet
-     * @param equipped whether to find equipped or vault cards
-     * @return list of domain card associations matching the criteria
+     * @param characterSheetId the character sheet ID
+     * @param domainCardId the domain card ID
+     * @return optional containing the association if found
      */
-    List<CharacterSheetDomainCard> findByCharacterSheetIdAndEquipped(Long characterSheetId, Boolean equipped);
+    Optional<CharacterSheetDomainCard> findByCharacterSheetIdAndDomainCardId(
+            Long characterSheetId, Long domainCardId);
 
     /**
-     * Finds a specific domain card association by character sheet and domain card IDs.
+     * Counts the number of equipped domain cards for a character sheet.
      *
-     * @param characterSheetId the ID of the character sheet
-     * @param domainCardId the ID of the domain card
-     * @return the domain card association if found
-     */
-    Optional<CharacterSheetDomainCard> findByCharacterSheetIdAndDomainCardId(Long characterSheetId, Long domainCardId);
-
-    /**
-     * Counts the number of equipped domain cards for a specific character sheet.
-     *
-     * @param characterSheetId the ID of the character sheet
+     * @param characterSheetId the character sheet ID
      * @return the count of equipped domain cards
      */
-    @Query("SELECT COUNT(c) FROM CharacterSheetDomainCard c WHERE c.characterSheet.id = :characterSheetId AND c.equipped = true")
+    @Query("SELECT COUNT(csdc) FROM CharacterSheetDomainCard csdc WHERE csdc.characterSheet.id = :characterSheetId AND csdc.equipped = true")
     long countEquippedByCharacterSheetId(@Param("characterSheetId") Long characterSheetId);
+
+    /**
+     * Deletes all domain card associations for a specific character sheet and domain card.
+     *
+     * @param characterSheetId the character sheet ID
+     * @param domainCardId the domain card ID
+     */
+    void deleteByCharacterSheetIdAndDomainCardId(Long characterSheetId, Long domainCardId);
 }

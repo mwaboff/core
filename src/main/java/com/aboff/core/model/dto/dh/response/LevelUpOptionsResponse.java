@@ -1,118 +1,73 @@
 package com.aboff.core.model.dto.dh.response;
 
-import com.aboff.core.model.enums.AdvancementType;
-import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.util.List;
+import java.util.Set;
 
 /**
- * Response DTO describing the available level-up options for a character.
+ * DTO representing the available options for a character's next level-up.
  * <p>
- * Provides information about the character's current and next level/tier,
- * which advancements are available (including per-tier usage limits),
- * domain card constraints, and equipped card counts.
+ * Provides information about the level transition, available advancements,
+ * domain card constraints, and accessible domains.
  * </p>
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-@JsonInclude(JsonInclude.Include.NON_NULL)
 public class LevelUpOptionsResponse {
 
     /**
      * The character's current level.
      */
-    private Integer currentLevel;
+    private int currentLevel;
 
     /**
-     * The level the character will advance to.
+     * The level the character will reach after leveling up.
      */
-    private Integer nextLevel;
+    private int nextLevel;
 
     /**
-     * The character's current tier.
+     * The tier corresponding to the current level.
      */
-    private Integer currentTier;
+    private int currentTier;
 
     /**
-     * The tier the character will be in after leveling up.
+     * The tier corresponding to the next level.
      */
-    private Integer nextTier;
+    private int nextTier;
 
     /**
-     * Whether this level-up crosses a tier boundary (levels 2, 5, 8).
+     * Whether this level-up crosses a tier boundary.
      */
-    private Boolean isTierTransition;
+    private boolean isTierTransition;
 
     /**
-     * List of advancements available for this level-up, including usage limits.
+     * Available advancements with remaining usage counts.
      */
     private List<AvailableAdvancement> availableAdvancements;
 
     /**
-     * Maximum domain card level that can be selected, or {@code null} if uncapped.
+     * Maximum domain card level allowed in the next tier, or null if uncapped.
      */
     private Integer domainCardLevelCap;
 
     /**
-     * IDs of domains accessible to this character for domain card selection.
+     * IDs of domains accessible to this character through their subclass paths.
      */
-    private List<Long> accessibleDomainIds;
+    private Set<Long> accessibleDomainIds;
 
     /**
-     * Number of domain cards currently equipped by the character.
+     * Number of currently equipped domain cards.
      */
-    private Integer equippedDomainCardCount;
+    private long equippedDomainCardCount;
 
     /**
-     * Maximum number of domain cards that can be equipped (always 5).
+     * Maximum number of equipped domain cards allowed.
      */
-    private Integer maxEquippedDomainCards;
-
-    /**
-     * Describes a single advancement option available during level-up,
-     * including its per-tier usage limits and mutual exclusivity constraints.
-     */
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    public static class AvailableAdvancement {
-
-        /**
-         * The advancement type.
-         */
-        private AdvancementType type;
-
-        /**
-         * Human-readable description of the advancement effect.
-         */
-        private String description;
-
-        /**
-         * Maximum number of times this advancement can be taken per tier.
-         */
-        private Integer limitPerTier;
-
-        /**
-         * Number of times this advancement has been used in the current tier.
-         */
-        private Integer usedInTier;
-
-        /**
-         * Remaining uses of this advancement in the current tier.
-         */
-        private Integer remaining;
-
-        /**
-         * List of advancement types that are mutually exclusive with this one.
-         */
-        private List<AdvancementType> mutuallyExclusiveWith;
-    }
+    private int maxEquippedDomainCards;
 }

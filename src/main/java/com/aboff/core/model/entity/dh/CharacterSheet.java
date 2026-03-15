@@ -74,13 +74,12 @@ public class CharacterSheet extends BaseEntity {
 
     /**
      * The character's proficiency bonus.
-     * Proficiency represents the character's general competence and is added to
-     * certain rolls. Characters start with a proficiency of 1 and can increase it
-     * through advancement choices.
+     * Proficiency increases as the character advances through tiers and
+     * may be further boosted by the BOOST_PROFICIENCY advancement.
      */
     @Column(nullable = false)
     @Builder.Default
-    private Integer proficiency = 1;
+    private Integer proficiency = 0;
 
     // ========== Combat Attributes ==========
 
@@ -390,14 +389,18 @@ public class CharacterSheet extends BaseEntity {
     private Set<SubclassCard> subclassCards = new HashSet<>();
 
     /**
-     * Domain card associations for this character.
-     * Each association tracks a domain card and whether it is currently equipped
-     * or stored in the vault. Domain cards represent magical or specialized abilities
-     * tied to specific domains.
+     * Domain cards associated with this character.
+     * Domain cards represent magical or specialized abilities tied to specific
+     * domains. Characters gain domain cards through their subclass progression.
      */
-    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "character_sheet_domain_cards",
+        joinColumns = @JoinColumn(name = "character_sheet_id"),
+        inverseJoinColumns = @JoinColumn(name = "domain_card_id")
+    )
     @Builder.Default
-    private Set<CharacterSheetDomainCard> characterSheetDomainCards = new HashSet<>();
+    private Set<DomainCard> domainCards = new HashSet<>();
 
     // ========== Inventory ==========
 
@@ -466,11 +469,23 @@ public class CharacterSheet extends BaseEntity {
     @Builder.Default
     private Set<Companion> companions = new HashSet<>();
 
+    // ========== Domain Card Associations (with equipped tracking) ==========
+
+    /**
+     * Domain card associations for this character with equipped status.
+     * Each entry tracks whether a domain card is equipped (active) or not.
+     * Characters may have a maximum of 5 equipped domain cards at any time.
+     */
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<CharacterSheetDomainCard> characterSheetDomainCards = new HashSet<>();
+
     // ========== Advancement Logs ==========
 
     /**
-     * Advancement logs recording each level-up event for this character.
-     * Each log entry tracks the level transition, tier, and advancement choices made.
+     * Advancement log entries for this character.
+     * Each entry records a single level-up event with all choices and previous values
+     * needed for undo operations.
      */
     @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default

@@ -10,28 +10,16 @@ import lombok.NoArgsConstructor;
 import lombok.experimental.SuperBuilder;
 
 /**
- * Entity representing the association between a character sheet and a domain card in the
- * Daggerheart TTRPG system.
+ * Entity representing the association between a character sheet and a domain card
+ * in the Daggerheart TTRPG system.
  * <p>
- * This entity replaces the previous many-to-many join table relationship between
- * {@link CharacterSheet} and {@link DomainCard}, adding an {@code equipped} flag to
- * distinguish between domain cards that are actively equipped versus those stored
- * in the character's vault.
- * </p>
- * <p>
- * Each character sheet can have multiple domain cards, but each domain card can only
- * appear once per character sheet (enforced by a unique constraint on the combination
- * of character_sheet_id and domain_card_id).
+ * This join entity tracks which domain cards a character possesses and whether
+ * each card is currently equipped (active). Characters have a maximum of 5
+ * equipped domain cards at any time.
  * </p>
  */
 @Entity
-@Table(
-    name = "character_sheet_domain_cards",
-    uniqueConstraints = @UniqueConstraint(
-        name = "uq_cs_domain_card",
-        columnNames = {"character_sheet_id", "domain_card_id"}
-    )
-)
+@Table(name = "character_sheet_domain_cards_equipped")
 @Data
 @EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder
@@ -40,24 +28,22 @@ import lombok.experimental.SuperBuilder;
 public class CharacterSheetDomainCard extends BaseEntity {
 
     /**
-     * The character sheet this domain card association belongs to.
-     * When the character sheet is deleted, this association is also removed.
+     * The character sheet that owns this domain card association.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "character_sheet_id", nullable = false)
     private CharacterSheet characterSheet;
 
     /**
-     * The domain card associated with the character sheet.
+     * The domain card associated with this character.
      */
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "domain_card_id", nullable = false)
     private DomainCard domainCard;
 
     /**
-     * Whether this domain card is currently equipped (active) or stored in the vault.
-     * Equipped cards are readily available for use during gameplay, while vault cards
-     * are stored but not immediately accessible.
+     * Whether this domain card is currently equipped (active).
+     * Characters may have a maximum of 5 equipped domain cards.
      */
     @Column(nullable = false)
     @Builder.Default
