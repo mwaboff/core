@@ -249,9 +249,14 @@ public class CreateCharacterSheetRequest {
     private List<Long> subclassCardIds;
 
     /**
-     * IDs of domain cards associated with this character (optional)
+     * IDs of equipped domain cards (must be provided together with vaultDomainCardIds)
      */
-    private List<Long> domainCardIds;
+    private List<Long> equippedDomainCardIds;
+
+    /**
+     * IDs of vault (unequipped) domain cards (must be provided together with equippedDomainCardIds)
+     */
+    private List<Long> vaultDomainCardIds;
 
     // ========== Inventory IDs ==========
 

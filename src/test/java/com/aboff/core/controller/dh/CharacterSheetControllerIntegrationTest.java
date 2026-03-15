@@ -518,11 +518,13 @@ class CharacterSheetControllerIntegrationTest {
     // ==================== DOMAIN CARD TESTS ====================
 
     @Test
-    void createCharacterSheet_WithDomainCards_Returns201() throws Exception {
+    void createCharacterSheet_WithEquippedAndVaultDomainCards_Returns201() throws Exception {
         // Arrange
-        DomainCard domainCard = createDomainCard("Blade Strike");
+        DomainCard equippedCard = createDomainCard("Blade Strike");
+        DomainCard vaultCard = createDomainCard("Shadow Step");
         CreateCharacterSheetRequest request = createValidRequest();
-        request.setDomainCardIds(java.util.List.of(domainCard.getId()));
+        request.setEquippedDomainCardIds(java.util.List.of(equippedCard.getId()));
+        request.setVaultDomainCardIds(java.util.List.of(vaultCard.getId()));
 
         // Act & Assert
         mockMvc.perform(post("/api/dh/character-sheets")
@@ -531,16 +533,23 @@ class CharacterSheetControllerIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.domainCardIds").isArray())
-                .andExpect(jsonPath("$.domainCardIds.length()").value(1))
-                .andExpect(jsonPath("$.domainCardIds[0]").value(domainCard.getId()));
+                .andExpect(jsonPath("$.domainCardIds.length()").value(2))
+                .andExpect(jsonPath("$.equippedDomainCardIds").isArray())
+                .andExpect(jsonPath("$.equippedDomainCardIds.length()").value(1))
+                .andExpect(jsonPath("$.equippedDomainCardIds[0]").value(equippedCard.getId()))
+                .andExpect(jsonPath("$.vaultDomainCardIds").isArray())
+                .andExpect(jsonPath("$.vaultDomainCardIds.length()").value(1))
+                .andExpect(jsonPath("$.vaultDomainCardIds[0]").value(vaultCard.getId()));
     }
 
     @Test
-    void updateCharacterSheet_WithDomainCards_Returns200() throws Exception {
+    void updateCharacterSheet_WithEquippedAndVaultDomainCards_Returns200() throws Exception {
         // Arrange
-        DomainCard domainCard = createDomainCard("Bone Shield");
+        DomainCard equippedCard = createDomainCard("Bone Shield");
+        DomainCard vaultCard = createDomainCard("Shadow Step");
         UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
-                .domainCardIds(java.util.List.of(domainCard.getId()))
+                .equippedDomainCardIds(java.util.List.of(equippedCard.getId()))
+                .vaultDomainCardIds(java.util.List.of(vaultCard.getId()))
                 .build();
 
         // Act & Assert
@@ -550,8 +559,13 @@ class CharacterSheetControllerIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.domainCardIds").isArray())
-                .andExpect(jsonPath("$.domainCardIds.length()").value(1))
-                .andExpect(jsonPath("$.domainCardIds[0]").value(domainCard.getId()));
+                .andExpect(jsonPath("$.domainCardIds.length()").value(2))
+                .andExpect(jsonPath("$.equippedDomainCardIds").isArray())
+                .andExpect(jsonPath("$.equippedDomainCardIds.length()").value(1))
+                .andExpect(jsonPath("$.equippedDomainCardIds[0]").value(equippedCard.getId()))
+                .andExpect(jsonPath("$.vaultDomainCardIds").isArray())
+                .andExpect(jsonPath("$.vaultDomainCardIds.length()").value(1))
+                .andExpect(jsonPath("$.vaultDomainCardIds[0]").value(vaultCard.getId()));
     }
 
     @Test

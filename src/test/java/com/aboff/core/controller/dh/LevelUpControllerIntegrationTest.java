@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -261,6 +262,59 @@ class LevelUpControllerIntegrationTest {
         mockMvc.perform(delete("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ==================== BOOST NEW EXPERIENCE TESTS ====================
+
+    @Test
+    void levelUp_TierTransition_BoostNewExperience_BothExperiencesBoosted() throws Exception {
+        // Create an existing experience for the character via the sheet's collection
+        Experience existingExp = Experience.builder()
+                .characterSheet(testSheet)
+                .createdBy(player1)
+                .description("Existing battle experience")
+                .modifier(2)
+                .build();
+        testSheet.getExperiences().add(existingExp);
+        testSheet = characterSheetRepository.save(testSheet);
+        final Experience savedExistingExp = testSheet.getExperiences().stream()
+                .filter(e -> "Existing battle experience".equals(e.getDescription()))
+                .findFirst().orElseThrow();
+
+        // Level up at tier boundary (1->2) with boostNewExperience=true
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_EXPERIENCES)
+                                .experienceIds(List.of(savedExistingExp.getId()))
+                                .boostNewExperience(true)
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .newExperienceDescription("Survived the dragon attack")
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.characterSheet.level").value(2))
+                .andExpect(jsonPath("$.advancementLogId").isNumber())
+                .andExpect(jsonPath("$.appliedChanges").isArray());
+
+        // Verify existing experience was boosted from 2 to 3
+        Experience updatedExisting = experienceRepository.findById(savedExistingExp.getId()).orElseThrow();
+        assertThat(updatedExisting.getModifier()).isEqualTo(3);
+
+        // Verify new tier experience was created with modifier 3 (2 base + 1 boost)
+        List<Experience> allExperiences = experienceRepository.findByCharacterSheetId(testSheet.getId());
+        var newTierExps = allExperiences.stream()
+                .filter(e -> !e.getId().equals(savedExistingExp.getId()))
+                .toList();
+        assertThat(newTierExps).hasSize(1);
+        assertThat(newTierExps.get(0).getModifier()).isEqualTo(3);
+        assertThat(newTierExps.get(0).getDescription()).isEqualTo("Survived the dragon attack");
     }
 
     // ==================== ACCESS CONTROL TESTS ====================

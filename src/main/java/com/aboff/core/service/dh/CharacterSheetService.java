@@ -233,17 +233,30 @@ public class CharacterSheetService {
             }
             characterSheet.setSubclassCards(subclassCards);
         }
-        if (request.getDomainCardIds() != null) {
+        if (request.getEquippedDomainCardIds() != null || request.getVaultDomainCardIds() != null) {
+            if (request.getEquippedDomainCardIds() == null || request.getVaultDomainCardIds() == null) {
+                throw new IllegalArgumentException("Both equippedDomainCardIds and vaultDomainCardIds must be provided together");
+            }
+
+            // Validate no duplicate IDs within or across both lists
+            List<Long> allDomainIds = new ArrayList<>(request.getEquippedDomainCardIds());
+            allDomainIds.addAll(request.getVaultDomainCardIds());
+            if (allDomainIds.size() != new HashSet<>(allDomainIds).size()) {
+                throw new IllegalArgumentException("Duplicate domain card IDs are not allowed; each card can only be assigned once to a character sheet");
+            }
+
             Set<CharacterSheetDomainCard> domainCardEntities = new HashSet<>();
-            for (Long cardId : request.getDomainCardIds()) {
+            for (Long cardId : request.getEquippedDomainCardIds()) {
                 DomainCard card = domainCardRepository.findById(cardId)
                         .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
-                CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
-                        .characterSheet(characterSheet)
-                        .domainCard(card)
-                        .equipped(true)
-                        .build();
-                domainCardEntities.add(csdc);
+                domainCardEntities.add(CharacterSheetDomainCard.builder()
+                        .characterSheet(characterSheet).domainCard(card).equipped(true).build());
+            }
+            for (Long cardId : request.getVaultDomainCardIds()) {
+                DomainCard card = domainCardRepository.findById(cardId)
+                        .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
+                domainCardEntities.add(CharacterSheetDomainCard.builder()
+                        .characterSheet(characterSheet).domainCard(card).equipped(false).build());
             }
             characterSheet.setCharacterSheetDomainCards(domainCardEntities);
         }
@@ -450,15 +463,36 @@ public class CharacterSheetService {
             }
             characterSheet.setSubclassCards(subclassCards);
         }
-        if (request.getDomainCardIds() != null) {
+        if (request.getEquippedDomainCardIds() != null || request.getVaultDomainCardIds() != null) {
+            if (request.getEquippedDomainCardIds() == null || request.getVaultDomainCardIds() == null) {
+                throw new IllegalArgumentException("Both equippedDomainCardIds and vaultDomainCardIds must be provided together");
+            }
+
+            // Validate no duplicate IDs within or across both lists
+            List<Long> allIds = new ArrayList<>(request.getEquippedDomainCardIds());
+            allIds.addAll(request.getVaultDomainCardIds());
+            if (allIds.size() != new HashSet<>(allIds).size()) {
+                throw new IllegalArgumentException("Duplicate domain card IDs are not allowed; each card can only be assigned once to a character sheet");
+            }
+
             characterSheet.getCharacterSheetDomainCards().clear();
-            for (Long cardId : request.getDomainCardIds()) {
+            for (Long cardId : request.getEquippedDomainCardIds()) {
                 DomainCard card = domainCardRepository.findById(cardId)
                         .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
                 CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
                         .characterSheet(characterSheet)
                         .domainCard(card)
                         .equipped(true)
+                        .build();
+                characterSheet.getCharacterSheetDomainCards().add(csdc);
+            }
+            for (Long cardId : request.getVaultDomainCardIds()) {
+                DomainCard card = domainCardRepository.findById(cardId)
+                        .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
+                CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                        .characterSheet(characterSheet)
+                        .domainCard(card)
+                        .equipped(false)
                         .build();
                 characterSheet.getCharacterSheetDomainCards().add(csdc);
             }

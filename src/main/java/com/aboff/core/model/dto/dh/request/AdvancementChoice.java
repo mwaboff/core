@@ -54,4 +54,13 @@ public class AdvancementChoice {
      * The subclass card ID (required for UPGRADE_SUBCLASS and MULTICLASS).
      */
     private Long subclassCardId;
+
+    /**
+     * Whether to automatically include the newly created tier transition experience
+     * as the second target for BOOST_EXPERIENCES. When true, only 1 experience ID
+     * is required instead of 2, and the tier transition experience is automatically
+     * boosted as well. Only valid during tier transitions.
+     */
+    @Builder.Default
+    private Boolean boostNewExperience = false;
 }

@@ -1030,6 +1030,209 @@ class LevelUpServiceTest {
                 .hasMessageContaining("does not match");
     }
 
+    // ==================== BOOST NEW EXPERIENCE TESTS ====================
+
+    @Test
+    void levelUp_BoostExperiencesWithNewTierExperience_BothExperiencesGetBoosted() {
+        // Tier transition (level 1 -> 2) with BOOST_EXPERIENCES + boostNewExperience=true
+        CharacterSheet sheet = buildSheet(1);
+        Experience existingExp = Experience.builder().id(10L).modifier(2).characterSheet(sheet).createdBy(testOwner).description("existing exp").build();
+        sheet.setExperiences(new HashSet<>(Set.of(existingExp)));
+        sheet.setProficiency(0);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        Experience savedNewExp = Experience.builder().id(42L).description("Battle hardened").modifier(2).characterSheet(sheet).createdBy(testOwner).build();
+        when(experienceRepository.save(any())).thenAnswer(i -> {
+            Experience e = i.getArgument(0);
+            if (e.getId() == null) {
+                // New experience being created by tier achievements
+                savedNewExp.setCharacterSheet(sheet);
+                sheet.getExperiences().add(savedNewExp);
+                return savedNewExp;
+            }
+            return e;
+        });
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_EXPERIENCES)
+                                .experienceIds(List.of(10L))
+                                .boostNewExperience(true)
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .newExperienceDescription("Battle hardened")
+                .build();
+
+        LevelUpResponse response = levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(response).isNotNull();
+        // Existing experience boosted from 2 to 3
+        assertThat(existingExp.getModifier()).isEqualTo(3);
+        // New tier experience boosted from 2 to 3
+        assertThat(savedNewExp.getModifier()).isEqualTo(3);
+    }
+
+    @Test
+    void levelUp_BoostNewExperience_RequiresTierTransition() {
+        // Non-tier-transition (level 2 -> 3) with boostNewExperience=true should throw
+        CharacterSheet sheet = buildSheet(2);
+        Experience exp = Experience.builder().id(10L).modifier(2).characterSheet(sheet).createdBy(testOwner).description("exp").build();
+        sheet.setExperiences(new HashSet<>(Set.of(exp)));
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_EXPERIENCES)
+                                .experienceIds(List.of(10L))
+                                .boostNewExperience(true)
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("boostNewExperience is only valid during tier transitions");
+    }
+
+    @Test
+    void levelUp_BoostNewExperience_RequiresExactlyOneExperienceId() {
+        // Tier transition with boostNewExperience=true but 2 experience IDs should throw
+        CharacterSheet sheet = buildSheet(1);
+        Experience exp1 = Experience.builder().id(10L).modifier(2).characterSheet(sheet).createdBy(testOwner).description("exp1").build();
+        Experience exp2 = Experience.builder().id(11L).modifier(2).characterSheet(sheet).createdBy(testOwner).description("exp2").build();
+        sheet.setExperiences(new HashSet<>(Set.of(exp1, exp2)));
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_EXPERIENCES)
+                                .experienceIds(List.of(10L, 11L))
+                                .boostNewExperience(true)
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .newExperienceDescription("New tier experience")
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("boostNewExperience requires exactly 1 experience ID");
+    }
+
+    @Test
+    void levelUp_BoostNewExperienceDefaultFalse_ExistingBehaviorPreserved() {
+        // Default boostNewExperience=false should still require 2 experience IDs
+        CharacterSheet sheet = buildSheet(3);
+        Experience exp1 = Experience.builder().id(10L).modifier(2).characterSheet(sheet).createdBy(testOwner).description("exp1").build();
+        Experience exp2 = Experience.builder().id(11L).modifier(2).characterSheet(sheet).createdBy(testOwner).description("exp2").build();
+        sheet.setExperiences(new HashSet<>(Set.of(exp1, exp2)));
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+        when(experienceRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_EXPERIENCES)
+                                .experienceIds(List.of(10L, 11L))
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        LevelUpResponse response = levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(response).isNotNull();
+        assertThat(exp1.getModifier()).isEqualTo(3);
+        assertThat(exp2.getModifier()).isEqualTo(3);
+    }
+
+    @Test
+    void undoLevelUp_WithBoostedNewExperience_ReversesCorrectly() throws Exception {
+        // Undo a tier transition that used boostNewExperience
+        // The new experience should be deleted by reverseTierAchievements
+        // The existing experience should be restored to its previous modifier
+        CharacterSheet sheet = buildSheet(2);
+        sheet.setProficiency(1);
+        Experience existingExp = Experience.builder().id(10L).modifier(3).characterSheet(sheet).createdBy(testOwner).description("existing").build();
+        Experience newExp = Experience.builder().id(42L).modifier(3).characterSheet(sheet).createdBy(testOwner).description("new tier exp").build();
+        sheet.setExperiences(new HashSet<>(Set.of(existingExp, newExp)));
+        sheet.setHitPointMax(7);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+
+        Map<String, Object> advDataMap = Map.of(
+                "advancements", List.of(
+                        Map.of("type", "BOOST_EXPERIENCES", "experienceIds", List.of(10, 42), "boostNewExperience", true),
+                        Map.of("type", "GAIN_HP")
+                ),
+                "tierAchievements", Map.of(
+                        "experienceCreatedId", 42,
+                        "proficiencyIncremented", true
+                ),
+                "previousDamageThresholds", Map.of("major", 3, "severe", 6),
+                "previousValues", Map.of(
+                        "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                        "traitModifiers", Map.of(), "traitMarks", Map.of(),
+                        "experienceModifiers", Map.of("10", 2)
+                )
+        );
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(1).toLevel(2).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(1).build());
+        when(experienceRepository.findById(10L)).thenReturn(Optional.of(existingExp));
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        // Existing experience should be restored to modifier 2
+        assertThat(existingExp.getModifier()).isEqualTo(2);
+        // New experience should be deleted
+        verify(experienceRepository).deleteById(42L);
+        // Level should be back to 1
+        assertThat(sheet.getLevel()).isEqualTo(1);
+        // Proficiency should be decremented
+        assertThat(sheet.getProficiency()).isEqualTo(0);
+    }
+
     // ==================== HELPER METHODS ====================
 
     private CharacterSheet buildSheet(int level) {

@@ -151,9 +151,11 @@ public class LevelUpService {
         }
 
         // Step 2 - Apply 2 Advancements
+        Long newTierExpId = tierAchievements.containsKey("experienceCreatedId") ?
+                toLong(tierAchievements.get("experienceCreatedId")) : null;
         List<Map<String, Object>> advancementsList = new ArrayList<>();
         for (AdvancementChoice choice : request.getAdvancements()) {
-            Map<String, Object> advData = applyAdvancement(sheet, choice, appliedChanges);
+            Map<String, Object> advData = applyAdvancement(sheet, choice, appliedChanges, newTierExpId);
             advancementsList.add(advData);
         }
         advancementDataMap.put("advancements", advancementsList);
@@ -649,7 +651,7 @@ public class LevelUpService {
             // Type-specific validation
             switch (type) {
                 case BOOST_TRAITS -> validateBoostTraits(choice, sheet);
-                case BOOST_EXPERIENCES -> validateBoostExperiences(choice, sheet);
+                case BOOST_EXPERIENCES -> validateBoostExperiences(choice, sheet, isTierTransition);
                 case GAIN_DOMAIN_CARD -> validateGainDomainCard(choice, accessibleDomainIds, domainCardLevelCap);
                 case UPGRADE_SUBCLASS -> validateUpgradeSubclass(choice, sheet);
                 case MULTICLASS -> validateMulticlass(choice, sheet);
@@ -697,9 +699,18 @@ public class LevelUpService {
         }
     }
 
-    private void validateBoostExperiences(AdvancementChoice choice, CharacterSheet sheet) {
-        if (choice.getExperienceIds() == null || choice.getExperienceIds().size() != 2) {
-            throw new IllegalStateException("BOOST_EXPERIENCES requires exactly 2 experience IDs");
+    private void validateBoostExperiences(AdvancementChoice choice, CharacterSheet sheet, boolean isTierTransition) {
+        if (Boolean.TRUE.equals(choice.getBoostNewExperience())) {
+            if (!isTierTransition) {
+                throw new IllegalStateException("boostNewExperience is only valid during tier transitions");
+            }
+            if (choice.getExperienceIds() == null || choice.getExperienceIds().size() != 1) {
+                throw new IllegalStateException("BOOST_EXPERIENCES with boostNewExperience requires exactly 1 experience ID");
+            }
+        } else {
+            if (choice.getExperienceIds() == null || choice.getExperienceIds().size() != 2) {
+                throw new IllegalStateException("BOOST_EXPERIENCES requires exactly 2 experience IDs");
+            }
         }
         for (Long expId : choice.getExperienceIds()) {
             boolean belongs = sheet.getExperiences().stream().anyMatch(e -> e.getId().equals(expId));
@@ -888,7 +899,7 @@ public class LevelUpService {
      * Applies a single advancement choice and returns the data map for logging.
      */
     private Map<String, Object> applyAdvancement(CharacterSheet sheet, AdvancementChoice choice,
-                                                   List<String> appliedChanges) {
+                                                   List<String> appliedChanges, Long newTierExperienceId) {
         Map<String, Object> advData = new LinkedHashMap<>();
         advData.put("type", choice.getType().name());
 
@@ -912,7 +923,10 @@ public class LevelUpService {
                 appliedChanges.add("+1 stress max");
             }
             case BOOST_EXPERIENCES -> {
-                List<Long> expIds = choice.getExperienceIds();
+                List<Long> expIds = new ArrayList<>(choice.getExperienceIds());
+                if (Boolean.TRUE.equals(choice.getBoostNewExperience()) && newTierExperienceId != null) {
+                    expIds.add(newTierExperienceId);
+                }
                 for (Long expId : expIds) {
                     Experience exp = sheet.getExperiences().stream()
                             .filter(e -> e.getId().equals(expId))
@@ -922,6 +936,7 @@ public class LevelUpService {
                     experienceRepository.save(exp);
                 }
                 advData.put("experienceIds", expIds);
+                advData.put("boostNewExperience", Boolean.TRUE.equals(choice.getBoostNewExperience()));
                 appliedChanges.add("Boosted " + expIds.size() + " experience modifiers");
             }
             case GAIN_DOMAIN_CARD -> {
