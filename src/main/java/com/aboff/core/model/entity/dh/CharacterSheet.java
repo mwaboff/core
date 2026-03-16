@@ -72,6 +72,15 @@ public class CharacterSheet extends BaseEntity {
     @Builder.Default
     private Integer level = 1;
 
+    /**
+     * The character's proficiency bonus.
+     * Proficiency increases as the character advances through tiers and
+     * may be further boosted by the BOOST_PROFICIENCY advancement.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer proficiency = 0;
+
     // ========== Combat Attributes ==========
 
     /**
@@ -459,6 +468,28 @@ public class CharacterSheet extends BaseEntity {
     @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
     private Set<Companion> companions = new HashSet<>();
+
+    // ========== Domain Card Associations (with equipped tracking) ==========
+
+    /**
+     * Domain card associations for this character with equipped status.
+     * Each entry tracks whether a domain card is equipped (active) or not.
+     * Characters may have a maximum of 5 equipped domain cards at any time.
+     */
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<CharacterSheetDomainCard> characterSheetDomainCards = new HashSet<>();
+
+    // ========== Advancement Logs ==========
+
+    /**
+     * Advancement log entries for this character.
+     * Each entry records a single level-up event with all choices and previous values
+     * needed for undo operations.
+     */
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<CharacterAdvancementLog> advancementLogs = new HashSet<>();
 
     // ========== Soft Deletion ==========
 

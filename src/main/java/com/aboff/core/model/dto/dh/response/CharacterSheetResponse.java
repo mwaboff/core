@@ -58,6 +58,11 @@ public class CharacterSheetResponse {
      */
     private Integer level;
 
+    /**
+     * The character's proficiency bonus
+     */
+    private Integer proficiency;
+
     // ========== Combat Attributes ==========
 
     /**
@@ -263,15 +268,37 @@ public class CharacterSheetResponse {
     private List<SubclassCardResponse> subclassCards;
 
     /**
-     * IDs of domain cards (always included)
+     * IDs of all domain cards (always included, for backward compatibility)
      */
     private List<Long> domainCardIds;
+
+    /**
+     * IDs of equipped domain cards (always included)
+     */
+    private List<Long> equippedDomainCardIds;
+
+    /**
+     * IDs of vault (unequipped) domain cards (always included)
+     */
+    private List<Long> vaultDomainCardIds;
 
     /**
      * Full domain card objects (included only when ?expand=domainCards is specified)
      */
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private List<DomainCardResponse> domainCards;
+
+    /**
+     * Full equipped domain card objects (included only when ?expand=equippedDomainCards is specified)
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<DomainCardResponse> equippedDomainCards;
+
+    /**
+     * Full vault domain card objects (included only when ?expand=vaultDomainCards is specified)
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private List<DomainCardResponse> vaultDomainCards;
 
     // ========== Inventory ==========
 

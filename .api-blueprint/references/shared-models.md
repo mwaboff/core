@@ -223,6 +223,27 @@ Categories for card cost/limitation badges, used for frontend grouping and styli
 
 ---
 
+### AdvancementType
+Character advancement options available during level-up. Each type has a minimum tier requirement.
+
+| Value | Description | Min Tier |
+|-------|-------------|----------|
+| `BOOST_TRAITS` | +1 to two unmarked traits, mark them | 2 |
+| `GAIN_HP` | +1 hit point max | 2 |
+| `GAIN_STRESS` | +1 stress max | 2 |
+| `BOOST_EXPERIENCES` | +1 modifier to two experiences | 2 |
+| `GAIN_DOMAIN_CARD` | Choose a domain card of appropriate level | 2 |
+| `BOOST_EVASION` | +1 evasion | 2 |
+| `UPGRADE_SUBCLASS` | Take upgraded subclass card (Tier 3+) | 3 |
+| `BOOST_PROFICIENCY` | +1 proficiency (Tier 3+) | 3 |
+| `MULTICLASS` | Choose additional class (Tier 3+) | 3 |
+
+**Mutual exclusion:** UPGRADE_SUBCLASS and MULTICLASS are mutually exclusive within a tier. If one is chosen at any point during a tier, the other becomes unavailable for the remainder of that tier.
+
+**Used by:** LevelUpRequest (AdvancementChoice), LevelUpOptionsResponse, CharacterAdvancementLog entity, LevelUpService
+
+---
+
 ### ModifierOperation
 Mathematical operations applied by feature modifiers. Evaluated in order: SET first, then MULTIPLY, then ADD.
 

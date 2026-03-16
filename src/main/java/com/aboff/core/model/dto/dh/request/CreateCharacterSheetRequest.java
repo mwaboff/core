@@ -44,6 +44,12 @@ public class CreateCharacterSheetRequest {
     @Max(value = 10, message = "Level must not exceed 10")
     private Integer level;
 
+    /**
+     * The character's proficiency bonus (optional, defaults to 1)
+     */
+    @Min(value = 1, message = "Proficiency must be at least 1")
+    private Integer proficiency;
+
     // ========== Combat Attributes ==========
 
     /**
@@ -243,9 +249,14 @@ public class CreateCharacterSheetRequest {
     private List<Long> subclassCardIds;
 
     /**
-     * IDs of domain cards associated with this character (optional)
+     * IDs of equipped domain cards (must be provided together with vaultDomainCardIds)
      */
-    private List<Long> domainCardIds;
+    private List<Long> equippedDomainCardIds;
+
+    /**
+     * IDs of vault (unequipped) domain cards (must be provided together with equippedDomainCardIds)
+     */
+    private List<Long> vaultDomainCardIds;
 
     // ========== Inventory IDs ==========
 

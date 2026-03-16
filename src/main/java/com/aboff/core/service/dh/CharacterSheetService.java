@@ -26,6 +26,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -50,6 +51,7 @@ import java.util.stream.Collectors;
 public class CharacterSheetService {
 
     private final CharacterSheetRepository characterSheetRepository;
+    private final CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
     private final UserRepository userRepository;
     private final ExperienceRepository experienceRepository;
     private final WeaponRepository weaponRepository;
@@ -182,6 +184,7 @@ public class CharacterSheetService {
                 .hopeMax(request.getHopeMax())
                 .hopeMarked(request.getHopeMarked())
                 .gold(request.getGold())
+                .proficiency(request.getProficiency() != null ? request.getProficiency() : 1)
                 .owner(owner)
                 .build();
 
@@ -230,14 +233,32 @@ public class CharacterSheetService {
             }
             characterSheet.setSubclassCards(subclassCards);
         }
-        if (request.getDomainCardIds() != null) {
-            Set<DomainCard> domainCards = new HashSet<>();
-            for (Long cardId : request.getDomainCardIds()) {
+        if (request.getEquippedDomainCardIds() != null || request.getVaultDomainCardIds() != null) {
+            if (request.getEquippedDomainCardIds() == null || request.getVaultDomainCardIds() == null) {
+                throw new IllegalArgumentException("Both equippedDomainCardIds and vaultDomainCardIds must be provided together");
+            }
+
+            // Validate no duplicate IDs within or across both lists
+            List<Long> allDomainIds = new ArrayList<>(request.getEquippedDomainCardIds());
+            allDomainIds.addAll(request.getVaultDomainCardIds());
+            if (allDomainIds.size() != new HashSet<>(allDomainIds).size()) {
+                throw new IllegalArgumentException("Duplicate domain card IDs are not allowed; each card can only be assigned once to a character sheet");
+            }
+
+            Set<CharacterSheetDomainCard> domainCardEntities = new HashSet<>();
+            for (Long cardId : request.getEquippedDomainCardIds()) {
                 DomainCard card = domainCardRepository.findById(cardId)
                         .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
-                domainCards.add(card);
+                domainCardEntities.add(CharacterSheetDomainCard.builder()
+                        .characterSheet(characterSheet).domainCard(card).equipped(true).build());
             }
-            characterSheet.setDomainCards(domainCards);
+            for (Long cardId : request.getVaultDomainCardIds()) {
+                DomainCard card = domainCardRepository.findById(cardId)
+                        .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
+                domainCardEntities.add(CharacterSheetDomainCard.builder()
+                        .characterSheet(characterSheet).domainCard(card).equipped(false).build());
+            }
+            characterSheet.setCharacterSheetDomainCards(domainCardEntities);
         }
 
         // Set inventory collections if provided
@@ -312,6 +333,9 @@ public class CharacterSheetService {
         }
         if (request.getLevel() != null) {
             characterSheet.setLevel(request.getLevel());
+        }
+        if (request.getProficiency() != null) {
+            characterSheet.setProficiency(request.getProficiency());
         }
 
         // Update combat attributes
@@ -439,14 +463,41 @@ public class CharacterSheetService {
             }
             characterSheet.setSubclassCards(subclassCards);
         }
-        if (request.getDomainCardIds() != null) {
-            Set<DomainCard> domainCards = new HashSet<>();
-            for (Long cardId : request.getDomainCardIds()) {
+        if (request.getEquippedDomainCardIds() != null || request.getVaultDomainCardIds() != null) {
+            if (request.getEquippedDomainCardIds() == null || request.getVaultDomainCardIds() == null) {
+                throw new IllegalArgumentException("Both equippedDomainCardIds and vaultDomainCardIds must be provided together");
+            }
+
+            // Validate no duplicate IDs within or across both lists
+            List<Long> allIds = new ArrayList<>(request.getEquippedDomainCardIds());
+            allIds.addAll(request.getVaultDomainCardIds());
+            if (allIds.size() != new HashSet<>(allIds).size()) {
+                throw new IllegalArgumentException("Duplicate domain card IDs are not allowed; each card can only be assigned once to a character sheet");
+            }
+
+            characterSheet.getCharacterSheetDomainCards().clear();
+            // Flush to execute DELETEs before INSERTs, avoiding unique constraint violation
+            characterSheetRepository.flush();
+            for (Long cardId : request.getEquippedDomainCardIds()) {
                 DomainCard card = domainCardRepository.findById(cardId)
                         .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
-                domainCards.add(card);
+                CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                        .characterSheet(characterSheet)
+                        .domainCard(card)
+                        .equipped(true)
+                        .build();
+                characterSheet.getCharacterSheetDomainCards().add(csdc);
             }
-            characterSheet.setDomainCards(domainCards);
+            for (Long cardId : request.getVaultDomainCardIds()) {
+                DomainCard card = domainCardRepository.findById(cardId)
+                        .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
+                CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                        .characterSheet(characterSheet)
+                        .domainCard(card)
+                        .equipped(false)
+                        .build();
+                characterSheet.getCharacterSheetDomainCards().add(csdc);
+            }
         }
 
         // Update inventory collections (replace entire collection if provided)
@@ -529,7 +580,7 @@ public class CharacterSheetService {
      * @param operation The operation being performed (for error message)
      * @throws InsufficientPermissionsException if the user lacks permission
      */
-    private void validateAccess(CharacterSheet characterSheet, Authentication auth, String operation) {
+    void validateAccess(CharacterSheet characterSheet, Authentication auth, String operation) {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
@@ -615,12 +666,13 @@ public class CharacterSheetService {
      * @param expand Set of relationships to expand
      * @return CharacterSheetResponse DTO
      */
-    private CharacterSheetResponse toResponse(CharacterSheet sheet, Set<String> expand) {
+    CharacterSheetResponse toResponse(CharacterSheet sheet, Set<String> expand) {
         CharacterSheetResponse.CharacterSheetResponseBuilder builder = CharacterSheetResponse.builder()
                 .id(sheet.getId())
                 .name(sheet.getName())
                 .pronouns(sheet.getPronouns())
                 .level(sheet.getLevel())
+                .proficiency(sheet.getProficiency())
                 .evasion(sheet.getEvasion())
                 .armorMax(sheet.getArmorMax())
                 .armorMarked(sheet.getArmorMarked())
@@ -659,7 +711,21 @@ public class CharacterSheetService {
         builder.communityCardIds(sheet.getCommunityCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
         builder.ancestryCardIds(sheet.getAncestryCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
         builder.subclassCardIds(sheet.getSubclassCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
-        builder.domainCardIds(sheet.getDomainCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
+        // Domain card IDs split by equipped/vault
+        List<Long> equippedDomainCardIds = sheet.getCharacterSheetDomainCards().stream()
+                .filter(CharacterSheetDomainCard::getEquipped)
+                .map(csdc -> csdc.getDomainCard().getId())
+                .collect(Collectors.toList());
+        List<Long> vaultDomainCardIds = sheet.getCharacterSheetDomainCards().stream()
+                .filter(csdc -> !csdc.getEquipped())
+                .map(csdc -> csdc.getDomainCard().getId())
+                .collect(Collectors.toList());
+        List<Long> allDomainCardIds = new ArrayList<>(equippedDomainCardIds);
+        allDomainCardIds.addAll(vaultDomainCardIds);
+
+        builder.domainCardIds(allDomainCardIds);
+        builder.equippedDomainCardIds(equippedDomainCardIds);
+        builder.vaultDomainCardIds(vaultDomainCardIds);
 
         // Always include IDs for inventory
         builder.inventoryWeaponIds(sheet.getInventoryWeapons().stream().map(weapon -> weapon.getId()).collect(Collectors.toList()));
@@ -737,8 +803,24 @@ public class CharacterSheetService {
 
         // Expand domain cards if requested
         if (expand.contains("domainCards")) {
-            builder.domainCards(sheet.getDomainCards().stream()
-                    .map(card -> toDomainCardResponse(card, expand))
+            builder.domainCards(sheet.getCharacterSheetDomainCards().stream()
+                    .map(csdc -> toDomainCardResponse(csdc.getDomainCard(), expand))
+                    .collect(Collectors.toList()));
+        }
+
+        // Expand equipped domain cards if requested
+        if (expand.contains("equippedDomainCards")) {
+            builder.equippedDomainCards(sheet.getCharacterSheetDomainCards().stream()
+                    .filter(CharacterSheetDomainCard::getEquipped)
+                    .map(csdc -> toDomainCardResponse(csdc.getDomainCard(), expand))
+                    .collect(Collectors.toList()));
+        }
+
+        // Expand vault domain cards if requested
+        if (expand.contains("vaultDomainCards")) {
+            builder.vaultDomainCards(sheet.getCharacterSheetDomainCards().stream()
+                    .filter(csdc -> !csdc.getEquipped())
+                    .map(csdc -> toDomainCardResponse(csdc.getDomainCard(), expand))
                     .collect(Collectors.toList()));
         }
 

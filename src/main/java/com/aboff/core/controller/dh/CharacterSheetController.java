@@ -1,10 +1,14 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
+import com.aboff.core.model.dto.dh.request.LevelUpRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
+import com.aboff.core.model.dto.dh.response.LevelUpOptionsResponse;
+import com.aboff.core.model.dto.dh.response.LevelUpResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.service.dh.CharacterSheetService;
+import com.aboff.core.service.dh.LevelUpService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -33,6 +37,7 @@ import org.springframework.web.bind.annotation.*;
 public class CharacterSheetController {
 
     private final CharacterSheetService characterSheetService;
+    private final LevelUpService levelUpService;
 
     /**
      * Retrieves a paginated list of character sheets.
@@ -125,6 +130,67 @@ public class CharacterSheetController {
             Authentication authentication) {
 
         CharacterSheetResponse response = characterSheetService.updateCharacterSheet(id, request, authentication);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves available level-up options for a character sheet.
+     * <p>
+     * Returns information about available advancements, domain card constraints,
+     * and tier transition details for the character's next level.
+     * </p>
+     *
+     * @param id The character sheet ID
+     * @param authentication The authentication object containing the current user
+     * @return Level-up options response with 200 OK status
+     */
+    @GetMapping("/{id}/level-up-options")
+    public ResponseEntity<LevelUpOptionsResponse> getLevelUpOptions(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        LevelUpOptionsResponse response = levelUpService.getLevelUpOptions(id, authentication);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Performs a level-up operation on a character sheet.
+     * <p>
+     * Applies the selected advancements, tier achievements, domain card changes,
+     * and saves an advancement log for undo support.
+     * </p>
+     *
+     * @param id The character sheet ID
+     * @param request The level-up request containing advancement choices
+     * @param authentication The authentication object containing the current user
+     * @return Level-up response with 200 OK status
+     */
+    @PostMapping("/{id}/level-up")
+    public ResponseEntity<LevelUpResponse> levelUp(
+            @PathVariable Long id,
+            @Valid @RequestBody LevelUpRequest request,
+            Authentication authentication) {
+
+        LevelUpResponse response = levelUpService.levelUp(id, request, authentication);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Undoes the most recent level-up for a character sheet.
+     * <p>
+     * Reverses all changes from the last level-up and removes the advancement log.
+     * </p>
+     *
+     * @param id The character sheet ID
+     * @param authentication The authentication object containing the current user
+     * @return Updated character sheet response with 200 OK status
+     */
+    @DeleteMapping("/{id}/level-up")
+    public ResponseEntity<CharacterSheetResponse> undoLevelUp(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        CharacterSheetResponse response = levelUpService.undoLevelUp(id, authentication);
         return ResponseEntity.ok(response);
     }
 

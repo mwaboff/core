@@ -42,6 +42,12 @@ public class UpdateCharacterSheetRequest {
     @Max(value = 10, message = "Level must not exceed 10")
     private Integer level;
 
+    /**
+     * Updated proficiency bonus
+     */
+    @Min(value = 1, message = "Proficiency must be at least 1")
+    private Integer proficiency;
+
     // ========== Combat Attributes ==========
 
     /**
@@ -217,9 +223,14 @@ public class UpdateCharacterSheetRequest {
     private List<Long> subclassCardIds;
 
     /**
-     * Updated IDs of domain cards (null to leave unchanged)
+     * Updated IDs of equipped domain cards (must be provided together with vaultDomainCardIds)
      */
-    private List<Long> domainCardIds;
+    private List<Long> equippedDomainCardIds;
+
+    /**
+     * Updated IDs of vault (unequipped) domain cards (must be provided together with equippedDomainCardIds)
+     */
+    private List<Long> vaultDomainCardIds;
 
     // ========== Inventory IDs ==========
 

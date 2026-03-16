@@ -162,6 +162,10 @@ Game content uses official/public/custom pattern:
 - **Always use new migrations over modifying existing** - Create new migration for schema changes
 - Naming: `V{timestamp}__{description}.sql`
 
+## Controller/Endpoint Updates
+
+- Whenever adding or updating an Endpoint, Controller, DTO, Model, or similar used by an endpoint, always review the .api-blueprint directory and update any relevant files accordingly. 
+
 ## Environment
 
 Create `.env` in project root:
