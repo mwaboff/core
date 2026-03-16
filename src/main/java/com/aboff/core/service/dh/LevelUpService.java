@@ -294,12 +294,11 @@ public class LevelUpService {
                 List<Number> outIds = (List<Number>) trade.get("outIds");
                 List<Number> outEquipped = (List<Number>) trade.get("outEquipped");
 
-                // Remove traded-in cards
+                // Remove traded-in cards from collection (orphanRemoval handles DB delete)
                 if (inIds != null) {
                     for (Number inId : inIds) {
-                        characterSheetDomainCardRepository
-                                .findByCharacterSheetIdAndDomainCardId(characterSheetId, inId.longValue())
-                                .ifPresent(characterSheetDomainCardRepository::delete);
+                        sheet.getCharacterSheetDomainCards()
+                                .removeIf(csdc -> csdc.getDomainCard().getId().equals(inId.longValue()));
                     }
                 }
 
@@ -316,30 +315,28 @@ public class LevelUpService {
                                 .domainCard(card)
                                 .equipped(outEquippedSet.contains(outId.longValue()))
                                 .build();
-                        characterSheetDomainCardRepository.save(csdc);
+                        sheet.getCharacterSheetDomainCards().add(csdc);
                     }
                 }
             }
         }
 
-        // Remove Step 4 domain card
+        // Remove Step 4 domain card from collection (orphanRemoval handles DB delete)
         Map<String, Object> newDomainCard = (Map<String, Object>) data.get("newDomainCard");
         if (newDomainCard != null) {
             Long domainCardId = toLong(newDomainCard.get("domainCardId"));
-            characterSheetDomainCardRepository
-                    .findByCharacterSheetIdAndDomainCardId(characterSheetId, domainCardId)
-                    .ifPresent(characterSheetDomainCardRepository::delete);
+            sheet.getCharacterSheetDomainCards()
+                    .removeIf(csdc -> csdc.getDomainCard().getId().equals(domainCardId));
         }
 
-        // Re-equip unequipped card
+        // Re-equip unequipped card via collection (entity is managed, no explicit save needed)
         Object unequipId = data.get("unequipDomainCardId");
         if (unequipId != null) {
-            characterSheetDomainCardRepository
-                    .findByCharacterSheetIdAndDomainCardId(characterSheetId, toLong(unequipId))
-                    .ifPresent(csdc -> {
-                        csdc.setEquipped(true);
-                        characterSheetDomainCardRepository.save(csdc);
-                    });
+            Long unequipDomainCardId = toLong(unequipId);
+            sheet.getCharacterSheetDomainCards().stream()
+                    .filter(csdc -> csdc.getDomainCard().getId().equals(unequipDomainCardId))
+                    .findFirst()
+                    .ifPresent(csdc -> csdc.setEquipped(true));
         }
 
         // Reverse advancements
@@ -347,7 +344,7 @@ public class LevelUpService {
         List<Map<String, Object>> advancements = (List<Map<String, Object>>) data.get("advancements");
         if (advancements != null) {
             for (Map<String, Object> adv : advancements) {
-                reverseAdvancement(sheet, adv, previousValues, characterSheetId);
+                reverseAdvancement(sheet, adv, previousValues);
             }
         }
 
@@ -1032,7 +1029,7 @@ public class LevelUpService {
      */
     @SuppressWarnings("unchecked")
     private void reverseAdvancement(CharacterSheet sheet, Map<String, Object> adv,
-                                     Map<String, Object> previousValues, Long characterSheetId) {
+                                     Map<String, Object> previousValues) {
         String typeStr = (String) adv.get("type");
         AdvancementType type = AdvancementType.valueOf(typeStr);
 
@@ -1075,9 +1072,8 @@ public class LevelUpService {
             case GAIN_DOMAIN_CARD -> {
                 Long domainCardId = toLong(adv.get("domainCardId"));
                 if (domainCardId != null) {
-                    characterSheetDomainCardRepository
-                            .findByCharacterSheetIdAndDomainCardId(characterSheetId, domainCardId)
-                            .ifPresent(characterSheetDomainCardRepository::delete);
+                    sheet.getCharacterSheetDomainCards()
+                            .removeIf(csdc -> csdc.getDomainCard().getId().equals(domainCardId));
                 }
             }
             case BOOST_EVASION -> sheet.setEvasion(sheet.getEvasion() - 1);

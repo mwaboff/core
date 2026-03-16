@@ -1030,6 +1030,151 @@ class LevelUpServiceTest {
                 .hasMessageContaining("does not match");
     }
 
+    @Test
+    void undoLevelUp_WithGainDomainCardAdvancement_RemovesDomainCardFromCollection() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        DomainCard domainCard = buildDomainCard(5L, 2);
+        CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                .id(100L).characterSheet(sheet).domainCard(domainCard).equipped(true).build();
+        sheet.getCharacterSheetDomainCards().add(csdc);
+
+        Map<String, Object> advDataMap = Map.of(
+                "advancements", List.of(
+                        Map.of("type", "GAIN_DOMAIN_CARD", "domainCardId", 5)
+                ),
+                "previousDamageThresholds", Map.of("major", 3, "severe", 6),
+                "previousValues", Map.of(
+                        "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                        "traitModifiers", Map.of(), "traitMarks", Map.of(), "experienceModifiers", Map.of()
+                )
+        );
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(2).build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getCharacterSheetDomainCards()).isEmpty();
+        assertThat(sheet.getLevel()).isEqualTo(2);
+    }
+
+    @Test
+    void undoLevelUp_WithNewDomainCard_RemovesDomainCardFromCollection() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        DomainCard domainCard = buildDomainCard(7L, 2);
+        CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                .id(101L).characterSheet(sheet).domainCard(domainCard).equipped(true).build();
+        sheet.getCharacterSheetDomainCards().add(csdc);
+
+        Map<String, Object> advDataMap = Map.of(
+                "advancements", List.of(Map.of("type", "GAIN_HP")),
+                "newDomainCard", Map.of("domainCardId", 7),
+                "previousDamageThresholds", Map.of("major", 3, "severe", 6),
+                "previousValues", Map.of(
+                        "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                        "traitModifiers", Map.of(), "traitMarks", Map.of(), "experienceModifiers", Map.of()
+                )
+        );
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(2).build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getCharacterSheetDomainCards()).isEmpty();
+    }
+
+    @Test
+    void undoLevelUp_WithTrades_RemovesTradedInAndReAddsTradedOut() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        DomainCard tradedInCard = buildDomainCard(10L, 2);
+        CharacterSheetDomainCard tradedInCsdc = CharacterSheetDomainCard.builder()
+                .id(102L).characterSheet(sheet).domainCard(tradedInCard).equipped(true).build();
+        sheet.getCharacterSheetDomainCards().add(tradedInCsdc);
+
+        DomainCard tradedOutCard = buildDomainCard(20L, 1);
+
+        Map<String, Object> advDataMap = Map.of(
+                "advancements", List.of(Map.of("type", "GAIN_HP")),
+                "trades", List.of(Map.of(
+                        "inIds", List.of(10),
+                        "outIds", List.of(20),
+                        "outEquipped", List.of(20)
+                )),
+                "previousDamageThresholds", Map.of("major", 3, "severe", 6),
+                "previousValues", Map.of(
+                        "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                        "traitModifiers", Map.of(), "traitMarks", Map.of(), "experienceModifiers", Map.of()
+                )
+        );
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(domainCardRepository.findById(20L)).thenReturn(Optional.of(tradedOutCard));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(2).build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getCharacterSheetDomainCards()).hasSize(1);
+        CharacterSheetDomainCard restoredCard = sheet.getCharacterSheetDomainCards().iterator().next();
+        assertThat(restoredCard.getDomainCard().getId()).isEqualTo(20L);
+        assertThat(restoredCard.getEquipped()).isTrue();
+    }
+
+    @Test
+    void undoLevelUp_WithUnequipDomainCard_ReEquipsCard() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        DomainCard domainCard = buildDomainCard(15L, 1);
+        CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                .id(103L).characterSheet(sheet).domainCard(domainCard).equipped(false).build();
+        sheet.getCharacterSheetDomainCards().add(csdc);
+
+        Map<String, Object> advDataMap = Map.of(
+                "advancements", List.of(Map.of("type", "GAIN_HP")),
+                "unequipDomainCardId", 15,
+                "previousDamageThresholds", Map.of("major", 3, "severe", 6),
+                "previousValues", Map.of(
+                        "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                        "traitModifiers", Map.of(), "traitMarks", Map.of(), "experienceModifiers", Map.of()
+                )
+        );
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(2).build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getCharacterSheetDomainCards()).hasSize(1);
+        assertThat(sheet.getCharacterSheetDomainCards().iterator().next().getEquipped()).isTrue();
+    }
+
     // ==================== BOOST NEW EXPERIENCE TESTS ====================
 
     @Test

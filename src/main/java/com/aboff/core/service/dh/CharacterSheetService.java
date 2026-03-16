@@ -476,6 +476,8 @@ public class CharacterSheetService {
             }
 
             characterSheet.getCharacterSheetDomainCards().clear();
+            // Flush to execute DELETEs before INSERTs, avoiding unique constraint violation
+            characterSheetRepository.flush();
             for (Long cardId : request.getEquippedDomainCardIds()) {
                 DomainCard card = domainCardRepository.findById(cardId)
                         .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + cardId));
