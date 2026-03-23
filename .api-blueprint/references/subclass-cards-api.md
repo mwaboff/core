@@ -288,30 +288,83 @@ POST /api/dh/cards/subclass/bulk
 
 **Authorization:** `ADMIN` or `OWNER` role required.
 
-**Request Body:** Array of `CreateSubclassCardRequest` objects.
+**Request Body:** Array of `CreateSubclassCardRequest` objects. Each element supports the same fields as the single-create endpoint, including inline find-or-create for features, cost tags, and subclass paths.
 
-**Example Request:**
+**Example Request (with inline features and subclass path):**
 
 ```json
 [
   {
-    "name": "Berserker",
-    "description": "Berserker path",
+    "name": "Warden of Renewal - Foundation",
+    "description": "Channel nature's restorative power to protect allies",
     "expansionId": 1,
     "isOfficial": true,
-    "subclassPathId": 1,
-    "level": "FOUNDATION"
+    "associatedClassId": 1,
+    "subclassPath": {
+      "name": "Warden of Renewal",
+      "associatedDomainIds": [2, 3],
+      "spellcastingTrait": "INSTINCT"
+    },
+    "level": "FOUNDATION",
+    "featureIds": [5],
+    "features": [
+      {
+        "name": "Nature's Embrace",
+        "description": "Once per rest, heal an ally within close range for 1d6 hit points",
+        "featureType": "SUBCLASS",
+        "expansionId": 1,
+        "costTags": [
+          { "label": "1/rest", "category": "TIMING" },
+          { "label": "Close range", "category": "LIMITATION" }
+        ],
+        "modifiers": [
+          { "target": "HIT_POINT_MAX", "operation": "ADD", "value": 2 }
+        ]
+      }
+    ],
+    "costTags": [
+      { "label": "1 Hope", "category": "COST" }
+    ]
   },
   {
-    "name": "Paladin",
-    "description": "Paladin path",
+    "name": "Warden of Renewal - Specialization",
+    "description": "Deepen your bond with nature and expand restorative abilities",
     "expansionId": 1,
     "isOfficial": true,
-    "subclassPathId": 1,
-    "level": "SPECIALIZATION"
+    "associatedClassId": 1,
+    "subclassPath": {
+      "name": "Warden of Renewal"
+    },
+    "level": "SPECIALIZATION",
+    "features": [
+      {
+        "name": "Verdant Shield",
+        "description": "When an ally within close range takes damage, spend Hope to reduce it by 1d8",
+        "featureType": "SUBCLASS",
+        "expansionId": 1,
+        "costTags": [
+          { "label": "2 Hope", "category": "COST" },
+          { "label": "Close range", "category": "LIMITATION" }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Berserker - Foundation",
+    "description": "Raw fury fuels your combat prowess",
+    "expansionId": 1,
+    "isOfficial": true,
+    "subclassPathId": 4,
+    "level": "FOUNDATION"
   }
 ]
 ```
+
+The example above demonstrates three common patterns in a single bulk request:
+
+1. **First element:** Inline subclass path creation (with domain IDs and spellcasting trait), inline features with nested cost tags and modifiers, card-level cost tags, and referencing an existing feature by ID
+2. **Second element:** Inline subclass path find-or-reuse (same name + class resolves to the path created by the first element), inline features with cost tags
+3. **Third element:** Minimal card referencing an existing subclass path by ID with no inline objects
 
 **Example Response (201 Created):**
 
@@ -319,26 +372,58 @@ POST /api/dh/cards/subclass/bulk
 [
   {
     "id": 1,
-    "name": "Berserker",
+    "name": "Warden of Renewal - Foundation",
+    "description": "Channel nature's restorative power to protect allies",
     "cardType": "SUBCLASS",
     "expansionId": 1,
     "expansionName": "Core Rulebook",
     "isOfficial": true,
-    "featureIds": [],
-    "costTagIds": [],
+    "featureIds": [5, 10],
+    "costTagIds": [1],
     "associatedClassId": 1,
     "associatedClassName": "Warrior",
-    "subclassPathId": 1,
+    "subclassPathId": 7,
     "subclassPathName": "Warden of Renewal",
-    "domainNames": [],
-    "domainIds": [],
+    "domainNames": ["Blade", "Bone"],
+    "domainIds": [2, 3],
+    "spellcastingTrait": {
+      "trait": "INSTINCT",
+      "description": "Intuition, awareness, and natural understanding",
+      "examples": "Perception, survival, animal handling, reading situations"
+    },
     "level": "FOUNDATION",
     "createdAt": "2026-03-13T10:00:00",
     "lastModifiedAt": "2026-03-13T10:00:00"
   },
   {
     "id": 2,
-    "name": "Paladin",
+    "name": "Warden of Renewal - Specialization",
+    "description": "Deepen your bond with nature and expand restorative abilities",
+    "cardType": "SUBCLASS",
+    "expansionId": 1,
+    "expansionName": "Core Rulebook",
+    "isOfficial": true,
+    "featureIds": [11],
+    "costTagIds": [],
+    "associatedClassId": 1,
+    "associatedClassName": "Warrior",
+    "subclassPathId": 7,
+    "subclassPathName": "Warden of Renewal",
+    "domainNames": ["Blade", "Bone"],
+    "domainIds": [2, 3],
+    "spellcastingTrait": {
+      "trait": "INSTINCT",
+      "description": "Intuition, awareness, and natural understanding",
+      "examples": "Perception, survival, animal handling, reading situations"
+    },
+    "level": "SPECIALIZATION",
+    "createdAt": "2026-03-13T10:00:00",
+    "lastModifiedAt": "2026-03-13T10:00:00"
+  },
+  {
+    "id": 3,
+    "name": "Berserker - Foundation",
+    "description": "Raw fury fuels your combat prowess",
     "cardType": "SUBCLASS",
     "expansionId": 1,
     "expansionName": "Core Rulebook",
@@ -347,11 +432,11 @@ POST /api/dh/cards/subclass/bulk
     "costTagIds": [],
     "associatedClassId": 1,
     "associatedClassName": "Warrior",
-    "subclassPathId": 1,
-    "subclassPathName": "Warden of Renewal",
+    "subclassPathId": 4,
+    "subclassPathName": "Berserker",
     "domainNames": [],
     "domainIds": [],
-    "level": "SPECIALIZATION",
+    "level": "FOUNDATION",
     "createdAt": "2026-03-13T10:00:00",
     "lastModifiedAt": "2026-03-13T10:00:00"
   }
@@ -359,9 +444,10 @@ POST /api/dh/cards/subclass/bulk
 ```
 
 **Error Responses:**
-- `400 Bad Request` -- Validation failure
+- `400 Bad Request` -- Validation failure (e.g., both `subclassPathId` and `subclassPath` provided for same element)
 - `401 Unauthorized` -- Missing or invalid JWT
 - `403 Forbidden` -- User does not have ADMIN/OWNER role
+- `404 Not Found` -- Referenced expansion, subclass path, class, or feature not found
 
 ---
 

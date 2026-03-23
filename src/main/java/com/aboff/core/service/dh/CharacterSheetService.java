@@ -609,25 +609,11 @@ public class CharacterSheetService {
      * @throws IllegalStateException if any constraint is violated
      */
     private void validateConstraints(CharacterSheet sheet) {
-        if (sheet.getArmorMarked() > sheet.getArmorMax()) {
-            throw new IllegalStateException(
-                    "Armor marked (" + sheet.getArmorMarked() + ") cannot exceed armor max (" + sheet.getArmorMax() + ")");
-        }
-
-        if (sheet.getHitPointMarked() > sheet.getHitPointMax()) {
-            throw new IllegalStateException(
-                    "Hit point marked (" + sheet.getHitPointMarked() + ") cannot exceed hit point max (" + sheet.getHitPointMax() + ")");
-        }
-
-        if (sheet.getStressMarked() > sheet.getStressMax()) {
-            throw new IllegalStateException(
-                    "Stress marked (" + sheet.getStressMarked() + ") cannot exceed stress max (" + sheet.getStressMax() + ")");
-        }
-
-        if (sheet.getHopeMarked() > sheet.getHopeMax()) {
-            throw new IllegalStateException(
-                    "Hope marked (" + sheet.getHopeMarked() + ") cannot exceed hope max (" + sheet.getHopeMax() + ")");
-        }
+        // Clamp marked values to their max when max has been reduced
+        sheet.setArmorMarked(Math.min(sheet.getArmorMarked(), sheet.getArmorMax()));
+        sheet.setHitPointMarked(Math.min(sheet.getHitPointMarked(), sheet.getHitPointMax()));
+        sheet.setStressMarked(Math.min(sheet.getStressMarked(), sheet.getStressMax()));
+        sheet.setHopeMarked(Math.min(sheet.getHopeMarked(), sheet.getHopeMax()));
 
         if (sheet.getSevereDamageThreshold() < sheet.getMajorDamageThreshold()) {
             throw new IllegalStateException(

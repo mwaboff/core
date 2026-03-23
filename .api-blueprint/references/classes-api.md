@@ -164,6 +164,10 @@ Create a new class.
 | `classFeatureIds` | `Long[]` | No | — | IDs of class features |
 | `backgroundQuestionIds` | `Long[]` | No | — | IDs of background questions |
 | `connectionQuestionIds` | `Long[]` | No | — | IDs of connection questions |
+| `hopeFeatures` | `FeatureInput[]` | No | — | Hope features to find or create inline. Merged with `hopeFeatureIds` |
+| `classFeatures` | `FeatureInput[]` | No | — | Class features to find or create inline. Merged with `classFeatureIds` |
+| `backgroundQuestions` | `QuestionInput[]` | No | — | Background questions to find or create inline. Merged with `backgroundQuestionIds` |
+| `connectionQuestions` | `QuestionInput[]` | No | — | Connection questions to find or create inline. Merged with `connectionQuestionIds` |
 
 ```json
 {
@@ -174,9 +178,36 @@ Create a new class.
   "startingHitPoints": 25,
   "associatedDomainIds": [1, 3],
   "hopeFeatureIds": [10],
-  "classFeatureIds": [20, 21],
-  "backgroundQuestionIds": [5, 6],
-  "connectionQuestionIds": [7, 8]
+  "hopeFeatures": [
+    {
+      "name": "Battle Cry",
+      "description": "Inspire allies with a fearsome shout",
+      "featureType": "HOPE",
+      "expansionId": 1
+    }
+  ],
+  "classFeatures": [
+    {
+      "name": "Heavy Armor Proficiency",
+      "description": "Can wear heavy armor without penalty",
+      "featureType": "CLASS",
+      "expansionId": 1
+    }
+  ],
+  "backgroundQuestions": [
+    {
+      "questionText": "What battle shaped you into who you are today?",
+      "questionType": "BACKGROUND",
+      "expansionId": 1
+    }
+  ],
+  "connectionQuestions": [
+    {
+      "questionText": "Which party member do you trust to watch your back?",
+      "questionType": "CONNECTION",
+      "expansionId": 1
+    }
+  ]
 }
 ```
 
@@ -196,6 +227,32 @@ curl -X POST http://localhost:8080/api/dh/classes \
     "expansionId": 1,
     "startingEvasion": 10,
     "startingHitPoints": 25
+  }'
+
+# Create a class with inline features and questions
+curl -X POST http://localhost:8080/api/dh/classes \
+  -b AUTH_TOKEN=<token> \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Warrior",
+    "description": "A strong fighter",
+    "expansionId": 1,
+    "startingEvasion": 10,
+    "startingHitPoints": 25,
+    "hopeFeatures": [
+      {
+        "name": "Battle Cry",
+        "featureType": "HOPE",
+        "expansionId": 1
+      }
+    ],
+    "backgroundQuestions": [
+      {
+        "questionText": "What battle shaped you?",
+        "questionType": "BACKGROUND",
+        "expansionId": 1
+      }
+    ]
   }'
 ```
 
@@ -228,14 +285,35 @@ Array of `CreateClassRequest` objects (same schema as single create).
     "description": "A strong fighter",
     "expansionId": 1,
     "startingEvasion": 10,
-    "startingHitPoints": 25
+    "startingHitPoints": 25,
+    "hopeFeatures": [
+      {
+        "name": "Battle Cry",
+        "featureType": "HOPE",
+        "expansionId": 1
+      }
+    ],
+    "backgroundQuestions": [
+      {
+        "questionText": "What battle shaped you?",
+        "questionType": "BACKGROUND",
+        "expansionId": 1
+      }
+    ]
   },
   {
     "name": "Mage",
     "description": "A spell caster",
     "expansionId": 1,
     "startingEvasion": 15,
-    "startingHitPoints": 20
+    "startingHitPoints": 20,
+    "classFeatures": [
+      {
+        "name": "Arcane Focus",
+        "featureType": "CLASS",
+        "expansionId": 1
+      }
+    ]
   }
 ]
 ```
@@ -282,6 +360,10 @@ Update an existing class.
 | `classFeatureIds` | `Long[]` | No | — | IDs of class features |
 | `backgroundQuestionIds` | `Long[]` | No | — | IDs of background questions |
 | `connectionQuestionIds` | `Long[]` | No | — | IDs of connection questions |
+| `hopeFeatures` | `FeatureInput[]` | No | — | Hope features to find or create inline. Merged with `hopeFeatureIds` |
+| `classFeatures` | `FeatureInput[]` | No | — | Class features to find or create inline. Merged with `classFeatureIds` |
+| `backgroundQuestions` | `QuestionInput[]` | No | — | Background questions to find or create inline. Merged with `backgroundQuestionIds` |
+| `connectionQuestions` | `QuestionInput[]` | No | — | Connection questions to find or create inline. Merged with `connectionQuestionIds` |
 
 ```json
 {
@@ -383,6 +465,28 @@ curl -X POST http://localhost:8080/api/dh/classes/1/restore \
 
 ---
 
+## Inline Creation (Find-or-Create)
+
+The create and update endpoints support inline creation of features and questions. For each relationship, you can provide:
+
+- **IDs only** (`hopeFeatureIds`, `classFeatureIds`, etc.) — references existing entities
+- **Inline inputs only** (`hopeFeatures`, `classFeatures`, etc.) — finds or creates entities
+- **Both** — results are merged (union of ID lookups and find-or-create results)
+
+### Find-or-Create Behavior
+
+- **Features** are matched case-insensitively by `(name, expansionId, featureType)`. If found, the existing feature is reused. If not, a new feature is created.
+- **Questions** are matched case-insensitively by `(questionText, expansionId, questionType)`. If found, the existing question is reused. If not, a new question is created.
+
+### Update Semantics
+
+For `PUT` requests:
+- **Both null** (field omitted) — existing relationship is not modified
+- **Empty array** (`[]`) — clears the relationship
+- **Populated** — replaces the relationship with the resolved set
+
+---
+
 ## Response Model: `ClassResponse`
 
 Uses `@JsonInclude(NON_NULL)` -- null fields are omitted from the JSON response.
@@ -446,3 +550,36 @@ See [domains-api.md](./domains-api.md) for full details.
 ### `QuestionResponse`
 
 See [questions-api.md](./questions-api.md) for full details.
+
+### `FeatureInput`
+
+Input for inline feature creation. Features are matched case-insensitively by `(name, expansionId, featureType)`. If a match is found, it is reused; otherwise a new feature is created.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | `String` | No | Feature name (max 200 chars). Matched case-insensitively |
+| `description` | `String` | No | Feature description |
+| `featureType` | `FeatureType` | Yes | One of: `HOPE`, `ANCESTRY`, `CLASS`, `COMMUNITY`, `DOMAIN`, `OTHER`, `SUBCLASS`, `ITEM` |
+| `expansionId` | `Long` | Yes | Expansion ID |
+| `costTagIds` | `Long[]` | No | Existing cost tag IDs |
+| `costTags` | `CostTagInput[]` | No | Cost tags to find or create by label |
+| `modifierIds` | `Long[]` | No | Existing modifier IDs |
+| `modifiers` | `FeatureModifierInput[]` | No | Modifiers to find or create by (target, operation, value) |
+
+### `QuestionInput`
+
+Input for inline question creation. Questions are matched case-insensitively by `(questionText, expansionId, questionType)`. If a match is found, it is reused; otherwise a new question is created.
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `questionText` | `String` | Yes | The question text (not blank) |
+| `questionType` | `QuestionType` | Yes | `BACKGROUND` or `CONNECTION` |
+| `expansionId` | `Long` | Yes | Expansion ID |
+
+### `CostTagInput`
+
+See [card-cost-tags-api.md](./card-cost-tags-api.md) for full details.
+
+### `FeatureModifierInput`
+
+See [feature-modifiers-api.md](./feature-modifiers-api.md) for full details.

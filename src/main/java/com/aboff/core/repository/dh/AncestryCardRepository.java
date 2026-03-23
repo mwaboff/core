@@ -28,10 +28,12 @@ public interface AncestryCardRepository extends JpaRepository<AncestryCard, Long
      */
     @Query("SELECT a FROM AncestryCard a WHERE a.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR a.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
+           "AND (:isMixed IS NULL OR a.isMixed = :isMixed)")
     Page<AncestryCard> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("isMixed") Boolean isMixed,
             Pageable pageable);
 
     /**
@@ -44,10 +46,12 @@ public interface AncestryCardRepository extends JpaRepository<AncestryCard, Long
      */
     @Query("SELECT a FROM AncestryCard a WHERE " +
            "(:expansionId IS NULL OR a.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
+           "AND (:isMixed IS NULL OR a.isMixed = :isMixed)")
     Page<AncestryCard> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("isMixed") Boolean isMixed,
             Pageable pageable);
 
     /**

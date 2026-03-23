@@ -17,6 +17,7 @@ import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -430,7 +431,7 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void createCharacterSheet_WithArmorMarkedExceedsMax_ThrowsException() {
+    void createCharacterSheet_WithArmorMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -466,16 +467,31 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setInventoryWeapons(new HashSet<>());
+            saved.setInventoryArmors(new HashSet<>());
+            saved.setInventoryItems(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Armor marked")
-                .hasMessageContaining("cannot exceed armor max");
+        // Act
+        characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getArmorMarked()).isEqualTo(5);
     }
 
     @Test
-    void createCharacterSheet_WithHitPointMarkedExceedsMax_ThrowsException() {
+    void createCharacterSheet_WithHitPointMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -511,16 +527,31 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setInventoryWeapons(new HashSet<>());
+            saved.setInventoryArmors(new HashSet<>());
+            saved.setInventoryItems(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Hit point marked")
-                .hasMessageContaining("cannot exceed hit point max");
+        // Act
+        characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getHitPointMarked()).isEqualTo(10);
     }
 
     @Test
-    void createCharacterSheet_WithStressMarkedExceedsMax_ThrowsException() {
+    void createCharacterSheet_WithStressMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -556,16 +587,31 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setInventoryWeapons(new HashSet<>());
+            saved.setInventoryArmors(new HashSet<>());
+            saved.setInventoryItems(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Stress marked")
-                .hasMessageContaining("cannot exceed stress max");
+        // Act
+        characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getStressMarked()).isEqualTo(6);
     }
 
     @Test
-    void createCharacterSheet_WithHopeMarkedExceedsMax_ThrowsException() {
+    void createCharacterSheet_WithHopeMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -601,12 +647,27 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setInventoryWeapons(new HashSet<>());
+            saved.setInventoryArmors(new HashSet<>());
+            saved.setInventoryItems(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Hope marked")
-                .hasMessageContaining("cannot exceed hope max");
+        // Act
+        characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getHopeMarked()).isEqualTo(3);
     }
 
     @Test
@@ -1745,7 +1806,7 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void updateCharacterSheet_WithConstraintViolation_ThrowsException() {
+    void updateCharacterSheet_WithArmorMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
         CharacterSheet sheet = CharacterSheet.builder()
@@ -1772,12 +1833,26 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setInventoryWeapons(new HashSet<>());
+            saved.setInventoryArmors(new HashSet<>());
+            saved.setInventoryItems(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Armor marked")
-                .hasMessageContaining("cannot exceed armor max");
+        // Act
+        characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getArmorMarked()).isEqualTo(5);
     }
 
     @Test

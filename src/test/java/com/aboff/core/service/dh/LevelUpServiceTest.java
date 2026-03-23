@@ -846,6 +846,113 @@ class LevelUpServiceTest {
     }
 
     @Test
+    void levelUp_AllowsMarkedTraitsForBoostTraitsDuringTier3Transition() {
+        CharacterSheet sheet = buildSheet(4);
+        sheet.setAgilityMarked(true);
+        sheet.setStrengthMarked(true);
+        sheet.setProficiency(1);
+        sheet.setMajorDamageThreshold(6);
+        sheet.setSevereDamageThreshold(10);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+        when(experienceRepository.save(any())).thenReturn(Experience.builder().id(50L).description("test").modifier(2).build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_TRAITS)
+                                .traits(List.of(Trait.AGILITY, Trait.STRENGTH))
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .newExperienceDescription("Tier 3 experience")
+                .build();
+
+        LevelUpResponse response = levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(response).isNotNull();
+        // Traits should be re-marked after being cleared and boosted
+        assertThat(sheet.getAgilityMarked()).isTrue();
+        assertThat(sheet.getStrengthMarked()).isTrue();
+        // Modifiers should have been incremented
+        assertThat(sheet.getAgilityModifier()).isEqualTo(1);
+        assertThat(sheet.getStrengthModifier()).isEqualTo(1);
+    }
+
+    @Test
+    void levelUp_AllowsMarkedTraitsForBoostTraitsDuringTier4Transition() {
+        CharacterSheet sheet = buildSheet(7);
+        sheet.setFinesseMarked(true);
+        sheet.setInstinctMarked(true);
+        sheet.setProficiency(2);
+        sheet.setMajorDamageThreshold(9);
+        sheet.setSevereDamageThreshold(14);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 4)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+        when(experienceRepository.save(any())).thenReturn(Experience.builder().id(51L).description("test").modifier(2).build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_TRAITS)
+                                .traits(List.of(Trait.FINESSE, Trait.INSTINCT))
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .newExperienceDescription("Tier 4 experience")
+                .build();
+
+        LevelUpResponse response = levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(response).isNotNull();
+        assertThat(sheet.getFinesseMarked()).isTrue();
+        assertThat(sheet.getInstinctMarked()).isTrue();
+        assertThat(sheet.getFinesseModifier()).isEqualTo(1);
+        assertThat(sheet.getInstinctModifier()).isEqualTo(1);
+    }
+
+    @Test
+    void levelUp_StillRejectsMarkedTraitsAtLevel2TierTransition() {
+        CharacterSheet sheet = buildSheet(1);
+        sheet.setAgilityMarked(true);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_TRAITS)
+                                .traits(List.of(Trait.AGILITY, Trait.STRENGTH))
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .newExperienceDescription("Tier 2 experience")
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already marked");
+    }
+
+    @Test
     void levelUp_ThrowsWhenUpgradeSubclassAndMulticlassBothChosenInTier() {
         CharacterSheet sheet = buildSheetWithSubclassCards(6);
         sheet.setProficiency(2);
@@ -959,6 +1066,86 @@ class LevelUpServiceTest {
         assertThat(sheet.getMajorDamageThreshold()).isEqualTo(3);
         assertThat(sheet.getSevereDamageThreshold()).isEqualTo(6);
         verify(characterAdvancementLogRepository).delete(log);
+    }
+
+    @Test
+    void undoLevelUp_ClampsHitPointMarkedWhenExceedsNewMax() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        sheet.setHitPointMax(7);
+        sheet.setHitPointMarked(7);
+        sheet.setStressMax(7);
+        sheet.setStressMarked(0);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+
+        Map<String, Object> advDataMap = Map.of(
+                "advancements", List.of(
+                        Map.of("type", "GAIN_HP"),
+                        Map.of("type", "GAIN_STRESS")
+                ),
+                "previousDamageThresholds", Map.of("major", 3, "severe", 6),
+                "previousValues", Map.of(
+                        "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                        "traitModifiers", Map.of(), "traitMarks", Map.of(), "experienceModifiers", Map.of()
+                )
+        );
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(2).build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getHitPointMax()).isEqualTo(6);
+        assertThat(sheet.getHitPointMarked()).isEqualTo(6);
+        assertThat(sheet.getStressMax()).isEqualTo(6);
+        assertThat(sheet.getStressMarked()).isEqualTo(0);
+    }
+
+    @Test
+    void undoLevelUp_ClampsStressMarkedWhenExceedsNewMax() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        sheet.setHitPointMax(7);
+        sheet.setHitPointMarked(0);
+        sheet.setStressMax(7);
+        sheet.setStressMarked(7);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+
+        Map<String, Object> advDataMap = Map.of(
+                "advancements", List.of(
+                        Map.of("type", "GAIN_HP"),
+                        Map.of("type", "GAIN_STRESS")
+                ),
+                "previousDamageThresholds", Map.of("major", 3, "severe", 6),
+                "previousValues", Map.of(
+                        "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                        "traitModifiers", Map.of(), "traitMarks", Map.of(), "experienceModifiers", Map.of()
+                )
+        );
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(2).build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getHitPointMax()).isEqualTo(6);
+        assertThat(sheet.getHitPointMarked()).isEqualTo(0);
+        assertThat(sheet.getStressMax()).isEqualTo(6);
+        assertThat(sheet.getStressMarked()).isEqualTo(6);
     }
 
     @Test
@@ -1376,6 +1563,356 @@ class LevelUpServiceTest {
         assertThat(sheet.getLevel()).isEqualTo(1);
         // Proficiency should be decremented
         assertThat(sheet.getProficiency()).isEqualTo(0);
+    }
+
+    // ==================== DUPLICATE ADVANCEMENT SELECTION TESTS ====================
+
+    @Test
+    void levelUp_duplicateGainHp_succeeds() {
+        CharacterSheet sheet = buildSheet(2);
+        sheet.setHitPointMax(6);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getHitPointMax()).isEqualTo(8);
+    }
+
+    @Test
+    void levelUp_duplicateGainStress_succeeds() {
+        CharacterSheet sheet = buildSheet(2);
+        sheet.setStressMax(6);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getStressMax()).isEqualTo(8);
+    }
+
+    @Test
+    void levelUp_duplicateBoostTraits_withDistinctTraits_succeeds() {
+        CharacterSheet sheet = buildSheet(2);
+        sheet.setAgilityModifier(0);
+        sheet.setStrengthModifier(0);
+        sheet.setFinesseModifier(0);
+        sheet.setInstinctModifier(0);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_TRAITS)
+                                .traits(List.of(Trait.AGILITY, Trait.STRENGTH))
+                                .build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_TRAITS)
+                                .traits(List.of(Trait.FINESSE, Trait.INSTINCT))
+                                .build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getAgilityModifier()).isEqualTo(1);
+        assertThat(sheet.getStrengthModifier()).isEqualTo(1);
+        assertThat(sheet.getFinesseModifier()).isEqualTo(1);
+        assertThat(sheet.getInstinctModifier()).isEqualTo(1);
+        assertThat(sheet.getAgilityMarked()).isTrue();
+        assertThat(sheet.getStrengthMarked()).isTrue();
+        assertThat(sheet.getFinesseMarked()).isTrue();
+        assertThat(sheet.getInstinctMarked()).isTrue();
+    }
+
+    @Test
+    void levelUp_duplicateBoostTraits_withOverlappingTraits_fails() {
+        CharacterSheet sheet = buildSheet(2);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_TRAITS)
+                                .traits(List.of(Trait.AGILITY, Trait.STRENGTH))
+                                .build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_TRAITS)
+                                .traits(List.of(Trait.STRENGTH, Trait.FINESSE))
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("distinct across both BOOST_TRAITS");
+    }
+
+    @Test
+    void levelUp_duplicateBoostProficiency_succeeds() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(6);
+        sheet.setProficiency(2);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.BOOST_PROFICIENCY).build(),
+                        AdvancementChoice.builder().type(AdvancementType.BOOST_PROFICIENCY).build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getProficiency()).isEqualTo(4);
+    }
+
+    @Test
+    void levelUp_duplicateMulticlass_differentClasses_succeeds() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(6);
+        sheet.setProficiency(2);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+
+        Class newClass1 = Class.builder().id(99L).name("Ranger").build();
+        SubclassPath newPath1 = SubclassPath.builder().id(99L).name("Hunter").associatedClass(newClass1)
+                .associatedDomains(Set.of()).build();
+        SubclassCard foundationCard1 = SubclassCard.builder().id(40L).name("Hunter Foundation")
+                .level(SubclassLevel.FOUNDATION).subclassPath(newPath1).build();
+
+        Class newClass2 = Class.builder().id(100L).name("Bard").build();
+        SubclassPath newPath2 = SubclassPath.builder().id(100L).name("Minstrel").associatedClass(newClass2)
+                .associatedDomains(Set.of()).build();
+        SubclassCard foundationCard2 = SubclassCard.builder().id(41L).name("Minstrel Foundation")
+                .level(SubclassLevel.FOUNDATION).subclassPath(newPath2).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+        when(subclassCardRepository.findById(40L)).thenReturn(Optional.of(foundationCard1));
+        when(subclassCardRepository.findById(41L)).thenReturn(Optional.of(foundationCard2));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.MULTICLASS)
+                                .subclassCardId(40L)
+                                .build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.MULTICLASS)
+                                .subclassCardId(41L)
+                                .build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getSubclassCards()).contains(foundationCard1, foundationCard2);
+    }
+
+    @Test
+    void levelUp_duplicateMulticlass_sameClass_fails() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(6);
+        sheet.setProficiency(2);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+
+        Class newClass = Class.builder().id(99L).name("Ranger").build();
+        SubclassPath path1 = SubclassPath.builder().id(99L).name("Hunter").associatedClass(newClass)
+                .associatedDomains(Set.of()).build();
+        SubclassCard card1 = SubclassCard.builder().id(40L).name("Hunter Foundation")
+                .level(SubclassLevel.FOUNDATION).subclassPath(path1).build();
+
+        SubclassPath path2 = SubclassPath.builder().id(101L).name("Tracker").associatedClass(newClass)
+                .associatedDomains(Set.of()).build();
+        SubclassCard card2 = SubclassCard.builder().id(41L).name("Tracker Foundation")
+                .level(SubclassLevel.FOUNDATION).subclassPath(path2).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(subclassCardRepository.findById(40L)).thenReturn(Optional.of(card1));
+        when(subclassCardRepository.findById(41L)).thenReturn(Optional.of(card2));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.MULTICLASS)
+                                .subclassCardId(40L)
+                                .build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.MULTICLASS)
+                                .subclassCardId(41L)
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("same class twice");
+    }
+
+    @Test
+    void levelUp_duplicateUpgradeSubclass_fails() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(6);
+        sheet.setProficiency(2);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.UPGRADE_SUBCLASS)
+                                .subclassCardId(30L)
+                                .build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.UPGRADE_SUBCLASS)
+                                .subclassCardId(31L)
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("exceeds tier limit");
+    }
+
+    @Test
+    void levelUp_duplicateBoostEvasion_fails() {
+        CharacterSheet sheet = buildSheet(2);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.BOOST_EVASION).build(),
+                        AdvancementChoice.builder().type(AdvancementType.BOOST_EVASION).build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("exceeds tier limit");
+    }
+
+    @Test
+    void levelUp_duplicateBoostExperiences_fails() {
+        CharacterSheet sheet = buildSheet(2);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_EXPERIENCES)
+                                .experienceIds(List.of(10L, 11L))
+                                .build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.BOOST_EXPERIENCES)
+                                .experienceIds(List.of(12L, 13L))
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("exceeds tier limit");
+    }
+
+    @Test
+    void levelUp_duplicateGainDomainCard_fails() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(2);
+        sheet.setMajorDamageThreshold(3);
+        sheet.setSevereDamageThreshold(6);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.GAIN_DOMAIN_CARD)
+                                .domainCardId(20L)
+                                .build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.GAIN_DOMAIN_CARD)
+                                .domainCardId(21L)
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("exceeds tier limit");
     }
 
     // ==================== HELPER METHODS ====================

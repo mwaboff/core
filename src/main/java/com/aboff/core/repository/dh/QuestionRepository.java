@@ -39,4 +39,13 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
 
     @Query("SELECT q FROM Question q WHERE q.id IN :ids AND q.deletedAt IS NULL")
     List<Question> findAllByIdInAndDeletedAtIsNull(@Param("ids") List<Long> ids);
+
+    @Query("SELECT q FROM Question q WHERE LOWER(q.questionText) = LOWER(:questionText) " +
+           "AND q.expansion.id = :expansionId " +
+           "AND q.questionType = :questionType " +
+           "AND q.deletedAt IS NULL")
+    Optional<Question> findByQuestionTextIgnoreCaseAndExpansionIdAndQuestionTypeAndDeletedAtIsNull(
+            @Param("questionText") String questionText,
+            @Param("expansionId") Long expansionId,
+            @Param("questionType") QuestionType questionType);
 }

@@ -1,6 +1,7 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateAncestryCardRequest;
+import com.aboff.core.model.dto.dh.request.CreateMixedAncestryCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAncestryCardRequest;
 import com.aboff.core.model.dto.dh.response.AncestryCardResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
@@ -37,6 +38,7 @@ public class AncestryCardController {
      * @param includeDeleted Whether to include soft-deleted cards (default: false, ADMIN+ only)
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param isMixed Optional filter for mixed ancestry status (defaults to false, hiding mixed ancestries)
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,features")
      * @return Paginated response containing ancestry cards
      */
@@ -47,10 +49,11 @@ public class AncestryCardController {
             @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(required = false) Long expansionId,
             @RequestParam(required = false) Boolean isOfficial,
+            @RequestParam(required = false) Boolean isMixed,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<AncestryCardResponse> response = ancestryCardService.getAllAncestryCards(
-                page, size, includeDeleted, expansionId, isOfficial, expand);
+                page, size, includeDeleted, expansionId, isOfficial, isMixed, expand);
 
         return ResponseEntity.ok(response);
     }
@@ -101,6 +104,21 @@ public class AncestryCardController {
 
         List<AncestryCardResponse> responses = ancestryCardService.createAncestryCardsBulk(requests);
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
+    }
+
+    /**
+     * Creates a mixed ancestry card combining features from two different ancestries.
+     * Any authenticated user can create mixed ancestry cards.
+     *
+     * @param request The creation request containing mixed ancestry details
+     * @return AncestryCardResponse containing the created mixed ancestry card
+     */
+    @PostMapping("/mixed")
+    public ResponseEntity<AncestryCardResponse> createMixedAncestryCard(
+            @Valid @RequestBody CreateMixedAncestryCardRequest request) {
+
+        AncestryCardResponse response = ancestryCardService.createMixedAncestryCard(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     /**

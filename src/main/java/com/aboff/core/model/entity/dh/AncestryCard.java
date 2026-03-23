@@ -1,6 +1,7 @@
 package com.aboff.core.model.entity.dh;
 
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -10,8 +11,8 @@ import lombok.experimental.SuperBuilder;
  * Entity representing an ancestry card in the Daggerheart TTRPG system.
  * <p>
  * Ancestry cards define a character's heritage and racial traits.
- * This entity extends the base Card class with no additional fields,
- * as all necessary information is inherited from the parent.
+ * Mixed ancestry cards ({@code isMixed = true}) combine features from
+ * two different ancestries and are always user-created (non-official).
  * </p>
  */
 @Entity
@@ -22,5 +23,12 @@ import lombok.experimental.SuperBuilder;
 @SuperBuilder
 @NoArgsConstructor
 public class AncestryCard extends Card {
-    // No additional fields - all data is inherited from Card
+
+    /**
+     * Whether this ancestry card represents a mixed ancestry
+     * combining features from two different ancestries.
+     */
+    @Column(name = "is_mixed", nullable = false)
+    @Builder.Default
+    private Boolean isMixed = false;
 }

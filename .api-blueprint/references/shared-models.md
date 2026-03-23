@@ -228,7 +228,7 @@ Character advancement options available during level-up. Each type has a minimum
 
 | Value | Description | Min Tier |
 |-------|-------------|----------|
-| `BOOST_TRAITS` | +1 to two unmarked traits, mark them | 2 |
+| `BOOST_TRAITS` | +1 to two traits, mark them. Traits must be unmarked unless entering Tier 3 or 4 (levels 5, 8) where marks are cleared first | 2 |
 | `GAIN_HP` | +1 hit point max | 2 |
 | `GAIN_STRESS` | +1 stress max | 2 |
 | `BOOST_EXPERIENCES` | +1 modifier to two experiences | 2 |
@@ -238,7 +238,11 @@ Character advancement options available during level-up. Each type has a minimum
 | `BOOST_PROFICIENCY` | +1 proficiency (Tier 3+) | 3 |
 | `MULTICLASS` | Choose additional class (Tier 3+) | 3 |
 
-**Mutual exclusion:** UPGRADE_SUBCLASS and MULTICLASS are mutually exclusive within a tier. If one is chosen at any point during a tier, the other becomes unavailable for the remainder of that tier.
+**Per-tier limits:** BOOST_TRAITS: 3, GAIN_HP: 2, GAIN_STRESS: 2, BOOST_EXPERIENCES: 1, GAIN_DOMAIN_CARD: 1, BOOST_EVASION: 1, UPGRADE_SUBCLASS: 1, BOOST_PROFICIENCY: 2, MULTICLASS: 2. Players may select the same advancement type twice in one level-up if the per-tier limit allows it.
+
+**Mutual exclusion:** UPGRADE_SUBCLASS and MULTICLASS are mutually exclusive within a tier. If one is chosen at any point during a tier, the other becomes unavailable for the remainder of that tier. Both types cannot appear in the same level-up request.
+
+**Cross-validation for duplicates:** When the same type is chosen twice in one request: BOOST_TRAITS requires all traits to be distinct across both choices; MULTICLASS requires each choice to target a different class.
 
 **Used by:** LevelUpRequest (AdvancementChoice), LevelUpOptionsResponse, CharacterAdvancementLog entity, LevelUpService
 

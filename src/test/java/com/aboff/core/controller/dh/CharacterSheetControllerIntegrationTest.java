@@ -286,17 +286,18 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
-    void createCharacterSheet_WithConstraintViolation_Returns400() throws Exception {
+    void createCharacterSheet_WithMarkedExceedsMax_ClampsMarkedToMax() throws Exception {
         // Arrange
         CreateCharacterSheetRequest request = createValidRequest();
-        request.setArmorMarked(100); // Exceeds armorMax
+        request.setArmorMarked(100); // Exceeds armorMax of 5
 
-        // Act & Assert
+        // Act & Assert - marked value should be clamped to max
         mockMvc.perform(post("/api/dh/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.armorMarked").value(request.getArmorMax()));
     }
 
     // ==================== UPDATE CHARACTER SHEET TESTS ====================
@@ -423,18 +424,19 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
-    void updateCharacterSheet_WithConstraintViolation_Returns400() throws Exception {
+    void updateCharacterSheet_WithMarkedExceedsMax_ClampsMarkedToMax() throws Exception {
         // Arrange
         UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
                 .armorMarked(100) // Exceeds armorMax
                 .build();
 
-        // Act & Assert
+        // Act & Assert - marked value should be clamped to max
         mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.armorMarked").value(testSheet.getArmorMax()));
     }
 
     // ==================== DELETE CHARACTER SHEET TESTS ====================

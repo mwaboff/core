@@ -1,6 +1,7 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateQuestionRequest;
+import com.aboff.core.model.dto.dh.request.QuestionInput;
 import com.aboff.core.model.dto.dh.request.UpdateQuestionRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.QuestionResponse;
@@ -176,6 +177,72 @@ public class QuestionService {
         log.info("Restored question with id: {}", id);
 
         return toResponse(restoredQuestion, Set.of());
+    }
+
+    /**
+     * Finds an existing question by text, expansion, and type (case-insensitive) or creates a new one.
+     *
+     * @param input the question input containing text, type, and expansion ID
+     * @return the found or newly created question
+     */
+    @Transactional
+    public Question findOrCreate(QuestionInput input) {
+        if (input.getQuestionText() != null && !input.getQuestionText().isBlank()) {
+            return questionRepository
+                    .findByQuestionTextIgnoreCaseAndExpansionIdAndQuestionTypeAndDeletedAtIsNull(
+                            input.getQuestionText(), input.getExpansionId(), input.getQuestionType())
+                    .map(existing -> {
+                        log.debug("Found existing question with text '{}' (id: {})", input.getQuestionText(), existing.getId());
+                        return existing;
+                    })
+                    .orElseGet(() -> createQuestionFromInput(input));
+        }
+        return createQuestionFromInput(input);
+    }
+
+    /**
+     * Creates a new question from the given input.
+     *
+     * @param input the question input
+     * @return the newly created question
+     */
+    private Question createQuestionFromInput(QuestionInput input) {
+        log.info("Creating new question with type '{}', expansion '{}'", input.getQuestionType(), input.getExpansionId());
+        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Expansion not found with id: " + input.getExpansionId()));
+        Question question = Question.builder()
+                .questionText(input.getQuestionText())
+                .questionType(input.getQuestionType())
+                .expansion(expansion)
+                .build();
+        return questionRepository.save(question);
+    }
+
+    /**
+     * Resolves questions from both ID-based and input-based sources, merging the results.
+     * Returns null when both inputs are null (signaling no modification).
+     * Returns an empty set when signaling a clear operation.
+     *
+     * @param questionIds list of existing question IDs to include
+     * @param questions   list of question inputs to find or create
+     * @return the resolved set of questions, or null if both inputs are null
+     */
+    @Transactional
+    public Set<Question> resolveQuestions(List<Long> questionIds, List<QuestionInput> questions) {
+        if (questionIds == null && questions == null) {
+            return null;
+        }
+        Set<Question> resolved = new HashSet<>();
+        if (questionIds != null && !questionIds.isEmpty()) {
+            resolved.addAll(questionRepository.findAllByIdInAndDeletedAtIsNull(questionIds));
+        }
+        if (questions != null && !questions.isEmpty()) {
+            for (QuestionInput input : questions) {
+                resolved.add(findOrCreate(input));
+            }
+        }
+        return resolved;
     }
 
     private QuestionResponse toResponse(Question question, Set<String> expand) {

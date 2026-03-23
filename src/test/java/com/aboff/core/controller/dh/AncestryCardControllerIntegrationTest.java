@@ -1,6 +1,7 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateAncestryCardRequest;
+import com.aboff.core.model.dto.dh.request.CreateMixedAncestryCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAncestryCardRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
@@ -724,6 +725,137 @@ class AncestryCardControllerIntegrationTest {
                 .isEqualTo(card2.get("featureIds").get(0).asLong());
     }
 
+    // ==================== MIXED ANCESTRY CARD TESTS ====================
+
+    @Test
+    void createMixedAncestryCard_AsAuthenticatedUser_Returns201() throws Exception {
+        // Arrange
+        Feature feature1 = createFeature("Darkvision", "See in the dark");
+        Feature feature2 = createFeature("Nimble", "Quick on your feet");
+
+        CreateMixedAncestryCardRequest request = CreateMixedAncestryCardRequest.builder()
+                .name("Half-Elf")
+                .description("Mixed elf and human ancestry")
+                .expansionId(testExpansion.getId())
+                .featureIds(List.of(feature1.getId(), feature2.getId()))
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/ancestry/mixed")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.id").isNumber())
+                .andExpect(jsonPath("$.name").value("Half-Elf"))
+                .andExpect(jsonPath("$.isOfficial").value(false))
+                .andExpect(jsonPath("$.featureIds.length()").value(2));
+    }
+
+    @Test
+    void createMixedAncestryCard_WithInvalidFeatureCount_Returns400() throws Exception {
+        // Arrange - only 1 feature ID (needs exactly 2)
+        Feature feature1 = createFeature("Darkvision", "See in the dark");
+
+        CreateMixedAncestryCardRequest requestTooFew = CreateMixedAncestryCardRequest.builder()
+                .name("Bad Mixed")
+                .description("Too few features")
+                .expansionId(testExpansion.getId())
+                .featureIds(List.of(feature1.getId()))
+                .build();
+
+        // Act & Assert - too few
+        mockMvc.perform(post("/api/dh/cards/ancestry/mixed")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestTooFew)))
+                .andExpect(status().isBadRequest());
+
+        // Arrange - 3 feature IDs (needs exactly 2)
+        Feature feature2 = createFeature("Nimble", "Quick on your feet");
+        Feature feature3 = createFeature("Tough", "Hardy constitution");
+
+        CreateMixedAncestryCardRequest requestTooMany = CreateMixedAncestryCardRequest.builder()
+                .name("Bad Mixed")
+                .description("Too many features")
+                .expansionId(testExpansion.getId())
+                .featureIds(List.of(feature1.getId(), feature2.getId(), feature3.getId()))
+                .build();
+
+        // Act & Assert - too many
+        mockMvc.perform(post("/api/dh/cards/ancestry/mixed")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(requestTooMany)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void getAllAncestryCards_ExcludesMixedByDefault() throws Exception {
+        // Arrange
+        createAncestryCard("Standard Elf", "Normal ancestry", testExpansion, true);
+        AncestryCard mixedCard = AncestryCard.builder()
+                .name("Mixed Heritage")
+                .description("A mixed ancestry")
+                .expansion(testExpansion)
+                .isOfficial(false)
+                .isMixed(true)
+                .build();
+        ancestryCardRepository.save(mixedCard);
+
+        // Act & Assert - default (no isMixed param) should exclude mixed
+        mockMvc.perform(get("/api/dh/cards/ancestry")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Standard Elf"));
+    }
+
+    @Test
+    void getAllAncestryCards_WithIsMixedTrue_ReturnsOnlyMixed() throws Exception {
+        // Arrange
+        createAncestryCard("Standard Elf", "Normal ancestry", testExpansion, true);
+        AncestryCard mixedCard = AncestryCard.builder()
+                .name("Mixed Heritage")
+                .description("A mixed ancestry")
+                .expansion(testExpansion)
+                .isOfficial(false)
+                .isMixed(true)
+                .build();
+        ancestryCardRepository.save(mixedCard);
+
+        // Act & Assert - isMixed=true should return only mixed cards
+        mockMvc.perform(get("/api/dh/cards/ancestry")
+                        .param("isMixed", "true")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Mixed Heritage"))
+                .andExpect(jsonPath("$.content[0].isMixed").value(true));
+    }
+
+    @Test
+    void createMixedAncestryCard_ResponseIncludesIsMixed() throws Exception {
+        // Arrange
+        Feature feature1 = createFeature("Darkvision", "See in the dark");
+        Feature feature2 = createFeature("Nimble", "Quick on your feet");
+
+        CreateMixedAncestryCardRequest request = CreateMixedAncestryCardRequest.builder()
+                .name("Half-Dwarf")
+                .description("Mixed dwarf ancestry")
+                .expansionId(testExpansion.getId())
+                .featureIds(List.of(feature1.getId(), feature2.getId()))
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/ancestry/mixed")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isMixed").value(true));
+    }
+
     // ==================== HELPER METHODS ====================
 
     private User createUserWithRole(String username, String email, Role role) {
@@ -765,5 +897,15 @@ class AncestryCardControllerIntegrationTest {
                 .isOfficial(isOfficial)
                 .build();
         return ancestryCardRepository.save(card);
+    }
+
+    private Feature createFeature(String name, String description) {
+        Feature feature = Feature.builder()
+                .name(name)
+                .description(description)
+                .featureType(com.aboff.core.model.enums.FeatureType.ANCESTRY)
+                .expansion(testExpansion)
+                .build();
+        return featureRepository.save(feature);
     }
 }
