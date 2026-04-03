@@ -99,7 +99,7 @@ class CharacterSheetRepositoryIntegrationTest {
     }
 
     @Test
-    void save_WithEquipment_PersistsRelationships() {
+    void save_WithInventoryLinkingEntities_PersistsRelationships() {
         Weapon weapon = createWeapon("Longsword");
         Armor armor = createArmor("Plate Armor");
 
@@ -108,14 +108,27 @@ class CharacterSheetRepositoryIntegrationTest {
                 .majorDamageThreshold(8)
                 .severeDamageThreshold(12)
                 .owner(user1)
-                .activePrimaryWeapon(weapon)
-                .activeArmor(armor)
                 .build();
+
+        CharacterSheetWeapon csw = CharacterSheetWeapon.builder()
+                .characterSheet(sheet)
+                .weapon(weapon)
+                .equipped(true)
+                .slot("PRIMARY")
+                .build();
+        sheet.getCharacterSheetWeapons().add(csw);
+
+        CharacterSheetArmor csa = CharacterSheetArmor.builder()
+                .characterSheet(sheet)
+                .armor(armor)
+                .equipped(true)
+                .build();
+        sheet.getCharacterSheetArmors().add(csa);
 
         CharacterSheet saved = characterSheetRepository.save(sheet);
 
-        assertThat(saved.getActivePrimaryWeapon()).isEqualTo(weapon);
-        assertThat(saved.getActiveArmor()).isEqualTo(armor);
+        assertThat(saved.getCharacterSheetWeapons()).hasSize(1);
+        assertThat(saved.getCharacterSheetArmors()).hasSize(1);
     }
 
     // ==================== READ TESTS ====================

@@ -2,7 +2,9 @@ package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
+import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
+import com.aboff.core.model.dto.dh.response.JoinCampaignResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.service.dh.CampaignService;
 import jakarta.validation.Valid;
@@ -40,6 +42,51 @@ import org.springframework.web.bind.annotation.*;
 public class CampaignController {
 
     private final CampaignService campaignService;
+
+    // ==================== MY CAMPAIGNS & INVITE ENDPOINTS ====================
+
+    /**
+     * Retrieves a paginated list of campaigns where the current user is involved.
+     * <p>
+     * Any authenticated user can access this endpoint to see their own campaigns.
+     * </p>
+     *
+     * @param page Zero-based page number (default: 0)
+     * @param size Number of items per page (default: 20, max: 100)
+     * @param expand Comma-separated list of relationships to expand
+     * @param authentication The authentication object containing the current user
+     * @return Paginated response containing the user's campaigns with 200 OK status
+     */
+    @GetMapping("/mine")
+    public ResponseEntity<PagedResponse<CampaignResponse>> getMyCampaigns(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String expand,
+            Authentication authentication) {
+
+        PagedResponse<CampaignResponse> response =
+                campaignService.getMyCampaigns(page, size, expand, authentication);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Joins a campaign via invite token.
+     * <p>
+     * Any authenticated user can join a campaign using a valid invite link.
+     * </p>
+     *
+     * @param token The invite token
+     * @param authentication The authentication object containing the current user
+     * @return JoinCampaignResponse with 200 OK status
+     */
+    @PostMapping("/join/{token}")
+    public ResponseEntity<JoinCampaignResponse> joinCampaign(
+            @PathVariable String token,
+            Authentication authentication) {
+
+        JoinCampaignResponse response = campaignService.joinViaInvite(token, authentication);
+        return ResponseEntity.ok(response);
+    }
 
     // ==================== CRUD ENDPOINTS ====================
 
@@ -154,6 +201,67 @@ public class CampaignController {
         return ResponseEntity.noContent().build();
     }
 
+    // ==================== CAMPAIGN LIFECYCLE ENDPOINTS ====================
+
+    /**
+     * Generates an invite link for the campaign.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can generate invites.
+     * The invite is valid for 24 hours and single-use.
+     * </p>
+     *
+     * @param id The campaign ID
+     * @param authentication The authentication object containing the current user
+     * @return CampaignInviteResponse with 201 Created status
+     */
+    @PostMapping("/{id}/invites")
+    public ResponseEntity<CampaignInviteResponse> generateInvite(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        CampaignInviteResponse response = campaignService.generateInvite(id, authentication);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Ends a campaign, locking it from further modifications.
+     * <p>
+     * Only the campaign creator or users with MODERATOR/ADMIN/OWNER role can end a campaign.
+     * </p>
+     *
+     * @param id The campaign ID
+     * @param authentication The authentication object containing the current user
+     * @return Updated campaign response with 200 OK status
+     */
+    @PostMapping("/{id}/end")
+    public ResponseEntity<CampaignResponse> endCampaign(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        CampaignResponse response = campaignService.endCampaign(id, authentication);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Allows a player to leave a campaign.
+     * <p>
+     * Only players can leave. Does not cascade-unlink character sheets.
+     * Works on ended campaigns too.
+     * </p>
+     *
+     * @param id The campaign ID
+     * @param authentication The authentication object containing the current user
+     * @return Updated campaign response with 200 OK status
+     */
+    @PostMapping("/{id}/leave")
+    public ResponseEntity<CampaignResponse> leaveCampaign(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        CampaignResponse response = campaignService.leaveCampaign(id, authentication);
+        return ResponseEntity.ok(response);
+    }
+
     // ==================== USER MANAGEMENT ENDPOINTS ====================
 
     /**
@@ -221,23 +329,24 @@ public class CampaignController {
     }
 
     /**
-     * Removes a user from the players of the campaign.
+     * Kicks a player from the campaign.
      * <p>
-     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can remove players.
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can kick players.
+     * Cascades to remove all character sheets owned by the kicked player.
      * </p>
      *
      * @param id The campaign ID
-     * @param userId The user ID to remove from players
+     * @param userId The user ID to kick
      * @param authentication The authentication object containing the current user
      * @return Updated campaign response with 200 OK status
      */
     @DeleteMapping("/{id}/players/{userId}")
-    public ResponseEntity<CampaignResponse> removePlayer(
+    public ResponseEntity<CampaignResponse> kickPlayer(
             @PathVariable Long id,
             @PathVariable Long userId,
             Authentication authentication) {
 
-        CampaignResponse response = campaignService.removePlayer(id, userId, authentication);
+        CampaignResponse response = campaignService.kickPlayer(id, userId, authentication);
         return ResponseEntity.ok(response);
     }
 

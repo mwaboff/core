@@ -192,6 +192,7 @@ Ban a user. Sets `bannedAt` timestamp and invalidates all of the target user's a
 {
   "id": 5,
   "username": "moderator",
+  "role": "MODERATOR",
   "email": "moderator@example.com",
   "createdAt": "2026-03-13T10:00:00",
   "lastModifiedAt": "2026-03-13T10:30:00"
@@ -240,6 +241,7 @@ Unban a user. Clears the `bannedAt` timestamp.
 {
   "id": 3,
   "username": "admin",
+  "role": "ADMIN",
   "email": "admin@example.com",
   "createdAt": "2026-03-13T10:00:00",
   "lastModifiedAt": "2026-03-13T10:30:00"
@@ -293,6 +295,7 @@ Change a user's role. Invalidates all of the target user's active JWT tokens to 
 {
   "id": 7,
   "username": "user",
+  "role": "ADMIN",
   "email": "user@example.com",
   "createdAt": "2026-03-13T10:00:00",
   "lastModifiedAt": "2026-03-13T10:30:00"

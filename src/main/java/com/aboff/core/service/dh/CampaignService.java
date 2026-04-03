@@ -3,13 +3,18 @@ package com.aboff.core.service.dh;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
+import com.aboff.core.model.dto.dh.response.CampaignCharacterSummaryResponse;
+import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
 import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
+import com.aboff.core.model.dto.dh.response.JoinCampaignResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Campaign;
+import com.aboff.core.model.entity.dh.CampaignInvite;
 import com.aboff.core.model.entity.dh.CharacterSheet;
+import com.aboff.core.repository.dh.CampaignInviteRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.UserRepository;
@@ -27,8 +32,12 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -57,6 +66,7 @@ import java.util.stream.Collectors;
 public class CampaignService {
 
     private final CampaignRepository campaignRepository;
+    private final CampaignInviteRepository campaignInviteRepository;
     private final UserRepository userRepository;
     private final CharacterSheetRepository characterSheetRepository;
     private final RoleHierarchyService roleHierarchyService;
@@ -210,6 +220,7 @@ public class CampaignService {
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + id));
 
         validateCreatorAccess(campaign, auth, "update");
+        validateNotEnded(campaign, "update");
 
         if (request.getName() != null && !request.getName().isBlank()) {
             campaign.setName(request.getName());
@@ -275,6 +286,7 @@ public class CampaignService {
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
         validateCreatorAccess(campaign, auth, "add game master to");
+        validateNotEnded(campaign, "add game master to");
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
@@ -344,6 +356,7 @@ public class CampaignService {
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
         validateGameMasterAccess(campaign, auth, "add player to");
+        validateNotEnded(campaign, "add player to");
 
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
@@ -356,32 +369,40 @@ public class CampaignService {
     }
 
     /**
-     * Removes a user from the players of the campaign.
+     * Kicks a player from the campaign, removing them and all their character sheets.
      * <p>
      * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role
-     * can remove players.
+     * can kick players. Cascades to remove all character sheets owned by the
+     * kicked player from all three collections (pending, PC, NPC).
      * </p>
      *
      * @param campaignId The campaign ID
-     * @param userId The user ID to remove from players
+     * @param userId The user ID to kick
      * @param auth The authentication object containing the current user
      * @return Updated CampaignResponse
      * @throws EntityNotFoundException if the campaign is not found
      * @throws InsufficientPermissionsException if the user lacks permission
      */
     @Transactional
-    public CampaignResponse removePlayer(Long campaignId, Long userId, Authentication auth) {
-        log.info("Removing player {} from campaign {}", userId, campaignId);
+    public CampaignResponse kickPlayer(Long campaignId, Long userId, Authentication auth) {
+        log.info("Kicking player {} from campaign {}", userId, campaignId);
 
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
-        validateGameMasterAccess(campaign, auth, "remove player from");
+        validateGameMasterAccess(campaign, auth, "kick player from");
 
+        // Remove the player
         campaign.getPlayers().removeIf(player -> player.getId().equals(userId));
+
+        // Cascade: remove all character sheets owned by the kicked player
+        campaign.getPendingCharacterSheets().removeIf(cs -> cs.getOwner().getId().equals(userId));
+        campaign.getPlayerCharacters().removeIf(cs -> cs.getOwner().getId().equals(userId));
+        campaign.getNonPlayerCharacters().removeIf(cs -> cs.getOwner().getId().equals(userId));
+
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Removed player {} from campaign {}", userId, campaignId);
+        log.info("Kicked player {} from campaign {} (cascaded character sheet removal)", userId, campaignId);
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -426,6 +447,14 @@ public class CampaignService {
                     "You must be a player in this campaign to submit a character sheet");
         }
 
+        validateNotEnded(campaign, "submit character sheet to");
+
+        // One-campaign constraint: character sheet can only be in one active campaign
+        if (campaignRepository.isCharacterSheetInActiveCampaign(characterSheetId)) {
+            throw new IllegalStateException(
+                    "Character sheet is already in an active campaign");
+        }
+
         campaign.getPendingCharacterSheets().add(characterSheet);
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
@@ -455,6 +484,7 @@ public class CampaignService {
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
         validateGameMasterAccess(campaign, auth, "approve character sheets in");
+        validateNotEnded(campaign, "approve character sheets in");
 
         CharacterSheet characterSheet = campaign.getPendingCharacterSheets().stream()
                 .filter(cs -> cs.getId().equals(characterSheetId))
@@ -527,9 +557,16 @@ public class CampaignService {
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
         validateGameMasterAccess(campaign, auth, "add NPCs to");
+        validateNotEnded(campaign, "add NPCs to");
 
         CharacterSheet characterSheet = characterSheetRepository.findActiveById(characterSheetId)
                 .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + characterSheetId));
+
+        // One-campaign constraint
+        if (campaignRepository.isCharacterSheetInActiveCampaign(characterSheetId)) {
+            throw new IllegalStateException(
+                    "Character sheet is already in an active campaign");
+        }
 
         campaign.getNonPlayerCharacters().add(characterSheet);
         Campaign updatedCampaign = campaignRepository.save(campaign);
@@ -541,7 +578,9 @@ public class CampaignService {
     /**
      * Removes a character sheet from the campaign (from any collection).
      * <p>
-     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can remove.
+     * Allowed by campaign creator/GM, the character sheet owner,
+     * or users with MODERATOR/ADMIN/OWNER role. Works on ended campaigns too
+     * (unlinking is always allowed).
      * </p>
      *
      * @param campaignId The campaign ID
@@ -558,7 +597,17 @@ public class CampaignService {
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
-        validateGameMasterAccess(campaign, auth, "remove character sheets from");
+        // Allow GM/creator access OR character sheet owner
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        Long userId = userDetails.getUserId();
+        boolean isGmOrCreator = campaign.isCreator(userId) || campaign.isGameMaster(userId);
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
+        boolean isSheetOwner = isCharacterSheetOwner(campaign, characterSheetId, userId);
+
+        if (!isGmOrCreator && !isModerator && !isSheetOwner) {
+            throw new InsufficientPermissionsException(
+                    "You do not have permission to remove character sheets from this campaign");
+        }
 
         // Remove from all collections
         campaign.getPendingCharacterSheets().removeIf(cs -> cs.getId().equals(characterSheetId));
@@ -568,6 +617,211 @@ public class CampaignService {
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
         log.info("Removed character sheet {} from campaign {}", characterSheetId, campaignId);
+        return toResponse(updatedCampaign, Set.of());
+    }
+
+    // ==================== CAMPAIGN LIFECYCLE ====================
+
+    /**
+     * Retrieves a paginated list of campaigns where the current user is involved.
+     *
+     * @param page Zero-based page number
+     * @param size Number of items per page (max 100)
+     * @param expand Comma-separated list of relationships to expand
+     * @param auth The authentication object containing the current user
+     * @return Paginated response containing the user's campaigns
+     */
+    @Transactional(readOnly = true)
+    public PagedResponse<CampaignResponse> getMyCampaigns(int page, int size, String expand, Authentication auth) {
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        Long userId = userDetails.getUserId();
+
+        size = Math.min(size, 100);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        Page<Campaign> campaignPage = campaignRepository.findActiveByUserInvolvement(userId, pageable);
+
+        Set<String> expandSet = parseExpand(expand);
+
+        return PagedResponse.<CampaignResponse>builder()
+                .content(campaignPage.getContent().stream()
+                        .map(campaign -> toResponse(campaign, expandSet))
+                        .toList())
+                .totalElements(campaignPage.getTotalElements())
+                .totalPages(campaignPage.getTotalPages())
+                .currentPage(campaignPage.getNumber())
+                .pageSize(campaignPage.getSize())
+                .build();
+    }
+
+    /**
+     * Ends a campaign, locking it from further modifications.
+     * <p>
+     * Only the campaign creator or users with MODERATOR/ADMIN/OWNER role can end a campaign.
+     * An ended campaign remains visible but is locked for most operations.
+     * </p>
+     *
+     * @param id The campaign ID
+     * @param auth The authentication object containing the current user
+     * @return Updated CampaignResponse
+     * @throws EntityNotFoundException if the campaign is not found
+     * @throws InsufficientPermissionsException if the user lacks permission
+     * @throws IllegalStateException if the campaign is already ended
+     */
+    @Transactional
+    public CampaignResponse endCampaign(Long id, Authentication auth) {
+        log.info("Ending campaign with id: {}", id);
+
+        Campaign campaign = campaignRepository.findActiveById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + id));
+
+        validateCreatorAccess(campaign, auth, "end");
+
+        if (campaign.isEnded()) {
+            throw new IllegalStateException("Campaign is already ended");
+        }
+
+        campaign.endCampaign();
+        Campaign updatedCampaign = campaignRepository.save(campaign);
+
+        log.info("Ended campaign with id: {}", id);
+        return toResponse(updatedCampaign, Set.of());
+    }
+
+    /**
+     * Generates an invite link for the campaign.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can generate invites.
+     * The invite is valid for 24 hours and single-use.
+     * </p>
+     *
+     * @param campaignId The campaign ID
+     * @param auth The authentication object containing the current user
+     * @return CampaignInviteResponse containing the invite details
+     * @throws EntityNotFoundException if the campaign is not found
+     * @throws InsufficientPermissionsException if the user lacks permission
+     * @throws IllegalStateException if the campaign is ended
+     */
+    @Transactional
+    public CampaignInviteResponse generateInvite(Long campaignId, Authentication auth) {
+        log.info("Generating invite for campaign {}", campaignId);
+
+        Campaign campaign = campaignRepository.findActiveById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
+
+        validateGameMasterAccess(campaign, auth, "generate invite for");
+        validateNotEnded(campaign, "generate invite for");
+
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+
+        CampaignInvite invite = CampaignInvite.builder()
+                .campaign(campaign)
+                .token(UUID.randomUUID().toString())
+                .createdBy(userDetails.getUserId())
+                .expiresAt(LocalDateTime.now().plusHours(24))
+                .build();
+
+        CampaignInvite savedInvite = campaignInviteRepository.save(invite);
+
+        log.info("Generated invite {} for campaign {}", savedInvite.getToken(), campaignId);
+        return CampaignInviteResponse.builder()
+                .id(savedInvite.getId())
+                .campaignId(campaignId)
+                .token(savedInvite.getToken())
+                .expiresAt(savedInvite.getExpiresAt())
+                .createdAt(savedInvite.getCreatedAt())
+                .build();
+    }
+
+    /**
+     * Joins a campaign via invite token.
+     * <p>
+     * Validates that the token is not expired, not already used, and the campaign
+     * is not ended or deleted. Adds the user as a player and marks the invite as used.
+     * </p>
+     *
+     * @param token The invite token
+     * @param auth The authentication object containing the current user
+     * @return JoinCampaignResponse with campaign details
+     * @throws EntityNotFoundException if the invite token is not found
+     * @throws IllegalStateException if the token is invalid, expired, or campaign is ended
+     */
+    @Transactional
+    public JoinCampaignResponse joinViaInvite(String token, Authentication auth) {
+        log.info("Attempting to join campaign via invite token");
+
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        Long userId = userDetails.getUserId();
+
+        CampaignInvite invite = campaignInviteRepository.findByToken(token)
+                .orElseThrow(() -> new EntityNotFoundException("Invite not found"));
+
+        if (!invite.isValid()) {
+            throw new IllegalStateException("Invite is expired or already used");
+        }
+
+        Campaign campaign = invite.getCampaign();
+        if (campaign.isDeleted()) {
+            throw new EntityNotFoundException("Campaign not found");
+        }
+        if (campaign.isEnded()) {
+            throw new IllegalStateException("Cannot join an ended campaign");
+        }
+
+        // Check if already involved
+        if (campaign.isInvolved(userId)) {
+            throw new IllegalStateException("You are already a member of this campaign");
+        }
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
+
+        campaign.getPlayers().add(user);
+        invite.markUsed(userId);
+
+        campaignRepository.save(campaign);
+        campaignInviteRepository.save(invite);
+
+        log.info("User {} joined campaign {} via invite", userId, campaign.getId());
+
+        return JoinCampaignResponse.builder()
+                .campaignId(campaign.getId())
+                .campaignName(campaign.getName())
+                .message("Successfully joined campaign: " + campaign.getName())
+                .build();
+    }
+
+    /**
+     * Allows a player to leave a campaign voluntarily.
+     * <p>
+     * Only players can leave. Does NOT cascade-unlink character sheets (voluntary departure).
+     * Works on ended campaigns too.
+     * </p>
+     *
+     * @param campaignId The campaign ID
+     * @param auth The authentication object containing the current user
+     * @return Updated CampaignResponse
+     * @throws EntityNotFoundException if the campaign is not found
+     * @throws IllegalStateException if the user is not a player
+     */
+    @Transactional
+    public CampaignResponse leaveCampaign(Long campaignId, Authentication auth) {
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        Long userId = userDetails.getUserId();
+
+        log.info("Player {} leaving campaign {}", userId, campaignId);
+
+        Campaign campaign = campaignRepository.findActiveById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
+
+        if (!campaign.isPlayer(userId)) {
+            throw new IllegalStateException("You are not a player in this campaign");
+        }
+
+        campaign.getPlayers().removeIf(player -> player.getId().equals(userId));
+        Campaign updatedCampaign = campaignRepository.save(campaign);
+
+        log.info("Player {} left campaign {}", userId, campaignId);
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -649,6 +903,36 @@ public class CampaignService {
         }
     }
 
+    /**
+     * Validates that the campaign has not been ended.
+     *
+     * @param campaign The campaign to check
+     * @param operation The operation being attempted (for error message)
+     * @throws IllegalStateException if the campaign is ended
+     */
+    private void validateNotEnded(Campaign campaign, String operation) {
+        if (campaign.isEnded()) {
+            throw new IllegalStateException("Cannot " + operation + " an ended campaign");
+        }
+    }
+
+    /**
+     * Checks if a character sheet in the campaign is owned by the specified user.
+     *
+     * @param campaign The campaign containing the character sheets
+     * @param characterSheetId The character sheet ID to check
+     * @param userId The user ID to check ownership for
+     * @return true if the user owns the character sheet
+     */
+    private boolean isCharacterSheetOwner(Campaign campaign, Long characterSheetId, Long userId) {
+        return campaign.getPendingCharacterSheets().stream()
+                .anyMatch(cs -> cs.getId().equals(characterSheetId) && cs.getOwner().getId().equals(userId))
+            || campaign.getPlayerCharacters().stream()
+                .anyMatch(cs -> cs.getId().equals(characterSheetId) && cs.getOwner().getId().equals(userId))
+            || campaign.getNonPlayerCharacters().stream()
+                .anyMatch(cs -> cs.getId().equals(characterSheetId) && cs.getOwner().getId().equals(userId));
+    }
+
     // ==================== HELPER METHODS ====================
 
     /**
@@ -671,6 +955,7 @@ public class CampaignService {
             expandSet.add("pendingCharacterSheets");
             expandSet.add("playerCharacters");
             expandSet.add("nonPlayerCharacters");
+            expandSet.add("characterSummaries");
         }
         return expandSet;
     }
@@ -707,6 +992,8 @@ public class CampaignService {
                 .nonPlayerCharacterIds(campaign.getNonPlayerCharacters().stream()
                         .map(CharacterSheet::getId)
                         .collect(Collectors.toList()))
+                .endedAt(campaign.getEndedAt())
+                .isEnded(campaign.isEnded())
                 .createdAt(campaign.getCreatedAt())
                 .lastModifiedAt(campaign.getLastModifiedAt())
                 .deletedAt(campaign.getDeletedAt());
@@ -752,6 +1039,21 @@ public class CampaignService {
                     .collect(Collectors.toList()));
         }
 
+        // Expand character summaries if requested
+        if (expand.contains("characterSummaries")) {
+            List<CampaignCharacterSummaryResponse> summaries = new ArrayList<>();
+            for (CharacterSheet sheet : campaign.getPlayerCharacters()) {
+                summaries.add(toCampaignCharacterSummary(sheet));
+            }
+            for (CharacterSheet sheet : campaign.getNonPlayerCharacters()) {
+                summaries.add(toCampaignCharacterSummary(sheet));
+            }
+            for (CharacterSheet sheet : campaign.getPendingCharacterSheets()) {
+                summaries.add(toCampaignCharacterSummary(sheet));
+            }
+            builder.characterSummaries(summaries);
+        }
+
         return builder.build();
     }
 
@@ -770,6 +1072,38 @@ public class CampaignService {
                 .timezone(user.getTimezone())
                 .createdAt(user.getCreatedAt())
                 .lastModifiedAt(user.getLastModifiedAt())
+                .build();
+    }
+
+    /**
+     * Builds a lightweight character summary for campaign context.
+     *
+     * @param sheet The character sheet entity
+     * @return CampaignCharacterSummaryResponse with enriched data
+     */
+    private CampaignCharacterSummaryResponse toCampaignCharacterSummary(CharacterSheet sheet) {
+        List<String> ancestryNames = sheet.getAncestryCards().stream()
+                .map(card -> card.getName())
+                .collect(Collectors.toList());
+
+        List<String> subclassNames = sheet.getSubclassCards().stream()
+                .map(card -> card.getName())
+                .collect(Collectors.toList());
+
+        List<String> classNames = sheet.getSubclassCards().stream()
+                .map(card -> card.getSubclassPath().getAssociatedClass().getName())
+                .distinct()
+                .collect(Collectors.toList());
+
+        return CampaignCharacterSummaryResponse.builder()
+                .id(sheet.getId())
+                .name(sheet.getName())
+                .level(sheet.getLevel())
+                .ownerId(sheet.getOwner().getId())
+                .ownerUsername(sheet.getOwner().getUsername())
+                .ancestryNames(ancestryNames)
+                .subclassNames(subclassNames)
+                .classNames(classNames)
                 .build();
     }
 

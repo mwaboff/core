@@ -135,4 +135,32 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
      */
     @Query("SELECT c FROM Campaign c WHERE LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')) AND c.deletedAt IS NULL")
     List<Campaign> findByNameContainingIgnoreCaseAndDeletedAtIsNull(@Param("name") String name);
+
+    /**
+     * Finds all active campaigns where the user is involved in any role, with pagination.
+     *
+     * @param userId the ID of the user
+     * @param pageable pagination information
+     * @return paginated list of active campaigns where the user is involved
+     */
+    @Query("SELECT DISTINCT c FROM Campaign c " +
+           "LEFT JOIN c.gameMasters gm " +
+           "LEFT JOIN c.players p " +
+           "WHERE c.deletedAt IS NULL AND " +
+           "(c.creator.id = :userId OR gm.id = :userId OR p.id = :userId)")
+    Page<Campaign> findActiveByUserInvolvement(@Param("userId") Long userId, Pageable pageable);
+
+    /**
+     * Checks if a character sheet is in any active (not deleted, not ended) campaign.
+     *
+     * @param characterSheetId the character sheet ID
+     * @return true if the character sheet is in an active campaign
+     */
+    @Query("SELECT CASE WHEN COUNT(c) > 0 THEN true ELSE false END FROM Campaign c " +
+           "LEFT JOIN c.pendingCharacterSheets pcs " +
+           "LEFT JOIN c.playerCharacters pc " +
+           "LEFT JOIN c.nonPlayerCharacters npc " +
+           "WHERE c.deletedAt IS NULL AND c.endedAt IS NULL AND " +
+           "(pcs.id = :characterSheetId OR pc.id = :characterSheetId OR npc.id = :characterSheetId)")
+    boolean isCharacterSheetInActiveCampaign(@Param("characterSheetId") Long characterSheetId);
 }

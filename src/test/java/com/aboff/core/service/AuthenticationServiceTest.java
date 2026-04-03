@@ -117,6 +117,7 @@ class AuthenticationServiceTest {
                 assertThat(response).isNotNull();
                 assertThat(response.getUsername()).isEqualTo("testuser");
                 assertThat(response.getEmail()).isEqualTo("test@example.com");
+                assertThat(response.getRole()).isEqualTo(com.aboff.core.model.enums.Role.USER);
 
                 verify(passwordValidator).validatePassword("Password123!");
                 verify(passwordEncoder).encode("Password123!");
@@ -284,6 +285,7 @@ class AuthenticationServiceTest {
                 assertThat(result).isNotNull();
                 assertThat(result.getToken()).isEqualTo("jwt-token");
                 assertThat(result.getUserResponse().getUsername()).isEqualTo("testuser");
+                assertThat(result.getUserResponse().getRole()).isEqualTo(com.aboff.core.model.enums.Role.USER);
 
                 verify(activeTokenRepository).save(any(ActiveToken.class));
                 verify(loginAttemptService).recordAttempt(any(LoginAttempt.class));

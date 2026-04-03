@@ -94,6 +94,7 @@ class UserControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.username").value("testuser"))
                                 .andExpect(jsonPath("$.email").value("test@example.com"))
+                                .andExpect(jsonPath("$.role").value("USER"))
                                 .andExpect(jsonPath("$.avatarUrl").value("https://avatar.url"))
                                 .andExpect(jsonPath("$.timezone").value("UTC"))
                                 .andExpect(jsonPath("$.createdAt").exists())
@@ -113,6 +114,7 @@ class UserControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.username").value("testuser"))
                                 .andExpect(jsonPath("$.email").value("test@example.com"))
+                                .andExpect(jsonPath("$.role").value("USER"))
                                 .andExpect(jsonPath("$.avatarUrl").value("https://avatar.url"))
                                 .andExpect(jsonPath("$.timezone").value("UTC"));
         }

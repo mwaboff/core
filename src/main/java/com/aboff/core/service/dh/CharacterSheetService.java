@@ -2,12 +2,16 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
+import com.aboff.core.model.dto.dh.request.InventoryArmorRequest;
+import com.aboff.core.model.dto.dh.request.InventoryLootRequest;
+import com.aboff.core.model.dto.dh.request.InventoryWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
+import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
@@ -52,6 +56,9 @@ public class CharacterSheetService {
 
     private final CharacterSheetRepository characterSheetRepository;
     private final CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
+    private final CharacterSheetWeaponRepository characterSheetWeaponRepository;
+    private final CharacterSheetArmorRepository characterSheetArmorRepository;
+    private final CharacterSheetLootRepository characterSheetLootRepository;
     private final UserRepository userRepository;
     private final ExperienceRepository experienceRepository;
     private final WeaponRepository weaponRepository;
@@ -61,6 +68,7 @@ public class CharacterSheetService {
     private final SubclassCardRepository subclassCardRepository;
     private final DomainCardRepository domainCardRepository;
     private final LootRepository lootRepository;
+    private final CampaignRepository campaignRepository;
     private final RoleHierarchyService roleHierarchyService;
     private final WeaponService weaponService;
     private final ArmorService armorService;
@@ -117,19 +125,47 @@ public class CharacterSheetService {
 
     /**
      * Retrieves a single character sheet by ID.
+     * <p>
+     * When authentication is provided, the response may include campaign info
+     * if the viewer has access to the campaign containing this character.
+     * </p>
      *
      * @param id The character sheet ID
      * @param expand Comma-separated list of relationships to expand (owner, experiences)
+     * @param auth The authentication object containing the current user (optional)
+     * @return CharacterSheetResponse containing the character sheet details
+     * @throws EntityNotFoundException if the character sheet is not found or is deleted
+     */
+    @Transactional(readOnly = true)
+    public CharacterSheetResponse getCharacterSheetById(Long id, String expand, Authentication auth) {
+        CharacterSheet characterSheet = characterSheetRepository.findActiveById(id)
+                .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
+
+        Set<String> expandSet = ExpandUtil.parseExpand(expand);
+        CharacterSheetResponse response = toResponse(characterSheet, expandSet);
+
+        // Populate campaign info if viewer has access
+        if (auth != null) {
+            populateCampaignInfo(response, characterSheet.getId(), auth);
+        }
+
+        return response;
+    }
+
+    /**
+     * Retrieves a single character sheet by ID without authentication context.
+     * <p>
+     * Campaign info will not be populated in the response.
+     * </p>
+     *
+     * @param id The character sheet ID
+     * @param expand Comma-separated list of relationships to expand
      * @return CharacterSheetResponse containing the character sheet details
      * @throws EntityNotFoundException if the character sheet is not found or is deleted
      */
     @Transactional(readOnly = true)
     public CharacterSheetResponse getCharacterSheetById(Long id, String expand) {
-        CharacterSheet characterSheet = characterSheetRepository.findActiveById(id)
-                .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
-
-        Set<String> expandSet = ExpandUtil.parseExpand(expand);
-        return toResponse(characterSheet, expandSet);
+        return getCharacterSheetById(id, expand, null);
     }
 
     /**
@@ -188,23 +224,6 @@ public class CharacterSheetService {
                 .owner(owner)
                 .build();
 
-        // Set equipment if provided
-        if (request.getActivePrimaryWeaponId() != null) {
-            Weapon weapon = weaponRepository.findById(request.getActivePrimaryWeaponId())
-                    .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + request.getActivePrimaryWeaponId()));
-            characterSheet.setActivePrimaryWeapon(weapon);
-        }
-        if (request.getActiveSecondaryWeaponId() != null) {
-            Weapon weapon = weaponRepository.findById(request.getActiveSecondaryWeaponId())
-                    .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + request.getActiveSecondaryWeaponId()));
-            characterSheet.setActiveSecondaryWeapon(weapon);
-        }
-        if (request.getActiveArmorId() != null) {
-            Armor armor = armorRepository.findById(request.getActiveArmorId())
-                    .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + request.getActiveArmorId()));
-            characterSheet.setActiveArmor(armor);
-        }
-
         // Set card collections if provided
         if (request.getCommunityCardIds() != null) {
             Set<CommunityCard> communityCards = new HashSet<>();
@@ -258,36 +277,49 @@ public class CharacterSheetService {
                 domainCardEntities.add(CharacterSheetDomainCard.builder()
                         .characterSheet(characterSheet).domainCard(card).equipped(false).build());
             }
-            characterSheet.setCharacterSheetDomainCards(domainCardEntities);
+            characterSheet.getCharacterSheetDomainCards().addAll(domainCardEntities);
         }
 
         // Set inventory collections if provided
-        if (request.getInventoryWeaponIds() != null) {
-            Set<Weapon> weapons = new HashSet<>();
-            for (Long weaponId : request.getInventoryWeaponIds()) {
-                Weapon weapon = weaponRepository.findById(weaponId)
-                        .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + weaponId));
-                weapons.add(weapon);
+        if (request.getInventoryWeapons() != null) {
+            Set<CharacterSheetWeapon> weapons = new HashSet<>();
+            for (InventoryWeaponRequest req : request.getInventoryWeapons()) {
+                Weapon weapon = weaponRepository.findById(req.getWeaponId())
+                        .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + req.getWeaponId()));
+                weapons.add(CharacterSheetWeapon.builder()
+                        .characterSheet(characterSheet)
+                        .weapon(weapon)
+                        .equipped(req.getEquipped() != null ? req.getEquipped() : false)
+                        .slot(req.getSlot())
+                        .build());
             }
-            characterSheet.setInventoryWeapons(weapons);
+            characterSheet.getCharacterSheetWeapons().addAll(weapons);
+            validateWeaponSlots(characterSheet.getCharacterSheetWeapons());
         }
-        if (request.getInventoryArmorIds() != null) {
-            Set<Armor> armors = new HashSet<>();
-            for (Long armorId : request.getInventoryArmorIds()) {
-                Armor armor = armorRepository.findById(armorId)
-                        .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + armorId));
-                armors.add(armor);
+        if (request.getInventoryArmors() != null) {
+            Set<CharacterSheetArmor> armors = new HashSet<>();
+            for (InventoryArmorRequest req : request.getInventoryArmors()) {
+                Armor armor = armorRepository.findById(req.getArmorId())
+                        .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + req.getArmorId()));
+                armors.add(CharacterSheetArmor.builder()
+                        .characterSheet(characterSheet)
+                        .armor(armor)
+                        .equipped(req.getEquipped() != null ? req.getEquipped() : false)
+                        .build());
             }
-            characterSheet.setInventoryArmors(armors);
+            characterSheet.getCharacterSheetArmors().addAll(armors);
         }
-        if (request.getInventoryItemIds() != null) {
-            Set<Loot> items = new HashSet<>();
-            for (Long itemId : request.getInventoryItemIds()) {
-                Loot item = lootRepository.findById(itemId)
-                        .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + itemId));
-                items.add(item);
+        if (request.getInventoryItems() != null) {
+            Set<CharacterSheetLoot> items = new HashSet<>();
+            for (InventoryLootRequest req : request.getInventoryItems()) {
+                Loot loot = lootRepository.findById(req.getLootId())
+                        .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + req.getLootId()));
+                items.add(CharacterSheetLoot.builder()
+                        .characterSheet(characterSheet)
+                        .loot(loot)
+                        .build());
             }
-            characterSheet.setInventoryItems(items);
+            characterSheet.getCharacterSheetLoot().addAll(items);
         }
 
         // Validate constraints
@@ -418,23 +450,6 @@ public class CharacterSheetService {
             characterSheet.setGold(request.getGold());
         }
 
-        // Update active equipment (explicit null handling to allow unequipping)
-        if (request.getActivePrimaryWeaponId() != null) {
-            Weapon weapon = weaponRepository.findById(request.getActivePrimaryWeaponId())
-                    .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + request.getActivePrimaryWeaponId()));
-            characterSheet.setActivePrimaryWeapon(weapon);
-        }
-        if (request.getActiveSecondaryWeaponId() != null) {
-            Weapon weapon = weaponRepository.findById(request.getActiveSecondaryWeaponId())
-                    .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + request.getActiveSecondaryWeaponId()));
-            characterSheet.setActiveSecondaryWeapon(weapon);
-        }
-        if (request.getActiveArmorId() != null) {
-            Armor armor = armorRepository.findById(request.getActiveArmorId())
-                    .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + request.getActiveArmorId()));
-            characterSheet.setActiveArmor(armor);
-        }
-
         // Update card collections (replace entire collection if provided)
         if (request.getCommunityCardIds() != null) {
             Set<CommunityCard> communityCards = new HashSet<>();
@@ -500,33 +515,52 @@ public class CharacterSheetService {
             }
         }
 
-        // Update inventory collections (replace entire collection if provided)
-        if (request.getInventoryWeaponIds() != null) {
-            Set<Weapon> weapons = new HashSet<>();
-            for (Long weaponId : request.getInventoryWeaponIds()) {
-                Weapon weapon = weaponRepository.findById(weaponId)
-                        .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + weaponId));
-                weapons.add(weapon);
+        // Update inventory collections (clear-flush-rebuild pattern, same as domain cards)
+        if (request.getInventoryWeapons() != null) {
+            characterSheet.getCharacterSheetWeapons().clear();
+            characterSheetRepository.flush();
+            Set<CharacterSheetWeapon> weapons = new HashSet<>();
+            for (InventoryWeaponRequest req : request.getInventoryWeapons()) {
+                Weapon weapon = weaponRepository.findById(req.getWeaponId())
+                        .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + req.getWeaponId()));
+                weapons.add(CharacterSheetWeapon.builder()
+                        .characterSheet(characterSheet)
+                        .weapon(weapon)
+                        .equipped(req.getEquipped() != null ? req.getEquipped() : false)
+                        .slot(req.getSlot())
+                        .build());
             }
-            characterSheet.setInventoryWeapons(weapons);
+            characterSheet.getCharacterSheetWeapons().addAll(weapons);
+            validateWeaponSlots(characterSheet.getCharacterSheetWeapons());
         }
-        if (request.getInventoryArmorIds() != null) {
-            Set<Armor> armors = new HashSet<>();
-            for (Long armorId : request.getInventoryArmorIds()) {
-                Armor armor = armorRepository.findById(armorId)
-                        .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + armorId));
-                armors.add(armor);
+        if (request.getInventoryArmors() != null) {
+            characterSheet.getCharacterSheetArmors().clear();
+            characterSheetRepository.flush();
+            Set<CharacterSheetArmor> armors = new HashSet<>();
+            for (InventoryArmorRequest req : request.getInventoryArmors()) {
+                Armor armor = armorRepository.findById(req.getArmorId())
+                        .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + req.getArmorId()));
+                armors.add(CharacterSheetArmor.builder()
+                        .characterSheet(characterSheet)
+                        .armor(armor)
+                        .equipped(req.getEquipped() != null ? req.getEquipped() : false)
+                        .build());
             }
-            characterSheet.setInventoryArmors(armors);
+            characterSheet.getCharacterSheetArmors().addAll(armors);
         }
-        if (request.getInventoryItemIds() != null) {
-            Set<Loot> items = new HashSet<>();
-            for (Long itemId : request.getInventoryItemIds()) {
-                Loot item = lootRepository.findById(itemId)
-                        .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + itemId));
-                items.add(item);
+        if (request.getInventoryItems() != null) {
+            characterSheet.getCharacterSheetLoot().clear();
+            characterSheetRepository.flush();
+            Set<CharacterSheetLoot> items = new HashSet<>();
+            for (InventoryLootRequest req : request.getInventoryItems()) {
+                Loot loot = lootRepository.findById(req.getLootId())
+                        .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + req.getLootId()));
+                items.add(CharacterSheetLoot.builder()
+                        .characterSheet(characterSheet)
+                        .loot(loot)
+                        .build());
             }
-            characterSheet.setInventoryItems(items);
+            characterSheet.getCharacterSheetLoot().addAll(items);
         }
 
         // Validate constraints after all updates
@@ -623,6 +657,47 @@ public class CharacterSheetService {
     }
 
     /**
+     * Validates weapon slot assignments for a character sheet.
+     * <p>
+     * Enforces the following rules:
+     * - At most one PRIMARY and one SECONDARY weapon slot
+     * - Equipped weapons must have a slot (PRIMARY or SECONDARY)
+     * - Unequipped weapons must not have a slot
+     * - Slot value must be PRIMARY or SECONDARY
+     * </p>
+     *
+     * @param weapons The set of character sheet weapons to validate
+     * @throws IllegalStateException if any slot constraint is violated
+     */
+    private void validateWeaponSlots(Set<CharacterSheetWeapon> weapons) {
+        long primaryCount = weapons.stream()
+                .filter(w -> "PRIMARY".equals(w.getSlot()))
+                .count();
+        long secondaryCount = weapons.stream()
+                .filter(w -> "SECONDARY".equals(w.getSlot()))
+                .count();
+
+        if (primaryCount > 1) {
+            throw new IllegalStateException("Only one PRIMARY weapon slot is allowed");
+        }
+        if (secondaryCount > 1) {
+            throw new IllegalStateException("Only one SECONDARY weapon slot is allowed");
+        }
+
+        for (CharacterSheetWeapon w : weapons) {
+            if (Boolean.TRUE.equals(w.getEquipped()) && w.getSlot() == null) {
+                throw new IllegalStateException("Equipped weapons must have a slot (PRIMARY or SECONDARY)");
+            }
+            if (!Boolean.TRUE.equals(w.getEquipped()) && w.getSlot() != null) {
+                throw new IllegalStateException("Unequipped weapons must not have a slot");
+            }
+            if (w.getSlot() != null && !"PRIMARY".equals(w.getSlot()) && !"SECONDARY".equals(w.getSlot())) {
+                throw new IllegalStateException("Weapon slot must be PRIMARY or SECONDARY");
+            }
+        }
+    }
+
+    /**
      * Converts a CharacterSheet entity to CharacterSheetResponse DTO.
      * <p>
      * Always includes IDs for relationships. Optionally expands full relationship
@@ -632,16 +707,13 @@ public class CharacterSheetService {
      * Supported expansions:
      * - owner: Full user object for the character owner
      * - experiences: List of experience objects
-     * - activePrimaryWeapon: Full primary weapon object
-     * - activeSecondaryWeapon: Full secondary weapon object
-     * - activeArmor: Full armor object
      * - communityCards: List of community card objects
      * - ancestryCards: List of ancestry card objects
      * - subclassCards: List of subclass card objects
      * - domainCards: List of domain card objects
-     * - inventoryWeapons: List of weapon objects in inventory
-     * - inventoryArmors: List of armor objects in inventory
-     * - inventoryItems: List of loot objects in inventory
+     * - inventoryWeapons: Full weapon objects nested in inventory weapon entries
+     * - inventoryArmors: Full armor objects nested in inventory armor entries
+     * - inventoryItems: Full loot objects nested in inventory loot entries
      * - features: Full feature objects within weapons, armor, cards, and loot items
      * - costTags: Full cost tag objects within features and cards
      * - modifiers: Full feature modifier objects within features
@@ -688,11 +760,6 @@ public class CharacterSheetService {
                 .lastModifiedAt(sheet.getLastModifiedAt())
                 .deletedAt(sheet.getDeletedAt());
 
-        // Always include IDs for equipment (may be null)
-        builder.activePrimaryWeaponId(sheet.getActivePrimaryWeapon() != null ? sheet.getActivePrimaryWeapon().getId() : null);
-        builder.activeSecondaryWeaponId(sheet.getActiveSecondaryWeapon() != null ? sheet.getActiveSecondaryWeapon().getId() : null);
-        builder.activeArmorId(sheet.getActiveArmor() != null ? sheet.getActiveArmor().getId() : null);
-
         // Always include IDs for card collections
         builder.communityCardIds(sheet.getCommunityCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
         builder.ancestryCardIds(sheet.getAncestryCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
@@ -713,10 +780,45 @@ public class CharacterSheetService {
         builder.equippedDomainCardIds(equippedDomainCardIds);
         builder.vaultDomainCardIds(vaultDomainCardIds);
 
-        // Always include IDs for inventory
-        builder.inventoryWeaponIds(sheet.getInventoryWeapons().stream().map(weapon -> weapon.getId()).collect(Collectors.toList()));
-        builder.inventoryArmorIds(sheet.getInventoryArmors().stream().map(armor -> armor.getId()).collect(Collectors.toList()));
-        builder.inventoryItemIds(sheet.getInventoryItems().stream().map(item -> item.getId()).collect(Collectors.toList()));
+        // Always include inventory linking entity responses
+        builder.inventoryWeapons(sheet.getCharacterSheetWeapons().stream()
+                .map(csw -> {
+                    InventoryWeaponResponse.InventoryWeaponResponseBuilder iwb = InventoryWeaponResponse.builder()
+                            .id(csw.getId())
+                            .weaponId(csw.getWeapon().getId())
+                            .equipped(csw.getEquipped())
+                            .slot(csw.getSlot());
+                    if (expand.contains("inventoryWeapons")) {
+                        iwb.weapon(toWeaponResponse(csw.getWeapon(), expand));
+                    }
+                    return iwb.build();
+                })
+                .collect(Collectors.toList()));
+
+        builder.inventoryArmors(sheet.getCharacterSheetArmors().stream()
+                .map(csa -> {
+                    InventoryArmorResponse.InventoryArmorResponseBuilder iab = InventoryArmorResponse.builder()
+                            .id(csa.getId())
+                            .armorId(csa.getArmor().getId())
+                            .equipped(csa.getEquipped());
+                    if (expand.contains("inventoryArmors")) {
+                        iab.armor(toArmorResponse(csa.getArmor(), expand));
+                    }
+                    return iab.build();
+                })
+                .collect(Collectors.toList()));
+
+        builder.inventoryItems(sheet.getCharacterSheetLoot().stream()
+                .map(csl -> {
+                    InventoryLootResponse.InventoryLootResponseBuilder ilb = InventoryLootResponse.builder()
+                            .id(csl.getId())
+                            .lootId(csl.getLoot().getId());
+                    if (expand.contains("inventoryItems")) {
+                        ilb.loot(toLootResponse(csl.getLoot(), expand));
+                    }
+                    return ilb.build();
+                })
+                .collect(Collectors.toList()));
 
         // Always include IDs for experiences
         builder.experienceIds(sheet.getExperiences().stream().map(Experience::getId).collect(Collectors.toList()));
@@ -749,21 +851,6 @@ public class CharacterSheetService {
                             .build())
                     .collect(Collectors.toList());
             builder.experiences(experiences);
-        }
-
-        // Expand active primary weapon if requested
-        if (expand.contains("activePrimaryWeapon") && sheet.getActivePrimaryWeapon() != null) {
-            builder.activePrimaryWeapon(toWeaponResponse(sheet.getActivePrimaryWeapon(), expand));
-        }
-
-        // Expand active secondary weapon if requested
-        if (expand.contains("activeSecondaryWeapon") && sheet.getActiveSecondaryWeapon() != null) {
-            builder.activeSecondaryWeapon(toWeaponResponse(sheet.getActiveSecondaryWeapon(), expand));
-        }
-
-        // Expand active armor if requested
-        if (expand.contains("activeArmor") && sheet.getActiveArmor() != null) {
-            builder.activeArmor(toArmorResponse(sheet.getActiveArmor(), expand));
         }
 
         // Expand community cards if requested
@@ -810,28 +897,37 @@ public class CharacterSheetService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand inventory weapons if requested
-        if (expand.contains("inventoryWeapons")) {
-            builder.inventoryWeapons(sheet.getInventoryWeapons().stream()
-                    .map(weapon -> toWeaponResponse(weapon, expand))
-                    .collect(Collectors.toList()));
-        }
-
-        // Expand inventory armors if requested
-        if (expand.contains("inventoryArmors")) {
-            builder.inventoryArmors(sheet.getInventoryArmors().stream()
-                    .map(armor -> toArmorResponse(armor, expand))
-                    .collect(Collectors.toList()));
-        }
-
-        // Expand inventory items if requested
-        if (expand.contains("inventoryItems")) {
-            builder.inventoryItems(sheet.getInventoryItems().stream()
-                    .map(item -> toLootResponse(item, expand))
-                    .collect(Collectors.toList()));
-        }
-
         return builder.build();
+    }
+
+    /**
+     * Populates campaign information on a character sheet response if the viewer has access.
+     * <p>
+     * Looks up active campaigns containing this character sheet. If found, checks whether
+     * the viewer is involved in the campaign or has moderator+ privileges.
+     * </p>
+     *
+     * @param response The character sheet response to populate
+     * @param characterSheetId The character sheet ID
+     * @param auth The authentication object
+     */
+    private void populateCampaignInfo(CharacterSheetResponse response, Long characterSheetId, Authentication auth) {
+        List<Campaign> campaigns = campaignRepository.findActiveByCampaignCharacterSheetId(characterSheetId);
+        if (campaigns.isEmpty()) {
+            return;
+        }
+
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        Long userId = userDetails.getUserId();
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
+
+        for (Campaign campaign : campaigns) {
+            if (campaign.isInvolved(userId) || isModerator) {
+                response.setCampaignId(campaign.getId());
+                response.setCampaignName(campaign.getName());
+                return;
+            }
+        }
     }
 
     /**

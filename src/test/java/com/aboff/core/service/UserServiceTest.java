@@ -85,6 +85,7 @@ class UserServiceTest {
                 assertThat(result.getId()).isEqualTo(1L);
                 assertThat(result.getUsername()).isEqualTo("testuser");
                 assertThat(result.getEmail()).isEqualTo("test@example.com");
+                assertThat(result.getRole()).isEqualTo(com.aboff.core.model.enums.Role.USER);
         }
 
         @Test
@@ -132,6 +133,7 @@ class UserServiceTest {
                 // Assert
                 assertThat(result.getEmail()).isEqualTo("test@example.com");
                 assertThat(result.getUsername()).isEqualTo("testuser");
+                assertThat(result.getRole()).isEqualTo(com.aboff.core.model.enums.Role.USER);
         }
 
         @Test

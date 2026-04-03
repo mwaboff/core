@@ -1,6 +1,9 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
+import com.aboff.core.model.dto.dh.request.InventoryArmorRequest;
+import com.aboff.core.model.dto.dh.request.InventoryLootRequest;
+import com.aboff.core.model.dto.dh.request.InventoryWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
@@ -8,11 +11,14 @@ import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
+import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.LootRepository;
+import com.aboff.core.repository.dh.WeaponRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -70,6 +76,15 @@ class CharacterSheetControllerIntegrationTest {
 
     @Autowired
     private ExpansionRepository expansionRepository;
+
+    @Autowired
+    private WeaponRepository weaponRepository;
+
+    @Autowired
+    private ArmorRepository armorRepository;
+
+    @Autowired
+    private LootRepository lootRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -594,6 +609,112 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.domainCards[0].name").value("Blade Strike"));
     }
 
+    // ==================== INVENTORY TESTS ====================
+
+    @Test
+    void createCharacterSheet_WithEquippedWeapons_Returns201() throws Exception {
+        // Arrange
+        Weapon sword = createWeapon("Longsword");
+        Weapon dagger = createWeapon("Dagger");
+
+        CreateCharacterSheetRequest request = createValidRequest();
+        request.setInventoryWeapons(java.util.List.of(
+                InventoryWeaponRequest.builder()
+                        .weaponId(sword.getId()).equipped(true).slot("PRIMARY").build(),
+                InventoryWeaponRequest.builder()
+                        .weaponId(dagger.getId()).equipped(true).slot("SECONDARY").build()
+        ));
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.inventoryWeapons").isArray())
+                .andExpect(jsonPath("$.inventoryWeapons.length()").value(2));
+    }
+
+    @Test
+    void createCharacterSheet_WithInventoryItems_Returns201() throws Exception {
+        // Arrange
+        Weapon weapon = createWeapon("Spare Sword");
+        Armor armor = createArmor("Leather Armor");
+        Loot loot = createLoot("Healing Potion");
+
+        CreateCharacterSheetRequest request = createValidRequest();
+        request.setInventoryWeapons(java.util.List.of(
+                InventoryWeaponRequest.builder().weaponId(weapon.getId()).build()
+        ));
+        request.setInventoryArmors(java.util.List.of(
+                InventoryArmorRequest.builder().armorId(armor.getId()).equipped(true).build()
+        ));
+        request.setInventoryItems(java.util.List.of(
+                InventoryLootRequest.builder().lootId(loot.getId()).build()
+        ));
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.inventoryWeapons.length()").value(1))
+                .andExpect(jsonPath("$.inventoryWeapons[0].weaponId").value(weapon.getId()))
+                .andExpect(jsonPath("$.inventoryWeapons[0].equipped").value(false))
+                .andExpect(jsonPath("$.inventoryArmors.length()").value(1))
+                .andExpect(jsonPath("$.inventoryArmors[0].armorId").value(armor.getId()))
+                .andExpect(jsonPath("$.inventoryArmors[0].equipped").value(true))
+                .andExpect(jsonPath("$.inventoryItems.length()").value(1))
+                .andExpect(jsonPath("$.inventoryItems[0].lootId").value(loot.getId()));
+    }
+
+    @Test
+    void updateCharacterSheet_WithInventoryWeapons_Returns200() throws Exception {
+        // Arrange
+        Weapon weapon = createWeapon("New Sword");
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .inventoryWeapons(java.util.List.of(
+                        InventoryWeaponRequest.builder()
+                                .weaponId(weapon.getId()).equipped(true).slot("PRIMARY").build()
+                ))
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.inventoryWeapons.length()").value(1))
+                .andExpect(jsonPath("$.inventoryWeapons[0].weaponId").value(weapon.getId()))
+                .andExpect(jsonPath("$.inventoryWeapons[0].equipped").value(true))
+                .andExpect(jsonPath("$.inventoryWeapons[0].slot").value("PRIMARY"));
+    }
+
+    @Test
+    void createCharacterSheet_WithTwoPrimaryWeapons_Returns400() throws Exception {
+        // Arrange
+        Weapon weapon1 = createWeapon("Sword1");
+        Weapon weapon2 = createWeapon("Sword2");
+
+        CreateCharacterSheetRequest request = createValidRequest();
+        request.setInventoryWeapons(java.util.List.of(
+                InventoryWeaponRequest.builder()
+                        .weaponId(weapon1.getId()).equipped(true).slot("PRIMARY").build(),
+                InventoryWeaponRequest.builder()
+                        .weaponId(weapon2.getId()).equipped(true).slot("PRIMARY").build()
+        ));
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
+    }
+
     // ==================== HELPER METHODS ====================
 
     private User createUserWithRole(String username, String email, Role role) {
@@ -686,6 +807,54 @@ class CharacterSheetControllerIntegrationTest {
                 .type(DomainCardType.SPELL)
                 .build();
         return domainCardRepository.save(card);
+    }
+
+    private Weapon createWeapon(String name) {
+        Expansion expansion = Expansion.builder().name("Test Expansion " + name).isPublished(true).build();
+        expansion = expansionRepository.save(expansion);
+        Weapon weapon = Weapon.builder()
+                .name(name)
+                .expansion(expansion)
+                .isOfficial(true)
+                .isPrimary(true)
+                .trait(com.aboff.core.model.enums.Trait.STRENGTH)
+                .range(com.aboff.core.model.enums.Range.MELEE)
+                .burden(com.aboff.core.model.enums.Burden.ONE_HANDED)
+                .tier(1)
+                .damage(com.aboff.core.model.embeddable.DamageRoll.builder()
+                        .diceType(com.aboff.core.model.enums.DiceType.D6)
+                        .damageType(com.aboff.core.model.enums.DamageType.PHYSICAL)
+                        .build())
+                .build();
+        return weaponRepository.save(weapon);
+    }
+
+    private Armor createArmor(String name) {
+        Expansion expansion = Expansion.builder().name("Test Expansion Armor " + name).isPublished(true).build();
+        expansion = expansionRepository.save(expansion);
+        Armor armor = Armor.builder()
+                .name(name)
+                .expansion(expansion)
+                .isOfficial(true)
+                .tier(1)
+                .baseMajorThreshold(8)
+                .baseSevereThreshold(12)
+                .baseScore(3)
+                .build();
+        return armorRepository.save(armor);
+    }
+
+    private Loot createLoot(String name) {
+        Expansion expansion = Expansion.builder().name("Test Expansion Loot " + name).isPublished(true).build();
+        expansion = expansionRepository.save(expansion);
+        Loot loot = Loot.builder()
+                .name(name)
+                .expansion(expansion)
+                .isOfficial(true)
+                .isConsumable(false)
+                .tier(1)
+                .build();
+        return lootRepository.save(loot);
     }
 
     private CreateCharacterSheetRequest createValidRequest() {

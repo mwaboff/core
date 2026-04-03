@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -188,23 +189,6 @@ public class UpdateCharacterSheetRequest {
     @PositiveOrZero(message = "Gold must be zero or positive")
     private Integer gold;
 
-    // ========== Active Equipment IDs ==========
-
-    /**
-     * Updated ID of currently equipped primary weapon (null to unequip)
-     */
-    private Long activePrimaryWeaponId;
-
-    /**
-     * Updated ID of currently equipped secondary weapon (null to unequip)
-     */
-    private Long activeSecondaryWeaponId;
-
-    /**
-     * Updated ID of currently equipped armor (null to unequip)
-     */
-    private Long activeArmorId;
-
     // ========== Card IDs ==========
 
     /**
@@ -232,20 +216,26 @@ public class UpdateCharacterSheetRequest {
      */
     private List<Long> vaultDomainCardIds;
 
-    // ========== Inventory IDs ==========
+    // ========== Inventory ==========
 
     /**
-     * Updated IDs of weapons in inventory (null to leave unchanged)
+     * Updated weapons in inventory (null to leave unchanged, provided list = full replacement).
+     * Supports duplicate weapon IDs for multiple copies of the same weapon.
      */
-    private List<Long> inventoryWeaponIds;
+    @Valid
+    private List<InventoryWeaponRequest> inventoryWeapons;
 
     /**
-     * Updated IDs of armor pieces in inventory (null to leave unchanged)
+     * Updated armor pieces in inventory (null to leave unchanged, provided list = full replacement).
+     * Multiple armor pieces can be equipped simultaneously.
      */
-    private List<Long> inventoryArmorIds;
+    @Valid
+    private List<InventoryArmorRequest> inventoryArmors;
 
     /**
-     * Updated IDs of loot items in inventory (null to leave unchanged)
+     * Updated loot items in inventory (null to leave unchanged, provided list = full replacement).
+     * Supports duplicate loot IDs for multiple copies of the same item.
      */
-    private List<Long> inventoryItemIds;
+    @Valid
+    private List<InventoryLootRequest> inventoryItems;
 }

@@ -6,6 +6,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import com.aboff.core.model.enums.Role;
+
 import java.time.LocalDateTime;
 
 /**
@@ -28,6 +30,11 @@ public class UserResponse {
      * The user's username.
      */
     private String username;
+
+    /**
+     * The user's role (e.g., USER, MODERATOR, ADMIN, OWNER).
+     */
+    private Role role;
 
     /**
      * The user's email address.

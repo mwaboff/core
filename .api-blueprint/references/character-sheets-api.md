@@ -75,20 +75,18 @@ curl -b "AUTH_TOKEN=<token>" \
       "owner": {
         "id": 1,
         "username": "player1",
+        "role": "USER",
         "email": "player1@example.com"
       },
-      "activePrimaryWeaponId": null,
-      "activeSecondaryWeaponId": null,
-      "activeArmorId": null,
       "communityCardIds": [],
       "ancestryCardIds": [],
       "subclassCardIds": [],
       "domainCardIds": [],
       "equippedDomainCardIds": [],
       "vaultDomainCardIds": [],
-      "inventoryWeaponIds": [],
-      "inventoryArmorIds": [],
-      "inventoryItemIds": [],
+      "inventoryWeapons": [],
+      "inventoryArmors": [],
+      "inventoryItems": [],
       "experienceIds": [],
       "createdAt": "2026-03-13T12:00:00",
       "lastModifiedAt": "2026-03-13T12:00:00"
@@ -169,24 +167,22 @@ curl -b "AUTH_TOKEN=<token>" \
   "owner": {
     "id": 1,
     "username": "player1",
+    "role": "USER",
     "email": "player1@example.com",
     "avatarUrl": null,
     "timezone": null,
     "createdAt": "2026-03-13T12:00:00",
     "lastModifiedAt": "2026-03-13T12:00:00"
   },
-  "activePrimaryWeaponId": null,
-  "activeSecondaryWeaponId": null,
-  "activeArmorId": null,
   "communityCardIds": [],
   "ancestryCardIds": [],
   "subclassCardIds": [],
   "domainCardIds": [],
   "equippedDomainCardIds": [],
   "vaultDomainCardIds": [],
-  "inventoryWeaponIds": [],
-  "inventoryArmorIds": [],
-  "inventoryItemIds": [],
+  "inventoryWeapons": [],
+  "inventoryArmors": [],
+  "inventoryItems": [],
   "experienceIds": [10],
   "experiences": [
     {
@@ -256,9 +252,15 @@ curl -X POST -b "AUTH_TOKEN=<token>" \
     "subclassCardIds": [3, 4],
     "equippedDomainCardIds": [8],
     "vaultDomainCardIds": [9],
-    "inventoryWeaponIds": [5],
-    "inventoryArmorIds": [6],
-    "inventoryItemIds": [7]
+    "inventoryWeapons": [
+      {"weaponId": 5, "equipped": true, "slot": "PRIMARY"}
+    ],
+    "inventoryArmors": [
+      {"armorId": 6, "equipped": true}
+    ],
+    "inventoryItems": [
+      {"lootId": 7}
+    ]
   }' \
   "http://localhost:8080/api/dh/character-sheets"
 ```
@@ -297,18 +299,21 @@ curl -X POST -b "AUTH_TOKEN=<token>" \
   "hopeMarked": 0,
   "gold": 50,
   "ownerId": 1,
-  "activePrimaryWeaponId": null,
-  "activeSecondaryWeaponId": null,
-  "activeArmorId": null,
   "communityCardIds": [1],
   "ancestryCardIds": [2],
   "subclassCardIds": [3, 4],
   "domainCardIds": [8, 9],
   "equippedDomainCardIds": [8],
   "vaultDomainCardIds": [9],
-  "inventoryWeaponIds": [5],
-  "inventoryArmorIds": [6],
-  "inventoryItemIds": [7],
+  "inventoryWeapons": [
+    {"id": 100, "weaponId": 5, "equipped": true, "slot": "PRIMARY"}
+  ],
+  "inventoryArmors": [
+    {"id": 200, "armorId": 6, "equipped": true}
+  ],
+  "inventoryItems": [
+    {"id": 300, "lootId": 7}
+  ],
   "experienceIds": [],
   "createdAt": "2026-03-13T14:00:00",
   "lastModifiedAt": "2026-03-13T14:00:00"
@@ -325,7 +330,7 @@ PUT /api/dh/character-sheets/{id}
 
 **Authorization:** Character sheet owner OR MODERATOR/ADMIN/OWNER role.
 
-Supports **partial updates** -- only non-null fields in the request body are updated. Omitted fields remain unchanged. Collection fields (card IDs, inventory IDs) replace the entire collection when provided; omit them to leave unchanged.
+Supports **partial updates** -- only non-null fields in the request body are updated. Omitted fields remain unchanged. Collection fields (card IDs, inventory arrays) replace the entire collection when provided; omit them to leave unchanged.
 
 **Path Parameters:**
 
@@ -387,18 +392,15 @@ curl -X PUT -b "AUTH_TOKEN=<token>" \
   "hopeMarked": 0,
   "gold": 100,
   "ownerId": 1,
-  "activePrimaryWeaponId": null,
-  "activeSecondaryWeaponId": null,
-  "activeArmorId": null,
   "communityCardIds": [],
   "ancestryCardIds": [],
   "subclassCardIds": [],
   "domainCardIds": [],
   "equippedDomainCardIds": [],
   "vaultDomainCardIds": [],
-  "inventoryWeaponIds": [],
-  "inventoryArmorIds": [],
-  "inventoryItemIds": [],
+  "inventoryWeapons": [],
+  "inventoryArmors": [],
+  "inventoryItems": [],
   "experienceIds": [],
   "createdAt": "2026-03-13T12:00:00",
   "lastModifiedAt": "2026-03-13T15:00:00"
@@ -713,18 +715,15 @@ Expand options come in two categories: **item/card expansion** (top-level, bring
 |------------------------|----------------------------------------------|-----------------------------|-----------------------------|
 | `owner`                | Full user profile of the character owner      | `owner`                     | `UserResponse`              |
 | `experiences`          | All experiences for this character            | `experiences`               | `ExperienceResponse[]`      |
-| `activePrimaryWeapon`  | Equipped primary weapon details              | `activePrimaryWeapon`       | `WeaponResponse`            |
-| `activeSecondaryWeapon`| Equipped secondary weapon details            | `activeSecondaryWeapon`     | `WeaponResponse`            |
-| `activeArmor`          | Equipped armor details                       | `activeArmor`               | `ArmorResponse`             |
 | `communityCards`       | All assigned community cards                 | `communityCards`            | `CommunityCardResponse[]`   |
 | `ancestryCards`        | All assigned ancestry cards                  | `ancestryCards`             | `AncestryCardResponse[]`    |
 | `subclassCards`        | All assigned subclass cards                  | `subclassCards`             | `SubclassCardResponse[]`    |
 | `domainCards`          | All assigned domain cards (equipped + vault) | `domainCards`               | `DomainCardResponse[]`      |
 | `equippedDomainCards`  | Equipped domain cards only (max 5)           | `equippedDomainCards`       | `DomainCardResponse[]`      |
 | `vaultDomainCards`     | Vault (unequipped) domain cards              | `vaultDomainCards`          | `DomainCardResponse[]`      |
-| `inventoryWeapons`     | All weapons in inventory                     | `inventoryWeapons`          | `WeaponResponse[]`          |
-| `inventoryArmors`      | All armor pieces in inventory                | `inventoryArmors`           | `ArmorResponse[]`           |
-| `inventoryItems`       | All loot items in inventory                  | `inventoryItems`            | `LootResponse[]`            |
+| `inventoryWeapons`     | Expands nested `weapon` objects within inventory weapon entries | `inventoryWeapons[].weapon` | `WeaponResponse`   |
+| `inventoryArmors`      | Expands nested `armor` objects within inventory armor entries   | `inventoryArmors[].armor`   | `ArmorResponse`    |
+| `inventoryItems`       | Expands nested `loot` objects within inventory loot entries     | `inventoryItems[].loot`     | `LootResponse`     |
 
 ### Nested Expand Options
 
@@ -743,14 +742,14 @@ Nested options compose freely with any item/card expand options. Examples:
 
 | Query String                                        | Effect                                                                              |
 |-----------------------------------------------------|-------------------------------------------------------------------------------------|
-| `?expand=activePrimaryWeapon,features`              | Returns the primary weapon with its features fully populated                        |
+| `?expand=inventoryWeapons,features`                 | Returns inventory weapon entries with nested weapon objects including their features |
 | `?expand=domainCards,features,costTags`             | Returns domain cards with full feature objects, each feature with full cost tags    |
 | `?expand=inventoryWeapons,features,modifiers`       | Returns inventory weapons with full features, each feature with full modifiers      |
 | `?expand=ancestryCards,features,expansion`          | Returns ancestry cards with full features, and each item/card's expansion populated |
 | `?expand=domainCards,features,costTags,modifiers`   | Returns domain cards with features, their cost tags, and their modifiers all expanded |
-| `?expand=owner,experiences,activePrimaryWeapon,inventoryWeapons` | Returns owner, experiences, and both weapon slots/inventory |
+| `?expand=owner,experiences,inventoryWeapons,inventoryArmors` | Returns owner, experiences, and inventory weapon/armor details |
 
-Null fields are omitted from JSON responses (uses `@JsonInclude(NON_NULL)`). Equipment expand fields (activePrimaryWeapon, activeSecondaryWeapon, activeArmor) are only included if the equipment slot is actually occupied.
+Null fields are omitted from JSON responses (uses `@JsonInclude(NON_NULL)`). Inventory arrays (`inventoryWeapons`, `inventoryArmors`, `inventoryItems`) are always included in the response with linking entity data (IDs, equipped status, slot). The `expand` parameter controls whether the nested `weapon`/`armor`/`loot` objects within each entry are populated.
 
 ---
 
@@ -836,25 +835,43 @@ All fields marked **required** must be present. Equipment and collection IDs are
 | `hopeMax`                | integer   | Yes      | > 0                                           |
 | `hopeMarked`             | integer   | Yes      | >= 0, must be <= hopeMax                      |
 | `gold`                   | integer   | Yes      | >= 0                                          |
-| `activePrimaryWeaponId`  | long      | No       | Must reference existing Weapon                |
-| `activeSecondaryWeaponId`| long      | No       | Must reference existing Weapon                |
-| `activeArmorId`          | long      | No       | Must reference existing Armor                 |
 | `communityCardIds`       | long[]    | No       | Each must reference existing CommunityCard    |
 | `ancestryCardIds`        | long[]    | No       | Each must reference existing AncestryCard     |
 | `subclassCardIds`        | long[]    | No       | Each must reference existing SubclassCard     |
 | `equippedDomainCardIds`  | long[]    | No       | Must be provided with `vaultDomainCardIds`. Each must reference existing DomainCard. No duplicates within or across lists. |
 | `vaultDomainCardIds`     | long[]    | No       | Must be provided with `equippedDomainCardIds`. Each must reference existing DomainCard. No duplicates within or across lists. |
-| `inventoryWeaponIds`     | long[]    | No       | Each must reference existing Weapon           |
-| `inventoryArmorIds`      | long[]    | No       | Each must reference existing Armor            |
-| `inventoryItemIds`       | long[]    | No       | Each must reference existing Loot             |
+| `inventoryWeapons`       | InventoryWeaponRequest[] | No | Array of inventory weapon entries. See InventoryWeaponRequest below. |
+| `inventoryArmors`        | InventoryArmorRequest[]  | No | Array of inventory armor entries. See InventoryArmorRequest below.   |
+| `inventoryItems`         | InventoryLootRequest[]   | No | Array of inventory loot entries. See InventoryLootRequest below.     |
 
 **Domain cards** use `equippedDomainCardIds` and `vaultDomainCardIds` instead of a single `domainCardIds` field. Both must be provided together. A card ID must not appear in both lists or be duplicated within a list. The equipped list determines which domain cards are actively equipped (max 5), and the vault list holds unequipped domain cards.
+
+#### InventoryWeaponRequest
+
+| Field     | Type    | Required | Validation                                                                     |
+|-----------|---------|----------|--------------------------------------------------------------------------------|
+| `weaponId`| long    | Yes      | Must reference existing Weapon                                                 |
+| `equipped`| boolean | No       | Default `false`. If `true`, `slot` must be provided                            |
+| `slot`    | string  | No       | `"PRIMARY"` or `"SECONDARY"`. Required when `equipped` is `true`. Max one weapon per slot. |
+
+#### InventoryArmorRequest
+
+| Field     | Type    | Required | Validation                     |
+|-----------|---------|----------|--------------------------------|
+| `armorId` | long    | Yes      | Must reference existing Armor  |
+| `equipped`| boolean | No       | Default `false`                |
+
+#### InventoryLootRequest
+
+| Field    | Type | Required | Validation                    |
+|----------|------|----------|-------------------------------|
+| `lootId` | long | Yes      | Must reference existing Loot  |
 
 ### UpdateCharacterSheetRequest
 
 All fields are optional. Only non-null fields are applied. Same validation rules as create but no required fields.
 
-Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `inventoryWeaponIds`, `inventoryArmorIds`, `inventoryItemIds`) replace the entire collection when provided. Omit to leave the collection unchanged.
+Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `inventoryWeapons`, `inventoryArmors`, `inventoryItems`) replace the entire collection when provided. Omit to leave the collection unchanged.
 
 **Domain cards** use `equippedDomainCardIds` and `vaultDomainCardIds` (same rules as create). Both must be provided together to update domain cards.
 
@@ -893,12 +910,6 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `in
 | `gold`                   | integer                   | Yes            | --                                         |
 | `ownerId`                | long                      | Yes            | --                                         |
 | `owner`                  | UserResponse              | No             | Only with `?expand=owner`                  |
-| `activePrimaryWeaponId`  | long                      | No             | Null if no weapon equipped                 |
-| `activePrimaryWeapon`    | WeaponResponse            | No             | Only with `?expand=activePrimaryWeapon`    |
-| `activeSecondaryWeaponId`| long                      | No             | Null if no weapon equipped                 |
-| `activeSecondaryWeapon`  | WeaponResponse            | No             | Only with `?expand=activeSecondaryWeapon`  |
-| `activeArmorId`          | long                      | No             | Null if no armor equipped                  |
-| `activeArmor`            | ArmorResponse             | No             | Only with `?expand=activeArmor`            |
 | `communityCardIds`       | long[]                    | Yes            | --                                         |
 | `communityCards`         | CommunityCardResponse[]   | No             | Only with `?expand=communityCards`         |
 | `ancestryCardIds`        | long[]                    | Yes            | --                                         |
@@ -911,17 +922,41 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `in
 | `equippedDomainCards`    | DomainCardResponse[]      | No             | Only with `?expand=equippedDomainCards`    |
 | `vaultDomainCardIds`     | long[]                    | Yes            | IDs of vault (unequipped) domain cards     |
 | `vaultDomainCards`       | DomainCardResponse[]      | No             | Only with `?expand=vaultDomainCards`       |
-| `inventoryWeaponIds`     | long[]                    | Yes            | --                                         |
-| `inventoryWeapons`       | WeaponResponse[]          | No             | Only with `?expand=inventoryWeapons`       |
-| `inventoryArmorIds`      | long[]                    | Yes            | --                                         |
-| `inventoryArmors`        | ArmorResponse[]           | No             | Only with `?expand=inventoryArmors`        |
-| `inventoryItemIds`       | long[]                    | Yes            | --                                         |
-| `inventoryItems`         | LootResponse[]            | No             | Only with `?expand=inventoryItems`         |
+| `inventoryWeapons`       | InventoryWeaponResponse[] | Yes            | Always included. Nested `weapon` expanded with `?expand=inventoryWeapons` |
+| `inventoryArmors`        | InventoryArmorResponse[]  | Yes            | Always included. Nested `armor` expanded with `?expand=inventoryArmors`   |
+| `inventoryItems`         | InventoryLootResponse[]   | Yes            | Always included. Nested `loot` expanded with `?expand=inventoryItems`     |
 | `experienceIds`          | long[]                    | Yes            | --                                         |
 | `experiences`            | ExperienceResponse[]      | No             | Only with `?expand=experiences`            |
 | `createdAt`              | datetime                  | Yes            | ISO 8601 format                            |
 | `lastModifiedAt`         | datetime                  | Yes            | ISO 8601 format                            |
 | `deletedAt`              | datetime                  | No             | Omitted if null (not soft-deleted)         |
+
+#### InventoryWeaponResponse
+
+| Field      | Type           | Always Present | Notes                                          |
+|------------|----------------|----------------|-------------------------------------------------|
+| `id`       | long           | Yes            | Linking entity ID                               |
+| `weaponId` | long           | Yes            | Referenced weapon ID                            |
+| `equipped` | boolean        | Yes            | Whether this weapon is equipped                 |
+| `slot`     | string         | No             | `"PRIMARY"` or `"SECONDARY"`. Omitted if null   |
+| `weapon`   | WeaponResponse | No             | Only with `?expand=inventoryWeapons`            |
+
+#### InventoryArmorResponse
+
+| Field      | Type          | Always Present | Notes                                          |
+|------------|---------------|----------------|-------------------------------------------------|
+| `id`       | long          | Yes            | Linking entity ID                               |
+| `armorId`  | long          | Yes            | Referenced armor ID                             |
+| `equipped` | boolean       | Yes            | Whether this armor is equipped                  |
+| `armor`    | ArmorResponse | No             | Only with `?expand=inventoryArmors`             |
+
+#### InventoryLootResponse
+
+| Field    | Type         | Always Present | Notes                                          |
+|----------|--------------|----------------|-------------------------------------------------|
+| `id`     | long         | Yes            | Linking entity ID                               |
+| `lootId` | long         | Yes            | Referenced loot ID                              |
+| `loot`   | LootResponse | No             | Only with `?expand=inventoryItems`              |
 
 ### PagedResponse\<T\>
 
@@ -1031,6 +1066,7 @@ Returned when expanding `owner`.
 |---------------------|----------|----------------------------------|
 | `id`                | long     | --                               |
 | `username`          | string   | --                               |
+| `role`              | string   | `USER`, `MODERATOR`, `ADMIN`, `OWNER` |
 | `email`             | string   | --                               |
 | `avatarUrl`         | string   | Omitted if null                  |
 | `timezone`          | string   | Omitted if null                  |
@@ -1053,7 +1089,7 @@ Returned when expanding `experiences`.
 
 ### WeaponResponse
 
-Returned when expanding `activePrimaryWeapon`, `activeSecondaryWeapon`, or `inventoryWeapons`. All fields are populated when the weapon is expanded from a character sheet.
+Returned within `InventoryWeaponResponse` when expanding `inventoryWeapons`. All fields are populated when the weapon is expanded from a character sheet.
 
 Add `?expand=features` to also expand feature objects within the weapon. Add `?expand=expansion` to expand the expansion object. Add `?expand=features,modifiers` to also expand modifiers within each feature.
 
@@ -1089,7 +1125,7 @@ Add `?expand=features` to also expand feature objects within the weapon. Add `?e
 
 ### ArmorResponse
 
-Returned when expanding `activeArmor` or `inventoryArmors`. All fields are populated when the armor is expanded from a character sheet.
+Returned within `InventoryArmorResponse` when expanding `inventoryArmors`. All fields are populated when the armor is expanded from a character sheet.
 
 Add `?expand=features` to also expand feature objects within the armor. Add `?expand=expansion` to expand the expansion object. Add `?expand=features,modifiers` to also expand modifiers within each feature.
 

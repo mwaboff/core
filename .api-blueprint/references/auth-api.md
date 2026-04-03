@@ -38,6 +38,7 @@ Register a new user account.
 |---|---|---|---|
 | `id` | `Long` | No | Unique user identifier |
 | `username` | `String` | No | The user's username |
+| `role` | `Role` | No | The user's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
 | `email` | `String` | No | The user's email address |
 | `avatarUrl` | `String` | Yes | URL to the user's avatar image |
 | `timezone` | `String` | Yes | The user's timezone |
@@ -50,6 +51,7 @@ Note: `UserResponse` uses `@JsonInclude(NON_NULL)`, so null fields are omitted f
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "test@example.com",
   "avatarUrl": "https://api.dicebear.com/7.x/avatars/svg?seed=default",
   "timezone": "UTC",
@@ -115,6 +117,7 @@ The response body contains user information. The JWT token is **not** in the res
 |---|---|---|---|
 | `id` | `Long` | No | Unique user identifier |
 | `username` | `String` | No | The user's username |
+| `role` | `Role` | No | The user's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
 | `email` | `String` | No | The user's email address |
 | `avatarUrl` | `String` | Yes | URL to the user's avatar image |
 | `timezone` | `String` | Yes | The user's timezone |
@@ -131,6 +134,7 @@ Set-Cookie: AUTH_TOKEN=<jwt-token>; Path=/; HttpOnly; SameSite=Strict
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "test@example.com",
   "avatarUrl": "https://avatar.url",
   "timezone": "UTC",
@@ -233,6 +237,7 @@ Response DTO containing non-sensitive user profile data. Uses `@JsonInclude(NON_
 |---|---|---|---|
 | `id` | `Long` | No | Auto-generated unique identifier (BIGSERIAL) |
 | `username` | `String` | No | The user's username |
+| `role` | `Role` | No | The user's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
 | `email` | `String` | No | The user's email address |
 | `avatarUrl` | `String` | Yes | URL to avatar image |
 | `timezone` | `String` | Yes | User's timezone |

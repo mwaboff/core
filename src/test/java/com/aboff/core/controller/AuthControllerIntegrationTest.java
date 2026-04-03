@@ -75,6 +75,7 @@ class AuthControllerIntegrationTest {
                                 .andExpect(status().isCreated())
                                 .andExpect(jsonPath("$.username").value("testuser"))
                                 .andExpect(jsonPath("$.email").value("test@example.com"))
+                                .andExpect(jsonPath("$.role").value("USER"))
                                 .andExpect(jsonPath("$.id").isNumber())
                                 .andExpect(jsonPath("$.passwordHash").doesNotExist()) // Should not expose password hash
                                 .andReturn();
@@ -180,6 +181,7 @@ class AuthControllerIntegrationTest {
                                 .andExpect(status().isOk())
                                 .andExpect(jsonPath("$.username").value("testuser"))
                                 .andExpect(jsonPath("$.email").value("test@example.com"))
+                                .andExpect(jsonPath("$.role").value("USER"))
                                 .andExpect(cookie().exists("AUTH_TOKEN"))
                                 .andExpect(cookie().httpOnly("AUTH_TOKEN", true))
                                 .andReturn();

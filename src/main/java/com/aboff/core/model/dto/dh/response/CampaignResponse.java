@@ -122,6 +122,25 @@ public class CampaignResponse {
      */
     private List<CharacterSheetResponse> nonPlayerCharacters;
 
+    // ========== Character Summaries ==========
+
+    /**
+     * Enriched character summaries (included only when ?expand=characterSummaries is specified)
+     */
+    private List<CampaignCharacterSummaryResponse> characterSummaries;
+
+    // ========== Campaign Lifecycle ==========
+
+    /**
+     * Whether the campaign has ended
+     */
+    private Boolean isEnded;
+
+    /**
+     * Timestamp when the campaign was ended (null if not ended)
+     */
+    private LocalDateTime endedAt;
+
     // ========== Timestamps ==========
 
     /**

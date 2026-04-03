@@ -74,19 +74,22 @@ public class CharacterSheetController {
     /**
      * Retrieves a single character sheet by ID.
      * <p>
-     * All authenticated users can view any character sheet.
+     * All authenticated users can view any character sheet. When authenticated,
+     * the response may include campaign info if the viewer has access.
      * </p>
      *
      * @param id The character sheet ID
      * @param expand Comma-separated list of relationships to expand
+     * @param authentication The authentication object containing the current user
      * @return Character sheet response with 200 OK status
      */
     @GetMapping("/{id}")
     public ResponseEntity<CharacterSheetResponse> getCharacterSheetById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication) {
 
-        CharacterSheetResponse response = characterSheetService.getCharacterSheetById(id, expand);
+        CharacterSheetResponse response = characterSheetService.getCharacterSheetById(id, expand, authentication);
         return ResponseEntity.ok(response);
     }
 

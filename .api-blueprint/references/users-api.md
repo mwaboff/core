@@ -20,6 +20,7 @@ Retrieve the authenticated user's own profile. Returns full profile details incl
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "test@example.com",
   "avatarUrl": "https://avatar.url",
   "timezone": "UTC",
@@ -64,6 +65,7 @@ Retrieve a user's profile by numeric ID. The response content varies based on th
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "test@example.com",
   "avatarUrl": "https://avatar.url",
   "timezone": "UTC",
@@ -80,6 +82,7 @@ Only public fields are returned. Private fields (`email`, `timezone`, `lastModif
 {
   "id": 2,
   "username": "otheruser",
+  "role": "USER",
   "avatarUrl": "https://other.avatar.url",
   "createdAt": "2026-03-13T10:30:00"
 }
@@ -93,6 +96,7 @@ Full profile plus admin fields are returned. Null admin fields are omitted.
 {
   "id": 3,
   "username": "targetuser",
+  "role": "USER",
   "email": "target@example.com",
   "avatarUrl": "https://target.avatar.url",
   "timezone": "America/Chicago",
@@ -154,6 +158,7 @@ Returns the full updated user profile:
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "newemail@example.com",
   "avatarUrl": "https://new.avatar.url",
   "timezone": "America/New_York",
@@ -281,6 +286,7 @@ Response DTO for user profile endpoints. Uses `@JsonInclude(NON_NULL)` so null f
 |-------|------|----------|------------|-------------|
 | `id` | `Long` | No | All | Auto-generated user ID |
 | `username` | `String` | No | All | Unique username |
+| `role` | `Role` | No | All | User's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
 | `email` | `String` | Yes | Self + Privileged | User's email address |
 | `avatarUrl` | `String` | Yes | All | URL to avatar image |
 | `timezone` | `String` | Yes | Self + Privileged | IANA timezone identifier |
