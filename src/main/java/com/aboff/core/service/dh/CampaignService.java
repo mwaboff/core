@@ -655,6 +655,53 @@ public class CampaignService {
     }
 
     /**
+     * Retrieves a paginated list of campaigns for a specific user.
+     * <p>
+     * Access is restricted to the target user themselves or users with MODERATOR/ADMIN/OWNER role.
+     * Permission checks are performed before user existence checks so that regular users
+     * receive 403 (not 404) for non-existent user IDs.
+     * </p>
+     *
+     * @param userId The ID of the user whose campaigns to retrieve
+     * @param page The page number (zero-based)
+     * @param size The page size (capped at 100)
+     * @param expand Comma-separated list of relationships to expand
+     * @param auth The authentication object containing the current user
+     * @return Paginated response containing the user's campaigns
+     * @throws InsufficientPermissionsException if the authenticated user is not the target user and lacks MODERATOR+ role
+     * @throws EntityNotFoundException if the user is not found
+     */
+    @Transactional(readOnly = true)
+    public PagedResponse<CampaignResponse> getUserCampaigns(Long userId, int page, int size, String expand, Authentication auth) {
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        Long authenticatedUserId = userDetails.getUserId();
+
+        if (!authenticatedUserId.equals(userId) && !roleHierarchyService.hasModeratorOrHigher(userDetails)) {
+            throw new InsufficientPermissionsException("You do not have permission to view this user's campaigns");
+        }
+
+        userRepository.findById(userId)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
+
+        size = Math.min(size, 100);
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+
+        Page<Campaign> campaignPage = campaignRepository.findActiveByUserInvolvement(userId, pageable);
+
+        Set<String> expandSet = parseExpand(expand);
+
+        return PagedResponse.<CampaignResponse>builder()
+                .content(campaignPage.getContent().stream()
+                        .map(campaign -> toResponse(campaign, expandSet))
+                        .toList())
+                .totalElements(campaignPage.getTotalElements())
+                .totalPages(campaignPage.getTotalPages())
+                .currentPage(campaignPage.getNumber())
+                .pageSize(campaignPage.getSize())
+                .build();
+    }
+
+    /**
      * Ends a campaign, locking it from further modifications.
      * <p>
      * Only the campaign creator or users with MODERATOR/ADMIN/OWNER role can end a campaign.

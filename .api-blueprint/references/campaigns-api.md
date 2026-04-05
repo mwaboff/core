@@ -65,6 +65,8 @@ curl -s "http://localhost:8080/api/dh/campaigns/mine?expand=creator" \
   --cookie "AUTH_TOKEN=<token>"
 ```
 
+> **See also:** `GET /api/users/{userId}/campaigns` in `references/users-api.md` — retrieves campaigns for a specific user (self or MODERATOR+), useful for admin views or viewing another user's campaign involvement.
+
 ---
 
 ## 2. Join Campaign via Invite

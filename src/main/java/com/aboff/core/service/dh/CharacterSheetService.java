@@ -82,16 +82,18 @@ public class CharacterSheetService {
      * Retrieves a paginated list of character sheets.
      * <p>
      * Supports optional filtering by owner ID, name, and level range.
-     * All authenticated users can view character sheets.
+     * Regular users are automatically scoped to only see their own character sheets.
+     * Privileged users (MODERATOR+) can see all character sheets and filter by any owner.
      * </p>
      *
      * @param page Zero-based page number
      * @param size Number of items per page (max 100)
-     * @param ownerId Optional filter for owner ID
+     * @param ownerId Optional filter for owner ID (ignored for regular users, forced to own ID)
      * @param name Optional filter for name (case-insensitive partial match)
      * @param minLevel Optional filter for minimum level
      * @param maxLevel Optional filter for maximum level
      * @param expand Comma-separated list of relationships to expand (owner, experiences)
+     * @param auth Authentication context
      * @return Paginated response containing character sheets
      */
     @Transactional(readOnly = true)
@@ -102,7 +104,14 @@ public class CharacterSheetService {
             String name,
             Integer minLevel,
             Integer maxLevel,
-            String expand) {
+            String expand,
+            Authentication auth) {
+
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        User user = userDetails.getUser();
+        if (!roleHierarchyService.isPrivilegedRole(user.getRole())) {
+            ownerId = user.getId();
+        }
 
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
@@ -756,6 +765,7 @@ public class CharacterSheetService {
                 .hopeMarked(sheet.getHopeMarked())
                 .gold(sheet.getGold())
                 .ownerId(sheet.getOwner().getId())
+                .ownerName(sheet.getOwner().getUsername())
                 .createdAt(sheet.getCreatedAt())
                 .lastModifiedAt(sheet.getLastModifiedAt())
                 .deletedAt(sheet.getDeletedAt());

@@ -45,6 +45,7 @@ Authentication: Authenticated
 |--------|------|-------------|
 | GET | /api/users/me | Get own profile |
 | GET | /api/users/{userId} | Get user by ID (visibility varies by role) |
+| GET | /api/users/{userId}/campaigns | Get user's campaigns (self or MODERATOR+) |
 | PATCH | /api/users/me | Update own profile (partial) |
 | POST | /api/users/me/change-password | Change password (revokes all tokens) |
 | DELETE | /api/users/me | Soft-delete own account |

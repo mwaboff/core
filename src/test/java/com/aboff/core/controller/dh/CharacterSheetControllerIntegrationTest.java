@@ -134,10 +134,46 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
-    void getAllCharacterSheets_AsRegularUser_Returns403() throws Exception {
+    void getAllCharacterSheets_AsRegularUser_ReturnsOnlyOwnSheets() throws Exception {
+        // Arrange - player2 has a sheet too
+        createCharacterSheet("Legolas", "he/him", 6, player2);
+
+        // Act & Assert - player1 should only see their own sheet (Aragorn)
         mockMvc.perform(get("/api/dh/character-sheets")
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].ownerId").value(player1.getId()))
+                .andExpect(jsonPath("$.content[0].name").value("Aragorn"));
+    }
+
+    @Test
+    void getAllCharacterSheets_AsRegularUser_OwnerIdOverriddenToOwnId() throws Exception {
+        // Arrange - player2 has a sheet
+        createCharacterSheet("Legolas", "he/him", 6, player2);
+
+        // Act & Assert - player1 requests player2's sheets but should only see their own
+        mockMvc.perform(get("/api/dh/character-sheets")
+                        .param("ownerId", player2.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].ownerId").value(player1.getId()));
+    }
+
+    @Test
+    void getAllCharacterSheets_AsModeratorFilterByOwnerId_ReturnsFilteredSheets() throws Exception {
+        // Arrange
+        createCharacterSheet("Legolas", "he/him", 6, player2);
+
+        // Act & Assert - moderator can filter by specific ownerId
+        mockMvc.perform(get("/api/dh/character-sheets")
+                        .param("ownerId", player2.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].ownerId").value(player2.getId()))
+                .andExpect(jsonPath("$.content[0].name").value("Legolas"));
     }
 
     @Test

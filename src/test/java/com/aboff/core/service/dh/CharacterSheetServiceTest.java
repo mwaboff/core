@@ -123,8 +123,13 @@ class CharacterSheetServiceTest {
     // ==================== GET ALL CHARACTER SHEETS TESTS ====================
 
     @Test
-    void getAllCharacterSheets_WithoutFilters_ReturnsPagedSheets() {
+    void getAllCharacterSheets_AsPrivilegedUser_WithoutFilters_ReturnsPagedSheets() {
         // Arrange
+        User moderator = User.builder().id(10L).username("moderator").role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.MODERATOR)).thenReturn(true);
+
         User owner = User.builder().id(1L).username("player1").build();
         CharacterSheet sheet1 = CharacterSheet.builder()
                 .id(1L)
@@ -162,7 +167,7 @@ class CharacterSheetServiceTest {
 
         // Act
         PagedResponse<CharacterSheetResponse> result = characterSheetService.getAllCharacterSheets(
-                0, 20, null, null, null, null, null);
+                0, 20, null, null, null, null, null, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -173,8 +178,13 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void getAllCharacterSheets_FilterByOwnerId_ReturnsFiltered() {
+    void getAllCharacterSheets_AsPrivilegedUser_FilterByOwnerId_ReturnsFiltered() {
         // Arrange
+        User moderator = User.builder().id(10L).username("moderator").role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.MODERATOR)).thenReturn(true);
+
         User owner = User.builder().id(1L).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
@@ -197,7 +207,7 @@ class CharacterSheetServiceTest {
 
         // Act
         PagedResponse<CharacterSheetResponse> result = characterSheetService.getAllCharacterSheets(
-                0, 20, 1L, null, null, null, null);
+                0, 20, 1L, null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -206,8 +216,13 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void getAllCharacterSheets_FilterByName_ReturnsFiltered() {
+    void getAllCharacterSheets_AsPrivilegedUser_FilterByName_ReturnsFiltered() {
         // Arrange
+        User moderator = User.builder().id(10L).username("moderator").role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.MODERATOR)).thenReturn(true);
+
         User owner = User.builder().id(1L).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
@@ -230,7 +245,7 @@ class CharacterSheetServiceTest {
 
         // Act
         PagedResponse<CharacterSheetResponse> result = characterSheetService.getAllCharacterSheets(
-                0, 20, null, "Ara", null, null, null);
+                0, 20, null, "Ara", null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -239,8 +254,13 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void getAllCharacterSheets_FilterByLevelRange_ReturnsFiltered() {
+    void getAllCharacterSheets_AsPrivilegedUser_FilterByLevelRange_ReturnsFiltered() {
         // Arrange
+        User moderator = User.builder().id(10L).username("moderator").role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.MODERATOR)).thenReturn(true);
+
         User owner = User.builder().id(1L).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
@@ -263,12 +283,69 @@ class CharacterSheetServiceTest {
 
         // Act
         PagedResponse<CharacterSheetResponse> result = characterSheetService.getAllCharacterSheets(
-                0, 20, null, null, 3, 7, null);
+                0, 20, null, null, 3, 7, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getLevel()).isEqualTo(5);
         verify(characterSheetRepository).findActiveWithFilters(eq(null), eq(null), eq(3), eq(7), any(Pageable.class));
+    }
+
+    @Test
+    void getAllCharacterSheets_AsRegularUser_ForcesOwnerIdToOwnId() {
+        // Arrange
+        User regularUser = User.builder().id(5L).username("player1").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(regularUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
+
+        Page<CharacterSheet> sheetPage = new PageImpl<>(List.of());
+        when(characterSheetRepository.findActiveWithFilters(
+                eq(5L), eq(null), eq(null), eq(null), any(Pageable.class))).thenReturn(sheetPage);
+
+        // Act - pass ownerId=99 but it should be overridden to 5
+        characterSheetService.getAllCharacterSheets(0, 20, 99L, null, null, null, null, authentication);
+
+        // Assert - repository is called with the user's own ID, not the requested one
+        verify(characterSheetRepository).findActiveWithFilters(eq(5L), eq(null), eq(null), eq(null), any(Pageable.class));
+    }
+
+    @Test
+    void getAllCharacterSheets_AsRegularUser_WithNullOwnerId_ForcesToOwnId() {
+        // Arrange
+        User regularUser = User.builder().id(5L).username("player1").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(regularUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
+
+        Page<CharacterSheet> sheetPage = new PageImpl<>(List.of());
+        when(characterSheetRepository.findActiveWithFilters(
+                eq(5L), eq(null), eq(null), eq(null), any(Pageable.class))).thenReturn(sheetPage);
+
+        // Act - pass null ownerId, should be forced to 5
+        characterSheetService.getAllCharacterSheets(0, 20, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(characterSheetRepository).findActiveWithFilters(eq(5L), eq(null), eq(null), eq(null), any(Pageable.class));
+    }
+
+    @Test
+    void getAllCharacterSheets_AsPrivilegedUser_CanUseNullOwnerId() {
+        // Arrange
+        User admin = User.builder().id(10L).username("admin").role(Role.ADMIN).build();
+        CustomUserDetails userDetails = new CustomUserDetails(admin);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.ADMIN)).thenReturn(true);
+
+        Page<CharacterSheet> sheetPage = new PageImpl<>(List.of());
+        when(characterSheetRepository.findActiveWithFilters(
+                eq(null), eq(null), eq(null), eq(null), any(Pageable.class))).thenReturn(sheetPage);
+
+        // Act - null ownerId should stay null for privileged users
+        characterSheetService.getAllCharacterSheets(0, 20, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(characterSheetRepository).findActiveWithFilters(eq(null), eq(null), eq(null), eq(null), any(Pageable.class));
     }
 
     // ==================== GET CHARACTER SHEET BY ID TESTS ====================

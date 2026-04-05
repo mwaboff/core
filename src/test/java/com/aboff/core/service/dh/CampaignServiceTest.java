@@ -37,6 +37,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -911,6 +912,100 @@ class CampaignServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(2);
         assertThat(result.getTotalElements()).isEqualTo(2);
+    }
+
+    // ==================== GET USER CAMPAIGNS TESTS ====================
+
+    @Test
+    void getUserCampaigns_SelfAccess_ReturnsCampaigns() {
+        // Arrange
+        User user = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Campaign campaign1 = createTestCampaign(1L, "Campaign One", user);
+        Campaign campaign2 = createTestCampaign(2L, "Campaign Two", user);
+
+        Page<Campaign> campaignPage = new PageImpl<>(List.of(campaign1, campaign2));
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(campaignRepository.findActiveByUserInvolvement(eq(1L), any(Pageable.class)))
+                .thenReturn(campaignPage);
+
+        // Act
+        PagedResponse<CampaignResponse> result = campaignService.getUserCampaigns(1L, 0, 20, null, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void getUserCampaigns_ModeratorAccess_ReturnsCampaigns() {
+        // Arrange
+        User moderator = User.builder().id(1L).username("mod").role(Role.MODERATOR).build();
+        User targetUser = User.builder().id(2L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Target Campaign", targetUser);
+
+        Page<Campaign> campaignPage = new PageImpl<>(List.of(campaign));
+        CustomUserDetails modDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(modDetails);
+        when(roleHierarchyService.hasModeratorOrHigher(modDetails)).thenReturn(true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
+        when(campaignRepository.findActiveByUserInvolvement(eq(2L), any(Pageable.class)))
+                .thenReturn(campaignPage);
+
+        // Act
+        PagedResponse<CampaignResponse> result = campaignService.getUserCampaigns(2L, 0, 20, null, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+    }
+
+    @Test
+    void getUserCampaigns_UnauthorizedAccess_ThrowsInsufficientPermissions() {
+        // Arrange
+        User regularUser = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(regularUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(false);
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.getUserCampaigns(2L, 0, 20, null, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
+    }
+
+    @Test
+    void getUserCampaigns_UserNotFound_ThrowsEntityNotFound() {
+        // Arrange
+        User user = User.builder().id(999L).username("ghost").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.getUserCampaigns(999L, 0, 20, null, authentication))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    @Test
+    void getUserCampaigns_SizeExceedsMax_CapsAt100() {
+        // Arrange
+        User user = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Page<Campaign> emptyPage = new PageImpl<>(List.of());
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(campaignRepository.findActiveByUserInvolvement(eq(1L), any(Pageable.class)))
+                .thenReturn(emptyPage);
+
+        // Act
+        campaignService.getUserCampaigns(1L, 0, 200, null, authentication);
+
+        // Assert - verify the pageable passed to the repository has size capped at 100
+        verify(campaignRepository).findActiveByUserInvolvement(eq(1L), argThat(pageable ->
+                pageable.getPageSize() == 100
+        ));
     }
 
     // ==================== END CAMPAIGN TESTS ====================

@@ -13,7 +13,7 @@ Authentication: JWT via `AUTH_TOKEN` HttpOnly cookie (all endpoints require auth
 GET /api/dh/character-sheets
 ```
 
-**Authorization:** MODERATOR, ADMIN, or OWNER role required. Regular USER role returns `403 Forbidden`.
+**Authorization:** All authenticated users. Regular users are automatically scoped to only see their own character sheets (the `ownerId` parameter is forced to the current user's ID). MODERATOR, ADMIN, and OWNER roles can view all character sheets and filter by any owner.
 
 **Query Parameters:**
 
@@ -72,6 +72,7 @@ curl -b "AUTH_TOKEN=<token>" \
       "hopeMarked": 0,
       "gold": 50,
       "ownerId": 1,
+      "ownerName": "player1",
       "owner": {
         "id": 1,
         "username": "player1",
@@ -164,6 +165,7 @@ curl -b "AUTH_TOKEN=<token>" \
   "hopeMarked": 0,
   "gold": 50,
   "ownerId": 1,
+  "ownerName": "player1",
   "owner": {
     "id": 1,
     "username": "player1",
@@ -299,6 +301,7 @@ curl -X POST -b "AUTH_TOKEN=<token>" \
   "hopeMarked": 0,
   "gold": 50,
   "ownerId": 1,
+  "ownerName": "player1",
   "communityCardIds": [1],
   "ancestryCardIds": [2],
   "subclassCardIds": [3, 4],
@@ -392,6 +395,7 @@ curl -X PUT -b "AUTH_TOKEN=<token>" \
   "hopeMarked": 0,
   "gold": 100,
   "ownerId": 1,
+  "ownerName": "player1",
   "communityCardIds": [],
   "ancestryCardIds": [],
   "subclassCardIds": [],
@@ -909,6 +913,7 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `in
 | `hopeMarked`             | integer                   | Yes            | --                                         |
 | `gold`                   | integer                   | Yes            | --                                         |
 | `ownerId`                | long                      | Yes            | --                                         |
+| `ownerName`              | string                    | Yes            | Username of the owner                      |
 | `owner`                  | UserResponse              | No             | Only with `?expand=owner`                  |
 | `communityCardIds`       | long[]                    | Yes            | --                                         |
 | `communityCards`         | CommunityCardResponse[]   | No             | Only with `?expand=communityCards`         |

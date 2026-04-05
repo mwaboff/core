@@ -122,6 +122,75 @@ curl -s http://localhost:8080/api/users/42 \
 
 ---
 
+### GET /api/users/{userId}/campaigns
+
+Retrieve a paginated list of campaigns where the specified user is involved (as creator, GM, or player). Accessible by the target user themselves or users with MODERATOR+ role.
+
+**Authentication:** Required (JWT cookie)
+**Access:** Target user themselves OR MODERATOR/ADMIN/OWNER
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `userId` | `Long` | Yes | The target user's numeric ID |
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | `int` | `0` | Page number (zero-based) |
+| `size` | `int` | `20` | Page size (max 100) |
+| `expand` | `String` | — | Comma-separated fields to expand (e.g., `creator`, `gameMasters`, `players`) |
+
+**Status:** `200 OK`
+
+**Response Body:**
+
+```json
+{
+  "content": [
+    {
+      "id": 1,
+      "name": "My Campaign",
+      "description": "A Daggerheart adventure",
+      "creatorId": 42,
+      "isEnded": false,
+      "gameMasterIds": [42],
+      "playerIds": [43, 44],
+      "createdAt": "2026-03-13T10:30:00",
+      "lastModifiedAt": "2026-03-13T10:30:00"
+    }
+  ],
+  "totalElements": 1,
+  "totalPages": 1,
+  "currentPage": 0,
+  "pageSize": 20
+}
+```
+
+**Error Responses:**
+
+| Status | Condition | Body |
+|--------|-----------|------|
+| `401 Unauthorized` | Missing/invalid token | (no body) |
+| `403 Forbidden` | Regular user viewing another user's campaigns | `{"status": 403, "error": "Insufficient Permissions", "message": "You do not have permission to view this user's campaigns", ...}` |
+| `404 Not Found` | User ID does not exist (MODERATOR+ only) | `{"status": 404, "error": "Not Found", "message": "User not found with id: 999", ...}` |
+
+**Notes:**
+- Regular users requesting another user's campaigns receive 403 (not 404), even if the user ID does not exist. This prevents user enumeration.
+- MODERATOR+ users receive 404 for non-existent user IDs.
+- See also: `GET /api/dh/campaigns/mine` for the authenticated user's own campaigns shortcut.
+
+**curl:**
+
+```bash
+curl -s "http://localhost:8080/api/users/42/campaigns?page=0&size=20&expand=creator" \
+  --cookie "AUTH_TOKEN=<jwt_token>"
+```
+
+---
+
 ### PATCH /api/users/me
 
 Update the authenticated user's profile. Supports partial updates — only provided (non-null) fields are modified.

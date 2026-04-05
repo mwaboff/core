@@ -4,9 +4,11 @@ import com.aboff.core.model.dto.request.ChangePasswordRequest;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
+import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
+import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -22,6 +24,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,6 +47,9 @@ class UserControllerIntegrationTest {
 
         @Autowired
         private ActiveTokenRepository activeTokenRepository;
+
+        @Autowired
+        private CampaignRepository campaignRepository;
 
         @Autowired
         private PasswordEncoder passwordEncoder;
@@ -223,6 +229,20 @@ class UserControllerIntegrationTest {
                                 .andExpect(jsonPath("$.failedLoginAttempts").value(5))
                                 .andExpect(jsonPath("$.deletedAt").doesNotExist())
                                 .andExpect(jsonPath("$.bannedAt").doesNotExist());
+        }
+
+        private Campaign createCampaign(String name, User creator) {
+                Campaign campaign = Campaign.builder()
+                                .name(name)
+                                .creator(creator)
+                                .gameMasters(new HashSet<>())
+                                .players(new HashSet<>())
+                                .pendingCharacterSheets(new HashSet<>())
+                                .playerCharacters(new HashSet<>())
+                                .nonPlayerCharacters(new HashSet<>())
+                                .build();
+                campaign.getGameMasters().add(creator);
+                return campaignRepository.save(campaign);
         }
 
         private User createPrivilegedUser(String username, String email, Role role) {
@@ -467,6 +487,120 @@ class UserControllerIntegrationTest {
                 // Act & Assert
                 mockMvc.perform(delete("/api/users/me"))
                                 .andExpect(status().isUnauthorized());
+        }
+
+        // ==================== GET USER CAMPAIGNS TESTS ====================
+
+        @Test
+        void getUserCampaigns_SelfAccess_Returns200WithCampaigns() throws Exception {
+                // Arrange
+                Campaign campaign = createCampaign("My Campaign", testUser);
+
+                // Act & Assert
+                mockMvc.perform(get("/api/users/" + testUser.getId() + "/campaigns")
+                                .cookie(authCookie))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content").isArray())
+                                .andExpect(jsonPath("$.content.length()").value(1))
+                                .andExpect(jsonPath("$.content[0].name").value("My Campaign"))
+                                .andExpect(jsonPath("$.totalElements").value(1))
+                                .andExpect(jsonPath("$.currentPage").value(0));
+        }
+
+        @Test
+        void getUserCampaigns_ModeratorAccess_Returns200() throws Exception {
+                // Arrange
+                User moderator = createPrivilegedUser("moderator2", "mod2@example.com", Role.MODERATOR);
+                String modToken = jwtTokenProvider.generateToken(moderator);
+                Cookie modCookie = new Cookie("AUTH_TOKEN", modToken);
+
+                Campaign campaign = createCampaign("User Campaign", testUser);
+
+                // Act & Assert
+                mockMvc.perform(get("/api/users/" + testUser.getId() + "/campaigns")
+                                .cookie(modCookie))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content").isArray())
+                                .andExpect(jsonPath("$.content.length()").value(1))
+                                .andExpect(jsonPath("$.content[0].name").value("User Campaign"));
+        }
+
+        @Test
+        void getUserCampaigns_UnauthorizedOtherUser_Returns403() throws Exception {
+                // Arrange
+                User otherUser = User.builder()
+                                .username("otherplayer")
+                                .email("otherplayer@example.com")
+                                .passwordHash(passwordEncoder.encode("Password123!"))
+                                .build();
+                otherUser = userRepository.save(otherUser);
+
+                // Act & Assert - testUser trying to view otherUser's campaigns
+                mockMvc.perform(get("/api/users/" + otherUser.getId() + "/campaigns")
+                                .cookie(authCookie))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void getUserCampaigns_RegularUserNonExistentId_Returns403() throws Exception {
+                // Act & Assert - regular user gets 403 not 404 for non-existent IDs
+                mockMvc.perform(get("/api/users/999999/campaigns")
+                                .cookie(authCookie))
+                                .andExpect(status().isForbidden());
+        }
+
+        @Test
+        void getUserCampaigns_ModeratorNonExistentUser_Returns404() throws Exception {
+                // Arrange
+                User moderator = createPrivilegedUser("moderator3", "mod3@example.com", Role.MODERATOR);
+                String modToken = jwtTokenProvider.generateToken(moderator);
+                Cookie modCookie = new Cookie("AUTH_TOKEN", modToken);
+
+                // Act & Assert - moderator sees 404 for non-existent user
+                mockMvc.perform(get("/api/users/999999/campaigns")
+                                .cookie(modCookie))
+                                .andExpect(status().isNotFound());
+        }
+
+        @Test
+        void getUserCampaigns_Unauthenticated_Returns401() throws Exception {
+                // Act & Assert
+                mockMvc.perform(get("/api/users/1/campaigns"))
+                                .andExpect(status().isUnauthorized());
+        }
+
+        @Test
+        void getUserCampaigns_Pagination_Works() throws Exception {
+                // Arrange - create multiple campaigns
+                for (int i = 1; i <= 3; i++) {
+                        createCampaign("Campaign " + i, testUser);
+                }
+
+                // Act & Assert - request page size of 2
+                mockMvc.perform(get("/api/users/" + testUser.getId() + "/campaigns")
+                                .param("page", "0")
+                                .param("size", "2")
+                                .cookie(authCookie))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content.length()").value(2))
+                                .andExpect(jsonPath("$.totalElements").value(3))
+                                .andExpect(jsonPath("$.totalPages").value(2))
+                                .andExpect(jsonPath("$.pageSize").value(2));
+        }
+
+        @Test
+        void getUserCampaigns_WithExpand_ReturnsExpandedData() throws Exception {
+                // Arrange
+                Campaign campaign = createCampaign("Expanded Campaign", testUser);
+
+                // Act & Assert
+                mockMvc.perform(get("/api/users/" + testUser.getId() + "/campaigns")
+                                .param("expand", "creator")
+                                .cookie(authCookie))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.content[0].name").value("Expanded Campaign"))
+                                .andExpect(jsonPath("$.content[0].creator").exists())
+                                .andExpect(jsonPath("$.content[0].creator.username").value("testuser"));
         }
 
         @Test

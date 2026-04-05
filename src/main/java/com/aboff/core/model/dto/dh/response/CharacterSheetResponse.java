@@ -208,6 +208,11 @@ public class CharacterSheetResponse {
     private Long ownerId;
 
     /**
+     * Username of the user who owns this character sheet (always included)
+     */
+    private String ownerName;
+
+    /**
      * Full user object (included only when ?expand=owner is specified)
      */
     private UserResponse owner;
