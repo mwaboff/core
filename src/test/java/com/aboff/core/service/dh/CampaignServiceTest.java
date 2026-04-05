@@ -3,12 +3,16 @@ package com.aboff.core.service.dh;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
+import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
+import com.aboff.core.model.dto.dh.response.JoinCampaignResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Campaign;
+import com.aboff.core.model.entity.dh.CampaignInvite;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.enums.Role;
+import com.aboff.core.repository.dh.CampaignInviteRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.UserRepository;
@@ -25,6 +29,7 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 
+import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
@@ -32,6 +37,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -44,6 +50,9 @@ class CampaignServiceTest {
 
     @Mock
     private CampaignRepository campaignRepository;
+
+    @Mock
+    private CampaignInviteRepository campaignInviteRepository;
 
     @Mock
     private UserRepository userRepository;
@@ -564,12 +573,16 @@ class CampaignServiceTest {
     }
 
     @Test
-    void removePlayer_AsGM_RemovesPlayer() {
+    void kickPlayer_AsGM_RemovesPlayerAndCascadesCharacterSheets() {
         // Arrange
         User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
         User player = User.builder().id(2L).username("player1").build();
         Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
         campaign.getPlayers().add(player);
+
+        CharacterSheet playerSheet = CharacterSheet.builder()
+                .id(10L).name("Hero").owner(player).build();
+        campaign.getPlayerCharacters().add(playerSheet);
 
         CustomUserDetails userDetails = new CustomUserDetails(creator);
         when(authentication.getPrincipal()).thenReturn(userDetails);
@@ -577,10 +590,11 @@ class CampaignServiceTest {
         when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        CampaignResponse result = campaignService.removePlayer(1L, 2L, authentication);
+        CampaignResponse result = campaignService.kickPlayer(1L, 2L, authentication);
 
         // Assert
         assertThat(result.getPlayerIds()).doesNotContain(2L);
+        assertThat(result.getPlayerCharacterIds()).doesNotContain(10L);
     }
 
     // ==================== CHARACTER SHEET MANAGEMENT TESTS ====================
@@ -603,6 +617,7 @@ class CampaignServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(characterSheet));
+        when(campaignRepository.isCharacterSheetInActiveCampaign(1L)).thenReturn(false);
         when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
@@ -777,6 +792,7 @@ class CampaignServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(characterSheet));
+        when(campaignRepository.isCharacterSheetInActiveCampaign(1L)).thenReturn(false);
         when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
@@ -828,7 +844,407 @@ class CampaignServiceTest {
     }
 
     @Test
-    void removeCharacterSheet_AsNonGM_ThrowsInsufficientPermissionsException() {
+    void removeCharacterSheet_AsSheetOwner_RemovesSheet() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").build();
+        User player = User.builder().id(2L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getPlayers().add(player);
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(5L).name("Hero").owner(player).build();
+        campaign.getPlayerCharacters().add(sheet);
+
+        CustomUserDetails userDetails = new CustomUserDetails(player);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        CampaignResponse result = campaignService.removeCharacterSheet(1L, 5L, authentication);
+
+        // Assert
+        assertThat(result.getPlayerCharacterIds()).doesNotContain(5L);
+    }
+
+    @Test
+    void removeCharacterSheet_AsNonGMNonOwner_ThrowsInsufficientPermissionsException() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").build();
+        User player = User.builder().id(2L).username("player1").role(Role.USER).build();
+        User otherPlayer = User.builder().id(3L).username("player2").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getPlayers().add(player);
+        campaign.getPlayers().add(otherPlayer);
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(5L).name("Hero").owner(player).build();
+        campaign.getPlayerCharacters().add(sheet);
+
+        CustomUserDetails userDetails = new CustomUserDetails(otherPlayer);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        // Act & Assert - otherPlayer is not the sheet owner and not a GM
+        assertThatThrownBy(() -> campaignService.removeCharacterSheet(1L, 5L, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
+    }
+
+    // ==================== GET MY CAMPAIGNS TESTS ====================
+
+    @Test
+    void getMyCampaigns_ReturnsUserCampaigns() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign1 = createTestCampaign(1L, "My Campaign", creator);
+        Campaign campaign2 = createTestCampaign(2L, "Another Campaign", creator);
+
+        Page<Campaign> campaignPage = new PageImpl<>(List.of(campaign1, campaign2));
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveByUserInvolvement(eq(1L), any(Pageable.class)))
+                .thenReturn(campaignPage);
+
+        // Act
+        PagedResponse<CampaignResponse> result = campaignService.getMyCampaigns(0, 20, null, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+    }
+
+    // ==================== GET USER CAMPAIGNS TESTS ====================
+
+    @Test
+    void getUserCampaigns_SelfAccess_ReturnsCampaigns() {
+        // Arrange
+        User user = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Campaign campaign1 = createTestCampaign(1L, "Campaign One", user);
+        Campaign campaign2 = createTestCampaign(2L, "Campaign Two", user);
+
+        Page<Campaign> campaignPage = new PageImpl<>(List.of(campaign1, campaign2));
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(campaignRepository.findActiveByUserInvolvement(eq(1L), any(Pageable.class)))
+                .thenReturn(campaignPage);
+
+        // Act
+        PagedResponse<CampaignResponse> result = campaignService.getUserCampaigns(1L, 0, 20, null, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+    }
+
+    @Test
+    void getUserCampaigns_ModeratorAccess_ReturnsCampaigns() {
+        // Arrange
+        User moderator = User.builder().id(1L).username("mod").role(Role.MODERATOR).build();
+        User targetUser = User.builder().id(2L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Target Campaign", targetUser);
+
+        Page<Campaign> campaignPage = new PageImpl<>(List.of(campaign));
+        CustomUserDetails modDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(modDetails);
+        when(roleHierarchyService.hasModeratorOrHigher(modDetails)).thenReturn(true);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(targetUser));
+        when(campaignRepository.findActiveByUserInvolvement(eq(2L), any(Pageable.class)))
+                .thenReturn(campaignPage);
+
+        // Act
+        PagedResponse<CampaignResponse> result = campaignService.getUserCampaigns(2L, 0, 20, null, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+    }
+
+    @Test
+    void getUserCampaigns_UnauthorizedAccess_ThrowsInsufficientPermissions() {
+        // Arrange
+        User regularUser = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(regularUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(false);
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.getUserCampaigns(2L, 0, 20, null, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
+    }
+
+    @Test
+    void getUserCampaigns_UserNotFound_ThrowsEntityNotFound() {
+        // Arrange
+        User user = User.builder().id(999L).username("ghost").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.getUserCampaigns(999L, 0, 20, null, authentication))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    @Test
+    void getUserCampaigns_SizeExceedsMax_CapsAt100() {
+        // Arrange
+        User user = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Page<Campaign> emptyPage = new PageImpl<>(List.of());
+        CustomUserDetails userDetails = new CustomUserDetails(user);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+        when(campaignRepository.findActiveByUserInvolvement(eq(1L), any(Pageable.class)))
+                .thenReturn(emptyPage);
+
+        // Act
+        campaignService.getUserCampaigns(1L, 0, 200, null, authentication);
+
+        // Assert - verify the pageable passed to the repository has size capped at 100
+        verify(campaignRepository).findActiveByUserInvolvement(eq(1L), argThat(pageable ->
+                pageable.getPageSize() == 100
+        ));
+    }
+
+    // ==================== END CAMPAIGN TESTS ====================
+
+    @Test
+    void endCampaign_AsCreator_SetEndedAt() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        CampaignResponse result = campaignService.endCampaign(1L, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getIsEnded()).isTrue();
+        verify(campaignRepository).save(any(Campaign.class));
+    }
+
+    @Test
+    void endCampaign_AsNonCreator_ThrowsInsufficientPermissions() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").build();
+        User otherUser = User.builder().id(2L).username("other").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        CustomUserDetails userDetails = new CustomUserDetails(otherUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.endCampaign(1L, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
+    }
+
+    @Test
+    void endCampaign_AlreadyEnded_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.setEndedAt(LocalDateTime.now());
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.endCampaign(1L, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already ended");
+    }
+
+    // ==================== GENERATE INVITE TESTS ====================
+
+    @Test
+    void generateInvite_AsGM_CreatesInvite() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(campaignInviteRepository.save(any(CampaignInvite.class))).thenAnswer(invocation -> {
+            CampaignInvite saved = invocation.getArgument(0);
+            saved.setId(1L);
+            return saved;
+        });
+
+        // Act
+        CampaignInviteResponse result = campaignService.generateInvite(1L, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCampaignId()).isEqualTo(1L);
+        assertThat(result.getToken()).isNotNull();
+        assertThat(result.getExpiresAt()).isNotNull();
+        verify(campaignInviteRepository).save(any(CampaignInvite.class));
+    }
+
+    @Test
+    void generateInvite_EndedCampaign_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.setEndedAt(LocalDateTime.now());
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.generateInvite(1L, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ended campaign");
+    }
+
+    // ==================== JOIN VIA INVITE TESTS ====================
+
+    @Test
+    void joinViaInvite_ValidToken_AddsPlayerAndMarksUsed() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").build();
+        User joiner = User.builder().id(2L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        CampaignInvite invite = CampaignInvite.builder()
+                .id(1L)
+                .campaign(campaign)
+                .token("valid-token")
+                .createdBy(1L)
+                .expiresAt(LocalDateTime.now().plusHours(24))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(joiner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignInviteRepository.findByToken("valid-token")).thenReturn(Optional.of(invite));
+        when(userRepository.findById(2L)).thenReturn(Optional.of(joiner));
+        when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        JoinCampaignResponse result = campaignService.joinViaInvite("valid-token", authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getCampaignId()).isEqualTo(1L);
+        assertThat(result.getCampaignName()).isEqualTo("Test Campaign");
+        assertThat(campaign.getPlayers()).contains(joiner);
+        assertThat(invite.getUsedBy()).isEqualTo(2L);
+        assertThat(invite.getUsedAt()).isNotNull();
+        verify(campaignInviteRepository).save(invite);
+    }
+
+    @Test
+    void joinViaInvite_ExpiredToken_ThrowsIllegalState() {
+        // Arrange
+        User joiner = User.builder().id(2L).username("player1").role(Role.USER).build();
+
+        CampaignInvite invite = CampaignInvite.builder()
+                .id(1L)
+                .token("expired-token")
+                .createdBy(1L)
+                .expiresAt(LocalDateTime.now().minusHours(1))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(joiner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignInviteRepository.findByToken("expired-token")).thenReturn(Optional.of(invite));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.joinViaInvite("expired-token", authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("expired or already used");
+    }
+
+    @Test
+    void joinViaInvite_UsedToken_ThrowsIllegalState() {
+        // Arrange
+        User joiner = User.builder().id(2L).username("player1").role(Role.USER).build();
+
+        CampaignInvite invite = CampaignInvite.builder()
+                .id(1L)
+                .token("used-token")
+                .createdBy(1L)
+                .expiresAt(LocalDateTime.now().plusHours(24))
+                .usedBy(3L)
+                .usedAt(LocalDateTime.now().minusHours(1))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(joiner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignInviteRepository.findByToken("used-token")).thenReturn(Optional.of(invite));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.joinViaInvite("used-token", authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("expired or already used");
+    }
+
+    @Test
+    void joinViaInvite_EndedCampaign_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").build();
+        User joiner = User.builder().id(2L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.setEndedAt(LocalDateTime.now());
+
+        CampaignInvite invite = CampaignInvite.builder()
+                .id(1L)
+                .campaign(campaign)
+                .token("ended-campaign-token")
+                .createdBy(1L)
+                .expiresAt(LocalDateTime.now().plusHours(24))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(joiner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignInviteRepository.findByToken("ended-campaign-token")).thenReturn(Optional.of(invite));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.joinViaInvite("ended-campaign-token", authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ended campaign");
+    }
+
+    @Test
+    void joinViaInvite_AlreadyMember_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        CampaignInvite invite = CampaignInvite.builder()
+                .id(1L)
+                .campaign(campaign)
+                .token("member-token")
+                .createdBy(1L)
+                .expiresAt(LocalDateTime.now().plusHours(24))
+                .build();
+
+        // Creator is already involved as GM
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignInviteRepository.findByToken("member-token")).thenReturn(Optional.of(invite));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.joinViaInvite("member-token", authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already a member");
+    }
+
+    // ==================== LEAVE CAMPAIGN TESTS ====================
+
+    @Test
+    void leaveCampaign_AsPlayer_RemovesSelf() {
         // Arrange
         User creator = User.builder().id(1L).username("gm1").build();
         User player = User.builder().id(2L).username("player1").role(Role.USER).build();
@@ -838,10 +1254,141 @@ class CampaignServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(player);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        CampaignResponse result = campaignService.leaveCampaign(1L, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getPlayerIds()).doesNotContain(2L);
+        verify(campaignRepository).save(any(Campaign.class));
+    }
+
+    @Test
+    void leaveCampaign_AsNonPlayer_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").build();
+        User nonPlayer = User.builder().id(2L).username("other").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        CustomUserDetails userDetails = new CustomUserDetails(nonPlayer);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
 
         // Act & Assert
-        assertThatThrownBy(() -> campaignService.removeCharacterSheet(1L, 1L, authentication))
-                .isInstanceOf(InsufficientPermissionsException.class);
+        assertThatThrownBy(() -> campaignService.leaveCampaign(1L, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not a player");
+    }
+
+    // ==================== ENDED CAMPAIGN CONSTRAINT TESTS ====================
+
+    @Test
+    void submitCharacterSheet_AlreadyInActiveCampaign_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").build();
+        User player = User.builder().id(2L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getPlayers().add(player);
+
+        CharacterSheet characterSheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Hero")
+                .owner(player)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(player);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(characterSheet));
+        when(campaignRepository.isCharacterSheetInActiveCampaign(1L)).thenReturn(true);
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.submitCharacterSheet(1L, 1L, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("already in an active campaign");
+    }
+
+    @Test
+    void updateCampaign_EndedCampaign_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.setEndedAt(LocalDateTime.now());
+
+        UpdateCampaignRequest request = UpdateCampaignRequest.builder()
+                .name("New Name")
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.updateCampaign(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ended campaign");
+    }
+
+    @Test
+    void addPlayer_EndedCampaign_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.setEndedAt(LocalDateTime.now());
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.addPlayer(1L, 2L, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ended campaign");
+    }
+
+    @Test
+    void addGameMaster_EndedCampaign_ThrowsIllegalState() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.setEndedAt(LocalDateTime.now());
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        // Act & Assert
+        assertThatThrownBy(() -> campaignService.addGameMaster(1L, 2L, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ended campaign");
+    }
+
+    @Test
+    void removeCharacterSheet_OnEndedCampaign_Succeeds() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        CharacterSheet characterSheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Hero")
+                .owner(creator)
+                .build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.setEndedAt(LocalDateTime.now());
+        campaign.getPlayerCharacters().add(characterSheet);
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(campaignRepository.save(any(Campaign.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        CampaignResponse result = campaignService.removeCharacterSheet(1L, 1L, authentication);
+
+        // Assert
+        assertThat(result.getPlayerCharacterIds()).doesNotContain(1L);
+        verify(campaignRepository).save(any(Campaign.class));
     }
 
     // ==================== HELPER METHODS ====================

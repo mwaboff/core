@@ -160,6 +160,7 @@ curl -b "AUTH_TOKEN=<token>" \
   "creator": {
     "id": 1,
     "username": "owner",
+    "role": "USER",
     "email": "owner@example.com"
   },
   "experienceIds": [],

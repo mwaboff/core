@@ -15,8 +15,6 @@ import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
-import com.aboff.core.repository.dh.QuestionRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -46,9 +44,8 @@ public class ClassService {
     private final ClassRepository classRepository;
     private final ExpansionRepository expansionRepository;
     private final DomainRepository domainRepository;
-    private final FeatureRepository featureRepository;
     private final FeatureService featureService;
-    private final QuestionRepository questionRepository;
+    private final QuestionService questionService;
 
     /**
      * Retrieves a paginated list of classes.
@@ -119,45 +116,7 @@ public class ClassService {
     public ClassResponse createClass(CreateClassRequest request) {
         log.info("Creating new class with name: {}", request.getName());
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        Class clazz = Class.builder()
-                .name(request.getName())
-                .description(request.getDescription())
-                .expansion(expansion)
-                .startingClassItems(request.getStartingClassItems())
-                .startingEvasion(request.getStartingEvasion())
-                .startingHitPoints(request.getStartingHitPoints())
-                .build();
-
-        // Set many-to-many relationships
-        if (request.getAssociatedDomainIds() != null && !request.getAssociatedDomainIds().isEmpty()) {
-            Set<Domain> domains = new HashSet<>(domainRepository.findAllByIdInAndDeletedAtIsNull(request.getAssociatedDomainIds()));
-            clazz.setAssociatedDomains(domains);
-        }
-
-        if (request.getHopeFeatureIds() != null && !request.getHopeFeatureIds().isEmpty()) {
-            Set<Feature> hopeFeatures = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getHopeFeatureIds()));
-            clazz.setHopeFeatures(hopeFeatures);
-        }
-
-        if (request.getClassFeatureIds() != null && !request.getClassFeatureIds().isEmpty()) {
-            Set<Feature> classFeatures = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getClassFeatureIds()));
-            clazz.setClassFeatures(classFeatures);
-        }
-
-        if (request.getBackgroundQuestionIds() != null && !request.getBackgroundQuestionIds().isEmpty()) {
-            Set<Question> backgroundQuestions = new HashSet<>(questionRepository.findAllByIdInAndDeletedAtIsNull(request.getBackgroundQuestionIds()));
-            clazz.setBackgroundQuestions(backgroundQuestions);
-        }
-
-        if (request.getConnectionQuestionIds() != null && !request.getConnectionQuestionIds().isEmpty()) {
-            Set<Question> connectionQuestions = new HashSet<>(questionRepository.findAllByIdInAndDeletedAtIsNull(request.getConnectionQuestionIds()));
-            clazz.setConnectionQuestions(connectionQuestions);
-        }
-
+        Class clazz = buildClassFromRequest(request);
         Class savedClass = classRepository.save(clazz);
         log.info("Created class with id: {}", savedClass.getId());
 
@@ -175,48 +134,7 @@ public class ClassService {
         log.info("Creating {} classes in bulk", requests.size());
 
         List<Class> classes = requests.stream()
-                .map(request -> {
-                    Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                            .orElseThrow(() -> new EntityNotFoundException(
-                                    "Expansion not found with id: " + request.getExpansionId()));
-
-                    Class clazz = Class.builder()
-                            .name(request.getName())
-                            .description(request.getDescription())
-                            .expansion(expansion)
-                            .startingClassItems(request.getStartingClassItems())
-                            .startingEvasion(request.getStartingEvasion())
-                            .startingHitPoints(request.getStartingHitPoints())
-                            .build();
-
-                    // Set many-to-many relationships
-                    if (request.getAssociatedDomainIds() != null && !request.getAssociatedDomainIds().isEmpty()) {
-                        Set<Domain> domains = new HashSet<>(domainRepository.findAllByIdInAndDeletedAtIsNull(request.getAssociatedDomainIds()));
-                        clazz.setAssociatedDomains(domains);
-                    }
-
-                    if (request.getHopeFeatureIds() != null && !request.getHopeFeatureIds().isEmpty()) {
-                        Set<Feature> hopeFeatures = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getHopeFeatureIds()));
-                        clazz.setHopeFeatures(hopeFeatures);
-                    }
-
-                    if (request.getClassFeatureIds() != null && !request.getClassFeatureIds().isEmpty()) {
-                        Set<Feature> classFeatures = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getClassFeatureIds()));
-                        clazz.setClassFeatures(classFeatures);
-                    }
-
-                    if (request.getBackgroundQuestionIds() != null && !request.getBackgroundQuestionIds().isEmpty()) {
-                        Set<Question> backgroundQuestions = new HashSet<>(questionRepository.findAllByIdInAndDeletedAtIsNull(request.getBackgroundQuestionIds()));
-                        clazz.setBackgroundQuestions(backgroundQuestions);
-                    }
-
-                    if (request.getConnectionQuestionIds() != null && !request.getConnectionQuestionIds().isEmpty()) {
-                        Set<Question> connectionQuestions = new HashSet<>(questionRepository.findAllByIdInAndDeletedAtIsNull(request.getConnectionQuestionIds()));
-                        clazz.setConnectionQuestions(connectionQuestions);
-                    }
-
-                    return clazz;
-                })
+                .map(this::buildClassFromRequest)
                 .toList();
 
         List<Class> savedClasses = classRepository.saveAll(classes);
@@ -253,7 +171,7 @@ public class ClassService {
         clazz.setStartingEvasion(request.getStartingEvasion());
         clazz.setStartingHitPoints(request.getStartingHitPoints());
 
-        // Update many-to-many relationships
+        // Update domains (still ID-only)
         if (request.getAssociatedDomainIds() != null) {
             if (request.getAssociatedDomainIds().isEmpty()) {
                 clazz.setAssociatedDomains(new HashSet<>());
@@ -263,40 +181,32 @@ public class ClassService {
             }
         }
 
-        if (request.getHopeFeatureIds() != null) {
-            if (request.getHopeFeatureIds().isEmpty()) {
-                clazz.setHopeFeatures(new HashSet<>());
-            } else {
-                Set<Feature> hopeFeatures = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getHopeFeatureIds()));
-                clazz.setHopeFeatures(hopeFeatures);
-            }
+        // Resolve hope features (IDs + inline, null = don't modify)
+        Set<Feature> hopeFeatures = featureService.resolveFeatures(
+                request.getHopeFeatureIds(), request.getHopeFeatures());
+        if (hopeFeatures != null) {
+            clazz.setHopeFeatures(hopeFeatures);
         }
 
-        if (request.getClassFeatureIds() != null) {
-            if (request.getClassFeatureIds().isEmpty()) {
-                clazz.setClassFeatures(new HashSet<>());
-            } else {
-                Set<Feature> classFeatures = new HashSet<>(featureRepository.findAllByIdInAndDeletedAtIsNull(request.getClassFeatureIds()));
-                clazz.setClassFeatures(classFeatures);
-            }
+        // Resolve class features
+        Set<Feature> classFeatures = featureService.resolveFeatures(
+                request.getClassFeatureIds(), request.getClassFeatures());
+        if (classFeatures != null) {
+            clazz.setClassFeatures(classFeatures);
         }
 
-        if (request.getBackgroundQuestionIds() != null) {
-            if (request.getBackgroundQuestionIds().isEmpty()) {
-                clazz.setBackgroundQuestions(new HashSet<>());
-            } else {
-                Set<Question> backgroundQuestions = new HashSet<>(questionRepository.findAllByIdInAndDeletedAtIsNull(request.getBackgroundQuestionIds()));
-                clazz.setBackgroundQuestions(backgroundQuestions);
-            }
+        // Resolve background questions
+        Set<Question> backgroundQuestions = questionService.resolveQuestions(
+                request.getBackgroundQuestionIds(), request.getBackgroundQuestions());
+        if (backgroundQuestions != null) {
+            clazz.setBackgroundQuestions(backgroundQuestions);
         }
 
-        if (request.getConnectionQuestionIds() != null) {
-            if (request.getConnectionQuestionIds().isEmpty()) {
-                clazz.setConnectionQuestions(new HashSet<>());
-            } else {
-                Set<Question> connectionQuestions = new HashSet<>(questionRepository.findAllByIdInAndDeletedAtIsNull(request.getConnectionQuestionIds()));
-                clazz.setConnectionQuestions(connectionQuestions);
-            }
+        // Resolve connection questions
+        Set<Question> connectionQuestions = questionService.resolveQuestions(
+                request.getConnectionQuestionIds(), request.getConnectionQuestions());
+        if (connectionQuestions != null) {
+            clazz.setConnectionQuestions(connectionQuestions);
         }
 
         Class updatedClass = classRepository.save(clazz);
@@ -349,6 +259,64 @@ public class ClassService {
         log.info("Restored class with id: {}", id);
 
         return toResponse(restoredClass, Set.of());
+    }
+
+    /**
+     * Builds a Class entity from a CreateClassRequest, resolving all relationships.
+     *
+     * @param request The creation request containing class details
+     * @return The built Class entity (not yet persisted)
+     * @throws EntityNotFoundException if the referenced expansion is not found
+     */
+    private Class buildClassFromRequest(CreateClassRequest request) {
+        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Expansion not found with id: " + request.getExpansionId()));
+
+        Class clazz = Class.builder()
+                .name(request.getName())
+                .description(request.getDescription())
+                .expansion(expansion)
+                .startingClassItems(request.getStartingClassItems())
+                .startingEvasion(request.getStartingEvasion())
+                .startingHitPoints(request.getStartingHitPoints())
+                .build();
+
+        // Resolve domains (still ID-only)
+        if (request.getAssociatedDomainIds() != null && !request.getAssociatedDomainIds().isEmpty()) {
+            Set<Domain> domains = new HashSet<>(domainRepository.findAllByIdInAndDeletedAtIsNull(request.getAssociatedDomainIds()));
+            clazz.setAssociatedDomains(domains);
+        }
+
+        // Resolve hope features (IDs + inline)
+        Set<Feature> hopeFeatures = featureService.resolveFeatures(
+                request.getHopeFeatureIds(), request.getHopeFeatures());
+        if (hopeFeatures != null) {
+            clazz.setHopeFeatures(hopeFeatures);
+        }
+
+        // Resolve class features (IDs + inline)
+        Set<Feature> classFeatures = featureService.resolveFeatures(
+                request.getClassFeatureIds(), request.getClassFeatures());
+        if (classFeatures != null) {
+            clazz.setClassFeatures(classFeatures);
+        }
+
+        // Resolve background questions (IDs + inline)
+        Set<Question> backgroundQuestions = questionService.resolveQuestions(
+                request.getBackgroundQuestionIds(), request.getBackgroundQuestions());
+        if (backgroundQuestions != null) {
+            clazz.setBackgroundQuestions(backgroundQuestions);
+        }
+
+        // Resolve connection questions (IDs + inline)
+        Set<Question> connectionQuestions = questionService.resolveQuestions(
+                request.getConnectionQuestionIds(), request.getConnectionQuestions());
+        if (connectionQuestions != null) {
+            clazz.setConnectionQuestions(connectionQuestions);
+        }
+
+        return clazz;
     }
 
     /**

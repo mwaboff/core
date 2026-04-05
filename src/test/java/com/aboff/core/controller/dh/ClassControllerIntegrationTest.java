@@ -454,6 +454,151 @@ class ClassControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // ==================== INLINE CREATION TESTS ====================
+
+    @Test
+    void createClass_withInlineHopeFeatures_createsAndAssociates() throws Exception {
+        // Arrange
+        String requestJson = """
+                {
+                    "name": "Warrior",
+                    "description": "A strong fighter",
+                    "expansionId": %d,
+                    "startingEvasion": 10,
+                    "startingHitPoints": 25,
+                    "hopeFeatures": [
+                        {
+                            "name": "Test Hope Feature",
+                            "featureType": "HOPE",
+                            "expansionId": %d
+                        }
+                    ]
+                }
+                """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/classes")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Warrior"))
+                .andExpect(jsonPath("$.hopeFeatureIds").isArray())
+                .andExpect(jsonPath("$.hopeFeatureIds.length()").value(1));
+    }
+
+    @Test
+    void createClass_withInlineBackgroundQuestions_createsAndAssociates() throws Exception {
+        // Arrange
+        String requestJson = """
+                {
+                    "name": "Scholar",
+                    "description": "A learned person",
+                    "expansionId": %d,
+                    "startingEvasion": 8,
+                    "startingHitPoints": 15,
+                    "backgroundQuestions": [
+                        {
+                            "questionText": "What is your background?",
+                            "questionType": "BACKGROUND",
+                            "expansionId": %d
+                        }
+                    ]
+                }
+                """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/classes")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Scholar"))
+                .andExpect(jsonPath("$.backgroundQuestionIds").isArray())
+                .andExpect(jsonPath("$.backgroundQuestionIds.length()").value(1));
+    }
+
+    @Test
+    void createClassBulk_withInlineInputs_createsAll() throws Exception {
+        // Arrange
+        String requestJson = """
+                [
+                    {
+                        "name": "Warrior",
+                        "description": "Fighter",
+                        "expansionId": %d,
+                        "startingEvasion": 10,
+                        "startingHitPoints": 25,
+                        "hopeFeatures": [
+                            {
+                                "name": "Bulk Hope Feature",
+                                "featureType": "HOPE",
+                                "expansionId": %d
+                            }
+                        ]
+                    },
+                    {
+                        "name": "Mage",
+                        "description": "Caster",
+                        "expansionId": %d,
+                        "startingEvasion": 15,
+                        "startingHitPoints": 20,
+                        "backgroundQuestions": [
+                            {
+                                "questionText": "Where did you study?",
+                                "questionType": "BACKGROUND",
+                                "expansionId": %d
+                            }
+                        ]
+                    }
+                ]
+                """.formatted(testExpansion.getId(), testExpansion.getId(),
+                testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/classes/bulk")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].hopeFeatureIds.length()").value(1))
+                .andExpect(jsonPath("$[1].backgroundQuestionIds.length()").value(1));
+    }
+
+    @Test
+    void updateClass_withInlineFeatures_updatesAssociations() throws Exception {
+        // Arrange
+        Class clazz = createClass("Warrior", "Original description", testExpansion);
+
+        String requestJson = """
+                {
+                    "name": "Warrior",
+                    "description": "Updated",
+                    "expansionId": %d,
+                    "startingEvasion": 10,
+                    "startingHitPoints": 25,
+                    "hopeFeatures": [
+                        {
+                            "name": "Updated Hope Feature",
+                            "featureType": "HOPE",
+                            "expansionId": %d
+                        }
+                    ]
+                }
+                """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/classes/{id}", clazz.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Warrior"))
+                .andExpect(jsonPath("$.hopeFeatureIds").isArray())
+                .andExpect(jsonPath("$.hopeFeatureIds.length()").value(1));
+    }
+
     // ==================== HELPER METHODS ====================
 
     private User createUserWithRole(String username, String email, Role role) {

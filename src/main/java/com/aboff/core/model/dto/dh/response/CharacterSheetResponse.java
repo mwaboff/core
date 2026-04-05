@@ -17,16 +17,13 @@ import java.util.List;
  * Supports expansion via the ?expand parameter for related entities:
  * - owner: Full user object for the character owner
  * - experiences: List of experience objects
- * - activePrimaryWeapon: Full weapon object
- * - activeSecondaryWeapon: Full weapon object
- * - activeArmor: Full armor object
  * - communityCards: List of community card objects
  * - ancestryCards: List of ancestry card objects
  * - subclassCards: List of subclass card objects
  * - domainCards: List of domain card objects
- * - inventoryWeapons: List of weapon objects in inventory
- * - inventoryArmors: List of armor objects in inventory
- * - inventoryItems: List of loot objects in inventory
+ * - inventoryWeapons: Full weapon objects nested in inventory weapon entries
+ * - inventoryArmors: Full armor objects nested in inventory armor entries
+ * - inventoryItems: Full loot objects nested in inventory loot entries
  * </p>
  */
 @Data
@@ -191,6 +188,18 @@ public class CharacterSheetResponse {
      */
     private Integer gold;
 
+    // ========== Campaign Info ==========
+
+    /**
+     * ID of the active campaign this character is in (populated when viewer has access)
+     */
+    private Long campaignId;
+
+    /**
+     * Name of the active campaign this character is in (populated when viewer has access)
+     */
+    private String campaignName;
+
     // ========== Ownership ==========
 
     /**
@@ -199,41 +208,14 @@ public class CharacterSheetResponse {
     private Long ownerId;
 
     /**
+     * Username of the user who owns this character sheet (always included)
+     */
+    private String ownerName;
+
+    /**
      * Full user object (included only when ?expand=owner is specified)
      */
     private UserResponse owner;
-
-    // ========== Active Equipment ==========
-
-    /**
-     * ID of currently equipped primary weapon (always included, may be null)
-     */
-    private Long activePrimaryWeaponId;
-
-    /**
-     * Full primary weapon object (included only when ?expand=activePrimaryWeapon is specified)
-     */
-    private WeaponResponse activePrimaryWeapon;
-
-    /**
-     * ID of currently equipped secondary weapon (always included, may be null)
-     */
-    private Long activeSecondaryWeaponId;
-
-    /**
-     * Full secondary weapon object (included only when ?expand=activeSecondaryWeapon is specified)
-     */
-    private WeaponResponse activeSecondaryWeapon;
-
-    /**
-     * ID of currently equipped armor (always included, may be null)
-     */
-    private Long activeArmorId;
-
-    /**
-     * Full armor object (included only when ?expand=activeArmor is specified)
-     */
-    private ArmorResponse activeArmor;
 
     // ========== Card Collections ==========
 
@@ -303,34 +285,22 @@ public class CharacterSheetResponse {
     // ========== Inventory ==========
 
     /**
-     * IDs of weapons in inventory (always included)
+     * Weapons in inventory with linking entity IDs, equipped status, and slot.
+     * Always included. Full weapon objects nested when {@code ?expand=inventoryWeapons} is specified.
      */
-    private List<Long> inventoryWeaponIds;
+    private List<InventoryWeaponResponse> inventoryWeapons;
 
     /**
-     * Full weapon objects in inventory (included only when ?expand=inventoryWeapons is specified)
+     * Armor pieces in inventory with linking entity IDs and equipped status.
+     * Always included. Full armor objects nested when {@code ?expand=inventoryArmors} is specified.
      */
-    private List<WeaponResponse> inventoryWeapons;
+    private List<InventoryArmorResponse> inventoryArmors;
 
     /**
-     * IDs of armor pieces in inventory (always included)
+     * Loot items in inventory with linking entity IDs.
+     * Always included. Full loot objects nested when {@code ?expand=inventoryItems} is specified.
      */
-    private List<Long> inventoryArmorIds;
-
-    /**
-     * Full armor objects in inventory (included only when ?expand=inventoryArmors is specified)
-     */
-    private List<ArmorResponse> inventoryArmors;
-
-    /**
-     * IDs of loot items in inventory (always included)
-     */
-    private List<Long> inventoryItemIds;
-
-    /**
-     * Full loot objects in inventory (included only when ?expand=inventoryItems is specified)
-     */
-    private List<LootResponse> inventoryItems;
+    private List<InventoryLootResponse> inventoryItems;
 
     // ========== Experiences ==========
 

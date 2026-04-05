@@ -20,6 +20,7 @@ Retrieve the authenticated user's own profile. Returns full profile details incl
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "test@example.com",
   "avatarUrl": "https://avatar.url",
   "timezone": "UTC",
@@ -64,6 +65,7 @@ Retrieve a user's profile by numeric ID. The response content varies based on th
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "test@example.com",
   "avatarUrl": "https://avatar.url",
   "timezone": "UTC",
@@ -80,6 +82,7 @@ Only public fields are returned. Private fields (`email`, `timezone`, `lastModif
 {
   "id": 2,
   "username": "otheruser",
+  "role": "USER",
   "avatarUrl": "https://other.avatar.url",
   "createdAt": "2026-03-13T10:30:00"
 }
@@ -93,6 +96,7 @@ Full profile plus admin fields are returned. Null admin fields are omitted.
 {
   "id": 3,
   "username": "targetuser",
+  "role": "USER",
   "email": "target@example.com",
   "avatarUrl": "https://target.avatar.url",
   "timezone": "America/Chicago",
@@ -113,6 +117,75 @@ Full profile plus admin fields are returned. Null admin fields are omitted.
 
 ```bash
 curl -s http://localhost:8080/api/users/42 \
+  --cookie "AUTH_TOKEN=<jwt_token>"
+```
+
+---
+
+### GET /api/users/{userId}/campaigns
+
+Retrieve a paginated list of campaigns where the specified user is involved (as creator, GM, or player). Accessible by the target user themselves or users with MODERATOR+ role.
+
+**Authentication:** Required (JWT cookie)
+**Access:** Target user themselves OR MODERATOR/ADMIN/OWNER
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `userId` | `Long` | Yes | The target user's numeric ID |
+
+**Query Parameters:**
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `page` | `int` | `0` | Page number (zero-based) |
+| `size` | `int` | `20` | Page size (max 100) |
+| `expand` | `String` | — | Comma-separated fields to expand (e.g., `creator`, `gameMasters`, `players`) |
+
+**Status:** `200 OK`
+
+**Response Body:**
+
+```json
+{
+  "content": [
+    {
+      "id": 1,
+      "name": "My Campaign",
+      "description": "A Daggerheart adventure",
+      "creatorId": 42,
+      "isEnded": false,
+      "gameMasterIds": [42],
+      "playerIds": [43, 44],
+      "createdAt": "2026-03-13T10:30:00",
+      "lastModifiedAt": "2026-03-13T10:30:00"
+    }
+  ],
+  "totalElements": 1,
+  "totalPages": 1,
+  "currentPage": 0,
+  "pageSize": 20
+}
+```
+
+**Error Responses:**
+
+| Status | Condition | Body |
+|--------|-----------|------|
+| `401 Unauthorized` | Missing/invalid token | (no body) |
+| `403 Forbidden` | Regular user viewing another user's campaigns | `{"status": 403, "error": "Insufficient Permissions", "message": "You do not have permission to view this user's campaigns", ...}` |
+| `404 Not Found` | User ID does not exist (MODERATOR+ only) | `{"status": 404, "error": "Not Found", "message": "User not found with id: 999", ...}` |
+
+**Notes:**
+- Regular users requesting another user's campaigns receive 403 (not 404), even if the user ID does not exist. This prevents user enumeration.
+- MODERATOR+ users receive 404 for non-existent user IDs.
+- See also: `GET /api/dh/campaigns/mine` for the authenticated user's own campaigns shortcut.
+
+**curl:**
+
+```bash
+curl -s "http://localhost:8080/api/users/42/campaigns?page=0&size=20&expand=creator" \
   --cookie "AUTH_TOKEN=<jwt_token>"
 ```
 
@@ -154,6 +227,7 @@ Returns the full updated user profile:
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "newemail@example.com",
   "avatarUrl": "https://new.avatar.url",
   "timezone": "America/New_York",
@@ -281,6 +355,7 @@ Response DTO for user profile endpoints. Uses `@JsonInclude(NON_NULL)` so null f
 |-------|------|----------|------------|-------------|
 | `id` | `Long` | No | All | Auto-generated user ID |
 | `username` | `String` | No | All | Unique username |
+| `role` | `Role` | No | All | User's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
 | `email` | `String` | Yes | Self + Privileged | User's email address |
 | `avatarUrl` | `String` | Yes | All | URL to avatar image |
 | `timezone` | `String` | Yes | Self + Privileged | IANA timezone identifier |

@@ -294,33 +294,6 @@ public class CharacterSheet extends BaseEntity {
     // ========== Active Equipment ==========
 
     /**
-     * The character's currently equipped primary weapon.
-     * This weapon is used for most attacks and is readily accessible.
-     * Can be null if the character has no weapon equipped.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "active_primary_weapon_id")
-    private Weapon activePrimaryWeapon;
-
-    /**
-     * The character's currently equipped secondary weapon.
-     * This might be an off-hand weapon, a backup weapon, or a dual-wielded weapon.
-     * Can be null if the character has no secondary weapon equipped.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "active_secondary_weapon_id")
-    private Weapon activeSecondaryWeapon;
-
-    /**
-     * The character's currently equipped armor.
-     * Determines the character's armor score and damage thresholds.
-     * Can be null if the character is unarmored.
-     */
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "active_armor_id")
-    private Armor activeArmor;
-
-    /**
      * The character's currently active beastform.
      * Represents the creature form the character can transform into,
      * granting modified traits, combat abilities, and special features.
@@ -405,45 +378,29 @@ public class CharacterSheet extends BaseEntity {
     // ========== Inventory ==========
 
     /**
-     * Weapons in the character's inventory.
-     * This includes all weapons the character owns, whether equipped or stored.
-     * The inventory may include multiple weapons for different situations.
+     * Weapon associations for this character with equipped status and slot tracking.
+     * Each entry tracks whether a weapon is equipped and which slot it occupies
+     * (PRIMARY or SECONDARY).
      */
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "character_sheet_inventory_weapons",
-        joinColumns = @JoinColumn(name = "character_sheet_id"),
-        inverseJoinColumns = @JoinColumn(name = "weapon_id")
-    )
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private Set<Weapon> inventoryWeapons = new HashSet<>();
+    private Set<CharacterSheetWeapon> characterSheetWeapons = new HashSet<>();
 
     /**
-     * Armor pieces in the character's inventory.
-     * This includes all armor the character owns, whether equipped or stored.
+     * Armor associations for this character with equipped status tracking.
+     * Each entry tracks whether an armor piece is currently equipped.
      */
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "character_sheet_inventory_armors",
-        joinColumns = @JoinColumn(name = "character_sheet_id"),
-        inverseJoinColumns = @JoinColumn(name = "armor_id")
-    )
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private Set<Armor> inventoryArmors = new HashSet<>();
+    private Set<CharacterSheetArmor> characterSheetArmors = new HashSet<>();
 
     /**
-     * Miscellaneous items (loot) in the character's inventory.
-     * This includes consumables, tools, treasure, quest items, and other gear
-     * that doesn't fall into the weapon or armor categories.
+     * Loot item associations for this character's inventory.
+     * Tracks miscellaneous items such as consumables, tools, treasure, and quest items.
      */
-    @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-        name = "character_sheet_inventory_items",
-        joinColumns = @JoinColumn(name = "character_sheet_id"),
-        inverseJoinColumns = @JoinColumn(name = "loot_id")
-    )
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
     @Builder.Default
-    private Set<Loot> inventoryItems = new HashSet<>();
+    private Set<CharacterSheetLoot> characterSheetLoot = new HashSet<>();
 
     // ========== Experiences ==========
 

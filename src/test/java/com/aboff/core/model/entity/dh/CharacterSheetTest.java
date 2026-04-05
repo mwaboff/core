@@ -19,9 +19,6 @@ class CharacterSheetTest {
     @Test
     void builder_WithAllFields_CreatesValidInstance() {
         User owner = User.builder().id(1L).username("player1").build();
-        Weapon weapon = Weapon.builder().id(1L).name("Longsword").build();
-        Armor armor = Armor.builder().id(1L).name("Plate Armor").build();
-
         CharacterSheet sheet = CharacterSheet.builder()
                 .name("Thorin")
                 .pronouns("he/him")
@@ -50,8 +47,6 @@ class CharacterSheetTest {
                 .hopeMax(3)
                 .hopeMarked(1)
                 .gold(250)
-                .activePrimaryWeapon(weapon)
-                .activeArmor(armor)
                 .owner(owner)
                 .build();
 
@@ -82,8 +77,6 @@ class CharacterSheetTest {
         assertThat(sheet.getHopeMax()).isEqualTo(3);
         assertThat(sheet.getHopeMarked()).isEqualTo(1);
         assertThat(sheet.getGold()).isEqualTo(250);
-        assertThat(sheet.getActivePrimaryWeapon()).isEqualTo(weapon);
-        assertThat(sheet.getActiveArmor()).isEqualTo(armor);
         assertThat(sheet.getOwner()).isEqualTo(owner);
     }
 
@@ -188,9 +181,9 @@ class CharacterSheetTest {
         assertThat(sheet.getCommunityCards()).isEmpty();
         assertThat(sheet.getAncestryCards()).isEmpty();
         assertThat(sheet.getSubclassCards()).isEmpty();
-        assertThat(sheet.getInventoryWeapons()).isEmpty();
-        assertThat(sheet.getInventoryArmors()).isEmpty();
-        assertThat(sheet.getInventoryItems()).isEmpty();
+        assertThat(sheet.getCharacterSheetWeapons()).isEmpty();
+        assertThat(sheet.getCharacterSheetArmors()).isEmpty();
+        assertThat(sheet.getCharacterSheetLoot()).isEmpty();
         assertThat(sheet.getExperiences()).isEmpty();
     }
 
@@ -338,48 +331,39 @@ class CharacterSheetTest {
     }
 
     @Test
-    void setActivePrimaryWeapon_UpdatesValue() {
-        Weapon weapon1 = Weapon.builder().id(1L).name("Sword").build();
-        Weapon weapon2 = Weapon.builder().id(2L).name("Axe").build();
+    void characterSheetWeapons_CanSetAndRetrieve() {
+        CharacterSheet sheet = CharacterSheet.builder().name("Test").build();
+        Weapon weapon = Weapon.builder().id(1L).name("Sword").build();
+        CharacterSheetWeapon csw = CharacterSheetWeapon.builder()
+                .characterSheet(sheet).weapon(weapon).equipped(true).slot("PRIMARY").build();
 
-        CharacterSheet sheet = CharacterSheet.builder()
-                .name("Test")
-                .activePrimaryWeapon(weapon1)
-                .build();
+        sheet.getCharacterSheetWeapons().add(csw);
 
-        sheet.setActivePrimaryWeapon(weapon2);
-
-        assertThat(sheet.getActivePrimaryWeapon()).isEqualTo(weapon2);
+        assertThat(sheet.getCharacterSheetWeapons()).hasSize(1);
     }
 
     @Test
-    void setActiveSecondaryWeapon_UpdatesValue() {
-        Weapon weapon1 = Weapon.builder().id(1L).name("Dagger").build();
-        Weapon weapon2 = Weapon.builder().id(2L).name("Short Sword").build();
+    void characterSheetArmors_CanSetAndRetrieve() {
+        CharacterSheet sheet = CharacterSheet.builder().name("Test").build();
+        Armor armor = Armor.builder().id(1L).name("Plate").build();
+        CharacterSheetArmor csa = CharacterSheetArmor.builder()
+                .characterSheet(sheet).armor(armor).equipped(true).build();
 
-        CharacterSheet sheet = CharacterSheet.builder()
-                .name("Test")
-                .activeSecondaryWeapon(weapon1)
-                .build();
+        sheet.getCharacterSheetArmors().add(csa);
 
-        sheet.setActiveSecondaryWeapon(weapon2);
-
-        assertThat(sheet.getActiveSecondaryWeapon()).isEqualTo(weapon2);
+        assertThat(sheet.getCharacterSheetArmors()).hasSize(1);
     }
 
     @Test
-    void setActiveArmor_UpdatesValue() {
-        Armor armor1 = Armor.builder().id(1L).name("Leather").build();
-        Armor armor2 = Armor.builder().id(2L).name("Plate").build();
+    void characterSheetLoot_CanSetAndRetrieve() {
+        CharacterSheet sheet = CharacterSheet.builder().name("Test").build();
+        Loot loot = Loot.builder().id(1L).name("Potion").build();
+        CharacterSheetLoot csl = CharacterSheetLoot.builder()
+                .characterSheet(sheet).loot(loot).build();
 
-        CharacterSheet sheet = CharacterSheet.builder()
-                .name("Test")
-                .activeArmor(armor1)
-                .build();
+        sheet.getCharacterSheetLoot().add(csl);
 
-        sheet.setActiveArmor(armor2);
-
-        assertThat(sheet.getActiveArmor()).isEqualTo(armor2);
+        assertThat(sheet.getCharacterSheetLoot()).hasSize(1);
     }
 
     // ==================== COLLECTION TESTS ====================
@@ -428,33 +412,48 @@ class CharacterSheetTest {
     void inventoryWeapons_CanAddAndRemove() {
         CharacterSheet sheet = CharacterSheet.builder().name("Test").build();
         Weapon weapon = Weapon.builder().id(1L).name("Sword").build();
+        CharacterSheetWeapon csw = CharacterSheetWeapon.builder()
+                .characterSheet(sheet).weapon(weapon).build();
 
-        sheet.getInventoryWeapons().add(weapon);
+        sheet.getCharacterSheetWeapons().add(csw);
 
-        assertThat(sheet.getInventoryWeapons()).hasSize(1);
-        assertThat(sheet.getInventoryWeapons()).contains(weapon);
+        assertThat(sheet.getCharacterSheetWeapons()).hasSize(1);
+
+        sheet.getCharacterSheetWeapons().remove(csw);
+
+        assertThat(sheet.getCharacterSheetWeapons()).isEmpty();
     }
 
     @Test
     void inventoryArmors_CanAddAndRemove() {
         CharacterSheet sheet = CharacterSheet.builder().name("Test").build();
         Armor armor = Armor.builder().id(1L).name("Leather").build();
+        CharacterSheetArmor csa = CharacterSheetArmor.builder()
+                .characterSheet(sheet).armor(armor).build();
 
-        sheet.getInventoryArmors().add(armor);
+        sheet.getCharacterSheetArmors().add(csa);
 
-        assertThat(sheet.getInventoryArmors()).hasSize(1);
-        assertThat(sheet.getInventoryArmors()).contains(armor);
+        assertThat(sheet.getCharacterSheetArmors()).hasSize(1);
+
+        sheet.getCharacterSheetArmors().remove(csa);
+
+        assertThat(sheet.getCharacterSheetArmors()).isEmpty();
     }
 
     @Test
     void inventoryItems_CanAddAndRemove() {
         CharacterSheet sheet = CharacterSheet.builder().name("Test").build();
         Loot loot = Loot.builder().id(1L).name("Potion").build();
+        CharacterSheetLoot csl = CharacterSheetLoot.builder()
+                .characterSheet(sheet).loot(loot).build();
 
-        sheet.getInventoryItems().add(loot);
+        sheet.getCharacterSheetLoot().add(csl);
 
-        assertThat(sheet.getInventoryItems()).hasSize(1);
-        assertThat(sheet.getInventoryItems()).contains(loot);
+        assertThat(sheet.getCharacterSheetLoot()).hasSize(1);
+
+        sheet.getCharacterSheetLoot().remove(csl);
+
+        assertThat(sheet.getCharacterSheetLoot()).isEmpty();
     }
 
     @Test
@@ -504,16 +503,10 @@ class CharacterSheetTest {
         CharacterSheet sheet = CharacterSheet.builder()
                 .name("Test")
                 .pronouns(null)
-                .activePrimaryWeapon(null)
-                .activeSecondaryWeapon(null)
-                .activeArmor(null)
                 .deletedAt(null)
                 .build();
 
         assertThat(sheet.getPronouns()).isNull();
-        assertThat(sheet.getActivePrimaryWeapon()).isNull();
-        assertThat(sheet.getActiveSecondaryWeapon()).isNull();
-        assertThat(sheet.getActiveArmor()).isNull();
         assertThat(sheet.getDeletedAt()).isNull();
     }
 

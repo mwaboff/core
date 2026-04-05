@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -43,4 +44,20 @@ public class CreateClassRequest {
     private List<Long> classFeatureIds;
     private List<Long> backgroundQuestionIds;
     private List<Long> connectionQuestionIds;
+
+    /** Hope features to find or create inline. Merged with hopeFeatureIds if both provided. */
+    @Valid
+    private List<FeatureInput> hopeFeatures;
+
+    /** Class features to find or create inline. Merged with classFeatureIds if both provided. */
+    @Valid
+    private List<FeatureInput> classFeatures;
+
+    /** Background questions to find or create inline. Merged with backgroundQuestionIds if both provided. */
+    @Valid
+    private List<QuestionInput> backgroundQuestions;
+
+    /** Connection questions to find or create inline. Merged with connectionQuestionIds if both provided. */
+    @Valid
+    private List<QuestionInput> connectionQuestions;
 }

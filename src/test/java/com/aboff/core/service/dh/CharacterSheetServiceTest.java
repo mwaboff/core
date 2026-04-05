@@ -2,6 +2,9 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
+import com.aboff.core.model.dto.dh.request.InventoryArmorRequest;
+import com.aboff.core.model.dto.dh.request.InventoryLootRequest;
+import com.aboff.core.model.dto.dh.request.InventoryWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.model.dto.response.PagedResponse;
@@ -17,6 +20,7 @@ import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -78,6 +82,15 @@ class CharacterSheetServiceTest {
     private CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
 
     @Mock
+    private CharacterSheetWeaponRepository characterSheetWeaponRepository;
+
+    @Mock
+    private CharacterSheetArmorRepository characterSheetArmorRepository;
+
+    @Mock
+    private CharacterSheetLootRepository characterSheetLootRepository;
+
+    @Mock
     private RoleHierarchyService roleHierarchyService;
 
     @Mock
@@ -110,8 +123,13 @@ class CharacterSheetServiceTest {
     // ==================== GET ALL CHARACTER SHEETS TESTS ====================
 
     @Test
-    void getAllCharacterSheets_WithoutFilters_ReturnsPagedSheets() {
+    void getAllCharacterSheets_AsPrivilegedUser_WithoutFilters_ReturnsPagedSheets() {
         // Arrange
+        User moderator = User.builder().id(10L).username("moderator").role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.MODERATOR)).thenReturn(true);
+
         User owner = User.builder().id(1L).username("player1").build();
         CharacterSheet sheet1 = CharacterSheet.builder()
                 .id(1L)
@@ -122,9 +140,9 @@ class CharacterSheetServiceTest {
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .build();
 
@@ -137,9 +155,9 @@ class CharacterSheetServiceTest {
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .build();
 
@@ -149,7 +167,7 @@ class CharacterSheetServiceTest {
 
         // Act
         PagedResponse<CharacterSheetResponse> result = characterSheetService.getAllCharacterSheets(
-                0, 20, null, null, null, null, null);
+                0, 20, null, null, null, null, null, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -160,8 +178,13 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void getAllCharacterSheets_FilterByOwnerId_ReturnsFiltered() {
+    void getAllCharacterSheets_AsPrivilegedUser_FilterByOwnerId_ReturnsFiltered() {
         // Arrange
+        User moderator = User.builder().id(10L).username("moderator").role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.MODERATOR)).thenReturn(true);
+
         User owner = User.builder().id(1L).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
@@ -172,9 +195,9 @@ class CharacterSheetServiceTest {
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .build();
 
@@ -184,7 +207,7 @@ class CharacterSheetServiceTest {
 
         // Act
         PagedResponse<CharacterSheetResponse> result = characterSheetService.getAllCharacterSheets(
-                0, 20, 1L, null, null, null, null);
+                0, 20, 1L, null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -193,8 +216,13 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void getAllCharacterSheets_FilterByName_ReturnsFiltered() {
+    void getAllCharacterSheets_AsPrivilegedUser_FilterByName_ReturnsFiltered() {
         // Arrange
+        User moderator = User.builder().id(10L).username("moderator").role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.MODERATOR)).thenReturn(true);
+
         User owner = User.builder().id(1L).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
@@ -205,9 +233,9 @@ class CharacterSheetServiceTest {
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .build();
 
@@ -217,7 +245,7 @@ class CharacterSheetServiceTest {
 
         // Act
         PagedResponse<CharacterSheetResponse> result = characterSheetService.getAllCharacterSheets(
-                0, 20, null, "Ara", null, null, null);
+                0, 20, null, "Ara", null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -226,8 +254,13 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void getAllCharacterSheets_FilterByLevelRange_ReturnsFiltered() {
+    void getAllCharacterSheets_AsPrivilegedUser_FilterByLevelRange_ReturnsFiltered() {
         // Arrange
+        User moderator = User.builder().id(10L).username("moderator").role(Role.MODERATOR).build();
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.MODERATOR)).thenReturn(true);
+
         User owner = User.builder().id(1L).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
@@ -238,9 +271,9 @@ class CharacterSheetServiceTest {
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .build();
 
@@ -250,12 +283,69 @@ class CharacterSheetServiceTest {
 
         // Act
         PagedResponse<CharacterSheetResponse> result = characterSheetService.getAllCharacterSheets(
-                0, 20, null, null, 3, 7, null);
+                0, 20, null, null, 3, 7, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getLevel()).isEqualTo(5);
         verify(characterSheetRepository).findActiveWithFilters(eq(null), eq(null), eq(3), eq(7), any(Pageable.class));
+    }
+
+    @Test
+    void getAllCharacterSheets_AsRegularUser_ForcesOwnerIdToOwnId() {
+        // Arrange
+        User regularUser = User.builder().id(5L).username("player1").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(regularUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
+
+        Page<CharacterSheet> sheetPage = new PageImpl<>(List.of());
+        when(characterSheetRepository.findActiveWithFilters(
+                eq(5L), eq(null), eq(null), eq(null), any(Pageable.class))).thenReturn(sheetPage);
+
+        // Act - pass ownerId=99 but it should be overridden to 5
+        characterSheetService.getAllCharacterSheets(0, 20, 99L, null, null, null, null, authentication);
+
+        // Assert - repository is called with the user's own ID, not the requested one
+        verify(characterSheetRepository).findActiveWithFilters(eq(5L), eq(null), eq(null), eq(null), any(Pageable.class));
+    }
+
+    @Test
+    void getAllCharacterSheets_AsRegularUser_WithNullOwnerId_ForcesToOwnId() {
+        // Arrange
+        User regularUser = User.builder().id(5L).username("player1").role(Role.USER).build();
+        CustomUserDetails userDetails = new CustomUserDetails(regularUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
+
+        Page<CharacterSheet> sheetPage = new PageImpl<>(List.of());
+        when(characterSheetRepository.findActiveWithFilters(
+                eq(5L), eq(null), eq(null), eq(null), any(Pageable.class))).thenReturn(sheetPage);
+
+        // Act - pass null ownerId, should be forced to 5
+        characterSheetService.getAllCharacterSheets(0, 20, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(characterSheetRepository).findActiveWithFilters(eq(5L), eq(null), eq(null), eq(null), any(Pageable.class));
+    }
+
+    @Test
+    void getAllCharacterSheets_AsPrivilegedUser_CanUseNullOwnerId() {
+        // Arrange
+        User admin = User.builder().id(10L).username("admin").role(Role.ADMIN).build();
+        CustomUserDetails userDetails = new CustomUserDetails(admin);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.isPrivilegedRole(Role.ADMIN)).thenReturn(true);
+
+        Page<CharacterSheet> sheetPage = new PageImpl<>(List.of());
+        when(characterSheetRepository.findActiveWithFilters(
+                eq(null), eq(null), eq(null), eq(null), any(Pageable.class))).thenReturn(sheetPage);
+
+        // Act - null ownerId should stay null for privileged users
+        characterSheetService.getAllCharacterSheets(0, 20, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(characterSheetRepository).findActiveWithFilters(eq(null), eq(null), eq(null), eq(null), any(Pageable.class));
     }
 
     // ==================== GET CHARACTER SHEET BY ID TESTS ====================
@@ -277,9 +367,9 @@ class CharacterSheetServiceTest {
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .build();
 
@@ -337,9 +427,9 @@ class CharacterSheetServiceTest {
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>(List.of(exp)))
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -407,9 +497,9 @@ class CharacterSheetServiceTest {
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .build();
 
@@ -430,7 +520,7 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void createCharacterSheet_WithArmorMarkedExceedsMax_ThrowsException() {
+    void createCharacterSheet_WithArmorMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -466,16 +556,31 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Armor marked")
-                .hasMessageContaining("cannot exceed armor max");
+        // Act
+        characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getArmorMarked()).isEqualTo(5);
     }
 
     @Test
-    void createCharacterSheet_WithHitPointMarkedExceedsMax_ThrowsException() {
+    void createCharacterSheet_WithHitPointMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -511,16 +616,31 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Hit point marked")
-                .hasMessageContaining("cannot exceed hit point max");
+        // Act
+        characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getHitPointMarked()).isEqualTo(10);
     }
 
     @Test
-    void createCharacterSheet_WithStressMarkedExceedsMax_ThrowsException() {
+    void createCharacterSheet_WithStressMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -556,16 +676,31 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Stress marked")
-                .hasMessageContaining("cannot exceed stress max");
+        // Act
+        characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getStressMarked()).isEqualTo(6);
     }
 
     @Test
-    void createCharacterSheet_WithHopeMarkedExceedsMax_ThrowsException() {
+    void createCharacterSheet_WithHopeMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -601,12 +736,27 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Hope marked")
-                .hasMessageContaining("cannot exceed hope max");
+        // Act
+        characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getHopeMarked()).isEqualTo(3);
     }
 
     @Test
@@ -773,9 +923,13 @@ class CharacterSheetServiceTest {
                 .hopeMax(3)
                 .hopeMarked(0)
                 .gold(50)
-                .activePrimaryWeaponId(1L)
-                .activeSecondaryWeaponId(2L)
-                .activeArmorId(1L)
+                .inventoryWeapons(List.of(
+                        InventoryWeaponRequest.builder().weaponId(1L).equipped(true).slot("PRIMARY").build(),
+                        InventoryWeaponRequest.builder().weaponId(2L).equipped(true).slot("SECONDARY").build()
+                ))
+                .inventoryArmors(List.of(
+                        InventoryArmorRequest.builder().armorId(1L).equipped(true).build()
+                ))
                 .build();
 
         CustomUserDetails userDetails = new CustomUserDetails(owner);
@@ -791,9 +945,6 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -803,9 +954,9 @@ class CharacterSheetServiceTest {
 
         // Assert
         assertThat(result).isNotNull();
-        assertThat(result.getActivePrimaryWeaponId()).isEqualTo(1L);
-        assertThat(result.getActiveSecondaryWeaponId()).isEqualTo(2L);
-        assertThat(result.getActiveArmorId()).isEqualTo(1L);
+        assertThat(result.getInventoryWeapons()).hasSize(2);
+        assertThat(result.getInventoryArmors()).hasSize(1);
+        assertThat(result.getInventoryArmors().get(0).getEquipped()).isTrue();
     }
 
     @Test
@@ -857,9 +1008,9 @@ class CharacterSheetServiceTest {
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
             CharacterSheet saved = invocation.getArgument(0);
             saved.setId(1L);
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -909,9 +1060,9 @@ class CharacterSheetServiceTest {
                 .hopeMax(3)
                 .hopeMarked(0)
                 .gold(50)
-                .inventoryWeaponIds(List.of(1L))
-                .inventoryArmorIds(List.of(1L))
-                .inventoryItemIds(List.of(1L))
+                .inventoryWeapons(List.of(InventoryWeaponRequest.builder().weaponId(1L).build()))
+                .inventoryArmors(List.of(InventoryArmorRequest.builder().armorId(1L).build()))
+                .inventoryItems(List.of(InventoryLootRequest.builder().lootId(1L).build()))
                 .build();
 
         CustomUserDetails userDetails = new CustomUserDetails(owner);
@@ -936,9 +1087,12 @@ class CharacterSheetServiceTest {
 
         // Assert
         assertThat(result).isNotNull();
-        assertThat(result.getInventoryWeaponIds()).contains(1L);
-        assertThat(result.getInventoryArmorIds()).contains(1L);
-        assertThat(result.getInventoryItemIds()).contains(1L);
+        assertThat(result.getInventoryWeapons()).hasSize(1);
+        assertThat(result.getInventoryWeapons().get(0).getWeaponId()).isEqualTo(1L);
+        assertThat(result.getInventoryArmors()).hasSize(1);
+        assertThat(result.getInventoryArmors().get(0).getArmorId()).isEqualTo(1L);
+        assertThat(result.getInventoryItems()).hasSize(1);
+        assertThat(result.getInventoryItems().get(0).getLootId()).isEqualTo(1L);
     }
 
     @Test
@@ -973,7 +1127,7 @@ class CharacterSheetServiceTest {
                 .hopeMax(3)
                 .hopeMarked(0)
                 .gold(50)
-                .activePrimaryWeaponId(999L)
+                .inventoryWeapons(List.of(InventoryWeaponRequest.builder().weaponId(999L).build()))
                 .build();
 
         CustomUserDetails userDetails = new CustomUserDetails(owner);
@@ -1081,9 +1235,9 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1214,9 +1368,9 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1267,9 +1421,9 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1347,9 +1501,9 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1401,9 +1555,9 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1453,9 +1607,9 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1517,9 +1671,9 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1571,9 +1725,9 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1612,8 +1766,12 @@ class CharacterSheetServiceTest {
         Armor armor = Armor.builder().id(1L).name("Plate Mail").build();
 
         UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
-                .activePrimaryWeaponId(1L)
-                .activeArmorId(1L)
+                .inventoryWeapons(List.of(
+                        InventoryWeaponRequest.builder().weaponId(1L).equipped(true).slot("PRIMARY").build()
+                ))
+                .inventoryArmors(List.of(
+                        InventoryArmorRequest.builder().armorId(1L).equipped(true).build()
+                ))
                 .build();
 
         CustomUserDetails userDetails = new CustomUserDetails(owner);
@@ -1627,9 +1785,6 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1638,8 +1793,11 @@ class CharacterSheetServiceTest {
         CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
 
         // Assert
-        assertThat(result.getActivePrimaryWeaponId()).isEqualTo(1L);
-        assertThat(result.getActiveArmorId()).isEqualTo(1L);
+        assertThat(result.getInventoryWeapons()).hasSize(1);
+        assertThat(result.getInventoryWeapons().get(0).getEquipped()).isTrue();
+        assertThat(result.getInventoryWeapons().get(0).getSlot()).isEqualTo("PRIMARY");
+        assertThat(result.getInventoryArmors()).hasSize(1);
+        assertThat(result.getInventoryArmors().get(0).getEquipped()).isTrue();
     }
 
     @Test
@@ -1679,9 +1837,9 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1701,7 +1859,7 @@ class CharacterSheetServiceTest {
                 .id(1L)
                 .name("Aragorn")
                 .owner(owner)
-                .inventoryWeapons(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
                 .evasion(10)
                 .armorMax(5)
                 .armorMarked(0)
@@ -1718,7 +1876,7 @@ class CharacterSheetServiceTest {
         Weapon weapon = Weapon.builder().id(1L).name("Spare Sword").build();
 
         UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
-                .inventoryWeaponIds(List.of(1L))
+                .inventoryWeapons(List.of(InventoryWeaponRequest.builder().weaponId(1L).build()))
                 .build();
 
         CustomUserDetails userDetails = new CustomUserDetails(owner);
@@ -1731,8 +1889,8 @@ class CharacterSheetServiceTest {
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
             saved.setCharacterSheetDomainCards(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -1741,11 +1899,12 @@ class CharacterSheetServiceTest {
         CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
 
         // Assert
-        assertThat(result.getInventoryWeaponIds()).contains(1L);
+        assertThat(result.getInventoryWeapons()).hasSize(1);
+        assertThat(result.getInventoryWeapons().get(0).getWeaponId()).isEqualTo(1L);
     }
 
     @Test
-    void updateCharacterSheet_WithConstraintViolation_ThrowsException() {
+    void updateCharacterSheet_WithArmorMarkedExceedsMax_ClampsMarkedToMax() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
         CharacterSheet sheet = CharacterSheet.builder()
@@ -1772,12 +1931,26 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
 
-        // Act & Assert
-        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("Armor marked")
-                .hasMessageContaining("cannot exceed armor max");
+        // Act
+        characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getArmorMarked()).isEqualTo(5);
     }
 
     @Test
@@ -1810,18 +1983,24 @@ class CharacterSheetServiceTest {
                 .name("Aragorn")
                 .level(5)
                 .owner(owner)
-                .activePrimaryWeapon(primaryWeapon)
-                .activeArmor(armor)
                 .communityCards(new HashSet<>(List.of(communityCard)))
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>(List.of(exp)))
                 .createdAt(LocalDateTime.now())
                 .build();
+
+        // Add linking entities after sheet is built so we can set the back-reference
+        CharacterSheetWeapon csw = CharacterSheetWeapon.builder()
+                .id(10L).characterSheet(sheet).weapon(primaryWeapon).equipped(true).slot("PRIMARY").build();
+        sheet.getCharacterSheetWeapons().add(csw);
+        CharacterSheetArmor csa = CharacterSheetArmor.builder()
+                .id(11L).characterSheet(sheet).armor(armor).equipped(true).build();
+        sheet.getCharacterSheetArmors().add(csa);
 
         exp.setCharacterSheet(sheet);
 
@@ -1835,7 +2014,7 @@ class CharacterSheetServiceTest {
 
         // Act
         CharacterSheetResponse result = characterSheetService.getCharacterSheetById(
-                1L, "owner,experiences,activePrimaryWeapon,activeArmor,communityCards");
+                1L, "owner,experiences,inventoryWeapons,inventoryArmors,communityCards");
 
         // Assert
         assertThat(result).isNotNull();
@@ -1843,10 +2022,12 @@ class CharacterSheetServiceTest {
         assertThat(result.getOwner().getUsername()).isEqualTo("player1");
         assertThat(result.getExperiences()).hasSize(1);
         assertThat(result.getExperiences().get(0).getDescription()).isEqualTo("Survived dragon attack");
-        assertThat(result.getActivePrimaryWeapon()).isNotNull();
-        assertThat(result.getActivePrimaryWeapon().getName()).isEqualTo("Longsword");
-        assertThat(result.getActiveArmor()).isNotNull();
-        assertThat(result.getActiveArmor().getName()).isEqualTo("Plate Mail");
+        assertThat(result.getInventoryWeapons()).hasSize(1);
+        assertThat(result.getInventoryWeapons().get(0).getWeapon()).isNotNull();
+        assertThat(result.getInventoryWeapons().get(0).getWeapon().getName()).isEqualTo("Longsword");
+        assertThat(result.getInventoryArmors()).hasSize(1);
+        assertThat(result.getInventoryArmors().get(0).getArmor()).isNotNull();
+        assertThat(result.getInventoryArmors().get(0).getArmor().getName()).isEqualTo("Plate Mail");
         assertThat(result.getCommunityCards()).hasSize(1);
         assertThat(result.getCommunityCards().get(0).getName()).isEqualTo("Nomad");
     }
@@ -1892,9 +2073,9 @@ class CharacterSheetServiceTest {
             saved.setCommunityCards(new HashSet<>());
             saved.setAncestryCards(new HashSet<>());
             saved.setSubclassCards(new HashSet<>());
-            saved.setInventoryWeapons(new HashSet<>());
-            saved.setInventoryArmors(new HashSet<>());
-            saved.setInventoryItems(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
             saved.setExperiences(new HashSet<>());
             return saved;
         });
@@ -2009,9 +2190,9 @@ class CharacterSheetServiceTest {
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -2055,17 +2236,19 @@ class CharacterSheetServiceTest {
                 .name("Aragorn")
                 .level(5)
                 .owner(owner)
-                .activePrimaryWeapon(primaryWeapon)
                 .communityCards(new HashSet<>())
                 .ancestryCards(new HashSet<>())
                 .subclassCards(new HashSet<>())
                 .characterSheetDomainCards(new HashSet<>())
-                .inventoryWeapons(new HashSet<>())
-                .inventoryArmors(new HashSet<>())
-                .inventoryItems(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
                 .experiences(new HashSet<>())
                 .createdAt(LocalDateTime.now())
                 .build();
+
+        CharacterSheetWeapon csw = CharacterSheetWeapon.builder()
+                .id(10L).characterSheet(sheet).weapon(primaryWeapon).equipped(true).slot("PRIMARY").build();
+        sheet.getCharacterSheetWeapons().add(csw);
 
         List<FeatureResponse> features = List.of(
                 FeatureResponse.builder().id(10L).name("Parry").build()
@@ -2081,13 +2264,239 @@ class CharacterSheetServiceTest {
 
         // Act
         CharacterSheetResponse result = characterSheetService.getCharacterSheetById(
-                1L, "activePrimaryWeapon,features");
+                1L, "inventoryWeapons,features");
 
         // Assert
         assertThat(result).isNotNull();
-        assertThat(result.getActivePrimaryWeapon()).isNotNull();
-        assertThat(result.getActivePrimaryWeapon().getFeatures()).isNotNull();
-        assertThat(result.getActivePrimaryWeapon().getFeatures()).hasSize(1);
-        assertThat(result.getActivePrimaryWeapon().getFeatures().get(0).getName()).isEqualTo("Parry");
+        assertThat(result.getInventoryWeapons()).hasSize(1);
+        assertThat(result.getInventoryWeapons().get(0).getWeapon()).isNotNull();
+        assertThat(result.getInventoryWeapons().get(0).getWeapon().getFeatures()).isNotNull();
+        assertThat(result.getInventoryWeapons().get(0).getWeapon().getFeatures()).hasSize(1);
+        assertThat(result.getInventoryWeapons().get(0).getWeapon().getFeatures().get(0).getName()).isEqualTo("Parry");
+    }
+
+    // ==================== WEAPON SLOT VALIDATION TESTS ====================
+
+    @Test
+    void createCharacterSheet_WithTwoPrimaryWeapons_ThrowsIllegalStateException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Weapon weapon1 = Weapon.builder().id(1L).name("Sword1").build();
+        Weapon weapon2 = Weapon.builder().id(2L).name("Sword2").build();
+
+        CreateCharacterSheetRequest request = CreateCharacterSheetRequest.builder()
+                .name("Aragorn").level(5).evasion(10).armorMax(5).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(10).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(3).hopeMarked(0).gold(50)
+                .inventoryWeapons(List.of(
+                        InventoryWeaponRequest.builder().weaponId(1L).equipped(true).slot("PRIMARY").build(),
+                        InventoryWeaponRequest.builder().weaponId(2L).equipped(true).slot("PRIMARY").build()
+                ))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(weaponRepository.findById(1L)).thenReturn(Optional.of(weapon1));
+        when(weaponRepository.findById(2L)).thenReturn(Optional.of(weapon2));
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Only one PRIMARY weapon slot is allowed");
+    }
+
+    @Test
+    void createCharacterSheet_WithTwoSecondaryWeapons_ThrowsIllegalStateException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Weapon weapon1 = Weapon.builder().id(1L).name("Dagger1").build();
+        Weapon weapon2 = Weapon.builder().id(2L).name("Dagger2").build();
+
+        CreateCharacterSheetRequest request = CreateCharacterSheetRequest.builder()
+                .name("Aragorn").level(5).evasion(10).armorMax(5).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(10).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(3).hopeMarked(0).gold(50)
+                .inventoryWeapons(List.of(
+                        InventoryWeaponRequest.builder().weaponId(1L).equipped(true).slot("SECONDARY").build(),
+                        InventoryWeaponRequest.builder().weaponId(2L).equipped(true).slot("SECONDARY").build()
+                ))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(weaponRepository.findById(1L)).thenReturn(Optional.of(weapon1));
+        when(weaponRepository.findById(2L)).thenReturn(Optional.of(weapon2));
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Only one SECONDARY weapon slot is allowed");
+    }
+
+    @Test
+    void createCharacterSheet_WithEquippedWeaponWithoutSlot_ThrowsIllegalStateException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Weapon weapon = Weapon.builder().id(1L).name("Sword").build();
+
+        CreateCharacterSheetRequest request = CreateCharacterSheetRequest.builder()
+                .name("Aragorn").level(5).evasion(10).armorMax(5).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(10).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(3).hopeMarked(0).gold(50)
+                .inventoryWeapons(List.of(
+                        InventoryWeaponRequest.builder().weaponId(1L).equipped(true).build()
+                ))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(weaponRepository.findById(1L)).thenReturn(Optional.of(weapon));
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Equipped weapons must have a slot");
+    }
+
+    @Test
+    void createCharacterSheet_WithUnequippedWeaponWithSlot_ThrowsIllegalStateException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Weapon weapon = Weapon.builder().id(1L).name("Sword").build();
+
+        CreateCharacterSheetRequest request = CreateCharacterSheetRequest.builder()
+                .name("Aragorn").level(5).evasion(10).armorMax(5).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(10).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(3).hopeMarked(0).gold(50)
+                .inventoryWeapons(List.of(
+                        InventoryWeaponRequest.builder().weaponId(1L).equipped(false).slot("PRIMARY").build()
+                ))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(weaponRepository.findById(1L)).thenReturn(Optional.of(weapon));
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Unequipped weapons must not have a slot");
+    }
+
+    @Test
+    void createCharacterSheet_WithInvalidSlot_ThrowsIllegalStateException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Weapon weapon = Weapon.builder().id(1L).name("Sword").build();
+
+        CreateCharacterSheetRequest request = CreateCharacterSheetRequest.builder()
+                .name("Aragorn").level(5).evasion(10).armorMax(5).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(10).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(3).hopeMarked(0).gold(50)
+                .inventoryWeapons(List.of(
+                        InventoryWeaponRequest.builder().weaponId(1L).equipped(true).slot("TERTIARY").build()
+                ))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(weaponRepository.findById(1L)).thenReturn(Optional.of(weapon));
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.createCharacterSheet(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Weapon slot must be PRIMARY or SECONDARY");
+    }
+
+    @Test
+    void createCharacterSheet_WithDuplicateWeaponIds_Succeeds() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        Weapon weapon = Weapon.builder().id(1L).name("Sword").build();
+
+        CreateCharacterSheetRequest request = CreateCharacterSheetRequest.builder()
+                .name("Aragorn").level(5).evasion(10).armorMax(5).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(10).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(3).hopeMarked(0).gold(50)
+                .inventoryWeapons(List.of(
+                        InventoryWeaponRequest.builder().weaponId(1L).equipped(true).slot("PRIMARY").build(),
+                        InventoryWeaponRequest.builder().weaponId(1L).build()
+                ))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(weaponRepository.findById(1L)).thenReturn(Optional.of(weapon));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setId(1L);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.createCharacterSheet(request, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getInventoryWeapons()).hasSize(2);
     }
 }

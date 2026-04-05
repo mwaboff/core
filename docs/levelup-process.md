@@ -74,7 +74,7 @@ After all steps complete, the character's level is incremented by 1.
 
 #### BOOST_TRAITS
 - **Effect:** +1 modifier to two traits, mark both traits.
-- **Required fields:** `boostTraits` (exactly 2 Trait values, both must currently be unmarked)
+- **Required fields:** `boostTraits` (exactly 2 Trait values, both must currently be unmarked -- except during tier transitions at levels 5 and 8, where previously marked traits may be re-selected since marks are cleared before the boost is applied)
 - **Per-tier limit:** 3
 
 #### GAIN_HP
@@ -107,7 +107,7 @@ After all steps complete, the character's level is incremented by 1.
 #### UPGRADE_SUBCLASS
 - **Effect:** Take the next-level subclass card in a path the character already has (e.g., Foundation to Specialization, Specialization to Mastery).
 - **Required fields:** `subclassCardId` (the upgraded card)
-- **Per-tier limit:** Effectively 3 (one per level in the tier), but mutually exclusive with MULTICLASS.
+- **Per-tier limit:** 1 (mutually exclusive with MULTICLASS)
 
 #### BOOST_PROFICIENCY
 - **Effect:** +1 to `proficiency`.
@@ -117,7 +117,7 @@ After all steps complete, the character's level is incremented by 1.
 #### MULTICLASS
 - **Effect:** Choose an additional class by selecting a subclass path from a class the character doesn't already have, and take its Foundation-level card.
 - **Required fields:** `multiclassSubclassPathId`, `multiclassFoundationCardId`
-- **Per-tier limit:** Effectively 3 (one per level in the tier), but mutually exclusive with UPGRADE_SUBCLASS.
+- **Per-tier limit:** 2 (mutually exclusive with UPGRADE_SUBCLASS)
 
 ---
 
@@ -131,12 +131,12 @@ After all steps complete, the character's level is incremented by 1.
 | BOOST_EXPERIENCES | 1 | 1 | 1 |
 | GAIN_DOMAIN_CARD | 1 | 1 | 1 |
 | BOOST_EVASION | 1 | 1 | 1 |
-| UPGRADE_SUBCLASS | -- | * | * |
+| UPGRADE_SUBCLASS | -- | 1 | 1 |
 | BOOST_PROFICIENCY | -- | 2 | 2 |
-| MULTICLASS | -- | * | * |
+| MULTICLASS | -- | 2 | 2 |
 
 `--` = Not available in this tier.
-`*` = UPGRADE_SUBCLASS and MULTICLASS are mutually exclusive within a tier. The limit for each is effectively the number of level-ups in the tier (3), but the mutual exclusion is the real constraint.
+UPGRADE_SUBCLASS and MULTICLASS are mutually exclusive within a tier (see below).
 
 ---
 
@@ -144,6 +144,8 @@ After all steps complete, the character's level is incremented by 1.
 
 **UPGRADE_SUBCLASS** and **MULTICLASS** are mutually exclusive within a tier:
 - If a character chooses UPGRADE_SUBCLASS at any level within a tier, MULTICLASS becomes unavailable for the rest of that tier (and vice versa).
+- Both types cannot appear in the same level-up request.
+- UPGRADE_SUBCLASS has a per-tier limit of 1; MULTICLASS has a per-tier limit of 2.
 - This resets at each tier boundary. A character who used UPGRADE_SUBCLASS in Tier 3 can use MULTICLASS in Tier 4.
 - Both can appear as available options initially; the exclusion only kicks in once one is used.
 

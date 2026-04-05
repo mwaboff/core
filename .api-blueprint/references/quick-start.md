@@ -26,6 +26,7 @@ curl -X POST http://localhost:8080/api/auth/register \
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "test@example.com"
 }
 ```
@@ -52,6 +53,7 @@ The `usernameOrEmail` field accepts either a username or an email address.
 {
   "id": 1,
   "username": "testuser",
+  "role": "USER",
   "email": "test@example.com"
 }
 ```

@@ -13,7 +13,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -24,7 +23,7 @@ import org.springframework.web.bind.annotation.*;
  * </p>
  * <p>
  * Access control:
- * - List all: Requires MODERATOR/ADMIN/OWNER role
+ * - List all: Any authenticated user (regular users scoped to own characters, MODERATOR+ can see all)
  * - View single: Any authenticated user
  * - Create: Any authenticated user (becomes owner)
  * - Update: Character sheet owner OR MODERATOR/ADMIN/OWNER role
@@ -43,7 +42,9 @@ public class CharacterSheetController {
      * Retrieves a paginated list of character sheets.
      * <p>
      * Supports optional filtering by owner ID, name, and level range.
-     * Only users with MODERATOR/ADMIN/OWNER role can access this endpoint.
+     * All authenticated users can access this endpoint. Regular users are
+     * automatically scoped to only see their own character sheets.
+     * MODERATOR+ users can see all character sheets and filter by any owner.
      * </p>
      *
      * @param page Zero-based page number (default: 0)
@@ -53,10 +54,10 @@ public class CharacterSheetController {
      * @param minLevel Optional filter for minimum character level
      * @param maxLevel Optional filter for maximum character level
      * @param expand Comma-separated list of relationships to expand
+     * @param authentication The authentication object containing the current user
      * @return Paginated response containing character sheets with 200 OK status
      */
     @GetMapping
-    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN', 'OWNER')")
     public ResponseEntity<PagedResponse<CharacterSheetResponse>> getAllCharacterSheets(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -64,29 +65,33 @@ public class CharacterSheetController {
             @RequestParam(required = false) String name,
             @RequestParam(required = false) Integer minLevel,
             @RequestParam(required = false) Integer maxLevel,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication) {
 
         PagedResponse<CharacterSheetResponse> response =
-                characterSheetService.getAllCharacterSheets(page, size, ownerId, name, minLevel, maxLevel, expand);
+                characterSheetService.getAllCharacterSheets(page, size, ownerId, name, minLevel, maxLevel, expand, authentication);
         return ResponseEntity.ok(response);
     }
 
     /**
      * Retrieves a single character sheet by ID.
      * <p>
-     * All authenticated users can view any character sheet.
+     * All authenticated users can view any character sheet. When authenticated,
+     * the response may include campaign info if the viewer has access.
      * </p>
      *
      * @param id The character sheet ID
      * @param expand Comma-separated list of relationships to expand
+     * @param authentication The authentication object containing the current user
      * @return Character sheet response with 200 OK status
      */
     @GetMapping("/{id}")
     public ResponseEntity<CharacterSheetResponse> getCharacterSheetById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication) {
 
-        CharacterSheetResponse response = characterSheetService.getCharacterSheetById(id, expand);
+        CharacterSheetResponse response = characterSheetService.getCharacterSheetById(id, expand, authentication);
         return ResponseEntity.ok(response);
     }
 

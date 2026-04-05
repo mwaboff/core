@@ -63,6 +63,11 @@ public class AncestryCardResponse {
     private Boolean isOfficial;
 
     /**
+     * Whether this ancestry card represents a mixed ancestry
+     */
+    private Boolean isMixed;
+
+    /**
      * URL to the background image for this card
      */
     private String backgroundImageUrl;

@@ -1,13 +1,17 @@
 package com.aboff.core.controller;
 
+import com.aboff.core.model.dto.dh.response.CampaignResponse;
 import com.aboff.core.model.dto.request.ChangePasswordRequest;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
+import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.UserService;
+import com.aboff.core.service.dh.CampaignService;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -22,14 +26,17 @@ import org.springframework.web.bind.annotation.*;
 public class UserController {
 
     private final UserService userService;
+    private final CampaignService campaignService;
 
     /**
      * Constructs a new UserController with required dependencies.
      *
      * @param userService the user service
+     * @param campaignService the campaign service
      */
-    public UserController(UserService userService) {
+    public UserController(UserService userService, CampaignService campaignService) {
         this.userService = userService;
+        this.campaignService = campaignService;
     }
 
     /**
@@ -47,6 +54,31 @@ public class UserController {
             Authentication authentication) {
         String targetId = (userId != null) ? userId : "me";
         return userService.getUserProfile(targetId, authentication);
+    }
+
+    /**
+     * Get campaigns for a specific user.
+     * GET /api/users/{userId}/campaigns
+     * <p>
+     * Accessible by the target user themselves or users with MODERATOR+ role.
+     * Supports pagination and response expansion.
+     * </p>
+     *
+     * @param userId         the target user's ID
+     * @param page           the page number (zero-based, default 0)
+     * @param size           the page size (default 20, max 100)
+     * @param expand         optional comma-separated list of fields to expand
+     * @param authentication the current authentication object
+     * @return paginated list of campaigns the user is involved in
+     */
+    @GetMapping("/{userId}/campaigns")
+    public ResponseEntity<PagedResponse<CampaignResponse>> getUserCampaigns(
+            @PathVariable Long userId,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(required = false) String expand,
+            Authentication authentication) {
+        return ResponseEntity.ok(campaignService.getUserCampaigns(userId, page, size, expand, authentication));
     }
 
     /**

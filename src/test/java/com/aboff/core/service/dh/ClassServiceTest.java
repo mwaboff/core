@@ -1,6 +1,8 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateClassRequest;
+import com.aboff.core.model.dto.dh.request.FeatureInput;
+import com.aboff.core.model.dto.dh.request.QuestionInput;
 import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.ClassResponse;
@@ -20,8 +22,6 @@ import com.aboff.core.model.enums.QuestionType;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
-import com.aboff.core.repository.dh.QuestionRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,13 +61,10 @@ class ClassServiceTest {
     private DomainRepository domainRepository;
 
     @Mock
-    private FeatureRepository featureRepository;
-
-    @Mock
-    private QuestionRepository questionRepository;
-
-    @Mock
     private FeatureService featureService;
+
+    @Mock
+    private QuestionService questionService;
 
     @InjectMocks
     private ClassService classService;
@@ -311,8 +308,10 @@ class ClassServiceTest {
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
         when(domainRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(domain));
-        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(feature));
-        when(questionRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(question));
+        when(featureService.resolveFeatures(eq(List.of(1L)), isNull())).thenReturn(Set.of(feature));
+        when(featureService.resolveFeatures(eq(List.of()), isNull())).thenReturn(new HashSet<>());
+        when(questionService.resolveQuestions(eq(List.of(1L)), isNull())).thenReturn(Set.of(question));
+        when(questionService.resolveQuestions(eq(List.of()), isNull())).thenReturn(new HashSet<>());
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
         // Act
@@ -746,6 +745,296 @@ class ClassServiceTest {
         FeatureResponse hopeFeature = result.getContent().get(0).getHopeFeatures().get(0);
         assertThat(hopeFeature.getCostTagIds()).isEmpty();
         assertThat(hopeFeature.getCostTags()).isEmpty();
+    }
+
+    // ==================== INLINE CREATION TESTS ====================
+
+    @Test
+    void createClass_withInlineHopeFeatures_resolvesAndSetsFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature inlineFeature = Feature.builder().id(10L).name("Inline Hope").featureType(FeatureType.HOPE).expansion(expansion).build();
+
+        FeatureInput hopeInput = FeatureInput.builder()
+                .name("Inline Hope").featureType(FeatureType.HOPE).expansionId(1L).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior").description("Fighter").expansionId(1L)
+                .startingEvasion(10).startingHitPoints(20)
+                .hopeFeatures(List.of(hopeInput))
+                .build();
+
+        Class savedClass = Class.builder().id(1L).name("Warrior").description("Fighter")
+                .expansion(expansion).startingEvasion(10).startingHitPoints(20)
+                .hopeFeatures(Set.of(inlineFeature)).createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)))).thenReturn(Set.of(inlineFeature));
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+        when(classRepository.save(any(Class.class))).thenReturn(savedClass);
+
+        // Act
+        ClassResponse result = classService.createClass(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getHopeFeatureIds()).containsExactly(10L);
+        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)));
+    }
+
+    @Test
+    void createClass_withInlineClassFeatures_resolvesAndSetsFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature classFeature = Feature.builder().id(11L).name("Blade Dance").featureType(FeatureType.CLASS).expansion(expansion).build();
+
+        FeatureInput classInput = FeatureInput.builder()
+                .name("Blade Dance").featureType(FeatureType.CLASS).expansionId(1L).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior").description("Fighter").expansionId(1L)
+                .startingEvasion(10).startingHitPoints(20)
+                .classFeatures(List.of(classInput))
+                .build();
+
+        Class savedClass = Class.builder().id(1L).name("Warrior").description("Fighter")
+                .expansion(expansion).startingEvasion(10).startingHitPoints(20)
+                .classFeatures(Set.of(classFeature)).createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), eq(List.of(classInput)))).thenReturn(Set.of(classFeature));
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+        when(classRepository.save(any(Class.class))).thenReturn(savedClass);
+
+        // Act
+        ClassResponse result = classService.createClass(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getClassFeatureIds()).containsExactly(11L);
+        verify(featureService).resolveFeatures(isNull(), eq(List.of(classInput)));
+    }
+
+    @Test
+    void createClass_withInlineBackgroundQuestions_resolvesAndSetsQuestions() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Question bgQuestion = Question.builder().id(20L).questionText("What is your background?")
+                .questionType(QuestionType.BACKGROUND).expansion(expansion).build();
+
+        QuestionInput bgInput = QuestionInput.builder()
+                .questionText("What is your background?").questionType(QuestionType.BACKGROUND).expansionId(1L).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior").description("Fighter").expansionId(1L)
+                .startingEvasion(10).startingHitPoints(20)
+                .backgroundQuestions(List.of(bgInput))
+                .build();
+
+        Class savedClass = Class.builder().id(1L).name("Warrior").description("Fighter")
+                .expansion(expansion).startingEvasion(10).startingHitPoints(20)
+                .backgroundQuestions(Set.of(bgQuestion)).createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(questionService.resolveQuestions(isNull(), eq(List.of(bgInput)))).thenReturn(Set.of(bgQuestion));
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+        when(classRepository.save(any(Class.class))).thenReturn(savedClass);
+
+        // Act
+        ClassResponse result = classService.createClass(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getBackgroundQuestionIds()).containsExactly(20L);
+        verify(questionService).resolveQuestions(isNull(), eq(List.of(bgInput)));
+    }
+
+    @Test
+    void createClass_withInlineConnectionQuestions_resolvesAndSetsQuestions() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Question connQuestion = Question.builder().id(21L).questionText("Who do you know?")
+                .questionType(QuestionType.CONNECTION).expansion(expansion).build();
+
+        QuestionInput connInput = QuestionInput.builder()
+                .questionText("Who do you know?").questionType(QuestionType.CONNECTION).expansionId(1L).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior").description("Fighter").expansionId(1L)
+                .startingEvasion(10).startingHitPoints(20)
+                .connectionQuestions(List.of(connInput))
+                .build();
+
+        Class savedClass = Class.builder().id(1L).name("Warrior").description("Fighter")
+                .expansion(expansion).startingEvasion(10).startingHitPoints(20)
+                .connectionQuestions(Set.of(connQuestion)).createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(questionService.resolveQuestions(isNull(), eq(List.of(connInput)))).thenReturn(Set.of(connQuestion));
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+        when(classRepository.save(any(Class.class))).thenReturn(savedClass);
+
+        // Act
+        ClassResponse result = classService.createClass(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getConnectionQuestionIds()).containsExactly(21L);
+        verify(questionService).resolveQuestions(isNull(), eq(List.of(connInput)));
+    }
+
+    @Test
+    void createClass_withMixedIdsAndInlineFeatures_mergesBoth() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature existingFeature = Feature.builder().id(1L).name("Existing Hope").featureType(FeatureType.HOPE).expansion(expansion).build();
+        Feature inlineFeature = Feature.builder().id(10L).name("Inline Hope").featureType(FeatureType.HOPE).expansion(expansion).build();
+
+        FeatureInput hopeInput = FeatureInput.builder()
+                .name("Inline Hope").featureType(FeatureType.HOPE).expansionId(1L).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior").description("Fighter").expansionId(1L)
+                .startingEvasion(10).startingHitPoints(20)
+                .hopeFeatureIds(List.of(1L))
+                .hopeFeatures(List.of(hopeInput))
+                .build();
+
+        Set<Feature> mergedFeatures = Set.of(existingFeature, inlineFeature);
+
+        Class savedClass = Class.builder().id(1L).name("Warrior").description("Fighter")
+                .expansion(expansion).startingEvasion(10).startingHitPoints(20)
+                .hopeFeatures(mergedFeatures).createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(eq(List.of(1L)), eq(List.of(hopeInput)))).thenReturn(mergedFeatures);
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+        when(classRepository.save(any(Class.class))).thenReturn(savedClass);
+
+        // Act
+        ClassResponse result = classService.createClass(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getHopeFeatureIds()).containsExactlyInAnyOrder(1L, 10L);
+        verify(featureService).resolveFeatures(eq(List.of(1L)), eq(List.of(hopeInput)));
+    }
+
+    @Test
+    void createClassesBulk_withInlineInputs_resolvesAll() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature hopeFeature = Feature.builder().id(10L).name("Hope Feat").featureType(FeatureType.HOPE).expansion(expansion).build();
+
+        FeatureInput hopeInput = FeatureInput.builder()
+                .name("Hope Feat").featureType(FeatureType.HOPE).expansionId(1L).build();
+
+        CreateClassRequest request1 = CreateClassRequest.builder()
+                .name("Warrior").description("Fighter").expansionId(1L)
+                .startingEvasion(10).startingHitPoints(20)
+                .hopeFeatures(List.of(hopeInput))
+                .build();
+
+        CreateClassRequest request2 = CreateClassRequest.builder()
+                .name("Mage").description("Caster").expansionId(1L)
+                .startingEvasion(15).startingHitPoints(15)
+                .build();
+
+        Class savedClass1 = Class.builder().id(1L).name("Warrior").description("Fighter")
+                .expansion(expansion).startingEvasion(10).startingHitPoints(20)
+                .hopeFeatures(Set.of(hopeFeature)).createdAt(LocalDateTime.now()).build();
+        Class savedClass2 = Class.builder().id(2L).name("Mage").description("Caster")
+                .expansion(expansion).startingEvasion(15).startingHitPoints(15)
+                .createdAt(LocalDateTime.now()).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)))).thenReturn(Set.of(hopeFeature));
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+        when(classRepository.saveAll(anyList())).thenReturn(List.of(savedClass1, savedClass2));
+
+        // Act
+        List<ClassResponse> results = classService.createClassesBulk(List.of(request1, request2));
+
+        // Assert
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).getHopeFeatureIds()).containsExactly(10L);
+        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)));
+    }
+
+    @Test
+    void updateClass_withInlineFeatures_resolvesAndUpdates() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature newFeature = Feature.builder().id(10L).name("New Hope").featureType(FeatureType.HOPE).expansion(expansion).build();
+
+        FeatureInput hopeInput = FeatureInput.builder()
+                .name("New Hope").featureType(FeatureType.HOPE).expansionId(1L).build();
+
+        Class existingClass = Class.builder()
+                .id(1L).name("Warrior").description("Fighter").expansion(expansion)
+                .startingEvasion(10).startingHitPoints(20)
+                .associatedDomains(new HashSet<>()).hopeFeatures(new HashSet<>())
+                .classFeatures(new HashSet<>()).backgroundQuestions(new HashSet<>())
+                .connectionQuestions(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        UpdateClassRequest request = UpdateClassRequest.builder()
+                .name("Warrior").description("Fighter").expansionId(1L)
+                .startingEvasion(10).startingHitPoints(20)
+                .hopeFeatures(List.of(hopeInput))
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingClass));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)))).thenReturn(Set.of(newFeature));
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.updateClass(1L, request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)));
+    }
+
+    @Test
+    void updateClass_withNullInlineInputs_doesNotModify() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature existingFeature = Feature.builder().id(1L).name("Existing Hope").featureType(FeatureType.HOPE).expansion(expansion).build();
+
+        Class existingClass = Class.builder()
+                .id(1L).name("Warrior").description("Fighter").expansion(expansion)
+                .startingEvasion(10).startingHitPoints(20)
+                .associatedDomains(new HashSet<>()).hopeFeatures(new HashSet<>(Set.of(existingFeature)))
+                .classFeatures(new HashSet<>()).backgroundQuestions(new HashSet<>())
+                .connectionQuestions(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        UpdateClassRequest request = UpdateClassRequest.builder()
+                .name("Warrior").description("Fighter").expansionId(1L)
+                .startingEvasion(10).startingHitPoints(20)
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingClass));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.updateClass(1L, request);
+
+        // Assert - existing features should be preserved since resolveFeatures returned null
+        assertThat(result).isNotNull();
+        assertThat(result.getHopeFeatureIds()).containsExactly(1L);
+        verify(featureService, times(2)).resolveFeatures(isNull(), isNull());
     }
 
     /**

@@ -281,13 +281,15 @@ public class SubclassPathService {
 
     /**
      * Finds an existing subclass path by name and class, or creates a new one if not found.
-     * The name lookup is case-insensitive.
+     * The name lookup is case-insensitive. If an existing path is found with missing
+     * attributes (empty domains or null spellcasting trait), those attributes are updated
+     * from the provided parameters.
      *
      * @param name The path name to find or create
      * @param classId The associated class ID
      * @param expansionId The expansion ID (used only when creating)
-     * @param domainIds The domain IDs to associate (used only when creating)
-     * @param spellcastingTrait The spellcasting trait (used only when creating)
+     * @param domainIds The domain IDs to associate (used when creating or backfilling empty domains)
+     * @param spellcastingTrait The spellcasting trait (used when creating or backfilling null trait)
      * @return The found or newly created SubclassPath
      * @throws EntityNotFoundException if the class, expansion, or domains are not found
      */
@@ -297,6 +299,33 @@ public class SubclassPathService {
         log.info("Finding or creating subclass path with name: {} for class id: {}", name, classId);
 
         return subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull(name, classId)
+                .map(existingPath -> {
+                    boolean updated = false;
+
+                    // Update domains if provided and currently empty
+                    if (domainIds != null && !domainIds.isEmpty()
+                            && (existingPath.getAssociatedDomains() == null
+                                || existingPath.getAssociatedDomains().isEmpty())) {
+                        Set<Domain> domains = new HashSet<>(
+                                domainRepository.findAllByIdInAndDeletedAtIsNull(domainIds));
+                        existingPath.setAssociatedDomains(domains);
+                        updated = true;
+                    }
+
+                    // Update spellcasting trait if provided and currently null
+                    if (spellcastingTrait != null && existingPath.getSpellcastingTrait() == null) {
+                        existingPath.setSpellcastingTrait(spellcastingTrait);
+                        updated = true;
+                    }
+
+                    if (updated) {
+                        log.info("Updated existing subclass path with id: {} with missing attributes",
+                                existingPath.getId());
+                        return subclassPathRepository.save(existingPath);
+                    }
+
+                    return existingPath;
+                })
                 .orElseGet(() -> {
                     log.info("SubclassPath not found, creating new path with name: {}", name);
 

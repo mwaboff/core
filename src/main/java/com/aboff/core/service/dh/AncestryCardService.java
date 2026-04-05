@@ -1,6 +1,7 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateAncestryCardRequest;
+import com.aboff.core.model.dto.dh.request.CreateMixedAncestryCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAncestryCardRequest;
 import com.aboff.core.model.dto.dh.response.AncestryCardResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
@@ -13,6 +14,7 @@ import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.repository.dh.AncestryCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -25,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.util.ExpandUtil;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -40,6 +43,7 @@ public class AncestryCardService {
 
     private final AncestryCardRepository ancestryCardRepository;
     private final ExpansionRepository expansionRepository;
+    private final FeatureRepository featureRepository;
     private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
 
@@ -51,6 +55,7 @@ public class AncestryCardService {
      * @param includeDeleted Whether to include soft-deleted cards
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param isMixed Optional filter for mixed ancestry status; defaults to false when null to hide mixed ancestries from standard listings
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing ancestry cards
      */
@@ -61,16 +66,19 @@ public class AncestryCardService {
             boolean includeDeleted,
             Long expansionId,
             Boolean isOfficial,
+            Boolean isMixed,
             String expand) {
+
+        Boolean effectiveIsMixed = (isMixed == null) ? false : isMixed;
 
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<AncestryCard> cardPage;
 
         if (includeDeleted) {
-            cardPage = ancestryCardRepository.findAllWithFilters(expansionId, isOfficial, pageable);
+            cardPage = ancestryCardRepository.findAllWithFilters(expansionId, isOfficial, effectiveIsMixed, pageable);
         } else {
-            cardPage = ancestryCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
+            cardPage = ancestryCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, effectiveIsMixed, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -191,6 +199,48 @@ public class AncestryCardService {
     }
 
     /**
+     * Creates a mixed ancestry card combining features from two different ancestries.
+     * Mixed ancestry cards are always non-official user-created content.
+     *
+     * @param request The creation request containing mixed ancestry details
+     * @return AncestryCardResponse containing the created mixed ancestry card
+     * @throws IllegalArgumentException if featureIds does not contain exactly two entries
+     * @throws EntityNotFoundException if referenced expansion or features are not found
+     */
+    @Transactional
+    public AncestryCardResponse createMixedAncestryCard(CreateMixedAncestryCardRequest request) {
+        log.info("Creating mixed ancestry card with name: {}", request.getName());
+
+        if (request.getFeatureIds() == null || request.getFeatureIds().size() != 2) {
+            throw new IllegalArgumentException("Exactly two feature IDs must be provided for a mixed ancestry card");
+        }
+
+        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Expansion not found with id: " + request.getExpansionId()));
+
+        List<Feature> features = featureRepository.findAllByIdInAndDeletedAtIsNull(request.getFeatureIds());
+        if (features.size() != 2) {
+            throw new EntityNotFoundException("One or more features not found for the provided feature IDs");
+        }
+
+        AncestryCard card = AncestryCard.builder()
+                .name(request.getName())
+                .description(request.getDescription())
+                .expansion(expansion)
+                .isOfficial(false)
+                .isMixed(true)
+                .backgroundImageUrl(request.getBackgroundImageUrl())
+                .features(new HashSet<>(features))
+                .build();
+
+        AncestryCard savedCard = ancestryCardRepository.save(card);
+        log.info("Created mixed ancestry card with id: {}", savedCard.getId());
+
+        return toResponse(savedCard, Set.of());
+    }
+
+    /**
      * Updates an existing ancestry card.
      *
      * @param id The card ID to update
@@ -294,6 +344,7 @@ public class AncestryCardService {
                 .cardType(card.getCardType())
                 .expansionId(card.getExpansion().getId())
                 .isOfficial(card.getIsOfficial())
+                .isMixed(card.getIsMixed())
                 .backgroundImageUrl(card.getBackgroundImageUrl())
                 .createdAt(card.getCreatedAt())
                 .lastModifiedAt(card.getLastModifiedAt())

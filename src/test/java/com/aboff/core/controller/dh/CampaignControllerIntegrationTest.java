@@ -8,6 +8,7 @@ import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
+import com.aboff.core.repository.dh.CampaignInviteRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.UserRepository;
@@ -58,6 +59,9 @@ class CampaignControllerIntegrationTest {
 
     @Autowired
     private CampaignRepository campaignRepository;
+
+    @Autowired
+    private CampaignInviteRepository campaignInviteRepository;
 
     @Autowired
     private CharacterSheetRepository characterSheetRepository;
@@ -548,7 +552,7 @@ class CampaignControllerIntegrationTest {
     }
 
     @Test
-    void removeCharacterSheet_AsNonGM_Returns403() throws Exception {
+    void removeCharacterSheet_AsSheetOwner_Returns200() throws Exception {
         addPlayerToCampaign(testCampaign, player1);
         CharacterSheet sheet = createCharacterSheet("Hero", player1);
         addPlayerCharacter(testCampaign, sheet);
@@ -556,7 +560,216 @@ class CampaignControllerIntegrationTest {
         mockMvc.perform(delete("/api/dh/campaigns/{id}/character-sheets/{sheetId}",
                         testCampaign.getId(), sheet.getId())
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk());
+
+        Campaign updated = campaignRepository.findById(testCampaign.getId()).orElseThrow();
+        assertThat(updated.getPlayerCharacters()).isEmpty();
+    }
+
+    @Test
+    void removeCharacterSheet_AsNonGMNonOwner_Returns403() throws Exception {
+        addPlayerToCampaign(testCampaign, player1);
+        addPlayerToCampaign(testCampaign, player2);
+        CharacterSheet sheet = createCharacterSheet("Hero", player1);
+        addPlayerCharacter(testCampaign, sheet);
+
+        // player2 is not the sheet owner and not a GM
+        mockMvc.perform(delete("/api/dh/campaigns/{id}/character-sheets/{sheetId}",
+                        testCampaign.getId(), sheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
                 .andExpect(status().isForbidden());
+    }
+
+    // ==================== GET MY CAMPAIGNS TESTS ====================
+
+    @Test
+    void getMyCampaigns_AsAuthenticated_Returns200() throws Exception {
+        mockMvc.perform(get("/api/dh/campaigns/mine")
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Test Campaign"));
+    }
+
+    @Test
+    void getMyCampaigns_Unauthenticated_Returns401() throws Exception {
+        mockMvc.perform(get("/api/dh/campaigns/mine"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void getMyCampaigns_AsNonMember_ReturnsEmpty() throws Exception {
+        mockMvc.perform(get("/api/dh/campaigns/mine")
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content").isArray())
+                .andExpect(jsonPath("$.content.length()").value(0));
+    }
+
+    // ==================== INVITE & JOIN TESTS ====================
+
+    @Test
+    void generateInvite_AsGM_Returns201() throws Exception {
+        mockMvc.perform(post("/api/dh/campaigns/{id}/invites", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.token").exists())
+                .andExpect(jsonPath("$.expiresAt").exists())
+                .andExpect(jsonPath("$.campaignId").value(testCampaign.getId()));
+    }
+
+    @Test
+    void generateInvite_AsNonGM_Returns403() throws Exception {
+        addPlayerToCampaign(testCampaign, player1);
+
+        mockMvc.perform(post("/api/dh/campaigns/{id}/invites", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void joinCampaign_ValidToken_Returns200() throws Exception {
+        // Generate invite via endpoint
+        String inviteResponse = mockMvc.perform(post("/api/dh/campaigns/{id}/invites", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String inviteToken = objectMapper.readTree(inviteResponse).get("token").asText();
+
+        mockMvc.perform(post("/api/dh/campaigns/join/{token}", inviteToken)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.campaignId").value(testCampaign.getId()))
+                .andExpect(jsonPath("$.campaignName").value("Test Campaign"));
+
+        Campaign updated = campaignRepository.findById(testCampaign.getId()).orElseThrow();
+        assertThat(updated.getPlayers()).anyMatch(p -> p.getId().equals(player1.getId()));
+    }
+
+    @Test
+    void joinCampaign_InvalidToken_Returns404() throws Exception {
+        mockMvc.perform(post("/api/dh/campaigns/join/{token}", "nonexistent-token")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ==================== CAMPAIGN LIFECYCLE TESTS ====================
+
+    @Test
+    void endCampaign_AsCreator_Returns200() throws Exception {
+        mockMvc.perform(post("/api/dh/campaigns/{id}/end", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testCampaign.getId()));
+
+        Campaign updated = campaignRepository.findById(testCampaign.getId()).orElseThrow();
+        assertThat(updated.isEnded()).isTrue();
+    }
+
+    @Test
+    void endCampaign_EndedCampaign_Returns400() throws Exception {
+        // End the campaign first
+        mockMvc.perform(post("/api/dh/campaigns/{id}/end", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk());
+
+        // Try to end again
+        mockMvc.perform(post("/api/dh/campaigns/{id}/end", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void leaveCampaign_AsPlayer_Returns200() throws Exception {
+        addPlayerToCampaign(testCampaign, player1);
+
+        mockMvc.perform(post("/api/dh/campaigns/{id}/leave", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk());
+
+        Campaign updated = campaignRepository.findById(testCampaign.getId()).orElseThrow();
+        assertThat(updated.getPlayers()).noneMatch(p -> p.getId().equals(player1.getId()));
+    }
+
+    @Test
+    void leaveCampaign_AsNonPlayer_Returns400() throws Exception {
+        mockMvc.perform(post("/api/dh/campaigns/{id}/leave", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void kickPlayer_CascadesCharacterSheetRemoval() throws Exception {
+        addPlayerToCampaign(testCampaign, player1);
+        CharacterSheet sheet = createCharacterSheet("Hero", player1);
+        addPlayerCharacter(testCampaign, sheet);
+
+        mockMvc.perform(delete("/api/dh/campaigns/{id}/players/{userId}", testCampaign.getId(), player1.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk());
+
+        Campaign updated = campaignRepository.findById(testCampaign.getId()).orElseThrow();
+        assertThat(updated.getPlayers()).noneMatch(p -> p.getId().equals(player1.getId()));
+        assertThat(updated.getPlayerCharacters()).noneMatch(cs -> cs.getId().equals(sheet.getId()));
+    }
+
+    @Test
+    void submitCharacterSheet_AlreadyInCampaign_Returns400() throws Exception {
+        // Add player1 to testCampaign and submit a sheet
+        addPlayerToCampaign(testCampaign, player1);
+        CharacterSheet sheet = createCharacterSheet("Hero", player1);
+        addPlayerCharacter(testCampaign, sheet);
+
+        // Create a second campaign with player1
+        Campaign secondCampaign = createCampaign("Second Campaign", "Another campaign", gm2);
+        addPlayerToCampaign(secondCampaign, player1);
+
+        // Try to submit the same sheet to the second campaign
+        mockMvc.perform(post("/api/dh/campaigns/{id}/character-sheets/{sheetId}/submit",
+                        secondCampaign.getId(), sheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void endCampaign_BlocksUpdate_Returns400() throws Exception {
+        // End the campaign
+        mockMvc.perform(post("/api/dh/campaigns/{id}/end", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk());
+
+        // Try to update the ended campaign
+        UpdateCampaignRequest request = UpdateCampaignRequest.builder()
+                .name("New Name After End")
+                .build();
+
+        mockMvc.perform(put("/api/dh/campaigns/{id}", testCampaign.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void endCampaign_AllowsUnlink_Returns200() throws Exception {
+        CharacterSheet sheet = createCharacterSheet("Hero", creator);
+        addPlayerCharacter(testCampaign, sheet);
+
+        // End the campaign
+        mockMvc.perform(post("/api/dh/campaigns/{id}/end", testCampaign.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk());
+
+        // Removing a character sheet should still be allowed
+        mockMvc.perform(delete("/api/dh/campaigns/{id}/character-sheets/{sheetId}",
+                        testCampaign.getId(), sheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk());
+
+        Campaign updated = campaignRepository.findById(testCampaign.getId()).orElseThrow();
+        assertThat(updated.getPlayerCharacters()).isEmpty();
     }
 
     // ==================== HELPER METHODS ====================

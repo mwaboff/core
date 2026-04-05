@@ -8,26 +8,110 @@ All endpoints require authentication via `AUTH_TOKEN` HttpOnly cookie unless oth
 
 ## Table of Contents
 
-1. [List All Campaigns](#1-list-all-campaigns)
-2. [Get Campaign by ID](#2-get-campaign-by-id)
-3. [Create Campaign](#3-create-campaign)
-4. [Update Campaign](#4-update-campaign)
-5. [Delete Campaign](#5-delete-campaign)
-6. [Add Game Master](#6-add-game-master)
-7. [Remove Game Master](#7-remove-game-master)
-8. [Add Player](#8-add-player)
-9. [Remove Player](#9-remove-player)
-10. [Submit Character Sheet](#10-submit-character-sheet)
-11. [Approve Character Sheet](#11-approve-character-sheet)
-12. [Reject Character Sheet](#12-reject-character-sheet)
-13. [Add NPC](#13-add-npc)
-14. [Remove Character Sheet](#14-remove-character-sheet)
-15. [Models](#models)
-16. [Enums](#enums)
+1. [My Campaigns](#1-my-campaigns)
+2. [Join Campaign via Invite](#2-join-campaign-via-invite)
+3. [List All Campaigns](#3-list-all-campaigns)
+4. [Get Campaign by ID](#4-get-campaign-by-id)
+5. [Create Campaign](#5-create-campaign)
+6. [Update Campaign](#6-update-campaign)
+7. [Delete Campaign](#7-delete-campaign)
+8. [Generate Invite](#8-generate-invite)
+9. [End Campaign](#9-end-campaign)
+10. [Leave Campaign](#10-leave-campaign)
+11. [Add Game Master](#11-add-game-master)
+12. [Remove Game Master](#12-remove-game-master)
+13. [Add Player](#13-add-player)
+14. [Kick Player](#14-kick-player)
+15. [Submit Character Sheet](#15-submit-character-sheet)
+16. [Approve Character Sheet](#16-approve-character-sheet)
+17. [Reject Character Sheet](#17-reject-character-sheet)
+18. [Add NPC](#18-add-npc)
+19. [Remove Character Sheet](#19-remove-character-sheet)
+20. [Models](#models)
+21. [Enums](#enums)
 
 ---
 
-## 1. List All Campaigns
+## 1. My Campaigns
+
+Retrieves a paginated list of campaigns where the authenticated user is involved (as creator, GM, or player).
+
+- **Method:** `GET`
+- **Path:** `/api/dh/campaigns/mine`
+- **Auth:** Any authenticated user
+
+### Query Parameters
+
+| Parameter | Type    | Required | Default | Description                                     |
+|-----------|---------|----------|---------|-------------------------------------------------|
+| page      | integer | No       | 0       | Zero-based page number                          |
+| size      | integer | No       | 20      | Items per page (max 100)                        |
+| expand    | string  | No       | -       | Comma-separated list of relationships to expand |
+
+### Response: `200 OK`
+
+Returns a PagedResponse of CampaignResponse (same shape as List All Campaigns).
+
+### Error Responses
+
+| Status | Condition            | Error Body Type |
+|--------|----------------------|-----------------|
+| 401    | No AUTH_TOKEN cookie | ErrorResponse   |
+
+### curl Example
+
+```bash
+curl -s "http://localhost:8080/api/dh/campaigns/mine?expand=creator" \
+  --cookie "AUTH_TOKEN=<token>"
+```
+
+> **See also:** `GET /api/users/{userId}/campaigns` in `references/users-api.md` — retrieves campaigns for a specific user (self or MODERATOR+), useful for admin views or viewing another user's campaign involvement.
+
+---
+
+## 2. Join Campaign via Invite
+
+Joins a campaign using an invite token. The user is added as a player.
+
+- **Method:** `POST`
+- **Path:** `/api/dh/campaigns/join/{token}`
+- **Auth:** Any authenticated user
+
+### Path Parameters
+
+| Parameter | Type   | Required | Description      |
+|-----------|--------|----------|------------------|
+| token     | string | Yes      | The invite token |
+
+### Response: `200 OK`
+
+```json
+{
+  "campaignId": 1,
+  "campaignName": "Test Campaign",
+  "message": "Successfully joined campaign: Test Campaign"
+}
+```
+
+### Error Responses
+
+| Status | Condition                                      | Error Body Type |
+|--------|------------------------------------------------|-----------------|
+| 400    | Token expired, already used, or user is already a member | ErrorResponse |
+| 400    | Campaign is ended                              | ErrorResponse   |
+| 401    | No AUTH_TOKEN cookie                           | ErrorResponse   |
+| 404    | Token not found or campaign deleted            | ErrorResponse   |
+
+### curl Example
+
+```bash
+curl -s -X POST http://localhost:8080/api/dh/campaigns/join/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+  --cookie "AUTH_TOKEN=<token>"
+```
+
+---
+
+## 3. List All Campaigns
 
 Retrieves a paginated list of campaigns with optional filtering.
 
@@ -60,6 +144,8 @@ Retrieves a paginated list of campaigns with optional filtering.
       "pendingCharacterSheetIds": [],
       "playerCharacterIds": [],
       "nonPlayerCharacterIds": [],
+      "isEnded": false,
+      "endedAt": null,
       "createdAt": "2026-03-13T10:00:00",
       "lastModifiedAt": "2026-03-13T10:00:00",
       "deletedAt": null
@@ -101,7 +187,7 @@ curl -s "http://localhost:8080/api/dh/campaigns?page=0&size=10&expand=creator" \
 
 ---
 
-## 2. Get Campaign by ID
+## 4. Get Campaign by ID
 
 Retrieves a single campaign. Only campaign participants (creator, GM, or player) or users with MODERATOR/ADMIN/OWNER role can view.
 
@@ -151,6 +237,7 @@ Retrieves a single campaign. Only campaign participants (creator, GM, or player)
   "creator": {
     "id": 1,
     "username": "creator",
+    "role": "USER",
     "email": "creator@example.com",
     "avatarUrl": null,
     "timezone": null,
@@ -194,7 +281,7 @@ curl -s "http://localhost:8080/api/dh/campaigns/1?expand=all" \
 
 ---
 
-## 3. Create Campaign
+## 5. Create Campaign
 
 Creates a new campaign. The authenticated user becomes the creator and is automatically added as a game master.
 
@@ -290,7 +377,7 @@ curl -s -X POST http://localhost:8080/api/dh/campaigns \
 
 ---
 
-## 4. Update Campaign
+## 6. Update Campaign
 
 Updates an existing campaign. Supports partial updates -- only non-null fields are changed.
 
@@ -358,7 +445,7 @@ curl -s -X PUT http://localhost:8080/api/dh/campaigns/1 \
 
 ---
 
-## 5. Delete Campaign
+## 7. Delete Campaign
 
 Soft-deletes a campaign. Sets `deletedAt` timestamp; the record remains in the database but is excluded from active queries.
 
@@ -393,7 +480,122 @@ curl -s -X DELETE http://localhost:8080/api/dh/campaigns/1 \
 
 ---
 
-## 6. Add Game Master
+## 8. Generate Invite
+
+Generates a single-use invite link for the campaign. The invite is valid for 24 hours.
+
+- **Method:** `POST`
+- **Path:** `/api/dh/campaigns/{id}/invites`
+- **Auth:** Campaign creator/GM or MODERATOR/ADMIN/OWNER
+
+### Path Parameters
+
+| Parameter | Type | Required | Description     |
+|-----------|------|----------|-----------------|
+| id        | long | Yes      | The campaign ID |
+
+### Response: `201 Created`
+
+```json
+{
+  "id": 1,
+  "campaignId": 1,
+  "token": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "expiresAt": "2026-03-14T10:00:00",
+  "createdAt": "2026-03-13T10:00:00"
+}
+```
+
+### Error Responses
+
+| Status | Condition                                   | Error Body Type |
+|--------|---------------------------------------------|-----------------|
+| 400    | Campaign is ended                           | ErrorResponse   |
+| 401    | No AUTH_TOKEN cookie                        | ErrorResponse   |
+| 403    | User is not a creator/GM and not MODERATOR+ | ErrorResponse   |
+| 404    | Campaign not found                          | ErrorResponse   |
+
+### curl Example
+
+```bash
+curl -s -X POST http://localhost:8080/api/dh/campaigns/1/invites \
+  --cookie "AUTH_TOKEN=<token>"
+```
+
+---
+
+## 9. End Campaign
+
+Ends a campaign, locking it from further modifications. The campaign remains visible but most mutating operations are blocked. Distinct from deletion: ended campaigns are locked+visible, deleted campaigns are invisible.
+
+- **Method:** `POST`
+- **Path:** `/api/dh/campaigns/{id}/end`
+- **Auth:** Campaign creator or MODERATOR/ADMIN/OWNER
+
+### Path Parameters
+
+| Parameter | Type | Required | Description     |
+|-----------|------|----------|-----------------|
+| id        | long | Yes      | The campaign ID |
+
+### Response: `200 OK`
+
+Returns the updated CampaignResponse with `isEnded: true` and `endedAt` set.
+
+### Error Responses
+
+| Status | Condition                                       | Error Body Type |
+|--------|-------------------------------------------------|-----------------|
+| 400    | Campaign is already ended                       | ErrorResponse   |
+| 401    | No AUTH_TOKEN cookie                            | ErrorResponse   |
+| 403    | User is not the creator and not MODERATOR+      | ErrorResponse   |
+| 404    | Campaign not found                              | ErrorResponse   |
+
+### curl Example
+
+```bash
+curl -s -X POST http://localhost:8080/api/dh/campaigns/1/end \
+  --cookie "AUTH_TOKEN=<token>"
+```
+
+---
+
+## 10. Leave Campaign
+
+Allows a player to voluntarily leave a campaign. Does NOT cascade-unlink character sheets (voluntary departure). Works on ended campaigns.
+
+- **Method:** `POST`
+- **Path:** `/api/dh/campaigns/{id}/leave`
+- **Auth:** Must be a player in the campaign
+
+### Path Parameters
+
+| Parameter | Type | Required | Description     |
+|-----------|------|----------|-----------------|
+| id        | long | Yes      | The campaign ID |
+
+### Response: `200 OK`
+
+Returns the updated CampaignResponse with the player removed.
+
+### Error Responses
+
+| Status | Condition                | Error Body Type |
+|--------|--------------------------|-----------------|
+| 400    | User is not a player     | ErrorResponse   |
+| 401    | No AUTH_TOKEN cookie     | ErrorResponse   |
+| 404    | Campaign not found       | ErrorResponse   |
+
+### curl Example
+
+```bash
+curl -s -X POST http://localhost:8080/api/dh/campaigns/1/leave \
+  --cookie "AUTH_TOKEN=<token>"
+```
+
+---
+
+## 11. Add Game Master
 
 Adds a user as a game master to the campaign.
 
@@ -444,7 +646,7 @@ curl -s -X POST http://localhost:8080/api/dh/campaigns/1/game-masters/2 \
 
 ---
 
-## 7. Remove Game Master
+## 12. Remove Game Master
 
 Removes a user from the game masters of the campaign. The campaign creator cannot be removed.
 
@@ -493,7 +695,7 @@ curl -s -X DELETE http://localhost:8080/api/dh/campaigns/1/game-masters/2 \
 
 ---
 
-## 8. Add Player
+## 13. Add Player
 
 Adds a user as a player to the campaign.
 
@@ -544,9 +746,9 @@ curl -s -X POST http://localhost:8080/api/dh/campaigns/1/players/3 \
 
 ---
 
-## 9. Remove Player
+## 14. Kick Player
 
-Removes a user from the players of the campaign.
+Kicks a player from the campaign. Cascades to remove all character sheets owned by the kicked player from all three collections (pending, player characters, and NPCs).
 
 - **Method:** `DELETE`
 - **Path:** `/api/dh/campaigns/{id}/players/{userId}`
@@ -554,14 +756,14 @@ Removes a user from the players of the campaign.
 
 ### Path Parameters
 
-| Parameter | Type | Required | Description                         |
-|-----------|------|----------|-------------------------------------|
-| id        | long | Yes      | The campaign ID                     |
-| userId    | long | Yes      | The user ID to remove from players  |
+| Parameter | Type | Required | Description               |
+|-----------|------|----------|---------------------------|
+| id        | long | Yes      | The campaign ID           |
+| userId    | long | Yes      | The user ID to kick       |
 
 ### Response: `200 OK`
 
-Returns the updated CampaignResponse (same shape as [Add Player](#8-add-player)).
+Returns the updated CampaignResponse with the player removed and their character sheets unlinked.
 
 ### Error Responses
 
@@ -580,7 +782,7 @@ curl -s -X DELETE http://localhost:8080/api/dh/campaigns/1/players/3 \
 
 ---
 
-## 10. Submit Character Sheet
+## 15. Submit Character Sheet
 
 Submits a character sheet to the campaign for GM approval. The sheet is added to `pendingCharacterSheets`.
 
@@ -656,7 +858,7 @@ curl -s -X POST http://localhost:8080/api/dh/campaigns/1/character-sheets/10/sub
 
 ---
 
-## 11. Approve Character Sheet
+## 16. Approve Character Sheet
 
 Approves a pending character sheet, moving it from `pendingCharacterSheets` to `playerCharacters`.
 
@@ -720,7 +922,7 @@ curl -s -X POST http://localhost:8080/api/dh/campaigns/1/character-sheets/10/app
 
 ---
 
-## 12. Reject Character Sheet
+## 17. Reject Character Sheet
 
 Rejects a pending character sheet, removing it from `pendingCharacterSheets`.
 
@@ -757,7 +959,7 @@ curl -s -X POST http://localhost:8080/api/dh/campaigns/1/character-sheets/10/rej
 
 ---
 
-## 13. Add NPC
+## 18. Add NPC
 
 Adds a character sheet as a non-player character to the campaign.
 
@@ -808,13 +1010,13 @@ curl -s -X POST http://localhost:8080/api/dh/campaigns/1/npcs/11 \
 
 ---
 
-## 14. Remove Character Sheet
+## 19. Remove Character Sheet
 
-Removes a character sheet from the campaign entirely -- from all collections (pending, player characters, and NPCs).
+Removes a character sheet from the campaign entirely -- from all collections (pending, player characters, and NPCs). Works on ended campaigns (unlinking is always allowed).
 
 - **Method:** `DELETE`
 - **Path:** `/api/dh/campaigns/{id}/character-sheets/{sheetId}`
-- **Auth:** Campaign creator/GM or MODERATOR/ADMIN/OWNER
+- **Auth:** Campaign creator/GM, character sheet owner, or MODERATOR/ADMIN/OWNER
 
 ### Path Parameters
 
@@ -831,9 +1033,9 @@ Returns the updated CampaignResponse with the sheet removed from all collections
 
 | Status | Condition                                        | Error Body Type |
 |--------|--------------------------------------------------|-----------------|
-| 401    | No AUTH_TOKEN cookie                             | ErrorResponse   |
-| 403    | User is not a creator/GM and not MODERATOR+      | ErrorResponse   |
-| 404    | Campaign not found                               | ErrorResponse   |
+| 401    | No AUTH_TOKEN cookie                                          | ErrorResponse   |
+| 403    | User is not a creator/GM, not the sheet owner, and not MODERATOR+ | ErrorResponse |
+| 404    | Campaign not found                                            | ErrorResponse   |
 
 ### curl Example
 
@@ -865,11 +1067,14 @@ Null fields are omitted from the JSON response (`@JsonInclude(NON_NULL)`).
 | pendingCharacterSheets    | CharacterSheetResponse[]  | No             | Expanded when `?expand=pendingCharacterSheets`       |
 | playerCharacterIds        | long[]                    | Yes            | IDs of approved player characters                    |
 | playerCharacters          | CharacterSheetResponse[]  | No             | Expanded when `?expand=playerCharacters`             |
-| nonPlayerCharacterIds     | long[]                    | Yes            | IDs of NPCs                                          |
-| nonPlayerCharacters       | CharacterSheetResponse[]  | No             | Expanded when `?expand=nonPlayerCharacters`          |
-| createdAt                 | datetime                  | Yes            | ISO 8601 creation timestamp                          |
-| lastModifiedAt            | datetime                  | Yes            | ISO 8601 last modified timestamp                     |
-| deletedAt                 | datetime                  | No             | ISO 8601 soft-deletion timestamp (null if active)    |
+| nonPlayerCharacterIds     | long[]                             | Yes            | IDs of NPCs                                          |
+| nonPlayerCharacters       | CharacterSheetResponse[]           | No             | Expanded when `?expand=nonPlayerCharacters`          |
+| characterSummaries        | CampaignCharacterSummaryResponse[] | No             | Expanded when `?expand=characterSummaries`           |
+| isEnded                   | boolean                            | Yes            | Whether the campaign has ended                       |
+| endedAt                   | datetime                           | No             | ISO 8601 ended timestamp (null if not ended)         |
+| createdAt                 | datetime                           | Yes            | ISO 8601 creation timestamp                          |
+| lastModifiedAt            | datetime                           | Yes            | ISO 8601 last modified timestamp                     |
+| deletedAt                 | datetime                           | No             | ISO 8601 soft-deletion timestamp (null if active)    |
 
 ### CreateCampaignRequest
 
@@ -897,6 +1102,7 @@ When a user is expanded in a campaign response, these fields are included. Null 
 |-----------------|----------|------------------------------|
 | id              | long     | User ID                      |
 | username        | string   | Username                     |
+| role            | string   | User role (`USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
 | email           | string   | Email address                |
 | avatarUrl       | string   | Avatar image URL             |
 | timezone        | string   | User timezone                |
@@ -916,6 +1122,39 @@ When a character sheet is expanded in a campaign response, only basic fields are
 | ownerId        | long     | ID of the character sheet owner|
 | createdAt      | datetime | Creation timestamp             |
 | lastModifiedAt | datetime | Last modified timestamp        |
+
+### CampaignInviteResponse
+
+| Field      | Type     | Description                           |
+|------------|----------|---------------------------------------|
+| id         | long     | Invite ID                             |
+| campaignId | long     | Campaign ID                           |
+| token      | string   | UUID invite token                     |
+| expiresAt  | datetime | When the invite expires               |
+| createdAt  | datetime | When the invite was created           |
+
+### JoinCampaignResponse
+
+| Field        | Type   | Description                        |
+|--------------|--------|------------------------------------|
+| campaignId   | long   | ID of the campaign joined          |
+| campaignName | string | Name of the campaign joined        |
+| message      | string | Human-readable success message     |
+
+### CampaignCharacterSummaryResponse
+
+Lightweight character summary used in campaign GET with `?expand=characterSummaries`. Includes all characters across pending, PC, and NPC collections.
+
+| Field          | Type     | Description                              |
+|----------------|----------|------------------------------------------|
+| id             | long     | Character sheet ID                       |
+| name           | string   | Character name                           |
+| level          | integer  | Character level                          |
+| ownerId        | long     | ID of the character owner                |
+| ownerUsername  | string   | Username of the character owner          |
+| ancestryNames  | string[] | Names of ancestry cards                  |
+| subclassNames  | string[] | Names of subclass cards                  |
+| classNames     | string[] | Names of associated classes (via subclass paths) |
 
 ### PagedResponse
 
@@ -980,44 +1219,58 @@ The `?expand` query parameter is supported on `GET /api/dh/campaigns` and `GET /
 | pendingCharacterSheets  | List of CharacterSheetResponse (basic) for pending  |
 | playerCharacters        | List of CharacterSheetResponse (basic) for PCs      |
 | nonPlayerCharacters     | List of CharacterSheetResponse (basic) for NPCs     |
+| characterSummaries      | List of CampaignCharacterSummaryResponse for all characters |
 | all                     | Expands all of the above simultaneously             |
 
 Multiple values can be combined with commas: `?expand=creator,gameMasters,players`
 
 ---
 
-## Soft Deletion
+## Campaign Lifecycle: Ended vs Deleted
 
-Campaigns use soft deletion. When a campaign is deleted via `DELETE /api/dh/campaigns/{id}`:
+Campaigns have two distinct lifecycle states beyond active:
 
-- The `deletedAt` field is set to the current timestamp
-- The campaign record remains in the database
-- All active queries (`findActiveById`, `findActiveWithFilters`) exclude soft-deleted records
-- The campaign's relationships (GMs, players, character sheets) are preserved
+### Ended (`endedAt` set)
+- Campaign is locked but remains visible
+- Most mutating operations are blocked (update, add players, add GMs, submit/approve characters, generate invites)
+- Unlinking character sheets and leaving are still allowed
+- Characters in ended campaigns are excluded from the one-campaign constraint (can be linked to new campaigns)
+
+### Deleted (`deletedAt` set)
+- Campaign is invisible (excluded from all active queries)
+- Soft deletion preserves data in the database
+- Campaign relationships (GMs, players, character sheets) are preserved
 - A `restore()` method exists on the entity but is not exposed via API
 
 ---
 
 ## Access Control Summary
 
-| Operation                  | Creator | GM (non-creator) | Player | MODERATOR+ |
-|----------------------------|---------|-------------------|--------|------------|
-| List all campaigns         | No      | No                | No     | Yes        |
-| View campaign              | Yes     | Yes               | Yes    | Yes        |
-| Create campaign            | N/A     | N/A               | N/A    | Any auth   |
-| Update campaign            | Yes     | No                | No     | Yes        |
-| Delete campaign            | Yes     | No                | No     | Yes        |
-| Add game master            | Yes     | No                | No     | Yes        |
-| Remove game master         | Yes     | No                | No     | Yes        |
-| Add player                 | Yes     | Yes               | No     | Yes        |
-| Remove player              | Yes     | Yes               | No     | Yes        |
-| Submit character sheet     | No      | No                | Yes*   | No         |
-| Approve character sheet    | Yes     | Yes               | No     | Yes        |
-| Reject character sheet     | Yes     | Yes               | No     | Yes        |
-| Add NPC                    | Yes     | Yes               | No     | Yes        |
-| Remove character sheet     | Yes     | Yes               | No     | Yes        |
+| Operation                  | Creator | GM (non-creator) | Player  | MODERATOR+ | Ended OK? |
+|----------------------------|---------|-------------------|---------|------------|-----------|
+| My campaigns               | N/A     | N/A               | N/A     | Any auth   | N/A       |
+| Join via invite            | N/A     | N/A               | N/A     | Any auth   | No        |
+| List all campaigns         | No      | No                | No      | Yes        | N/A       |
+| View campaign              | Yes     | Yes               | Yes     | Yes        | Yes       |
+| Create campaign            | N/A     | N/A               | N/A     | Any auth   | N/A       |
+| Update campaign            | Yes     | No                | No      | Yes        | No        |
+| Delete campaign            | Yes     | No                | No      | Yes        | Yes       |
+| Generate invite            | Yes     | Yes               | No      | Yes        | No        |
+| End campaign               | Yes     | No                | No      | Yes        | No**      |
+| Leave campaign             | No      | No                | Yes     | No         | Yes       |
+| Add game master            | Yes     | No                | No      | Yes        | No        |
+| Remove game master         | Yes     | No                | No      | Yes        | Yes       |
+| Add player                 | Yes     | Yes               | No      | Yes        | No        |
+| Kick player                | Yes     | Yes               | No      | Yes        | Yes       |
+| Submit character sheet     | No      | No                | Yes*    | No         | No        |
+| Approve character sheet    | Yes     | Yes               | No      | Yes        | No        |
+| Reject character sheet     | Yes     | Yes               | No      | Yes        | Yes       |
+| Add NPC                    | Yes     | Yes               | No      | Yes        | No        |
+| Remove character sheet     | Yes     | Yes               | Yes***  | Yes        | Yes       |
 
-\* Must also be the character sheet owner.
+\* Must also be the character sheet owner. Character sheet must not already be in an active campaign.
+\*\* Returns error if already ended.
+\*\*\* Character sheet owner can only remove their own sheets.
 
 ---
 
@@ -1031,11 +1284,12 @@ Campaigns use soft deletion. When a campaign is deleted via `DELETE /api/dh/camp
 | name             | VARCHAR(200)   | No       | CHECK LENGTH(TRIM(name)) > 0      |
 | description      | VARCHAR(2000)  | Yes      |                                    |
 | creator_id       | BIGINT         | No       | FK -> users(id) ON DELETE CASCADE  |
+| ended_at         | TIMESTAMP      | Yes      |                                    |
 | deleted_at       | TIMESTAMP      | Yes      |                                    |
 | created_at       | TIMESTAMP      | No       | DEFAULT CURRENT_TIMESTAMP          |
 | last_modified_at | TIMESTAMP      | No       | DEFAULT CURRENT_TIMESTAMP          |
 
-Indexes: `idx_campaigns_creator_id`, `idx_campaigns_deleted_at`, `idx_campaigns_creator_not_deleted` (partial, WHERE deleted_at IS NULL), `idx_campaigns_name`
+Indexes: `idx_campaigns_creator_id`, `idx_campaigns_deleted_at`, `idx_campaigns_ended_at`, `idx_campaigns_creator_not_deleted` (partial, WHERE deleted_at IS NULL), `idx_campaigns_name`
 
 ### campaign_game_masters
 
@@ -1071,3 +1325,21 @@ Indexes: `idx_campaigns_creator_id`, `idx_campaigns_deleted_at`, `idx_campaigns_
 |--------------------|--------|------------------------------------------------|
 | campaign_id        | BIGINT | PK, FK -> campaigns(id) ON DELETE CASCADE        |
 | character_sheet_id | BIGINT | PK, FK -> character_sheets(id) ON DELETE CASCADE |
+
+### campaign_invites
+
+| Column           | Type          | Nullable | Constraints                             |
+|------------------|---------------|----------|-----------------------------------------|
+| id               | BIGSERIAL     | No       | PRIMARY KEY                             |
+| campaign_id      | BIGINT        | No       | FK -> campaigns(id) ON DELETE CASCADE   |
+| token            | VARCHAR(36)   | No       | UNIQUE                                  |
+| created_by       | BIGINT        | No       | FK -> users(id) ON DELETE CASCADE       |
+| used_by          | BIGINT        | Yes      | FK -> users(id) ON DELETE SET NULL      |
+| expires_at       | TIMESTAMP     | No       |                                         |
+| used_at          | TIMESTAMP     | Yes      |                                         |
+| created_at       | TIMESTAMP     | No       | DEFAULT CURRENT_TIMESTAMP               |
+| last_modified_at | TIMESTAMP     | No       | DEFAULT CURRENT_TIMESTAMP               |
+
+Indexes: `idx_campaign_invites_campaign_id`, `idx_campaign_invites_token`, `idx_campaign_invites_expires_at`
+
+Cleanup: Expired unused invites and used invites older than 7 days are cleaned up daily at 3:15 AM.

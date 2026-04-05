@@ -146,13 +146,31 @@ public class Campaign extends BaseEntity {
     @Builder.Default
     private Set<CharacterSheet> nonPlayerCharacters = new HashSet<>();
 
+    // ========== Campaign Lifecycle ==========
+
+    /**
+     * Timestamp indicating when this campaign was ended.
+     * If null, the campaign is still active.
+     * <p>
+     * An ended campaign is locked (no new players, character submissions, or updates)
+     * but remains visible. This is distinct from soft deletion: ended campaigns are
+     * still accessible for viewing and limited operations (like unlinking characters
+     * or leaving), while deleted campaigns are invisible.
+     * </p>
+     */
+    @Column(name = "ended_at")
+    private LocalDateTime endedAt;
+
     // ========== Soft Deletion ==========
 
     /**
      * Timestamp indicating when this campaign was soft-deleted.
-     * If null, the campaign is active and available.
-     * Soft deletion preserves campaign history while removing the campaign from
-     * active play.
+     * If null, the campaign is not deleted.
+     * <p>
+     * Soft deletion makes the campaign invisible from normal queries.
+     * This is distinct from ending: a deleted campaign is fully hidden,
+     * while an ended campaign is locked but still visible.
+     * </p>
      */
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
@@ -183,6 +201,23 @@ public class Campaign extends BaseEntity {
      */
     public void restore() {
         this.deletedAt = null;
+    }
+
+    /**
+     * Returns whether this campaign has been ended.
+     *
+     * @return true if the campaign is ended, false otherwise
+     */
+    public boolean isEnded() {
+        return endedAt != null;
+    }
+
+    /**
+     * Ends the campaign by setting the ended_at timestamp to the current time.
+     * An ended campaign is locked but remains visible.
+     */
+    public void endCampaign() {
+        this.endedAt = LocalDateTime.now();
     }
 
     /**

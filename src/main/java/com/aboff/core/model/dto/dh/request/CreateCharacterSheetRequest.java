@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -214,23 +215,6 @@ public class CreateCharacterSheetRequest {
     @PositiveOrZero(message = "Gold must be zero or positive")
     private Integer gold;
 
-    // ========== Active Equipment IDs ==========
-
-    /**
-     * ID of currently equipped primary weapon (optional)
-     */
-    private Long activePrimaryWeaponId;
-
-    /**
-     * ID of currently equipped secondary weapon (optional)
-     */
-    private Long activeSecondaryWeaponId;
-
-    /**
-     * ID of currently equipped armor (optional)
-     */
-    private Long activeArmorId;
-
     // ========== Card IDs ==========
 
     /**
@@ -258,20 +242,26 @@ public class CreateCharacterSheetRequest {
      */
     private List<Long> vaultDomainCardIds;
 
-    // ========== Inventory IDs ==========
+    // ========== Inventory ==========
 
     /**
-     * IDs of weapons in inventory (optional)
+     * Weapons in inventory with equipped status and slot assignment (optional).
+     * Supports duplicate weapon IDs for multiple copies of the same weapon.
      */
-    private List<Long> inventoryWeaponIds;
+    @Valid
+    private List<InventoryWeaponRequest> inventoryWeapons;
 
     /**
-     * IDs of armor pieces in inventory (optional)
+     * Armor pieces in inventory with equipped status (optional).
+     * Multiple armor pieces can be equipped simultaneously.
      */
-    private List<Long> inventoryArmorIds;
+    @Valid
+    private List<InventoryArmorRequest> inventoryArmors;
 
     /**
-     * IDs of loot items in inventory (optional)
+     * Loot items in inventory (optional).
+     * Supports duplicate loot IDs for multiple copies of the same item.
      */
-    private List<Long> inventoryItemIds;
+    @Valid
+    private List<InventoryLootRequest> inventoryItems;
 }

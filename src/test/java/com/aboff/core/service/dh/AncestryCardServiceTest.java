@@ -1,6 +1,7 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateAncestryCardRequest;
+import com.aboff.core.model.dto.dh.request.CreateMixedAncestryCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAncestryCardRequest;
 import com.aboff.core.model.dto.dh.response.AncestryCardResponse;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
@@ -17,6 +18,7 @@ import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.AncestryCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,6 +53,9 @@ class AncestryCardServiceTest {
 
     @Mock
     private ExpansionRepository expansionRepository;
+
+    @Mock
+    private FeatureRepository featureRepository;
 
     @Mock
     private FeatureService featureService;
@@ -89,11 +94,11 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card1, card2));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null);
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -118,16 +123,16 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, 1L, null, null);
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, 1L, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(ancestryCardRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
+        verify(ancestryCardRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), eq(false), any(Pageable.class));
     }
 
     @Test
@@ -145,16 +150,16 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(true), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(true), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, true, null);
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, true, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getIsOfficial()).isTrue();
-        verify(ancestryCardRepository).findByDeletedAtIsNullAndFilters(isNull(), eq(true), any(Pageable.class));
+        verify(ancestryCardRepository).findByDeletedAtIsNullAndFilters(isNull(), eq(true), eq(false), any(Pageable.class));
     }
 
     @Test
@@ -172,32 +177,33 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findAllWithFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findAllWithFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, true, null, null, null);
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, true, null, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeletedAt()).isNotNull();
-        verify(ancestryCardRepository).findAllWithFilters(isNull(), isNull(), any(Pageable.class));
+        verify(ancestryCardRepository).findAllWithFilters(isNull(), isNull(), eq(false), any(Pageable.class));
     }
 
     @Test
     void getAllAncestryCards_WithLargePage_LimitsTo100() {
         // Arrange
         Page<AncestryCard> cardPage = new PageImpl<>(List.of());
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        ancestryCardService.getAllAncestryCards(0, 500, false, null, null, null);
+        ancestryCardService.getAllAncestryCards(0, 500, false, null, null, null, null);
 
         // Assert
         verify(ancestryCardRepository).findByDeletedAtIsNullAndFilters(
                 isNull(),
                 isNull(),
+                eq(false),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -221,7 +227,7 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -252,7 +258,7 @@ class AncestryCardServiceTest {
         });
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "expansion,features");
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null, "expansion,features");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -281,7 +287,7 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -312,7 +318,7 @@ class AncestryCardServiceTest {
         });
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features");
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null, "features");
 
         // Assert
         FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
@@ -339,7 +345,7 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -370,7 +376,7 @@ class AncestryCardServiceTest {
         });
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features,costTags");
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null, "features,costTags");
 
         // Assert
         FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
@@ -400,7 +406,7 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -431,7 +437,7 @@ class AncestryCardServiceTest {
         });
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features,costTags");
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null, "features,costTags");
 
         // Assert
         FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
@@ -457,7 +463,7 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -488,7 +494,7 @@ class AncestryCardServiceTest {
         });
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "features,costTags");
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null, "features,costTags");
 
         // Assert
         FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
@@ -716,11 +722,11 @@ class AncestryCardServiceTest {
                 .build();
 
         Page<AncestryCard> cardPage = new PageImpl<>(List.of(card));
-        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
-        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, "costTags");
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null, "costTags");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -949,5 +955,138 @@ class AncestryCardServiceTest {
         assertThatThrownBy(() -> ancestryCardService.restoreAncestryCard(999L))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("AncestryCard not found with id: 999");
+    }
+
+    // ==================== MIXED ANCESTRY CARD TESTS ====================
+
+    @Test
+    void createMixedAncestryCard_WithValid2Features_ReturnsResponse() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature feature1 = Feature.builder().id(1L).name("Tough").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+        Feature feature2 = Feature.builder().id(2L).name("Nimble").featureType(FeatureType.ANCESTRY).expansion(expansion).build();
+
+        CreateMixedAncestryCardRequest request = CreateMixedAncestryCardRequest.builder()
+                .name("Human-Elf Mix")
+                .description("A mixed heritage")
+                .expansionId(1L)
+                .featureIds(List.of(1L, 2L))
+                .build();
+
+        AncestryCard savedCard = AncestryCard.builder()
+                .id(10L)
+                .name("Human-Elf Mix")
+                .description("A mixed heritage")
+                .expansion(expansion)
+                .isOfficial(false)
+                .isMixed(true)
+                .features(new HashSet<>(List.of(feature1, feature2)))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L, 2L))).thenReturn(List.of(feature1, feature2));
+        when(ancestryCardRepository.save(any(AncestryCard.class))).thenReturn(savedCard);
+
+        // Act
+        AncestryCardResponse result = ancestryCardService.createMixedAncestryCard(request);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(10L);
+        assertThat(result.getName()).isEqualTo("Human-Elf Mix");
+        assertThat(result.getIsMixed()).isTrue();
+        assertThat(result.getIsOfficial()).isFalse();
+        assertThat(result.getFeatureIds()).containsExactlyInAnyOrder(1L, 2L);
+        verify(ancestryCardRepository).save(any(AncestryCard.class));
+    }
+
+    @Test
+    void createMixedAncestryCard_WithLessThan2Features_ThrowsException() {
+        // Arrange
+        CreateMixedAncestryCardRequest request = CreateMixedAncestryCardRequest.builder()
+                .name("Mixed")
+                .description("Invalid")
+                .expansionId(1L)
+                .featureIds(List.of(1L))
+                .build();
+
+        // Act & Assert
+        assertThatThrownBy(() -> ancestryCardService.createMixedAncestryCard(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Exactly two feature IDs must be provided for a mixed ancestry card");
+
+        verify(ancestryCardRepository, never()).save(any());
+    }
+
+    @Test
+    void createMixedAncestryCard_WithMoreThan2Features_ThrowsException() {
+        // Arrange
+        CreateMixedAncestryCardRequest request = CreateMixedAncestryCardRequest.builder()
+                .name("Mixed")
+                .description("Invalid")
+                .expansionId(1L)
+                .featureIds(List.of(1L, 2L, 3L))
+                .build();
+
+        // Act & Assert
+        assertThatThrownBy(() -> ancestryCardService.createMixedAncestryCard(request))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("Exactly two feature IDs must be provided for a mixed ancestry card");
+
+        verify(ancestryCardRepository, never()).save(any());
+    }
+
+    @Test
+    void getAllAncestryCards_DefaultHidesMixed() {
+        // Arrange
+        Page<AncestryCard> cardPage = new PageImpl<>(List.of());
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act — isMixed is null, should default to false
+        ancestryCardService.getAllAncestryCards(0, 20, false, null, null, null, null);
+
+        // Assert — verify repository was called with isMixed=false (the default)
+        verify(ancestryCardRepository).findByDeletedAtIsNullAndFilters(
+                isNull(),
+                isNull(),
+                eq(false),
+                any(Pageable.class)
+        );
+    }
+
+    @Test
+    void getAllAncestryCards_WithIsMixedTrue_ReturnsMixed() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        AncestryCard mixedCard = AncestryCard.builder()
+                .id(10L)
+                .name("Human-Elf Mix")
+                .description("Mixed heritage")
+                .expansion(expansion)
+                .isOfficial(false)
+                .isMixed(true)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<AncestryCard> cardPage = new PageImpl<>(List.of(mixedCard));
+        when(ancestryCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(true), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        PagedResponse<AncestryCardResponse> result = ancestryCardService.getAllAncestryCards(0, 20, false, null, null, true, null);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getIsMixed()).isTrue();
+        assertThat(result.getContent().get(0).getName()).isEqualTo("Human-Elf Mix");
+        verify(ancestryCardRepository).findByDeletedAtIsNullAndFilters(
+                isNull(),
+                isNull(),
+                eq(true),
+                any(Pageable.class)
+        );
     }
 }

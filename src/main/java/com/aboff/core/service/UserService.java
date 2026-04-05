@@ -242,6 +242,7 @@ public class UserService {
         UserResponse.UserResponseBuilder builder = UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
+                .role(user.getRole())
                 .avatarUrl(user.getAvatarUrl())
                 .createdAt(user.getCreatedAt());
 

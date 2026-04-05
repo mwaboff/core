@@ -310,6 +310,7 @@ public class AuthenticationService {
         return UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
+                .role(user.getRole())
                 .email(user.getEmail())
                 .avatarUrl(user.getAvatarUrl())
                 .timezone(user.getTimezone())

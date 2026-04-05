@@ -12,7 +12,8 @@ Ancestry cards represent the racial or species heritage of a Daggerheart charact
 
 **Authorization:**
 - `GET` endpoints: Any authenticated user
-- `POST`, `PUT`, `DELETE` endpoints: `ADMIN` or `OWNER` role required
+- `POST /mixed`: Any authenticated user
+- `POST`, `PUT`, `DELETE` endpoints (except `/mixed`): `ADMIN` or `OWNER` role required
 
 ---
 
@@ -35,6 +36,7 @@ Returns a paginated, filtered list of ancestry cards.
 | `includeDeleted` | boolean | `false` | Include soft-deleted cards (ADMIN+ only) |
 | `expansionId` | long | -- | Filter by expansion ID |
 | `isOfficial` | boolean | -- | Filter by official status |
+| `isMixed` | boolean | `false` | Filter by mixed ancestry status. Defaults to `false` (excludes mixed ancestries from standard listing). Set to `true` to return only mixed ancestries. |
 | `expand` | string | -- | Comma-separated relationships to expand |
 
 **Expand Options:** `expansion`, `features`, `costTags`
@@ -262,7 +264,70 @@ POST /api/dh/cards/ancestry
 
 ---
 
-### 4. Create Ancestry Cards (Bulk)
+### 4. Create Mixed Ancestry Card
+
+```
+POST /api/dh/cards/ancestry/mixed
+```
+
+Creates a mixed ancestry card combining features from two different ancestries. Mixed ancestry cards are always non-official user-created content.
+
+**Authorization:** Any authenticated user (no ADMIN/OWNER role required).
+
+**Request Body:**
+
+```json
+{
+  "name": "Half-Elf Half-Dwarf",
+  "description": "A heritage blending elven grace and dwarven resilience",
+  "expansionId": 1,
+  "featureIds": [1, 5],
+  "backgroundImageUrl": "https://img.url/mixed-elf-dwarf"
+}
+```
+
+**Request Body Fields:**
+
+| Field | Type | Required | Validation | Description |
+|---|---|---|---|---|
+| `name` | string | Yes | Not blank, max 200 chars | Card name |
+| `description` | string | No | -- | Card description |
+| `expansionId` | long | Yes | Not null | Expansion this card belongs to |
+| `featureIds` | long[] | Yes | Not null, exactly 2 entries | IDs of the two features to combine |
+| `backgroundImageUrl` | string | No | Max 500 chars | URL to card background image |
+
+**Validation Rules:**
+- `featureIds` must contain exactly 2 entries. Returns `400 Bad Request` if not.
+- `isMixed` is forced to `true` on the created card.
+- `isOfficial` is forced to `false` on the created card.
+
+**Example Response (201 Created):**
+
+```json
+{
+  "id": 10,
+  "name": "Half-Elf Half-Dwarf",
+  "description": "A heritage blending elven grace and dwarven resilience",
+  "cardType": "ANCESTRY",
+  "expansionId": 1,
+  "isOfficial": false,
+  "isMixed": true,
+  "backgroundImageUrl": "https://img.url/mixed-elf-dwarf",
+  "featureIds": [1, 5],
+  "costTagIds": [],
+  "createdAt": "2026-03-22T10:00:00",
+  "lastModifiedAt": "2026-03-22T10:00:00"
+}
+```
+
+**Error Responses:**
+- `400 Bad Request` -- Validation failure (e.g., missing `name`, `featureIds` does not contain exactly 2 entries)
+- `401 Unauthorized` -- Missing or invalid JWT
+- `404 Not Found` -- Referenced expansion or feature not found
+
+---
+
+### 5. Create Ancestry Cards (Bulk)
 
 ```
 POST /api/dh/cards/ancestry/bulk
@@ -335,7 +400,7 @@ POST /api/dh/cards/ancestry/bulk
 
 ---
 
-### 5. Update Ancestry Card
+### 6. Update Ancestry Card
 
 ```
 PUT /api/dh/cards/ancestry/{id}
@@ -395,7 +460,7 @@ PUT /api/dh/cards/ancestry/{id}
 
 ---
 
-### 6. Delete Ancestry Card
+### 7. Delete Ancestry Card
 
 ```
 DELETE /api/dh/cards/ancestry/{id}
@@ -414,7 +479,7 @@ Performs a soft delete (sets `deletedAt` timestamp).
 
 ---
 
-### 7. Restore Ancestry Card
+### 8. Restore Ancestry Card
 
 ```
 POST /api/dh/cards/ancestry/{id}/restore
@@ -597,6 +662,7 @@ Without expansion, only IDs are returned: `expansionId`, `featureIds`, `costTagI
 | `expansionId` | long | Yes | Expansion ID |
 | `expansion` | object | Only with `?expand=expansion` | Full ExpansionResponse |
 | `isOfficial` | boolean | Yes | Official game content flag |
+| `isMixed` | boolean | Yes | Whether this is a mixed ancestry (combined from two ancestries) |
 | `backgroundImageUrl` | string | If set | Background image URL |
 | `featureIds` | long[] | Yes | Feature IDs |
 | `features` | object[] | Only with `?expand=features` | Full FeatureResponse objects |
@@ -630,8 +696,7 @@ Without expansion, only IDs are returned: `expansionId`, `featureIds`, `costTagI
 | Column | Type | Constraints |
 |---|---|---|
 | `id` | BIGINT | PRIMARY KEY, FK -> cards(id) CASCADE |
-
-No additional columns beyond the base card.
+| `is_mixed` | BOOLEAN | NOT NULL DEFAULT false |
 
 ### card_features (join table)
 
@@ -646,3 +711,39 @@ No additional columns beyond the base card.
 |---|---|---|
 | `card_id` | BIGINT | FK -> cards(id) CASCADE |
 | `card_cost_tag_id` | BIGINT | FK -> card_cost_tags(id) CASCADE |
+
+---
+
+## Client Usage: Mixed Ancestry
+
+Mixed ancestries allow players to combine features from two different ancestry cards into a single custom ancestry. Any authenticated user can create mixed ancestries -- no ADMIN/OWNER role is required.
+
+### Creating a Mixed Ancestry
+
+```
+POST /api/dh/cards/ancestry/mixed
+Cookie: AUTH_TOKEN=<jwt>
+Content-Type: application/json
+
+{
+  "name": "Half-Elf Half-Ribbet",
+  "description": "A unique blend of elven wisdom and ribbet agility",
+  "expansionId": 1,
+  "featureIds": [1, 5]
+}
+```
+
+The response will have `isMixed: true` and `isOfficial: false` regardless of any other values.
+
+### Listing Mixed Ancestries
+
+To retrieve only mixed ancestries:
+
+```
+GET /api/dh/cards/ancestry?isMixed=true
+Cookie: AUTH_TOKEN=<jwt>
+```
+
+### How Mixed Ancestries Appear in Standard Listings
+
+By default, mixed ancestries are **excluded** from the standard listing endpoint. The `isMixed` parameter defaults to `false`, so a standard call to `GET /api/dh/cards/ancestry` returns only non-mixed ancestries. To include mixed ancestries, explicitly pass `isMixed=true`.

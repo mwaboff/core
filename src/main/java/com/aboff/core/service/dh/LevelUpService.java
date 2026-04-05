@@ -132,7 +132,7 @@ public class LevelUpService {
         Map<AdvancementType, Integer> usageMap = buildUsageMap(tierLogs);
 
         // Validate request
-        validateLevelUpRequest(request, sheet, nextTier, usageMap, isTierTransition);
+        validateLevelUpRequest(request, sheet, nextTier, usageMap, isTierTransition, nextLevel);
 
         List<String> appliedChanges = new ArrayList<>();
         Map<String, Object> advancementDataMap = new LinkedHashMap<>();
@@ -497,9 +497,9 @@ public class LevelUpService {
             case BOOST_EXPERIENCES -> 1;
             case GAIN_DOMAIN_CARD -> 1;
             case BOOST_EVASION -> 1;
-            case UPGRADE_SUBCLASS -> 3;
+            case UPGRADE_SUBCLASS -> 1;
             case BOOST_PROFICIENCY -> 2;
-            case MULTICLASS -> 3;
+            case MULTICLASS -> 2;
         };
     }
 
@@ -547,7 +547,6 @@ public class LevelUpService {
 
         int upgradeUsed = usageMap.getOrDefault(AdvancementType.UPGRADE_SUBCLASS, 0);
         int multiclassUsed = usageMap.getOrDefault(AdvancementType.MULTICLASS, 0);
-        int combinedUsed = upgradeUsed + multiclassUsed;
 
         for (AdvancementType type : AdvancementType.values()) {
             if (type.getMinTier() > nextTier) continue;
@@ -556,14 +555,11 @@ public class LevelUpService {
             int used = usageMap.getOrDefault(type, 0);
             int remaining = limit - used;
 
-            // Mutual exclusion: UPGRADE_SUBCLASS and MULTICLASS share a combined limit of 3
-            if (type == AdvancementType.UPGRADE_SUBCLASS || type == AdvancementType.MULTICLASS) {
-                int otherUsed = (type == AdvancementType.UPGRADE_SUBCLASS) ? multiclassUsed : upgradeUsed;
-                if (otherUsed > 0) {
-                    remaining = 0;
-                } else {
-                    remaining = Math.max(0, 3 - combinedUsed);
-                }
+            // Mutual exclusion: UPGRADE_SUBCLASS and MULTICLASS cannot be mixed within a tier
+            if (type == AdvancementType.UPGRADE_SUBCLASS && multiclassUsed > 0) {
+                remaining = 0;
+            } else if (type == AdvancementType.MULTICLASS && upgradeUsed > 0) {
+                remaining = 0;
             }
 
             List<AdvancementType> mutuallyExclusiveWith;
@@ -593,10 +589,11 @@ public class LevelUpService {
      * @param nextTier the target tier
      * @param usageMap the current tier usage counts
      * @param isTierTransition whether this is a tier transition
+     * @param nextLevel the target level
      */
     private void validateLevelUpRequest(LevelUpRequest request, CharacterSheet sheet,
                                         int nextTier, Map<AdvancementType, Integer> usageMap,
-                                        boolean isTierTransition) {
+                                        boolean isTierTransition, int nextLevel) {
         if (request.getAdvancements() == null || request.getAdvancements().size() != 2) {
             throw new IllegalStateException("Exactly 2 advancements are required");
         }
@@ -647,12 +644,43 @@ public class LevelUpService {
 
             // Type-specific validation
             switch (type) {
-                case BOOST_TRAITS -> validateBoostTraits(choice, sheet);
+                case BOOST_TRAITS -> validateBoostTraits(choice, sheet, nextLevel);
                 case BOOST_EXPERIENCES -> validateBoostExperiences(choice, sheet, isTierTransition);
                 case GAIN_DOMAIN_CARD -> validateGainDomainCard(choice, accessibleDomainIds, domainCardLevelCap);
                 case UPGRADE_SUBCLASS -> validateUpgradeSubclass(choice, sheet);
                 case MULTICLASS -> validateMulticlass(choice, sheet);
                 default -> { /* GAIN_HP, GAIN_STRESS, BOOST_EVASION, BOOST_PROFICIENCY need no extra validation */ }
+            }
+        }
+
+        // Cross-validation for duplicate advancement types in the same request
+        if (requestCounts.getOrDefault(AdvancementType.BOOST_TRAITS, 0) == 2) {
+            Set<Trait> allTraits = new HashSet<>();
+            int totalTraitCount = 0;
+            for (AdvancementChoice choice : request.getAdvancements()) {
+                if (choice.getType() == AdvancementType.BOOST_TRAITS) {
+                    allTraits.addAll(choice.getTraits());
+                    totalTraitCount += choice.getTraits().size();
+                }
+            }
+            if (allTraits.size() < totalTraitCount) {
+                throw new IllegalStateException("Traits must be distinct across both BOOST_TRAITS choices");
+            }
+        }
+
+        if (requestCounts.getOrDefault(AdvancementType.MULTICLASS, 0) == 2) {
+            Set<Long> targetClassIds = new HashSet<>();
+            for (AdvancementChoice choice : request.getAdvancements()) {
+                if (choice.getType() == AdvancementType.MULTICLASS) {
+                    SubclassCard card = subclassCardRepository.findById(choice.getSubclassCardId())
+                            .orElseThrow(() -> new EntityNotFoundException(
+                                    "SubclassCard not found with id: " + choice.getSubclassCardId()));
+                    Long classId = card.getSubclassPath().getAssociatedClass().getId();
+                    if (!targetClassIds.add(classId)) {
+                        throw new IllegalStateException(
+                                "Cannot multiclass into the same class twice in one level-up");
+                    }
+                }
             }
         }
 
@@ -685,12 +713,15 @@ public class LevelUpService {
         }
     }
 
-    private void validateBoostTraits(AdvancementChoice choice, CharacterSheet sheet) {
+    private void validateBoostTraits(AdvancementChoice choice, CharacterSheet sheet, int nextLevel) {
         if (choice.getTraits() == null || choice.getTraits().size() != 2) {
             throw new IllegalStateException("BOOST_TRAITS requires exactly 2 traits");
         }
+        // Trait marks are cleared at levels 5 and 8 (entering Tier 3 and Tier 4),
+        // so previously marked traits can be re-selected during those tier upgrades.
+        boolean marksWillBeCleared = (nextLevel == 5 || nextLevel == 8);
         for (Trait trait : choice.getTraits()) {
-            if (getTraitMarked(sheet, trait)) {
+            if (getTraitMarked(sheet, trait) && !marksWillBeCleared) {
                 throw new IllegalStateException("Trait " + trait + " is already marked");
             }
         }
@@ -1050,8 +1081,14 @@ public class LevelUpService {
                     }
                 }
             }
-            case GAIN_HP -> sheet.setHitPointMax(sheet.getHitPointMax() - 1);
-            case GAIN_STRESS -> sheet.setStressMax(sheet.getStressMax() - 1);
+            case GAIN_HP -> {
+                sheet.setHitPointMax(sheet.getHitPointMax() - 1);
+                sheet.setHitPointMarked(Math.min(sheet.getHitPointMarked(), sheet.getHitPointMax()));
+            }
+            case GAIN_STRESS -> {
+                sheet.setStressMax(sheet.getStressMax() - 1);
+                sheet.setStressMarked(Math.min(sheet.getStressMarked(), sheet.getStressMax()));
+            }
             case BOOST_EXPERIENCES -> {
                 Map<String, Integer> prevExpModifiers = previousValues != null ?
                         (Map<String, Integer>) previousValues.get("experienceModifiers") : null;

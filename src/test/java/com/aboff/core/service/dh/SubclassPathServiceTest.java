@@ -585,6 +585,8 @@ class SubclassPathServiceTest {
                 .name("Warden of Renewal")
                 .associatedClass(clazz)
                 .expansion(expansion)
+                .associatedDomains(Set.of(Domain.builder().id(1L).name("Sage").expansion(expansion).build()))
+                .spellcastingTrait(Trait.INSTINCT)
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -641,6 +643,8 @@ class SubclassPathServiceTest {
                 .name("Warden of Renewal")
                 .associatedClass(clazz)
                 .expansion(expansion)
+                .associatedDomains(Set.of(Domain.builder().id(1L).name("Sage").expansion(expansion).build()))
+                .spellcastingTrait(Trait.INSTINCT)
                 .createdAt(LocalDateTime.now())
                 .build();
 
@@ -653,6 +657,127 @@ class SubclassPathServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
+        verify(subclassPathRepository, never()).save(any());
+    }
+
+    @Test
+    void findOrCreate_ExistingPathWithEmptyDomains_BackfillsDomains() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+        Domain domain1 = Domain.builder().id(1L).name("Sage").expansion(expansion).build();
+        Domain domain2 = Domain.builder().id(2L).name("Arcana").expansion(expansion).build();
+
+        SubclassPath existingPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .associatedDomains(new HashSet<>())
+                .spellcastingTrait(Trait.INSTINCT)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull("Warden of Renewal", 1L))
+                .thenReturn(Optional.of(existingPath));
+        when(domainRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L, 2L)))
+                .thenReturn(List.of(domain1, domain2));
+        when(subclassPathRepository.save(any(SubclassPath.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassPath result = subclassPathService.findOrCreate("Warden of Renewal", 1L, 1L, List.of(1L, 2L), null);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getAssociatedDomains()).hasSize(2);
+        verify(subclassPathRepository).save(any(SubclassPath.class));
+    }
+
+    @Test
+    void findOrCreate_ExistingPathWithNullDomains_BackfillsDomains() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+        Domain domain = Domain.builder().id(1L).name("Sage").expansion(expansion).build();
+
+        SubclassPath existingPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .associatedDomains(null)
+                .spellcastingTrait(Trait.INSTINCT)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull("Warden of Renewal", 1L))
+                .thenReturn(Optional.of(existingPath));
+        when(domainRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L)))
+                .thenReturn(List.of(domain));
+        when(subclassPathRepository.save(any(SubclassPath.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassPath result = subclassPathService.findOrCreate("Warden of Renewal", 1L, 1L, List.of(1L), null);
+
+        // Assert
+        assertThat(result.getAssociatedDomains()).hasSize(1);
+        verify(subclassPathRepository).save(any(SubclassPath.class));
+    }
+
+    @Test
+    void findOrCreate_ExistingPathWithNullTrait_BackfillsTrait() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+
+        SubclassPath existingPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .associatedDomains(Set.of(Domain.builder().id(1L).name("Sage").expansion(expansion).build()))
+                .spellcastingTrait(null)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull("Warden of Renewal", 1L))
+                .thenReturn(Optional.of(existingPath));
+        when(subclassPathRepository.save(any(SubclassPath.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassPath result = subclassPathService.findOrCreate("Warden of Renewal", 1L, 1L, null, Trait.INSTINCT);
+
+        // Assert
+        assertThat(result.getSpellcastingTrait()).isEqualTo(Trait.INSTINCT);
+        verify(subclassPathRepository).save(any(SubclassPath.class));
+    }
+
+    @Test
+    void findOrCreate_ExistingPathWithPopulatedDomains_DoesNotOverwrite() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+        Domain existingDomain = Domain.builder().id(1L).name("Sage").expansion(expansion).build();
+
+        SubclassPath existingPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .associatedDomains(new HashSet<>(Set.of(existingDomain)))
+                .spellcastingTrait(Trait.INSTINCT)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull("Warden of Renewal", 1L))
+                .thenReturn(Optional.of(existingPath));
+
+        // Act
+        SubclassPath result = subclassPathService.findOrCreate("Warden of Renewal", 1L, 1L, List.of(2L, 3L), null);
+
+        // Assert
+        assertThat(result.getAssociatedDomains()).hasSize(1);
+        assertThat(result.getAssociatedDomains()).contains(existingDomain);
         verify(subclassPathRepository, never()).save(any());
     }
 
