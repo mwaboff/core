@@ -22,7 +22,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Set;
@@ -40,6 +42,7 @@ public class ArmorService {
     private final ArmorRepository armorRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of armors.
@@ -142,6 +145,7 @@ public class ArmorService {
 
         Armor savedArmor = armorRepository.save(armor);
         log.info("Created armor with id: {}", savedArmor.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedArmor, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedArmor, Set.of());
     }
@@ -190,6 +194,7 @@ public class ArmorService {
 
         List<Armor> savedArmors = armorRepository.saveAll(armors);
         log.info("Created {} armors in bulk", savedArmors.size());
+        savedArmors.forEach(a -> eventPublisher.publishEvent(new EntityChangeEvent(this, a, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedArmors.stream()
                 .map(armor -> toResponse(armor, Set.of()))
@@ -239,6 +244,7 @@ public class ArmorService {
 
         Armor updatedArmor = armorRepository.save(armor);
         log.info("Updated armor with id: {}", updatedArmor.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedArmor, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedArmor, Set.of());
     }
@@ -258,6 +264,7 @@ public class ArmorService {
 
         armor.softDelete();
         armorRepository.save(armor);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, armor, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted armor with id: {}", id);
     }
@@ -283,6 +290,7 @@ public class ArmorService {
 
         armor.restore();
         Armor restoredArmor = armorRepository.save(armor);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredArmor, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored armor with id: {}", id);
 

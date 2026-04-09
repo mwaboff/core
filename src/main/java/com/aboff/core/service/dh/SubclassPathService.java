@@ -17,8 +17,10 @@ import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.SubclassPathRepository;
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -47,6 +49,7 @@ public class SubclassPathService {
     private final ExpansionRepository expansionRepository;
     private final ClassRepository classRepository;
     private final DomainRepository domainRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of subclass paths.
@@ -140,6 +143,7 @@ public class SubclassPathService {
 
         SubclassPath savedPath = subclassPathRepository.save(path);
         log.info("Created subclass path with id: {}", savedPath.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedPath, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedPath, Set.of());
     }
@@ -183,6 +187,7 @@ public class SubclassPathService {
 
         List<SubclassPath> savedPaths = subclassPathRepository.saveAll(paths);
         log.info("Created {} subclass paths in bulk", savedPaths.size());
+        savedPaths.forEach(p -> eventPublisher.publishEvent(new EntityChangeEvent(this, p, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedPaths.stream()
                 .map(path -> toResponse(path, Set.of()))
@@ -229,6 +234,7 @@ public class SubclassPathService {
 
         SubclassPath updatedPath = subclassPathRepository.save(path);
         log.info("Updated subclass path with id: {}", updatedPath.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedPath, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedPath, Set.of());
     }
@@ -248,6 +254,7 @@ public class SubclassPathService {
 
         path.softDelete();
         subclassPathRepository.save(path);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, path, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted subclass path with id: {}", id);
     }
@@ -273,6 +280,7 @@ public class SubclassPathService {
 
         path.restore();
         SubclassPath restoredPath = subclassPathRepository.save(path);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredPath, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored subclass path with id: {}", id);
 

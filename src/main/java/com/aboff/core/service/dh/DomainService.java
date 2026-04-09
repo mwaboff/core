@@ -19,7 +19,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.HashSet;
 import java.util.List;
@@ -37,6 +39,7 @@ public class DomainService {
 
     private final DomainRepository domainRepository;
     private final ExpansionRepository expansionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of domains.
@@ -124,6 +127,7 @@ public class DomainService {
 
         Domain savedDomain = domainRepository.save(domain);
         log.info("Created domain with id: {}", savedDomain.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedDomain, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedDomain, Set.of());
     }
@@ -155,6 +159,7 @@ public class DomainService {
 
         List<Domain> savedDomains = domainRepository.saveAll(domains);
         log.info("Created {} domains in bulk", savedDomains.size());
+        savedDomains.forEach(d -> eventPublisher.publishEvent(new EntityChangeEvent(this, d, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedDomains.stream()
                 .map(domain -> toResponse(domain, Set.of()))
@@ -187,6 +192,7 @@ public class DomainService {
 
         Domain updatedDomain = domainRepository.save(domain);
         log.info("Updated domain with id: {}", updatedDomain.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedDomain, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedDomain, Set.of());
     }
@@ -206,6 +212,7 @@ public class DomainService {
 
         domain.softDelete();
         domainRepository.save(domain);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, domain, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted domain with id: {}", id);
     }
@@ -231,6 +238,7 @@ public class DomainService {
 
         domain.restore();
         Domain restoredDomain = domainRepository.save(domain);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredDomain, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored domain with id: {}", id);
 

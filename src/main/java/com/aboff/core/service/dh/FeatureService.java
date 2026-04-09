@@ -24,7 +24,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import com.aboff.core.model.dto.dh.request.FeatureInput;
 
@@ -46,6 +48,7 @@ public class FeatureService {
     private final ExpansionRepository expansionRepository;
     private final CardCostTagService cardCostTagService;
     private final FeatureModifierService featureModifierService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of features.
@@ -142,6 +145,7 @@ public class FeatureService {
 
         Feature savedFeature = featureRepository.save(feature);
         log.info("Created feature with id: {}", savedFeature.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedFeature, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedFeature, Set.of());
     }
@@ -184,6 +188,7 @@ public class FeatureService {
 
         Feature updatedFeature = featureRepository.save(feature);
         log.info("Updated feature with id: {}", updatedFeature.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedFeature, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedFeature, Set.of());
     }
@@ -202,6 +207,7 @@ public class FeatureService {
 
         feature.softDelete();
         featureRepository.save(feature);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, feature, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted feature with id: {}", id);
     }
@@ -225,6 +231,7 @@ public class FeatureService {
 
         feature.restore();
         Feature restoredFeature = featureRepository.save(feature);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredFeature, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored feature with id: {}", id);
 
@@ -271,6 +278,7 @@ public class FeatureService {
 
         List<Feature> savedFeatures = featureRepository.saveAll(features);
         log.info("Created {} features in bulk", savedFeatures.size());
+        savedFeatures.forEach(f -> eventPublisher.publishEvent(new EntityChangeEvent(this, f, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedFeatures.stream()
                 .map(feature -> toResponse(feature, Set.of()))

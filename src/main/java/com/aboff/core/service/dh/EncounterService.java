@@ -20,8 +20,10 @@ import com.aboff.core.repository.dh.EncounterAdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -61,6 +63,7 @@ public class EncounterService {
     private final AdversaryRepository adversaryRepository;
     private final CampaignRepository campaignRepository;
     private final RoleHierarchyService roleHierarchyService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of encounters accessible to the authenticated user.
@@ -187,6 +190,7 @@ public class EncounterService {
 
         Encounter savedEncounter = encounterRepository.save(encounter);
         log.info("Created encounter with id: {}", savedEncounter.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedEncounter, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedEncounter, Set.of());
     }
@@ -252,6 +256,7 @@ public class EncounterService {
 
         Encounter updatedEncounter = encounterRepository.save(encounter);
         log.info("Updated encounter with id: {}", updatedEncounter.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedEncounter, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedEncounter, Set.of());
     }
@@ -275,6 +280,7 @@ public class EncounterService {
 
         encounter.softDelete();
         encounterRepository.save(encounter);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, encounter, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted encounter with id: {}", id);
     }
@@ -310,6 +316,7 @@ public class EncounterService {
 
         encounter.restore();
         Encounter restoredEncounter = encounterRepository.save(encounter);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredEncounter, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored encounter with id: {}", id);
 
@@ -359,6 +366,7 @@ public class EncounterService {
 
         Encounter savedCopy = encounterRepository.save(copy);
         log.info("Created copy of encounter {} with new id: {}", id, savedCopy.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedCopy, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedCopy, Set.of());
     }

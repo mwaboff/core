@@ -23,7 +23,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Set;
@@ -42,6 +44,7 @@ public class CommunityCardService {
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of community cards.
@@ -140,6 +143,7 @@ public class CommunityCardService {
 
         CommunityCard savedCard = communityCardRepository.save(card);
         log.info("Created community card with id: {}", savedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedCard, Set.of());
     }
@@ -184,6 +188,7 @@ public class CommunityCardService {
 
         List<CommunityCard> savedCards = communityCardRepository.saveAll(cards);
         log.info("Created {} community cards in bulk", savedCards.size());
+        savedCards.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedCards.stream()
                 .map(card -> toResponse(card, Set.of()))
@@ -229,6 +234,7 @@ public class CommunityCardService {
 
         CommunityCard updatedCard = communityCardRepository.save(card);
         log.info("Updated community card with id: {}", updatedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedCard, Set.of());
     }
@@ -248,6 +254,7 @@ public class CommunityCardService {
 
         card.softDelete();
         communityCardRepository.save(card);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted community card with id: {}", id);
     }
@@ -273,6 +280,7 @@ public class CommunityCardService {
 
         card.restore();
         CommunityCard restoredCard = communityCardRepository.save(card);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredCard, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored community card with id: {}", id);
 

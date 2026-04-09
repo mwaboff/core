@@ -6,9 +6,11 @@ import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.event.EntityChangeEvent;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -26,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ExpansionService {
 
     private final ExpansionRepository expansionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of expansions.
@@ -100,6 +103,7 @@ public class ExpansionService {
 
         Expansion savedExpansion = expansionRepository.save(expansion);
         log.info("Created expansion with id: {}", savedExpansion.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedExpansion, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedExpansion);
     }
@@ -124,6 +128,7 @@ public class ExpansionService {
 
         Expansion updatedExpansion = expansionRepository.save(expansion);
         log.info("Updated expansion with id: {}", updatedExpansion.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedExpansion, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedExpansion);
     }
@@ -143,6 +148,7 @@ public class ExpansionService {
 
         expansion.softDelete();
         expansionRepository.save(expansion);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, expansion, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted expansion with id: {}", id);
     }
@@ -168,6 +174,7 @@ public class ExpansionService {
 
         expansion.restore();
         Expansion restoredExpansion = expansionRepository.save(expansion);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredExpansion, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored expansion with id: {}", id);
 

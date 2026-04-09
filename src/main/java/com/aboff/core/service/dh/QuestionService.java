@@ -21,7 +21,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.HashSet;
 import java.util.List;
@@ -38,6 +40,7 @@ public class QuestionService {
 
     private final QuestionRepository questionRepository;
     private final ExpansionRepository expansionRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional(readOnly = true)
     public PagedResponse<QuestionResponse> getAllQuestions(
@@ -96,6 +99,7 @@ public class QuestionService {
 
         Question savedQuestion = questionRepository.save(question);
         log.info("Created question with id: {}", savedQuestion.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedQuestion, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedQuestion, Set.of());
     }
@@ -120,6 +124,7 @@ public class QuestionService {
 
         List<Question> savedQuestions = questionRepository.saveAll(questions);
         log.info("Created {} questions in bulk", savedQuestions.size());
+        savedQuestions.forEach(q -> eventPublisher.publishEvent(new EntityChangeEvent(this, q, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedQuestions.stream()
                 .map(question -> toResponse(question, Set.of()))
@@ -143,6 +148,7 @@ public class QuestionService {
 
         Question updatedQuestion = questionRepository.save(question);
         log.info("Updated question with id: {}", updatedQuestion.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedQuestion, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedQuestion, Set.of());
     }
@@ -156,6 +162,7 @@ public class QuestionService {
 
         question.softDelete();
         questionRepository.save(question);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, question, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted question with id: {}", id);
     }
@@ -173,6 +180,7 @@ public class QuestionService {
 
         question.restore();
         Question restoredQuestion = questionRepository.save(question);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredQuestion, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored question with id: {}", id);
 

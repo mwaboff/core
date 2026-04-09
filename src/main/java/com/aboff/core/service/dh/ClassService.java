@@ -25,7 +25,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +48,7 @@ public class ClassService {
     private final DomainRepository domainRepository;
     private final FeatureService featureService;
     private final QuestionService questionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of classes.
@@ -119,6 +122,7 @@ public class ClassService {
         Class clazz = buildClassFromRequest(request);
         Class savedClass = classRepository.save(clazz);
         log.info("Created class with id: {}", savedClass.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedClass, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedClass, Set.of());
     }
@@ -139,6 +143,7 @@ public class ClassService {
 
         List<Class> savedClasses = classRepository.saveAll(classes);
         log.info("Created {} classes in bulk", savedClasses.size());
+        savedClasses.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedClasses.stream()
                 .map(clazz -> toResponse(clazz, Set.of()))
@@ -211,6 +216,7 @@ public class ClassService {
 
         Class updatedClass = classRepository.save(clazz);
         log.info("Updated class with id: {}", updatedClass.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedClass, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedClass, Set.of());
     }
@@ -230,6 +236,7 @@ public class ClassService {
 
         clazz.softDelete();
         classRepository.save(clazz);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, clazz, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted class with id: {}", id);
     }
@@ -255,6 +262,7 @@ public class ClassService {
 
         clazz.restore();
         Class restoredClass = classRepository.save(clazz);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredClass, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored class with id: {}", id);
 

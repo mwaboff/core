@@ -28,7 +28,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Set;
@@ -48,6 +50,7 @@ public class SubclassCardService {
     private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
     private final SubclassPathService subclassPathService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of subclass cards.
@@ -161,6 +164,7 @@ public class SubclassCardService {
 
         SubclassCard savedCard = subclassCardRepository.save(card);
         log.info("Created subclass card with id: {}", savedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedCard, Set.of());
     }
@@ -213,6 +217,7 @@ public class SubclassCardService {
 
         List<SubclassCard> savedCards = subclassCardRepository.saveAll(cards);
         log.info("Created {} subclass cards in bulk", savedCards.size());
+        savedCards.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedCards.stream()
                 .map(card -> toResponse(card, Set.of()))
@@ -267,6 +272,7 @@ public class SubclassCardService {
 
         SubclassCard updatedCard = subclassCardRepository.save(card);
         log.info("Updated subclass card with id: {}", updatedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedCard, Set.of());
     }
@@ -286,6 +292,7 @@ public class SubclassCardService {
 
         card.softDelete();
         subclassCardRepository.save(card);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted subclass card with id: {}", id);
     }
@@ -311,6 +318,7 @@ public class SubclassCardService {
 
         card.restore();
         SubclassCard restoredCard = subclassCardRepository.save(card);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredCard, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored subclass card with id: {}", id);
 
