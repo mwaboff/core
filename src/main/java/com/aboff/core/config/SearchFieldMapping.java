@@ -8,6 +8,7 @@ import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Domain;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Encounter;
 import com.aboff.core.model.entity.dh.Expansion;
@@ -20,12 +21,13 @@ import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.SearchableEntityType;
 import lombok.Builder;
 import lombok.Data;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Spring component responsible for extracting and mapping searchable field data from
@@ -51,9 +53,8 @@ import java.util.stream.Collectors;
  * </pre>
  */
 @Component
+@Slf4j
 public class SearchFieldMapping {
-
-    private static final Logger log = LoggerFactory.getLogger(SearchFieldMapping.class);
 
     /**
      * Builds a {@link SearchIndexData} record from the given entity and its resolved type.
@@ -486,7 +487,7 @@ public class SearchFieldMapping {
             return null;
         }
         String text = features.stream()
-                .flatMap(f -> java.util.stream.Stream.of(f.getName(), f.getDescription()))
+                .flatMap(f -> Stream.of(f.getName(), f.getDescription()))
                 .filter(s -> s != null && !s.isBlank())
                 .collect(Collectors.joining(" "));
         return text.isBlank() ? null : text;
@@ -499,29 +500,29 @@ public class SearchFieldMapping {
      * @return joined string, or {@code null} if all parts are null or blank
      */
     private String joinNonNull(String... parts) {
-        String result = java.util.Arrays.stream(parts)
+        String result = Arrays.stream(parts)
                 .filter(s -> s != null && !s.isBlank())
                 .collect(Collectors.joining(" "));
         return result.isBlank() ? null : result;
     }
 
     /**
-     * Safely extracts the ID from an {@link com.aboff.core.model.entity.dh.Expansion} reference.
+     * Safely extracts the ID from an {@link Expansion} reference.
      *
      * @param expansion the expansion entity reference; may be null
      * @return the expansion's ID, or {@code null} if the expansion is null
      */
-    private Long expansionId(com.aboff.core.model.entity.dh.Expansion expansion) {
+    private Long expansionId(Expansion expansion) {
         return expansion != null ? expansion.getId() : null;
     }
 
     /**
-     * Safely extracts the ID from a {@link com.aboff.core.model.entity.User} reference.
+     * Safely extracts the ID from a {@link User} reference.
      *
      * @param user the user entity reference; may be null
      * @return the user's ID, or {@code null} if the user is null
      */
-    private Long userId(com.aboff.core.model.entity.User user) {
+    private Long userId(User user) {
         return user != null ? user.getId() : null;
     }
 

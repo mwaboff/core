@@ -33,7 +33,7 @@ public final class ExpandUtil {
      * @return Set of relationship names to expand, empty set if input is null or empty
      */
     public static Set<String> parseExpand(String expand) {
-        if (expand == null || expand.trim().isEmpty()) {
+        if (expand == null || expand.isBlank()) {
             return Set.of();
         }
         return new HashSet<>(List.of(expand.split(",")));
