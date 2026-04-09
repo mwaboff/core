@@ -371,7 +371,7 @@ public class ClassService {
         }
 
         // Expand expansion if requested
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = clazz.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -384,7 +384,7 @@ public class ClassService {
         }
 
         // Expand associated domains if requested
-        if (expand.contains("associatedDomains") && clazz.getAssociatedDomains() != null) {
+        if (ExpandUtil.shouldExpand(expand, "associatedDomains") && clazz.getAssociatedDomains() != null) {
             builder.associatedDomains(clazz.getAssociatedDomains().stream()
                     .map(domain -> DomainResponse.builder()
                             .id(domain.getId())
@@ -400,21 +400,21 @@ public class ClassService {
         }
 
         // Expand hope features if requested
-        if (expand.contains("hopeFeatures") && clazz.getHopeFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "hopeFeatures") && clazz.getHopeFeatures() != null) {
             builder.hopeFeatures(clazz.getHopeFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand class features if requested
-        if (expand.contains("classFeatures") && clazz.getClassFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "classFeatures") && clazz.getClassFeatures() != null) {
             builder.classFeatures(clazz.getClassFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand background questions if requested
-        if (expand.contains("backgroundQuestions") && clazz.getBackgroundQuestions() != null) {
+        if (ExpandUtil.shouldExpand(expand, "backgroundQuestions") && clazz.getBackgroundQuestions() != null) {
             builder.backgroundQuestions(clazz.getBackgroundQuestions().stream()
                     .map(question -> QuestionResponse.builder()
                             .id(question.getId())
@@ -429,7 +429,7 @@ public class ClassService {
         }
 
         // Expand connection questions if requested
-        if (expand.contains("connectionQuestions") && clazz.getConnectionQuestions() != null) {
+        if (ExpandUtil.shouldExpand(expand, "connectionQuestions") && clazz.getConnectionQuestions() != null) {
             builder.connectionQuestions(clazz.getConnectionQuestions().stream()
                     .map(question -> QuestionResponse.builder()
                             .id(question.getId())

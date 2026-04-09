@@ -320,7 +320,7 @@ public class ArmorService {
             builder.originalArmorId(armor.getOriginalArmor().getId());
         }
 
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = armor.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -332,13 +332,13 @@ public class ArmorService {
                     .build());
         }
 
-        if (expand.contains("features") && armor.getFeatures() != null && !armor.getFeatures().isEmpty()) {
+        if (ExpandUtil.shouldExpand(expand, "features") && armor.getFeatures() != null && !armor.getFeatures().isEmpty()) {
             builder.features(armor.getFeatures().stream()
                     .map(f -> featureService.toResponse(f, expand))
                     .collect(Collectors.toList()));
         }
 
-        if (expand.contains("originalArmor") && armor.getOriginalArmor() != null) {
+        if (ExpandUtil.shouldExpand(expand, "originalArmor") && armor.getOriginalArmor() != null) {
             builder.originalArmor(toResponse(armor.getOriginalArmor(), Set.of()));
         }
 

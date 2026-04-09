@@ -517,13 +517,13 @@ public class EncounterService {
         if (encounter.getEncounterAdversaries() != null) {
             List<EncounterResponse.EncounterAdversaryResponse> adversariesList =
                     encounter.getEncounterAdversaries().stream()
-                    .map(ea -> toEncounterAdversaryResponse(ea, expand.contains("adversaryDetails")))
+                    .map(ea -> toEncounterAdversaryResponse(ea, ExpandUtil.shouldExpand(expand, "adversaryDetails")))
                     .collect(Collectors.toList());
             builder.adversaries(adversariesList);
         }
 
         // Expanded relationships
-        if (expand.contains("creator")) {
+        if (ExpandUtil.shouldExpand(expand, "creator")) {
             User creator = encounter.getCreatedBy();
             builder.creator(UserResponse.builder()
                     .id(creator.getId())
@@ -532,7 +532,7 @@ public class EncounterService {
                     .build());
         }
 
-        if (expand.contains("campaign") && encounter.getCampaign() != null) {
+        if (ExpandUtil.shouldExpand(expand, "campaign") && encounter.getCampaign() != null) {
             Campaign campaign = encounter.getCampaign();
             builder.campaign(CampaignResponse.builder()
                     .id(campaign.getId())
@@ -545,7 +545,7 @@ public class EncounterService {
                     .build());
         }
 
-        if (expand.contains("originalEncounter") && encounter.getOriginalEncounter() != null) {
+        if (ExpandUtil.shouldExpand(expand, "originalEncounter") && encounter.getOriginalEncounter() != null) {
             builder.originalEncounter(toResponse(encounter.getOriginalEncounter(), Set.of()));
         }
 

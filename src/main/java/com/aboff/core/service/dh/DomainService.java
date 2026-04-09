@@ -256,7 +256,7 @@ public class DomainService {
                 .deletedAt(domain.getDeletedAt());
 
         // Expand expansion if requested
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = domain.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())

@@ -798,7 +798,7 @@ public class CharacterSheetService {
                             .weaponId(csw.getWeapon().getId())
                             .equipped(csw.getEquipped())
                             .slot(csw.getSlot());
-                    if (expand.contains("inventoryWeapons")) {
+                    if (ExpandUtil.shouldExpand(expand, "inventoryWeapons")) {
                         iwb.weapon(toWeaponResponse(csw.getWeapon(), expand));
                     }
                     return iwb.build();
@@ -811,7 +811,7 @@ public class CharacterSheetService {
                             .id(csa.getId())
                             .armorId(csa.getArmor().getId())
                             .equipped(csa.getEquipped());
-                    if (expand.contains("inventoryArmors")) {
+                    if (ExpandUtil.shouldExpand(expand, "inventoryArmors")) {
                         iab.armor(toArmorResponse(csa.getArmor(), expand));
                     }
                     return iab.build();
@@ -823,7 +823,7 @@ public class CharacterSheetService {
                     InventoryLootResponse.InventoryLootResponseBuilder ilb = InventoryLootResponse.builder()
                             .id(csl.getId())
                             .lootId(csl.getLoot().getId());
-                    if (expand.contains("inventoryItems")) {
+                    if (ExpandUtil.shouldExpand(expand, "inventoryItems")) {
                         ilb.loot(toLootResponse(csl.getLoot(), expand));
                     }
                     return ilb.build();
@@ -834,7 +834,7 @@ public class CharacterSheetService {
         builder.experienceIds(sheet.getExperiences().stream().map(Experience::getId).collect(Collectors.toList()));
 
         // Expand owner if requested
-        if (expand.contains("owner")) {
+        if (ExpandUtil.shouldExpand(expand, "owner")) {
             User owner = sheet.getOwner();
             builder.owner(UserResponse.builder()
                     .id(owner.getId())
@@ -848,7 +848,7 @@ public class CharacterSheetService {
         }
 
         // Expand experiences if requested
-        if (expand.contains("experiences")) {
+        if (ExpandUtil.shouldExpand(expand, "experiences")) {
             List<ExperienceResponse> experiences = sheet.getExperiences().stream()
                     .map(exp -> ExperienceResponse.builder()
                             .id(exp.getId())
@@ -864,35 +864,35 @@ public class CharacterSheetService {
         }
 
         // Expand community cards if requested
-        if (expand.contains("communityCards")) {
+        if (ExpandUtil.shouldExpand(expand, "communityCards")) {
             builder.communityCards(sheet.getCommunityCards().stream()
                     .map(card -> toCommunityCardResponse(card, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand ancestry cards if requested
-        if (expand.contains("ancestryCards")) {
+        if (ExpandUtil.shouldExpand(expand, "ancestryCards")) {
             builder.ancestryCards(sheet.getAncestryCards().stream()
                     .map(card -> toAncestryCardResponse(card, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand subclass cards if requested
-        if (expand.contains("subclassCards")) {
+        if (ExpandUtil.shouldExpand(expand, "subclassCards")) {
             builder.subclassCards(sheet.getSubclassCards().stream()
                     .map(card -> toSubclassCardResponse(card, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand domain cards if requested
-        if (expand.contains("domainCards")) {
+        if (ExpandUtil.shouldExpand(expand, "domainCards")) {
             builder.domainCards(sheet.getCharacterSheetDomainCards().stream()
                     .map(csdc -> toDomainCardResponse(csdc.getDomainCard(), expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand equipped domain cards if requested
-        if (expand.contains("equippedDomainCards")) {
+        if (ExpandUtil.shouldExpand(expand, "equippedDomainCards")) {
             builder.equippedDomainCards(sheet.getCharacterSheetDomainCards().stream()
                     .filter(CharacterSheetDomainCard::getEquipped)
                     .map(csdc -> toDomainCardResponse(csdc.getDomainCard(), expand))
@@ -900,7 +900,7 @@ public class CharacterSheetService {
         }
 
         // Expand vault domain cards if requested
-        if (expand.contains("vaultDomainCards")) {
+        if (ExpandUtil.shouldExpand(expand, "vaultDomainCards")) {
             builder.vaultDomainCards(sheet.getCharacterSheetDomainCards().stream()
                     .filter(csdc -> !csdc.getEquipped())
                     .map(csdc -> toDomainCardResponse(csdc.getDomainCard(), expand))
