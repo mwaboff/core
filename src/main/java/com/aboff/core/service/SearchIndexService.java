@@ -55,6 +55,12 @@ public class SearchIndexService {
 
         SearchFieldMapping.SearchIndexData data = searchFieldMapping.buildSearchIndexData(entity, annotation.type());
 
+        if (data == null) {
+            log.warn("Search index data could not be built for entity type={}; indexing skipped",
+                    annotation.type());
+            return;
+        }
+
         searchIndexRepository.upsertSearchIndex(
                 data.getEntityType(),
                 data.getEntityId(),

@@ -401,6 +401,45 @@ class SearchFieldMappingTest {
         assertThat(data.getIsMixed()).isTrue();
     }
 
+    // ==================== NULL NAME GUARD TESTS ====================
+
+    @Test
+    void buildSearchIndexData_Feature_WithNullName_ReturnsNull() {
+        // Arrange — Feature.name is intentionally nullable; no name means the entity cannot be indexed
+        Feature feature = Feature.builder()
+                .name(null)
+                .description("A feature with no name yet.")
+                .featureType(FeatureType.OTHER)
+                .build();
+        feature.setId(50L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(feature, SearchableEntityType.FEATURE);
+
+        // Assert
+        assertThat(data).isNull();
+    }
+
+    @Test
+    void buildSearchIndexData_Feature_WithName_ReturnsData() {
+        // Arrange
+        Feature feature = Feature.builder()
+                .name("Named Feature")
+                .description("Has a name.")
+                .featureType(FeatureType.OTHER)
+                .build();
+        feature.setId(51L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(feature, SearchableEntityType.FEATURE);
+
+        // Assert
+        assertThat(data).isNotNull();
+        assertThat(data.getName()).isEqualTo("Named Feature");
+    }
+
     // ==================== NULL FEATURES TEST ====================
 
     @Test

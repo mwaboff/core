@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Spring event listener that keeps the search index in sync with entity lifecycle changes.
@@ -16,9 +17,11 @@ import org.springframework.transaction.event.TransactionalEventListener;
  * <p>Listens for {@link EntityChangeEvent} instances and delegates to {@link SearchIndexService}
  * to add, update, soft-delete, or remove the corresponding search index entry.
  *
- * <p>The listener is bound to {@link TransactionPhase#AFTER_COMMIT} so that index updates
- * only occur after the originating database transaction has successfully committed, preventing
- * index corruption from rolled-back transactions.
+ * <p>The listener is bound to {@link TransactionPhase#BEFORE_COMMIT} so that the entity
+ * remains attached to the persistence context when the event fires, allowing lazy-loaded
+ * collections and associations to be accessed without {@code LazyInitializationException}.
+ * Indexing only takes place within the same transaction as the originating write, so a
+ * rollback will undo both the entity change and the index update atomically.
  *
  * <p>Entities that are not annotated with {@link SearchIndexed} are silently ignored.
  */
@@ -30,7 +33,7 @@ public class SearchIndexEventListener {
     private final SearchIndexService searchIndexService;
 
     /**
-     * Handles an {@link EntityChangeEvent} after the enclosing transaction commits.
+     * Handles an {@link EntityChangeEvent} before the enclosing transaction commits.
      *
      * <p>The entity must be annotated with {@link SearchIndexed}; otherwise, the event is skipped.
      * Based on the {@link EntityChangeEvent.ChangeType}, the appropriate indexing operation is invoked:
@@ -40,9 +43,13 @@ public class SearchIndexEventListener {
      *   <li>{@code DELETED} — hard-delete the index entry</li>
      * </ul>
      *
+     * <p>Running {@code BEFORE_COMMIT} ensures the entity is still attached to the persistence
+     * context, so lazy-loaded associations and collections can be safely accessed during indexing.
+     *
      * @param event the entity change event to handle
      */
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    @Transactional
+    @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void onEntityChange(EntityChangeEvent event) {
         Object entity = event.getEntity();
         SearchIndexed annotation = entity.getClass().getAnnotation(SearchIndexed.class);

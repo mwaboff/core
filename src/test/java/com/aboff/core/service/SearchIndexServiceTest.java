@@ -100,6 +100,23 @@ class SearchIndexServiceTest {
         );
     }
 
+    @Test
+    void indexEntity_WhenBuildReturnsNull_SkipsUpsert() {
+        // Arrange — simulate a Feature with a null name (name is nullable in DB)
+        IndexedEntity entity = new IndexedEntity(3L);
+        when(searchFieldMapping.buildSearchIndexData(entity, SearchableEntityType.WEAPON)).thenReturn(null);
+
+        // Act
+        searchIndexService.indexEntity(entity);
+
+        // Assert
+        verify(searchIndexRepository, never()).upsertSearchIndex(
+                anyString(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any()
+        );
+    }
+
     // ==================== removeEntity TESTS ====================
 
     @Test

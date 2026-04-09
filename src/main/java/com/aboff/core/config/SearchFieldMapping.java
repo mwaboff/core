@@ -65,12 +65,13 @@ public class SearchFieldMapping {
      *
      * @param entity the JPA entity instance to extract data from; must match the expected type for {@code type}
      * @param type   the {@link SearchableEntityType} corresponding to the entity's class
-     * @return a fully populated {@link SearchIndexData} containing text fields and applicable filter columns
+     * @return a fully populated {@link SearchIndexData} containing text fields and applicable filter columns,
+     *         or {@code null} if the entity's name field is {@code null} (entity cannot be indexed)
      * @throws IllegalArgumentException if the entity cannot be cast to the expected type for {@code type}
      */
     public SearchIndexData buildSearchIndexData(Object entity, SearchableEntityType type) {
         log.debug("Building search index data for entity type={}", type);
-        return switch (type) {
+        SearchIndexData data = switch (type) {
             case DOMAIN -> buildForDomain((Domain) entity);
             case CLASS -> buildForClass((Class) entity);
             case FEATURE -> buildForFeature((Feature) entity);
@@ -89,6 +90,14 @@ public class SearchFieldMapping {
             case QUESTION -> buildForQuestion((Question) entity);
             case CARD_COST_TAG -> buildForCardCostTag((CardCostTag) entity);
         };
+
+        if (data.getName() == null) {
+            log.warn("Entity type={} id={} has a null name and cannot be indexed; skipping",
+                    type, data.getEntityId());
+            return null;
+        }
+
+        return data;
     }
 
     // -------------------------------------------------------------------------
