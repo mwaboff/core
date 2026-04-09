@@ -223,6 +223,7 @@ curl "http://localhost:8080/api/dh/character-sheets/1?expand=owner,experiences,i
 ```
 
 - Pass a **comma-separated** list of relationship names: `?expand=field1,field2`
+- Use `?expand=all` to expand every available relationship at once
 - Available expand fields are specific to each entity type (e.g., `expansion`, `features`, `owner`, `originalWeapon`)
 - Works on both single-resource (`GET /{id}`) and list (`GET /`) endpoints
 - Invalid expand values are silently ignored
