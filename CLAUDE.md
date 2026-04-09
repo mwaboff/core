@@ -156,6 +156,25 @@ Game content uses official/public/custom pattern:
 - `isPublic` - Visible to all users
 - `originalItem` - Self-reference for tracking copies of official content
 
+### Search Indexing
+
+Full-text search uses a centralized `search_index` table backed by PostgreSQL TSVECTOR:
+- **Weighted fields**: A=name, B=description, C=features/tags
+- **Auto-indexing**: Spring events (`EntityChangeEvent`) trigger `SearchIndexEventListener` to keep the index current
+- **Access control**: Search queries filter by `isOfficial`, `isPublic`, ownership, and privileged roles
+- **Expansion**: `SearchService.resolveEntity()` maps indexed types to full entity lookups for `?expand=` support
+
+#### Search Indexing Checklist — Adding a New Searchable Entity
+
+When adding a new entity that should appear in search results, complete all of the following steps:
+
+1. **Annotate the entity** — add `@SearchIndexed(type = SearchableEntityType.XXX)` to the entity class
+2. **Register the type** — add the new constant to the `SearchableEntityType` enum
+3. **Map the fields** — add a builder method in `SearchFieldMapping` that defines the A/B/C weight assignments for the new type
+4. **Publish change events** — in the entity's service, publish `EntityChangeEvent` after create, update, and soft-delete operations
+5. **Backfill existing data** — create a Flyway migration to populate `search_index` for any rows that already exist in the database
+6. **Support expansion** — add a case for the new type in `SearchService.resolveEntity()` so it works with `?expand=`
+
 ## Database Migrations
 
 - **Always use `./scripts/create-migration.sh <name>`** - Never manually create migration filenames
