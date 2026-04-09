@@ -1,8 +1,10 @@
 package com.aboff.core.model.entity.dh;
 
+import com.aboff.core.model.annotation.SearchIndexed;
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.Range;
+import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.model.enums.Trait;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -31,6 +33,7 @@ import lombok.experimental.SuperBuilder;
  * </p>
  */
 @Entity
+@SearchIndexed(type = SearchableEntityType.WEAPON)
 @Table(name = "weapons")
 @AssociationOverride(
     name = "features",

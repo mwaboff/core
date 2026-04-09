@@ -1,7 +1,9 @@
 package com.aboff.core.model.entity.dh;
 
+import com.aboff.core.model.annotation.SearchIndexed;
 import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.enums.CostTagCategory;
+import com.aboff.core.model.enums.SearchableEntityType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -20,6 +22,7 @@ import java.time.LocalDateTime;
  * </p>
  */
 @Entity
+@SearchIndexed(type = SearchableEntityType.CARD_COST_TAG)
 @Table(name = "card_cost_tags")
 @Data
 @EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)

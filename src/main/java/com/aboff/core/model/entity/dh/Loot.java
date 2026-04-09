@@ -1,5 +1,7 @@
 package com.aboff.core.model.entity.dh;
 
+import com.aboff.core.model.annotation.SearchIndexed;
+import com.aboff.core.model.enums.SearchableEntityType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -30,6 +32,7 @@ import lombok.experimental.SuperBuilder;
  * </p>
  */
 @Entity
+@SearchIndexed(type = SearchableEntityType.LOOT)
 @Table(name = "loot")
 @AssociationOverride(
     name = "features",

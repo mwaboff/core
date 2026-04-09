@@ -1,9 +1,11 @@
 package com.aboff.core.model.entity.dh;
 
+import com.aboff.core.model.annotation.SearchIndexed;
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.Range;
+import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.model.enums.Trait;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -37,6 +39,7 @@ import java.util.Set;
  * </p>
  */
 @Entity
+@SearchIndexed(type = SearchableEntityType.BEASTFORM)
 @Table(name = "beastforms")
 @Data
 @EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)

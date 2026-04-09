@@ -1,5 +1,7 @@
 package com.aboff.core.model.entity.dh;
 
+import com.aboff.core.model.annotation.SearchIndexed;
+import com.aboff.core.model.enums.SearchableEntityType;
 import jakarta.persistence.*;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -15,6 +17,7 @@ import lombok.experimental.SuperBuilder;
  * </p>
  */
 @Entity
+@SearchIndexed(type = SearchableEntityType.COMMUNITY_CARD)
 @Table(name = "community_cards")
 @DiscriminatorValue("COMMUNITY")
 @Data
