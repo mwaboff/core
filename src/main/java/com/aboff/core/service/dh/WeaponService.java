@@ -381,7 +381,7 @@ public class WeaponService {
             builder.originalWeaponId(weapon.getOriginalWeapon().getId());
         }
 
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = weapon.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -393,13 +393,13 @@ public class WeaponService {
                     .build());
         }
 
-        if (expand.contains("features") && weapon.getFeatures() != null && !weapon.getFeatures().isEmpty()) {
+        if (ExpandUtil.shouldExpand(expand, "features") && weapon.getFeatures() != null && !weapon.getFeatures().isEmpty()) {
             builder.features(weapon.getFeatures().stream()
                     .map(f -> featureService.toResponse(f, expand))
                     .collect(Collectors.toList()));
         }
 
-        if (expand.contains("originalWeapon") && weapon.getOriginalWeapon() != null) {
+        if (ExpandUtil.shouldExpand(expand, "originalWeapon") && weapon.getOriginalWeapon() != null) {
             builder.originalWeapon(toResponse(weapon.getOriginalWeapon(), Set.of()));
         }
 

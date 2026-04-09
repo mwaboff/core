@@ -348,7 +348,7 @@ public class DomainCardService {
         }
 
         // Expand expansion if requested
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = card.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -361,7 +361,7 @@ public class DomainCardService {
         }
 
         // Expand features if requested
-        if (expand.contains("features") && card.getFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "features") && card.getFeatures() != null) {
             builder.features(card.getFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
@@ -375,7 +375,7 @@ public class DomainCardService {
         }
 
         // Expand cost tags if requested
-        if (expand.contains("costTags") && card.getCostTags() != null) {
+        if (ExpandUtil.shouldExpand(expand, "costTags") && card.getCostTags() != null) {
             builder.costTags(card.getCostTags().stream()
                     .map(tag -> CardCostTagResponse.builder()
                             .id(tag.getId())
@@ -389,7 +389,7 @@ public class DomainCardService {
         }
 
         // Expand associated domain if requested
-        if (expand.contains("associatedDomain")) {
+        if (ExpandUtil.shouldExpand(expand, "associatedDomain")) {
             Domain domain = card.getAssociatedDomain();
             builder.associatedDomain(DomainResponse.builder()
                     .id(domain.getId())

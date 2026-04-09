@@ -634,7 +634,7 @@ public class AdversaryService {
         }
 
         // Expanded relationships
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = adversary.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -646,7 +646,7 @@ public class AdversaryService {
                     .build());
         }
 
-        if (expand.contains("creator")) {
+        if (ExpandUtil.shouldExpand(expand, "creator")) {
             User creator = adversary.getCreatedBy();
             builder.creator(UserResponse.builder()
                     .id(creator.getId())
@@ -655,11 +655,11 @@ public class AdversaryService {
                     .build());
         }
 
-        if (expand.contains("originalAdversary") && adversary.getOriginalAdversary() != null) {
+        if (ExpandUtil.shouldExpand(expand, "originalAdversary") && adversary.getOriginalAdversary() != null) {
             builder.originalAdversary(toResponse(adversary.getOriginalAdversary(), Set.of()));
         }
 
-        if (expand.contains("experiences") && adversary.getExperiences() != null) {
+        if (ExpandUtil.shouldExpand(expand, "experiences") && adversary.getExperiences() != null) {
             builder.experiences(adversary.getExperiences().stream()
                     .map(exp -> ExperienceResponse.builder()
                             .id(exp.getId())
@@ -671,7 +671,7 @@ public class AdversaryService {
                     .collect(Collectors.toSet()));
         }
 
-        if (expand.contains("features") && adversary.getFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "features") && adversary.getFeatures() != null) {
             builder.features(adversary.getFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toSet()));

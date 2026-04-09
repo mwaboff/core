@@ -305,7 +305,7 @@ public class CompanionService {
                 .lastModifiedAt(companion.getLastModifiedAt());
 
         // Expand character sheet if requested
-        if (expand.contains("characterSheet")) {
+        if (ExpandUtil.shouldExpand(expand, "characterSheet")) {
             CharacterSheet sheet = companion.getCharacterSheet();
             builder.characterSheet(CharacterSheetResponse.builder()
                     .id(sheet.getId())
@@ -320,7 +320,7 @@ public class CompanionService {
         }
 
         // Expand experiences if requested
-        if (expand.contains("experiences")) {
+        if (ExpandUtil.shouldExpand(expand, "experiences")) {
             builder.experiences(companion.getExperiences().stream()
                     .map(experience -> ExperienceResponse.builder()
                             .id(experience.getId())

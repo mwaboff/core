@@ -427,7 +427,7 @@ public class SubclassPathService {
         }
 
         // Expand associated class if requested
-        if (expand.contains("associatedClass")) {
+        if (ExpandUtil.shouldExpand(expand, "associatedClass")) {
             Class clazz = path.getAssociatedClass();
             builder.associatedClass(ClassResponse.builder()
                     .id(clazz.getId())
@@ -444,7 +444,7 @@ public class SubclassPathService {
         }
 
         // Expand associated domains if requested
-        if (expand.contains("associatedDomains") && path.getAssociatedDomains() != null) {
+        if (ExpandUtil.shouldExpand(expand, "associatedDomains") && path.getAssociatedDomains() != null) {
             builder.associatedDomains(path.getAssociatedDomains().stream()
                     .map(domain -> DomainResponse.builder()
                             .id(domain.getId())
@@ -460,7 +460,7 @@ public class SubclassPathService {
         }
 
         // Expand expansion if requested
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = path.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())

@@ -307,7 +307,7 @@ public class CommunityCardService {
         }
 
         // Expand expansion if requested
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = card.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -320,7 +320,7 @@ public class CommunityCardService {
         }
 
         // Expand features if requested
-        if (expand.contains("features") && card.getFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "features") && card.getFeatures() != null) {
             builder.features(card.getFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
@@ -334,7 +334,7 @@ public class CommunityCardService {
         }
 
         // Expand cost tags if requested
-        if (expand.contains("costTags") && card.getCostTags() != null) {
+        if (ExpandUtil.shouldExpand(expand, "costTags") && card.getCostTags() != null) {
             builder.costTags(card.getCostTags().stream()
                     .map(tag -> CardCostTagResponse.builder()
                             .id(tag.getId())

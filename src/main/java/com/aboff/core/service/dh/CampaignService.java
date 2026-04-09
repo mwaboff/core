@@ -1046,48 +1046,48 @@ public class CampaignService {
                 .deletedAt(campaign.getDeletedAt());
 
         // Expand creator if requested
-        if (expand.contains("creator")) {
+        if (ExpandUtil.shouldExpand(expand, "creator")) {
             User creator = campaign.getCreator();
             builder.creator(toUserResponse(creator));
         }
 
         // Expand game masters if requested
-        if (expand.contains("gameMasters")) {
+        if (ExpandUtil.shouldExpand(expand, "gameMasters")) {
             builder.gameMasters(campaign.getGameMasters().stream()
                     .map(this::toUserResponse)
                     .collect(Collectors.toList()));
         }
 
         // Expand players if requested
-        if (expand.contains("players")) {
+        if (ExpandUtil.shouldExpand(expand, "players")) {
             builder.players(campaign.getPlayers().stream()
                     .map(this::toUserResponse)
                     .collect(Collectors.toList()));
         }
 
         // Expand pending character sheets if requested
-        if (expand.contains("pendingCharacterSheets")) {
+        if (ExpandUtil.shouldExpand(expand, "pendingCharacterSheets")) {
             builder.pendingCharacterSheets(campaign.getPendingCharacterSheets().stream()
                     .map(this::toCharacterSheetResponse)
                     .collect(Collectors.toList()));
         }
 
         // Expand player characters if requested
-        if (expand.contains("playerCharacters")) {
+        if (ExpandUtil.shouldExpand(expand, "playerCharacters")) {
             builder.playerCharacters(campaign.getPlayerCharacters().stream()
                     .map(this::toCharacterSheetResponse)
                     .collect(Collectors.toList()));
         }
 
         // Expand non-player characters if requested
-        if (expand.contains("nonPlayerCharacters")) {
+        if (ExpandUtil.shouldExpand(expand, "nonPlayerCharacters")) {
             builder.nonPlayerCharacters(campaign.getNonPlayerCharacters().stream()
                     .map(this::toCharacterSheetResponse)
                     .collect(Collectors.toList()));
         }
 
         // Expand character summaries if requested
-        if (expand.contains("characterSummaries")) {
+        if (ExpandUtil.shouldExpand(expand, "characterSummaries")) {
             List<CampaignCharacterSummaryResponse> summaries = new ArrayList<>();
             for (CharacterSheet sheet : campaign.getPlayerCharacters()) {
                 summaries.add(toCampaignCharacterSummary(sheet));

@@ -255,7 +255,7 @@ public class QuestionService {
                 .lastModifiedAt(question.getLastModifiedAt())
                 .deletedAt(question.getDeletedAt());
 
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = question.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())

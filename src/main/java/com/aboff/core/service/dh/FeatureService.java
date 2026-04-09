@@ -413,7 +413,7 @@ public class FeatureService {
                 .lastModifiedAt(feature.getLastModifiedAt())
                 .deletedAt(feature.getDeletedAt());
 
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = feature.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -433,7 +433,7 @@ public class FeatureService {
         }
 
         // Expand cost tags if requested
-        if (expand.contains("costTags") && feature.getCostTags() != null) {
+        if (ExpandUtil.shouldExpand(expand, "costTags") && feature.getCostTags() != null) {
             builder.costTags(feature.getCostTags().stream()
                     .map(tag -> CardCostTagResponse.builder()
                             .id(tag.getId())
@@ -454,7 +454,7 @@ public class FeatureService {
         }
 
         // Expand modifiers if requested
-        if (expand.contains("modifiers") && feature.getModifiers() != null) {
+        if (ExpandUtil.shouldExpand(expand, "modifiers") && feature.getModifiers() != null) {
             builder.modifiers(feature.getModifiers().stream()
                     .map(modifier -> FeatureModifierResponse.builder()
                             .id(modifier.getId())

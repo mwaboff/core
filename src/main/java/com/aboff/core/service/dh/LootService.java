@@ -317,7 +317,7 @@ public class LootService {
             builder.originalLootId(loot.getOriginalLoot().getId());
         }
 
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = loot.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -329,13 +329,13 @@ public class LootService {
                     .build());
         }
 
-        if (expand.contains("features") && loot.getFeatures() != null && !loot.getFeatures().isEmpty()) {
+        if (ExpandUtil.shouldExpand(expand, "features") && loot.getFeatures() != null && !loot.getFeatures().isEmpty()) {
             builder.features(loot.getFeatures().stream()
                     .map(f -> featureService.toResponse(f, expand))
                     .collect(Collectors.toList()));
         }
 
-        if (expand.contains("originalLoot") && loot.getOriginalLoot() != null) {
+        if (ExpandUtil.shouldExpand(expand, "originalLoot") && loot.getOriginalLoot() != null) {
             builder.originalLoot(toResponse(loot.getOriginalLoot(), Set.of()));
         }
 
