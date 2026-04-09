@@ -23,6 +23,7 @@ import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -65,6 +66,9 @@ class SubclassCardServiceTest {
 
     @Mock
     private SubclassPathService subclassPathService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private SubclassCardService subclassCardService;
