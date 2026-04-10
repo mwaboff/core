@@ -72,7 +72,7 @@ SELECT
     d.expansion_id,
     d.deleted_at
 FROM domains d
-WHERE d.deleted_at IS NULL;
+WHERE d.deleted_at IS NULL AND d.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.2 CLASS
@@ -95,7 +95,7 @@ SELECT
     cl.expansion_id,
     cl.deleted_at
 FROM classes cl
-WHERE cl.deleted_at IS NULL;
+WHERE cl.deleted_at IS NULL AND cl.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.3 FEATURE
@@ -118,7 +118,7 @@ SELECT
     f.feature_type,
     f.deleted_at
 FROM features f
-WHERE f.deleted_at IS NULL;
+WHERE f.deleted_at IS NULL AND f.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.4 ANCESTRY_CARD
@@ -150,7 +150,7 @@ SELECT
     c.deleted_at
 FROM cards c
 JOIN ancestry_cards ac ON c.id = ac.id
-WHERE c.deleted_at IS NULL;
+WHERE c.deleted_at IS NULL AND c.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.5 COMMUNITY_CARD
@@ -181,7 +181,7 @@ SELECT
     c.deleted_at
 FROM cards c
 JOIN community_cards cc ON c.id = cc.id
-WHERE c.deleted_at IS NULL;
+WHERE c.deleted_at IS NULL AND c.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.6 SUBCLASS_CARD
@@ -213,7 +213,7 @@ SELECT
     c.deleted_at
 FROM cards c
 JOIN subclass_cards sc ON c.id = sc.id
-WHERE c.deleted_at IS NULL;
+WHERE c.deleted_at IS NULL AND c.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.7 DOMAIN_CARD
@@ -248,7 +248,7 @@ SELECT
     c.deleted_at
 FROM cards c
 JOIN domain_cards dc ON c.id = dc.id
-WHERE c.deleted_at IS NULL;
+WHERE c.deleted_at IS NULL AND c.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.8 WEAPON
@@ -285,7 +285,7 @@ SELECT
     w.damage_type,
     w.deleted_at
 FROM weapons w
-WHERE w.deleted_at IS NULL;
+WHERE w.deleted_at IS NULL AND w.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.9 ARMOR
@@ -316,7 +316,7 @@ SELECT
     a.tier,
     a.deleted_at
 FROM armors a
-WHERE a.deleted_at IS NULL;
+WHERE a.deleted_at IS NULL AND a.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.10 LOOT
@@ -350,7 +350,7 @@ SELECT
     l.is_consumable,
     l.deleted_at
 FROM loot l
-WHERE l.deleted_at IS NULL;
+WHERE l.deleted_at IS NULL AND l.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.11 ADVERSARY
@@ -390,7 +390,7 @@ SELECT
     a.adversary_type,
     a.deleted_at
 FROM adversaries a
-WHERE a.deleted_at IS NULL;
+WHERE a.deleted_at IS NULL AND a.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.12 BEASTFORM
@@ -425,7 +425,7 @@ SELECT
     b.creator_id,
     b.deleted_at
 FROM beastforms b
-WHERE b.deleted_at IS NULL;
+WHERE b.deleted_at IS NULL AND b.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.13 ENCOUNTER
@@ -452,7 +452,7 @@ SELECT
     e.tier,
     e.deleted_at
 FROM encounters e
-WHERE e.deleted_at IS NULL;
+WHERE e.deleted_at IS NULL AND e.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.14 EXPANSION
@@ -470,7 +470,7 @@ SELECT
     setweight(to_tsvector('english', ex.name), 'A'),
     ex.deleted_at
 FROM expansions ex
-WHERE ex.deleted_at IS NULL;
+WHERE ex.deleted_at IS NULL AND ex.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.15 SUBCLASS_PATH
@@ -490,7 +490,7 @@ SELECT
     sp.expansion_id,
     sp.deleted_at
 FROM subclass_paths sp
-WHERE sp.deleted_at IS NULL;
+WHERE sp.deleted_at IS NULL AND sp.name IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.16 QUESTION
@@ -510,7 +510,7 @@ SELECT
     q.expansion_id,
     q.deleted_at
 FROM questions q
-WHERE q.deleted_at IS NULL;
+WHERE q.deleted_at IS NULL AND q.question_text IS NOT NULL;
 
 -- ----------------------------------------------------------------------------
 -- 3.17 CARD_COST_TAG
@@ -530,4 +530,4 @@ SELECT
     cct.category,
     cct.deleted_at
 FROM card_cost_tags cct
-WHERE cct.deleted_at IS NULL;
+WHERE cct.deleted_at IS NULL AND cct.label IS NOT NULL;
