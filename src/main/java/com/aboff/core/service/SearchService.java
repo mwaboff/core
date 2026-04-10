@@ -144,14 +144,20 @@ public class SearchService {
         size = Math.min(size, 100);
 
         boolean isPrivileged = roleHierarchyService.isPrivilegedRole(user.getRole());
-        List<String> entityTypeStrings = types == null ? null
-                : types.stream().map(SearchableEntityType::name).toList();
+        boolean filterByEntityTypes = types != null && !types.isEmpty();
+        // The native query always references :entityTypes inside an IN clause, so we must
+        // pass a non-null, non-empty list even when no filter is requested. The sentinel is
+        // never evaluated because :filterByEntityTypes = false short-circuits the OR.
+        List<String> entityTypeStrings = filterByEntityTypes
+                ? types.stream().map(SearchableEntityType::name).toList()
+                : List.of("");
 
         log.debug("Executing search: query='{}', types={}, tier={}, page={}, size={}, privileged={}",
-                query, entityTypeStrings, tier, page, size, isPrivileged);
+                query, filterByEntityTypes ? entityTypeStrings : "(none)", tier, page, size, isPrivileged);
 
         Page<Object[]> resultPage = searchIndexRepository.search(
                 query,
+                filterByEntityTypes,
                 entityTypeStrings,
                 tier,
                 expansionId,

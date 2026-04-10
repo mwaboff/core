@@ -57,10 +57,15 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
      * <p>Each nullable filter parameter is skipped when passed as {@code null}, allowing
      * callers to mix and match filters freely.</p>
      *
-     * @param query            the user-supplied search string; converted to a tsquery via
-     *                         {@code plainto_tsquery('english', :query)}
-     * @param entityTypes      optional list of entity type strings to restrict results;
-     *                         pass {@code null} to include all types
+     * @param query               the user-supplied search string; converted to a tsquery via
+     *                            {@code plainto_tsquery('english', :query)}
+     * @param filterByEntityTypes {@code true} to restrict results to {@code entityTypes};
+     *                            {@code false} to include all types (and {@code entityTypes}
+     *                            is ignored — pass any non-null list such as a single-element
+     *                            sentinel to satisfy the IN clause)
+     * @param entityTypes         list of entity type strings to restrict results to when
+     *                            {@code filterByEntityTypes} is {@code true}; must be non-null
+     *                            and non-empty to keep the IN clause valid
      * @param tier             optional tier level filter; {@code null} disables
      * @param expansionId      optional expansion foreign key filter; {@code null} disables
      * @param isOfficial       optional official-content filter; {@code null} disables
@@ -93,19 +98,19 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                     OR si.created_by_user_id IS NULL
                     OR :isPrivileged = true
               )
-              AND (:entityTypes IS NULL OR si.entity_type IN (:entityTypes))
-              AND (:tier IS NULL OR si.tier = :tier)
-              AND (:expansionId IS NULL OR si.expansion_id = :expansionId)
-              AND (:isOfficial IS NULL OR si.is_official = :isOfficial)
-              AND (:cardType IS NULL OR si.card_type = :cardType)
-              AND (:featureType IS NULL OR si.feature_type = :featureType)
-              AND (:adversaryType IS NULL OR si.adversary_type = :adversaryType)
-              AND (:domainCardType IS NULL OR si.domain_card_type = :domainCardType)
-              AND (:associatedDomainId IS NULL OR si.associated_domain_id = :associatedDomainId)
-              AND (:trait IS NULL OR si.trait = :trait)
-              AND (:range IS NULL OR si.range = :range)
-              AND (:burden IS NULL OR si.burden = :burden)
-              AND (:isConsumable IS NULL OR si.is_consumable = :isConsumable)
+              AND (:filterByEntityTypes = false OR si.entity_type IN (:entityTypes))
+              AND (CAST(:tier AS integer) IS NULL OR si.tier = :tier)
+              AND (CAST(:expansionId AS bigint) IS NULL OR si.expansion_id = :expansionId)
+              AND (CAST(:isOfficial AS boolean) IS NULL OR si.is_official = :isOfficial)
+              AND (CAST(:cardType AS text) IS NULL OR si.card_type = :cardType)
+              AND (CAST(:featureType AS text) IS NULL OR si.feature_type = :featureType)
+              AND (CAST(:adversaryType AS text) IS NULL OR si.adversary_type = :adversaryType)
+              AND (CAST(:domainCardType AS text) IS NULL OR si.domain_card_type = :domainCardType)
+              AND (CAST(:associatedDomainId AS bigint) IS NULL OR si.associated_domain_id = :associatedDomainId)
+              AND (CAST(:trait AS text) IS NULL OR si.trait = :trait)
+              AND (CAST(:range AS text) IS NULL OR si.range = :range)
+              AND (CAST(:burden AS text) IS NULL OR si.burden = :burden)
+              AND (CAST(:isConsumable AS boolean) IS NULL OR si.is_consumable = :isConsumable)
             ORDER BY relevance_score DESC
             """,
         countQuery = """
@@ -120,24 +125,25 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                     OR si.created_by_user_id IS NULL
                     OR :isPrivileged = true
               )
-              AND (:entityTypes IS NULL OR si.entity_type IN (:entityTypes))
-              AND (:tier IS NULL OR si.tier = :tier)
-              AND (:expansionId IS NULL OR si.expansion_id = :expansionId)
-              AND (:isOfficial IS NULL OR si.is_official = :isOfficial)
-              AND (:cardType IS NULL OR si.card_type = :cardType)
-              AND (:featureType IS NULL OR si.feature_type = :featureType)
-              AND (:adversaryType IS NULL OR si.adversary_type = :adversaryType)
-              AND (:domainCardType IS NULL OR si.domain_card_type = :domainCardType)
-              AND (:associatedDomainId IS NULL OR si.associated_domain_id = :associatedDomainId)
-              AND (:trait IS NULL OR si.trait = :trait)
-              AND (:range IS NULL OR si.range = :range)
-              AND (:burden IS NULL OR si.burden = :burden)
-              AND (:isConsumable IS NULL OR si.is_consumable = :isConsumable)
+              AND (:filterByEntityTypes = false OR si.entity_type IN (:entityTypes))
+              AND (CAST(:tier AS integer) IS NULL OR si.tier = :tier)
+              AND (CAST(:expansionId AS bigint) IS NULL OR si.expansion_id = :expansionId)
+              AND (CAST(:isOfficial AS boolean) IS NULL OR si.is_official = :isOfficial)
+              AND (CAST(:cardType AS text) IS NULL OR si.card_type = :cardType)
+              AND (CAST(:featureType AS text) IS NULL OR si.feature_type = :featureType)
+              AND (CAST(:adversaryType AS text) IS NULL OR si.adversary_type = :adversaryType)
+              AND (CAST(:domainCardType AS text) IS NULL OR si.domain_card_type = :domainCardType)
+              AND (CAST(:associatedDomainId AS bigint) IS NULL OR si.associated_domain_id = :associatedDomainId)
+              AND (CAST(:trait AS text) IS NULL OR si.trait = :trait)
+              AND (CAST(:range AS text) IS NULL OR si.range = :range)
+              AND (CAST(:burden AS text) IS NULL OR si.burden = :burden)
+              AND (CAST(:isConsumable AS boolean) IS NULL OR si.is_consumable = :isConsumable)
             """,
         nativeQuery = true
     )
     Page<Object[]> search(
             @Param("query") String query,
+            @Param("filterByEntityTypes") boolean filterByEntityTypes,
             @Param("entityTypes") List<String> entityTypes,
             @Param("tier") Integer tier,
             @Param("expansionId") Long expansionId,

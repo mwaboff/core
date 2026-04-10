@@ -137,9 +137,9 @@ class SearchServiceTest {
     private void stubEmptyPageForUser(User user) {
         when(roleHierarchyService.isPrivilegedRole(user.getRole())).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
     }
 
@@ -192,9 +192,9 @@ class SearchServiceTest {
         User user = userWithRole(Role.USER);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
@@ -205,9 +205,9 @@ class SearchServiceTest {
 
         // Assert
         verify(searchIndexRepository).search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), pageableCaptor.capture());
+                isNull(), anyLong(), anyBoolean(), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
     }
 
@@ -219,9 +219,9 @@ class SearchServiceTest {
         User user = userWithRole(Role.ADMIN);
         when(roleHierarchyService.isPrivilegedRole(Role.ADMIN)).thenReturn(true);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), eq(true), any(Pageable.class)))
+                isNull(), anyLong(), eq(true), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         // Act
@@ -230,9 +230,9 @@ class SearchServiceTest {
 
         // Assert
         verify(searchIndexRepository).search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                eq(1L), eq(true), any(Pageable.class));
+                isNull(), eq(1L), eq(true), any(Pageable.class));
     }
 
     @Test
@@ -241,9 +241,9 @@ class SearchServiceTest {
         User user = userWithRole(Role.USER);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), eq(false), any(Pageable.class)))
+                isNull(), anyLong(), eq(false), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         // Act
@@ -252,9 +252,9 @@ class SearchServiceTest {
 
         // Assert
         verify(searchIndexRepository).search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                eq(1L), eq(false), any(Pageable.class));
+                isNull(), eq(1L), eq(false), any(Pageable.class));
     }
 
     // ==================== ENTITY TYPE FILTER TESTS ====================
@@ -266,9 +266,9 @@ class SearchServiceTest {
         List<SearchableEntityType> types = List.of(SearchableEntityType.WEAPON, SearchableEntityType.ARMOR);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), eq(List.of("WEAPON", "ARMOR")), isNull(), isNull(), isNull(),
+                anyString(), eq(true), eq(List.of("WEAPON", "ARMOR")), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), isNull(), isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         // Act
@@ -277,14 +277,16 @@ class SearchServiceTest {
 
         // Assert
         verify(searchIndexRepository).search(
-                anyString(), eq(List.of("WEAPON", "ARMOR")), isNull(), isNull(), isNull(),
+                anyString(), eq(true), eq(List.of("WEAPON", "ARMOR")), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), anyLong(), anyBoolean(), any(Pageable.class));
+                isNull(), isNull(), isNull(), anyLong(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
-    void search_NullEntityTypes_PassesNullToRepository() {
-        // Arrange
+    void search_NullEntityTypes_PassesFilterFalseAndSentinelList() {
+        // Arrange — when no types are provided, the service must pass filterByEntityTypes=false
+        // plus a non-null sentinel list for the IN clause. PostgreSQL cannot determine the
+        // parameter type for a NULL list parameter referenced inside an IN expression.
         User user = userWithRole(Role.USER);
         stubEmptyPageForUser(user);
 
@@ -294,9 +296,9 @@ class SearchServiceTest {
 
         // Assert
         verify(searchIndexRepository).search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), eq(false), eq(List.of("")), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class));
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== PAGINATION METADATA TESTS ====================
@@ -308,9 +310,9 @@ class SearchServiceTest {
         Object[] row = buildRow("WEAPON", 1L, "Longsword", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -329,9 +331,9 @@ class SearchServiceTest {
         Object[] row = buildRow("WEAPON", 1L, "Longsword", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -350,9 +352,9 @@ class SearchServiceTest {
         Object[] row = buildRow("WEAPON", 1L, "Longsword", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -371,9 +373,9 @@ class SearchServiceTest {
         Object[] row = buildRow("WEAPON", 1L, "Longsword", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -426,9 +428,9 @@ class SearchServiceTest {
         Object[] row = buildRow("WEAPON", 42L, "Longsword", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
         when(weaponService.getWeaponById(eq(42L), anyString())).thenReturn(WeaponResponse.builder().build());
 
@@ -447,9 +449,9 @@ class SearchServiceTest {
         Object[] row = buildRow("WEAPON", 42L, "Longsword", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -467,9 +469,9 @@ class SearchServiceTest {
         Object[] row = buildRow("WEAPON", 42L, "Longsword", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act — 'other' doesn't contain 'entity' or 'all', so entity should not be resolved
@@ -487,9 +489,9 @@ class SearchServiceTest {
         Object[] row = buildRow("WEAPON", 42L, "Longsword", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
         when(searchIndexRepository.search(
-                anyString(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                anyLong(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
         when(weaponService.getWeaponById(eq(42L), anyString())).thenReturn(WeaponResponse.builder().build());
 
