@@ -2,14 +2,33 @@ package com.aboff.core.service;
 
 import com.aboff.core.config.SearchFieldMapping;
 import com.aboff.core.model.annotation.SearchIndexed;
+import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.entity.SearchIndex;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
+import com.aboff.core.repository.dh.AdversaryRepository;
+import com.aboff.core.repository.dh.AncestryCardRepository;
+import com.aboff.core.repository.dh.ArmorRepository;
+import com.aboff.core.repository.dh.CardCostTagRepository;
+import com.aboff.core.repository.dh.ClassRepository;
+import com.aboff.core.repository.dh.CommunityCardRepository;
+import com.aboff.core.repository.dh.DomainCardRepository;
+import com.aboff.core.repository.dh.DomainRepository;
+import com.aboff.core.repository.dh.EncounterRepository;
+import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
+import com.aboff.core.repository.dh.LootRepository;
+import com.aboff.core.repository.dh.QuestionRepository;
+import com.aboff.core.repository.dh.SubclassCardRepository;
+import com.aboff.core.repository.dh.SubclassPathRepository;
+import com.aboff.core.repository.dh.WeaponRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -29,6 +48,26 @@ public class SearchIndexService {
 
     private final SearchIndexRepository searchIndexRepository;
     private final SearchFieldMapping searchFieldMapping;
+
+    // Repositories for re-indexing — one per searchable entity type.
+    // Beastform has no repository or service in the codebase and is populated only
+    // by the initial migration, so it is intentionally omitted from reindex support.
+    private final DomainRepository domainRepository;
+    private final ClassRepository classRepository;
+    private final FeatureRepository featureRepository;
+    private final AncestryCardRepository ancestryCardRepository;
+    private final CommunityCardRepository communityCardRepository;
+    private final SubclassCardRepository subclassCardRepository;
+    private final DomainCardRepository domainCardRepository;
+    private final WeaponRepository weaponRepository;
+    private final ArmorRepository armorRepository;
+    private final LootRepository lootRepository;
+    private final AdversaryRepository adversaryRepository;
+    private final EncounterRepository encounterRepository;
+    private final ExpansionRepository expansionRepository;
+    private final SubclassPathRepository subclassPathRepository;
+    private final QuestionRepository questionRepository;
+    private final CardCostTagRepository cardCostTagRepository;
 
     /**
      * Indexes (or re-indexes) a single entity by upserting its search index row.
@@ -153,34 +192,116 @@ public class SearchIndexService {
     }
 
     /**
-     * Clears all search index entries for the given entity type.
+     * Fully rebuilds the search index for the given entity type by clearing all existing
+     * entries and re-indexing every non-soft-deleted row from the source repository.
      *
-     * <p>Full re-indexing after clearing requires loading all entities of the given type
-     * and calling {@link #indexEntity(Object)} for each. This method only performs the
-     * deletion step. Manual population is required to repopulate the index.
+     * <p>Soft-deleted entities (as determined by {@link BaseEntity#isDeleted()}) are skipped.
+     * Note: the {@link SearchableEntityType#BEASTFORM} type is not supported because the
+     * codebase has no dedicated Beastform repository — beastforms are populated only by the
+     * initial search index migration. Calling this method with {@code BEASTFORM} logs a
+     * warning and returns without modifying the index.
      *
-     * @param type the {@link SearchableEntityType} whose index entries should be cleared
+     * @param type the {@link SearchableEntityType} whose index should be rebuilt
+     * @return the number of entities re-indexed
      */
     @Transactional
-    public void reindexAll(SearchableEntityType type) {
-        log.debug("Clearing all search index entries for type={}", type);
+    public int reindexAll(SearchableEntityType type) {
+        log.info("Rebuilding search index for type={}", type);
         searchIndexRepository.deleteAllByEntityType(type.name());
-        log.warn("Cleared search index for type={}. Manual re-population of index entries is required " +
-                "as full reindex requires loading all entities from their respective repositories.", type);
+
+        JpaRepository<? extends BaseEntity, Long> repository = resolveRepository(type);
+        if (repository == null) {
+            log.warn("No repository available for type={}; index cleared but not repopulated", type);
+            return 0;
+        }
+
+        List<? extends BaseEntity> entities = repository.findAll();
+        int indexed = 0;
+        for (BaseEntity entity : entities) {
+            if (isSoftDeleted(entity)) {
+                continue;
+            }
+            indexEntity(entity);
+            indexed++;
+        }
+
+        log.info("Reindexed {} entities of type={}", indexed, type);
+        return indexed;
     }
 
     /**
-     * Clears all search index entries for every known {@link SearchableEntityType}.
+     * Checks whether an entity is soft-deleted by invoking its {@code isDeleted()} method
+     * reflectively.
      *
-     * <p>This is a destructive operation. Manual re-population is required after calling
-     * this method. Each entity type's index is cleared by delegating to
-     * {@link #reindexAll(SearchableEntityType)}.
+     * <p>Soft deletion in this codebase is implemented per-entity (not on {@link BaseEntity}),
+     * so reflection is used to avoid coupling this service to every concrete type. Entities
+     * without an {@code isDeleted()} method are treated as active.
+     *
+     * @param entity the entity to check; must not be null
+     * @return {@code true} if the entity exposes {@code isDeleted()} and it returns {@code true}
+     */
+    private boolean isSoftDeleted(BaseEntity entity) {
+        try {
+            var method = entity.getClass().getMethod("isDeleted");
+            Object result = method.invoke(entity);
+            return result instanceof Boolean b && b;
+        } catch (NoSuchMethodException e) {
+            return false;
+        } catch (ReflectiveOperationException e) {
+            log.warn("Failed to check soft-delete state for {}: {}",
+                    entity.getClass().getSimpleName(), e.getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Fully rebuilds the search index for every supported {@link SearchableEntityType}.
+     *
+     * <p>Iterates each type and delegates to {@link #reindexAll(SearchableEntityType)}.
+     * This is an expensive operation suitable for admin-triggered background tasks or
+     * one-off recovery scenarios.
+     *
+     * @return the total number of entities re-indexed across all types
      */
     @Transactional
-    public void reindexAll() {
-        log.warn("Clearing all search index entries for all entity types. Manual re-population is required.");
+    public int reindexAll() {
+        log.info("Rebuilding search index for all entity types");
+        int total = 0;
         for (SearchableEntityType type : SearchableEntityType.values()) {
-            reindexAll(type);
+            total += reindexAll(type);
         }
+        log.info("Completed full search index rebuild: {} entities indexed", total);
+        return total;
+    }
+
+    /**
+     * Resolves the source repository for a given {@link SearchableEntityType}.
+     *
+     * <p>Returns {@code null} for {@link SearchableEntityType#BEASTFORM} since no
+     * repository exists for that entity in the codebase.
+     *
+     * @param type the searchable entity type
+     * @return the corresponding {@link JpaRepository}, or {@code null} if none exists
+     */
+    private JpaRepository<? extends BaseEntity, Long> resolveRepository(SearchableEntityType type) {
+        return switch (type) {
+            case DOMAIN -> domainRepository;
+            case CLASS -> classRepository;
+            case FEATURE -> featureRepository;
+            case ANCESTRY_CARD -> ancestryCardRepository;
+            case COMMUNITY_CARD -> communityCardRepository;
+            case SUBCLASS_CARD -> subclassCardRepository;
+            case DOMAIN_CARD -> domainCardRepository;
+            case WEAPON -> weaponRepository;
+            case ARMOR -> armorRepository;
+            case LOOT -> lootRepository;
+            case ADVERSARY -> adversaryRepository;
+            case ENCOUNTER -> encounterRepository;
+            case EXPANSION -> expansionRepository;
+            case SUBCLASS_PATH -> subclassPathRepository;
+            case QUESTION -> questionRepository;
+            case CARD_COST_TAG -> cardCostTagRepository;
+            case BEASTFORM -> null;
+        };
     }
 }

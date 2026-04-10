@@ -6,11 +6,13 @@ import com.aboff.core.model.dto.response.LoginAttemptResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.LoginAttempt;
 import com.aboff.core.model.entity.User;
+import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.LoginAttemptRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuthenticationService;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.service.SearchIndexService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -20,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -36,6 +39,7 @@ public class AdminController {
         private final UserRepository userRepository;
         private final RoleHierarchyService roleHierarchyService;
         private final AuthenticationService authenticationService;
+        private final SearchIndexService searchIndexService;
 
         /**
          * Constructs a new AdminController with required dependencies.
@@ -44,16 +48,19 @@ public class AdminController {
          * @param userRepository         the user repository
          * @param roleHierarchyService   the role hierarchy service
          * @param authenticationService  the authentication service
+         * @param searchIndexService     the search index service
          */
         public AdminController(
                         LoginAttemptRepository loginAttemptRepository,
                         UserRepository userRepository,
                         RoleHierarchyService roleHierarchyService,
-                        AuthenticationService authenticationService) {
+                        AuthenticationService authenticationService,
+                        SearchIndexService searchIndexService) {
                 this.loginAttemptRepository = loginAttemptRepository;
                 this.userRepository = userRepository;
                 this.roleHierarchyService = roleHierarchyService;
                 this.authenticationService = authenticationService;
+                this.searchIndexService = searchIndexService;
         }
 
         /**
@@ -234,6 +241,41 @@ public class AdminController {
                 authenticationService.invalidateAllUserTokens(userId);
 
                 return mapToUserResponse(targetUser);
+        }
+
+        /**
+         * Rebuild the full-text search index by clearing all entries and re-indexing every
+         * active entity from the source repositories.
+         *
+         * <p>If a {@code type} query parameter is provided, only that entity type is rebuilt;
+         * otherwise, every supported {@link SearchableEntityType} is rebuilt.
+         *
+         * <p>This is an expensive operation intended for admin-triggered recovery scenarios
+         * (e.g., after a bulk SQL data fix that bypassed JPA events, or to repair a corrupted
+         * index). Only accessible by the OWNER role.
+         *
+         * <p>POST /api/admin/search/reindex
+         * <br>POST /api/admin/search/reindex?type=WEAPON
+         *
+         * @param type optional entity type to reindex; if omitted, all types are rebuilt
+         * @return a map containing the total number of entities indexed and the type processed
+         */
+        @PostMapping("/search/reindex")
+        @PreAuthorize("hasRole('OWNER')")
+        public Map<String, Object> reindexSearch(
+                        @RequestParam(required = false) SearchableEntityType type) {
+                int indexed;
+                String scope;
+                if (type == null) {
+                        indexed = searchIndexService.reindexAll();
+                        scope = "ALL";
+                } else {
+                        indexed = searchIndexService.reindexAll(type);
+                        scope = type.name();
+                }
+                return Map.of(
+                                "scope", scope,
+                                "indexed", indexed);
         }
 
         /**
