@@ -17,6 +17,7 @@ import com.aboff.core.model.enums.*;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -52,6 +53,9 @@ class WeaponServiceTest {
 
     @Mock
     private FeatureService featureService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private WeaponService weaponService;

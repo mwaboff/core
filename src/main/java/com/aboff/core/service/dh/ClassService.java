@@ -25,7 +25,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +48,7 @@ public class ClassService {
     private final DomainRepository domainRepository;
     private final FeatureService featureService;
     private final QuestionService questionService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of classes.
@@ -119,6 +122,7 @@ public class ClassService {
         Class clazz = buildClassFromRequest(request);
         Class savedClass = classRepository.save(clazz);
         log.info("Created class with id: {}", savedClass.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedClass, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedClass, Set.of());
     }
@@ -139,6 +143,7 @@ public class ClassService {
 
         List<Class> savedClasses = classRepository.saveAll(classes);
         log.info("Created {} classes in bulk", savedClasses.size());
+        savedClasses.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedClasses.stream()
                 .map(clazz -> toResponse(clazz, Set.of()))
@@ -211,6 +216,7 @@ public class ClassService {
 
         Class updatedClass = classRepository.save(clazz);
         log.info("Updated class with id: {}", updatedClass.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedClass, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedClass, Set.of());
     }
@@ -230,6 +236,7 @@ public class ClassService {
 
         clazz.softDelete();
         classRepository.save(clazz);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, clazz, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted class with id: {}", id);
     }
@@ -255,6 +262,7 @@ public class ClassService {
 
         clazz.restore();
         Class restoredClass = classRepository.save(clazz);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredClass, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored class with id: {}", id);
 
@@ -371,7 +379,7 @@ public class ClassService {
         }
 
         // Expand expansion if requested
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = clazz.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -384,7 +392,7 @@ public class ClassService {
         }
 
         // Expand associated domains if requested
-        if (expand.contains("associatedDomains") && clazz.getAssociatedDomains() != null) {
+        if (ExpandUtil.shouldExpand(expand, "associatedDomains") && clazz.getAssociatedDomains() != null) {
             builder.associatedDomains(clazz.getAssociatedDomains().stream()
                     .map(domain -> DomainResponse.builder()
                             .id(domain.getId())
@@ -400,21 +408,21 @@ public class ClassService {
         }
 
         // Expand hope features if requested
-        if (expand.contains("hopeFeatures") && clazz.getHopeFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "hopeFeatures") && clazz.getHopeFeatures() != null) {
             builder.hopeFeatures(clazz.getHopeFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand class features if requested
-        if (expand.contains("classFeatures") && clazz.getClassFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "classFeatures") && clazz.getClassFeatures() != null) {
             builder.classFeatures(clazz.getClassFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
         }
 
         // Expand background questions if requested
-        if (expand.contains("backgroundQuestions") && clazz.getBackgroundQuestions() != null) {
+        if (ExpandUtil.shouldExpand(expand, "backgroundQuestions") && clazz.getBackgroundQuestions() != null) {
             builder.backgroundQuestions(clazz.getBackgroundQuestions().stream()
                     .map(question -> QuestionResponse.builder()
                             .id(question.getId())
@@ -429,7 +437,7 @@ public class ClassService {
         }
 
         // Expand connection questions if requested
-        if (expand.contains("connectionQuestions") && clazz.getConnectionQuestions() != null) {
+        if (ExpandUtil.shouldExpand(expand, "connectionQuestions") && clazz.getConnectionQuestions() != null) {
             builder.connectionQuestions(clazz.getConnectionQuestions().stream()
                     .map(question -> QuestionResponse.builder()
                             .id(question.getId())

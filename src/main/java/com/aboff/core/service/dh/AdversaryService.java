@@ -36,7 +36,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -69,6 +71,7 @@ public class AdversaryService {
     private final ExperienceRepository experienceRepository;
     private final UserRepository userRepository;
     private final RoleHierarchyService roleHierarchyService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of adversaries accessible to the authenticated user.
@@ -213,6 +216,7 @@ public class AdversaryService {
 
         Adversary savedAdversary = adversaryRepository.save(adversary);
         log.info("Created adversary with id: {}", savedAdversary.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedAdversary, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedAdversary, Set.of());
     }
@@ -351,6 +355,7 @@ public class AdversaryService {
 
         Adversary updatedAdversary = adversaryRepository.save(adversary);
         log.info("Updated adversary with id: {}", updatedAdversary.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedAdversary, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedAdversary, Set.of());
     }
@@ -374,6 +379,7 @@ public class AdversaryService {
 
         adversary.softDelete();
         adversaryRepository.save(adversary);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, adversary, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted adversary with id: {}", id);
     }
@@ -409,6 +415,7 @@ public class AdversaryService {
 
         adversary.restore();
         Adversary restoredAdversary = adversaryRepository.save(adversary);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredAdversary, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored adversary with id: {}", id);
 
@@ -461,6 +468,7 @@ public class AdversaryService {
 
         Adversary savedCopy = adversaryRepository.save(copy);
         log.info("Created copy of adversary {} with new id: {}", id, savedCopy.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedCopy, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedCopy, Set.of());
     }
@@ -634,7 +642,7 @@ public class AdversaryService {
         }
 
         // Expanded relationships
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = adversary.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -646,7 +654,7 @@ public class AdversaryService {
                     .build());
         }
 
-        if (expand.contains("creator")) {
+        if (ExpandUtil.shouldExpand(expand, "creator")) {
             User creator = adversary.getCreatedBy();
             builder.creator(UserResponse.builder()
                     .id(creator.getId())
@@ -655,11 +663,11 @@ public class AdversaryService {
                     .build());
         }
 
-        if (expand.contains("originalAdversary") && adversary.getOriginalAdversary() != null) {
+        if (ExpandUtil.shouldExpand(expand, "originalAdversary") && adversary.getOriginalAdversary() != null) {
             builder.originalAdversary(toResponse(adversary.getOriginalAdversary(), Set.of()));
         }
 
-        if (expand.contains("experiences") && adversary.getExperiences() != null) {
+        if (ExpandUtil.shouldExpand(expand, "experiences") && adversary.getExperiences() != null) {
             builder.experiences(adversary.getExperiences().stream()
                     .map(exp -> ExperienceResponse.builder()
                             .id(exp.getId())
@@ -671,7 +679,7 @@ public class AdversaryService {
                     .collect(Collectors.toSet()));
         }
 
-        if (expand.contains("features") && adversary.getFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "features") && adversary.getFeatures() != null) {
             builder.features(adversary.getFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toSet()));

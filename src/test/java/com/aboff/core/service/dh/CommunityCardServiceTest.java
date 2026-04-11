@@ -17,6 +17,7 @@ import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.CommunityCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -56,6 +57,9 @@ class CommunityCardServiceTest {
 
     @Mock
     private CardCostTagService cardCostTagService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private CommunityCardService communityCardService;

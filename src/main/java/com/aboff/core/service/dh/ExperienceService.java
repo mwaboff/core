@@ -342,7 +342,7 @@ public class ExperienceService {
         }
 
         // Expand character sheet if requested
-        if (expand.contains("characterSheet") && experience.getCharacterSheet() != null) {
+        if (ExpandUtil.shouldExpand(expand, "characterSheet") && experience.getCharacterSheet() != null) {
             CharacterSheet sheet = experience.getCharacterSheet();
             builder.characterSheet(CharacterSheetResponse.builder()
                     .id(sheet.getId())
@@ -357,7 +357,7 @@ public class ExperienceService {
         }
 
         // Expand companion if requested
-        if (expand.contains("companion") && experience.getCompanion() != null) {
+        if (ExpandUtil.shouldExpand(expand, "companion") && experience.getCompanion() != null) {
             Companion comp = experience.getCompanion();
             builder.companion(com.aboff.core.model.dto.dh.response.CompanionResponse.builder()
                     .id(comp.getId())
@@ -376,7 +376,7 @@ public class ExperienceService {
         }
 
         // Expand created by user if requested
-        if (expand.contains("createdBy")) {
+        if (ExpandUtil.shouldExpand(expand, "createdBy")) {
             User user = experience.getCreatedBy();
             builder.createdBy(UserResponse.builder()
                     .id(user.getId())

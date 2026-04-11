@@ -1,5 +1,7 @@
 package com.aboff.core.model.entity.dh;
 
+import com.aboff.core.model.annotation.SearchIndexed;
+import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.model.enums.SubclassLevel;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -19,6 +21,7 @@ import lombok.experimental.SuperBuilder;
  * </p>
  */
 @Entity
+@SearchIndexed(type = SearchableEntityType.SUBCLASS_CARD)
 @Table(name = "subclass_cards")
 @DiscriminatorValue("SUBCLASS")
 @Data

@@ -26,7 +26,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Set;
@@ -44,6 +46,7 @@ public class WeaponService {
     private final WeaponRepository weaponRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of weapons.
@@ -158,6 +161,7 @@ public class WeaponService {
 
         Weapon savedWeapon = weaponRepository.save(weapon);
         log.info("Created weapon with id: {}", savedWeapon.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedWeapon, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedWeapon, Set.of());
     }
@@ -208,6 +212,7 @@ public class WeaponService {
 
         List<Weapon> savedWeapons = weaponRepository.saveAll(weapons);
         log.info("Created {} weapons in bulk", savedWeapons.size());
+        savedWeapons.forEach(w -> eventPublisher.publishEvent(new EntityChangeEvent(this, w, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedWeapons.stream()
                 .map(weapon -> toResponse(weapon, Set.of()))
@@ -259,6 +264,7 @@ public class WeaponService {
 
         Weapon updatedWeapon = weaponRepository.save(weapon);
         log.info("Updated weapon with id: {}", updatedWeapon.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedWeapon, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedWeapon, Set.of());
     }
@@ -278,6 +284,7 @@ public class WeaponService {
 
         weapon.softDelete();
         weaponRepository.save(weapon);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, weapon, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted weapon with id: {}", id);
     }
@@ -303,6 +310,7 @@ public class WeaponService {
 
         weapon.restore();
         Weapon restoredWeapon = weaponRepository.save(weapon);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredWeapon, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored weapon with id: {}", id);
 
@@ -381,7 +389,7 @@ public class WeaponService {
             builder.originalWeaponId(weapon.getOriginalWeapon().getId());
         }
 
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = weapon.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -393,13 +401,13 @@ public class WeaponService {
                     .build());
         }
 
-        if (expand.contains("features") && weapon.getFeatures() != null && !weapon.getFeatures().isEmpty()) {
+        if (ExpandUtil.shouldExpand(expand, "features") && weapon.getFeatures() != null && !weapon.getFeatures().isEmpty()) {
             builder.features(weapon.getFeatures().stream()
                     .map(f -> featureService.toResponse(f, expand))
                     .collect(Collectors.toList()));
         }
 
-        if (expand.contains("originalWeapon") && weapon.getOriginalWeapon() != null) {
+        if (ExpandUtil.shouldExpand(expand, "originalWeapon") && weapon.getOriginalWeapon() != null) {
             builder.originalWeapon(toResponse(weapon.getOriginalWeapon(), Set.of()));
         }
 

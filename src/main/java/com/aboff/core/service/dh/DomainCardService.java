@@ -27,7 +27,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 import java.util.Set;
@@ -47,6 +49,7 @@ public class DomainCardService {
     private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
     private final DomainRepository domainRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of domain cards.
@@ -161,6 +164,7 @@ public class DomainCardService {
 
         DomainCard savedCard = domainCardRepository.save(card);
         log.info("Created domain card with id: {}", savedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedCard, Set.of());
     }
@@ -213,6 +217,7 @@ public class DomainCardService {
 
         List<DomainCard> savedCards = domainCardRepository.saveAll(cards);
         log.info("Created {} domain cards in bulk", savedCards.size());
+        savedCards.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedCards.stream()
                 .map(card -> toResponse(card, Set.of()))
@@ -266,6 +271,7 @@ public class DomainCardService {
 
         DomainCard updatedCard = domainCardRepository.save(card);
         log.info("Updated domain card with id: {}", updatedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedCard, Set.of());
     }
@@ -285,6 +291,7 @@ public class DomainCardService {
 
         card.softDelete();
         domainCardRepository.save(card);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted domain card with id: {}", id);
     }
@@ -310,6 +317,7 @@ public class DomainCardService {
 
         card.restore();
         DomainCard restoredCard = domainCardRepository.save(card);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredCard, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored domain card with id: {}", id);
 
@@ -348,7 +356,7 @@ public class DomainCardService {
         }
 
         // Expand expansion if requested
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = card.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -361,7 +369,7 @@ public class DomainCardService {
         }
 
         // Expand features if requested
-        if (expand.contains("features") && card.getFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "features") && card.getFeatures() != null) {
             builder.features(card.getFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
@@ -375,7 +383,7 @@ public class DomainCardService {
         }
 
         // Expand cost tags if requested
-        if (expand.contains("costTags") && card.getCostTags() != null) {
+        if (ExpandUtil.shouldExpand(expand, "costTags") && card.getCostTags() != null) {
             builder.costTags(card.getCostTags().stream()
                     .map(tag -> CardCostTagResponse.builder()
                             .id(tag.getId())
@@ -389,7 +397,7 @@ public class DomainCardService {
         }
 
         // Expand associated domain if requested
-        if (expand.contains("associatedDomain")) {
+        if (ExpandUtil.shouldExpand(expand, "associatedDomain")) {
             Domain domain = card.getAssociatedDomain();
             builder.associatedDomain(DomainResponse.builder()
                     .id(domain.getId())

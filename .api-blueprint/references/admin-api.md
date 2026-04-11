@@ -353,6 +353,41 @@ Request body for the change-role endpoint.
 
 ---
 
+### POST `/api/admin/search/reindex`
+
+Rebuild the full-text search index by clearing all entries and re-indexing every active entity from the source repositories. An expensive admin-only operation intended for recovery scenarios such as repairing a corrupted index or backfilling after a bulk SQL data fix that bypassed JPA events. Requires `OWNER` role.
+
+**Query parameters**
+
+| Parameter | Type                   | Required | Description                                                                 |
+|-----------|------------------------|----------|-----------------------------------------------------------------------------|
+| `type`    | `SearchableEntityType` | No       | If provided, only that entity type is rebuilt. If omitted, all types are rebuilt. |
+
+**Response**: `200 OK` with a JSON map.
+
+| Field     | Type    | Description                                                |
+|-----------|---------|------------------------------------------------------------|
+| `scope`   | String  | `"ALL"` or the name of the rebuilt `SearchableEntityType`. |
+| `indexed` | Integer | Total number of entities re-indexed.                       |
+
+**Notes**
+
+- Soft-deleted entities (those with a non-null `deletedAt`) are skipped.
+- The `BEASTFORM` type has no backing repository in the codebase and cannot be repopulated through this endpoint. Its index entries are cleared but not rebuilt; use the initial Flyway migration for beastform data.
+- The operation runs synchronously in a single transaction. For large datasets, expect a long request duration.
+
+**cURL example**
+
+```bash
+# Rebuild everything
+curl -s -X POST -b "AUTH_TOKEN=<jwt>" "http://localhost:8080/api/admin/search/reindex"
+
+# Rebuild only weapons
+curl -s -X POST -b "AUTH_TOKEN=<jwt>" "http://localhost:8080/api/admin/search/reindex?type=WEAPON"
+```
+
+---
+
 ## Enums
 
 ### Role
@@ -380,5 +415,6 @@ Database constraint: `VARCHAR(20) NOT NULL DEFAULT 'USER'` on the `users.role` c
 | `POST /api/admin/users/{id}/ban`         | Yes   | Yes   | Yes*      | No (403) |
 | `POST /api/admin/users/{id}/unban`       | Yes   | Yes   | Yes*      | No (403) |
 | `POST /api/admin/users/{id}/change-role` | Yes   | No (403) | No (403) | No (403) |
+| `POST /api/admin/search/reindex`         | Yes   | No (403) | No (403) | No (403) |
 
 \* Ban/unban requires the actor's role to be strictly higher than the target user's role. A MODERATOR cannot ban another MODERATOR or anyone with a higher role. Attempting to do so returns `403` with `{"error":"Insufficient Permissions"}`.

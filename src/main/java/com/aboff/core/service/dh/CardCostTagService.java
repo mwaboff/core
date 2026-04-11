@@ -8,9 +8,11 @@ import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.repository.dh.CardCostTagRepository;
+import com.aboff.core.event.EntityChangeEvent;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +34,7 @@ import java.util.Set;
 public class CardCostTagService {
 
     private final CardCostTagRepository cardCostTagRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of cost tags.
@@ -102,6 +105,7 @@ public class CardCostTagService {
 
         CardCostTag savedTag = cardCostTagRepository.save(tag);
         log.info("Created cost tag with id: {}", savedTag.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedTag, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedTag);
     }
@@ -126,6 +130,7 @@ public class CardCostTagService {
 
         CardCostTag updatedTag = cardCostTagRepository.save(tag);
         log.info("Updated cost tag with id: {}", updatedTag.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedTag, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedTag);
     }
@@ -145,6 +150,7 @@ public class CardCostTagService {
 
         tag.softDelete();
         cardCostTagRepository.save(tag);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, tag, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted cost tag with id: {}", id);
     }
@@ -170,6 +176,7 @@ public class CardCostTagService {
 
         tag.restore();
         CardCostTag restoredTag = cardCostTagRepository.save(tag);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredTag, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored cost tag with id: {}", id);
 

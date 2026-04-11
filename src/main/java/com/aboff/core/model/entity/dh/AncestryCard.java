@@ -1,5 +1,7 @@
 package com.aboff.core.model.entity.dh;
 
+import com.aboff.core.model.annotation.SearchIndexed;
+import com.aboff.core.model.enums.SearchableEntityType;
 import jakarta.persistence.*;
 import lombok.Builder;
 import lombok.Data;
@@ -16,6 +18,7 @@ import lombok.experimental.SuperBuilder;
  * </p>
  */
 @Entity
+@SearchIndexed(type = SearchableEntityType.ANCESTRY_CARD)
 @Table(name = "ancestry_cards")
 @DiscriminatorValue("ANCESTRY")
 @Data

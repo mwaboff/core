@@ -25,7 +25,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.HashSet;
 import java.util.List;
@@ -46,6 +48,7 @@ public class AncestryCardService {
     private final FeatureRepository featureRepository;
     private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of ancestry cards.
@@ -148,6 +151,7 @@ public class AncestryCardService {
 
         AncestryCard savedCard = ancestryCardRepository.save(card);
         log.info("Created ancestry card with id: {}", savedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedCard, Set.of());
     }
@@ -192,6 +196,7 @@ public class AncestryCardService {
 
         List<AncestryCard> savedCards = ancestryCardRepository.saveAll(cards);
         log.info("Created {} ancestry cards in bulk", savedCards.size());
+        savedCards.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedCards.stream()
                 .map(card -> toResponse(card, Set.of()))
@@ -236,6 +241,7 @@ public class AncestryCardService {
 
         AncestryCard savedCard = ancestryCardRepository.save(card);
         log.info("Created mixed ancestry card with id: {}", savedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedCard, Set.of());
     }
@@ -279,6 +285,7 @@ public class AncestryCardService {
 
         AncestryCard updatedCard = ancestryCardRepository.save(card);
         log.info("Updated ancestry card with id: {}", updatedCard.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedCard, Set.of());
     }
@@ -298,6 +305,7 @@ public class AncestryCardService {
 
         card.softDelete();
         ancestryCardRepository.save(card);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted ancestry card with id: {}", id);
     }
@@ -323,6 +331,7 @@ public class AncestryCardService {
 
         card.restore();
         AncestryCard restoredCard = ancestryCardRepository.save(card);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredCard, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored ancestry card with id: {}", id);
 
@@ -358,7 +367,7 @@ public class AncestryCardService {
         }
 
         // Expand expansion if requested
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = card.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -371,7 +380,7 @@ public class AncestryCardService {
         }
 
         // Expand features if requested
-        if (expand.contains("features") && card.getFeatures() != null) {
+        if (ExpandUtil.shouldExpand(expand, "features") && card.getFeatures() != null) {
             builder.features(card.getFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
@@ -385,7 +394,7 @@ public class AncestryCardService {
         }
 
         // Expand cost tags if requested
-        if (expand.contains("costTags") && card.getCostTags() != null) {
+        if (ExpandUtil.shouldExpand(expand, "costTags") && card.getCostTags() != null) {
             builder.costTags(card.getCostTags().stream()
                     .map(tag -> CardCostTagResponse.builder()
                             .id(tag.getId())

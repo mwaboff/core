@@ -61,4 +61,63 @@ class ExpandUtilTest {
         // Assert
         assertThat(result).containsExactlyInAnyOrder("owner", "experiences");
     }
+
+    @Test
+    void shouldExpand_FieldInSet_ReturnsTrue() {
+        // Arrange
+        Set<String> expandSet = Set.of("owner", "experiences");
+
+        // Act
+        boolean result = ExpandUtil.shouldExpand(expandSet, "owner");
+
+        // Assert
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void shouldExpand_FieldNotInSet_ReturnsFalse() {
+        // Arrange
+        Set<String> expandSet = Set.of("owner", "experiences");
+
+        // Act
+        boolean result = ExpandUtil.shouldExpand(expandSet, "inventoryWeapons");
+
+        // Assert
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void shouldExpand_AllInSet_ReturnsTrueForAnyField() {
+        // Arrange
+        Set<String> expandSet = Set.of("all");
+
+        // Act & Assert
+        assertThat(ExpandUtil.shouldExpand(expandSet, "owner")).isTrue();
+        assertThat(ExpandUtil.shouldExpand(expandSet, "experiences")).isTrue();
+        assertThat(ExpandUtil.shouldExpand(expandSet, "inventoryWeapons")).isTrue();
+        assertThat(ExpandUtil.shouldExpand(expandSet, "anyArbitraryField")).isTrue();
+    }
+
+    @Test
+    void shouldExpand_EmptySet_ReturnsFalse() {
+        // Arrange
+        Set<String> expandSet = Set.of();
+
+        // Act
+        boolean result = ExpandUtil.shouldExpand(expandSet, "owner");
+
+        // Assert
+        assertThat(result).isFalse();
+    }
+
+    @Test
+    void shouldExpand_ParseExpandAllWithShouldExpand_EndToEndExpansion() {
+        // Arrange - simulate parseExpand("all") feeding into shouldExpand
+        Set<String> expandSet = ExpandUtil.parseExpand("all");
+
+        // Act & Assert - any field should be expanded when "all" is requested
+        assertThat(ExpandUtil.shouldExpand(expandSet, "owner")).isTrue();
+        assertThat(ExpandUtil.shouldExpand(expandSet, "experiences")).isTrue();
+        assertThat(ExpandUtil.shouldExpand(expandSet, "inventoryWeapons")).isTrue();
+    }
 }

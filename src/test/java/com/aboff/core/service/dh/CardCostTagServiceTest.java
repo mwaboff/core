@@ -10,6 +10,7 @@ import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.repository.dh.CardCostTagRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -37,6 +38,9 @@ class CardCostTagServiceTest {
 
     @Mock
     private CardCostTagRepository cardCostTagRepository;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
 
     @InjectMocks
     private CardCostTagService cardCostTagService;

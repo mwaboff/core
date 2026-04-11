@@ -20,7 +20,9 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.HashSet;
 import java.util.List;
@@ -39,6 +41,7 @@ public class LootService {
     private final LootRepository lootRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Retrieves a paginated list of loot items.
@@ -142,6 +145,7 @@ public class LootService {
 
         Loot savedLoot = lootRepository.save(loot);
         log.info("Created loot with id: {}", savedLoot.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedLoot, EntityChangeEvent.ChangeType.CREATED));
 
         return toResponse(savedLoot, Set.of());
     }
@@ -189,6 +193,7 @@ public class LootService {
 
         List<Loot> savedLoot = lootRepository.saveAll(lootItems);
         log.info("Created {} loot items in bulk", savedLoot.size());
+        savedLoot.forEach(l -> eventPublisher.publishEvent(new EntityChangeEvent(this, l, EntityChangeEvent.ChangeType.CREATED)));
 
         return savedLoot.stream()
                 .map(loot -> toResponse(loot, Set.of()))
@@ -237,6 +242,7 @@ public class LootService {
 
         Loot updatedLoot = lootRepository.save(loot);
         log.info("Updated loot with id: {}", updatedLoot.getId());
+        eventPublisher.publishEvent(new EntityChangeEvent(this, updatedLoot, EntityChangeEvent.ChangeType.UPDATED));
 
         return toResponse(updatedLoot, Set.of());
     }
@@ -256,6 +262,7 @@ public class LootService {
 
         loot.softDelete();
         lootRepository.save(loot);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, loot, EntityChangeEvent.ChangeType.SOFT_DELETED));
 
         log.info("Soft deleted loot with id: {}", id);
     }
@@ -281,6 +288,7 @@ public class LootService {
 
         loot.restore();
         Loot restoredLoot = lootRepository.save(loot);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, restoredLoot, EntityChangeEvent.ChangeType.RESTORED));
 
         log.info("Restored loot with id: {}", id);
 
@@ -317,7 +325,7 @@ public class LootService {
             builder.originalLootId(loot.getOriginalLoot().getId());
         }
 
-        if (expand.contains("expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion")) {
             Expansion expansion = loot.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -329,13 +337,13 @@ public class LootService {
                     .build());
         }
 
-        if (expand.contains("features") && loot.getFeatures() != null && !loot.getFeatures().isEmpty()) {
+        if (ExpandUtil.shouldExpand(expand, "features") && loot.getFeatures() != null && !loot.getFeatures().isEmpty()) {
             builder.features(loot.getFeatures().stream()
                     .map(f -> featureService.toResponse(f, expand))
                     .collect(Collectors.toList()));
         }
 
-        if (expand.contains("originalLoot") && loot.getOriginalLoot() != null) {
+        if (ExpandUtil.shouldExpand(expand, "originalLoot") && loot.getOriginalLoot() != null) {
             builder.originalLoot(toResponse(loot.getOriginalLoot(), Set.of()));
         }
 
