@@ -181,14 +181,21 @@ public class DomainService {
         Domain domain = domainRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Domain not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        domain.setName(request.getName());
-        domain.setIconUrl(request.getIconUrl());
-        domain.setDescription(request.getDescription());
-        domain.setExpansion(expansion);
+        if (request.getName() != null && !request.getName().isBlank()) {
+            domain.setName(request.getName());
+        }
+        if (request.getIconUrl() != null) {
+            domain.setIconUrl(request.getIconUrl());
+        }
+        if (request.getDescription() != null) {
+            domain.setDescription(request.getDescription());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            domain.setExpansion(expansion);
+        }
 
         Domain updatedDomain = domainRepository.save(domain);
         log.info("Updated domain with id: {}", updatedDomain.getId());

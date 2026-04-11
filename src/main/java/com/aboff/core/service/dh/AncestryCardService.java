@@ -261,15 +261,24 @@ public class AncestryCardService {
         AncestryCard card = ancestryCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("AncestryCard not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        card.setName(request.getName());
-        card.setDescription(request.getDescription());
-        card.setExpansion(expansion);
-        card.setIsOfficial(request.getIsOfficial());
-        card.setBackgroundImageUrl(request.getBackgroundImageUrl());
+        if (request.getName() != null && !request.getName().isBlank()) {
+            card.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            card.setDescription(request.getDescription());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            card.setExpansion(expansion);
+        }
+        if (request.getIsOfficial() != null) {
+            card.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getBackgroundImageUrl() != null) {
+            card.setBackgroundImageUrl(request.getBackgroundImageUrl());
+        }
 
         // Update features
         Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());

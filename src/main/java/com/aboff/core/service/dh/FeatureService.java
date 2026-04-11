@@ -164,14 +164,21 @@ public class FeatureService {
         Feature feature = featureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Feature not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        feature.setName(request.getName());
-        feature.setDescription(request.getDescription());
-        feature.setFeatureType(request.getFeatureType());
-        feature.setExpansion(expansion);
+        if (request.getName() != null && !request.getName().isBlank()) {
+            feature.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            feature.setDescription(request.getDescription());
+        }
+        if (request.getFeatureType() != null) {
+            feature.setFeatureType(request.getFeatureType());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            feature.setExpansion(expansion);
+        }
 
         // Update cost tags
         Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());

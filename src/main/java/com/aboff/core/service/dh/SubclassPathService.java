@@ -209,18 +209,24 @@ public class SubclassPathService {
         SubclassPath path = subclassPathRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassPath not found with id: " + id));
 
-        Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Class not found with id: " + request.getAssociatedClassId()));
-
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        path.setName(request.getName());
-        path.setAssociatedClass(associatedClass);
-        path.setSpellcastingTrait(request.getSpellcastingTrait());
-        path.setExpansion(expansion);
+        if (request.getName() != null && !request.getName().isBlank()) {
+            path.setName(request.getName());
+        }
+        if (request.getAssociatedClassId() != null) {
+            Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Class not found with id: " + request.getAssociatedClassId()));
+            path.setAssociatedClass(associatedClass);
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            path.setExpansion(expansion);
+        }
+        if (request.getSpellcastingTrait() != null) {
+            path.setSpellcastingTrait(request.getSpellcastingTrait());
+        }
 
         if (request.getAssociatedDomainIds() != null) {
             if (request.getAssociatedDomainIds().isEmpty()) {

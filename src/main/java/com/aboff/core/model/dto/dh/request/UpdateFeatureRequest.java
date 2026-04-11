@@ -2,7 +2,6 @@ package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.FeatureType;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -33,13 +32,11 @@ public class UpdateFeatureRequest {
     /**
      * Type/category of the feature
      */
-    @NotNull(message = "Feature type is required")
     private FeatureType featureType;
 
     /**
      * ID of the expansion this feature belongs to
      */
-    @NotNull(message = "Expansion ID is required")
     private Long expansionId;
 
     /**

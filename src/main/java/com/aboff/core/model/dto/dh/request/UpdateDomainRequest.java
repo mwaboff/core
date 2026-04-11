@@ -1,7 +1,5 @@
 package com.aboff.core.model.dto.dh.request;
 
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -19,7 +17,6 @@ public class UpdateDomainRequest {
     /**
      * Name of the domain
      */
-    @NotBlank(message = "Domain name is required")
     @Size(max = 100, message = "Domain name must not exceed 100 characters")
     private String name;
 
@@ -37,6 +34,5 @@ public class UpdateDomainRequest {
     /**
      * ID of the expansion this domain belongs to
      */
-    @NotNull(message = "Expansion ID is required")
     private Long expansionId;
 }

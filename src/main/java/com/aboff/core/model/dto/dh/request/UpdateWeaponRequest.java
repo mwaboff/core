@@ -8,7 +8,6 @@ import com.aboff.core.model.enums.Trait;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
-import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
@@ -30,20 +29,17 @@ public class UpdateWeaponRequest {
     /**
      * Name of the weapon.
      */
-    @NotBlank(message = "Weapon name is required")
     @Size(max = 200, message = "Weapon name must not exceed 200 characters")
     private String name;
 
     /**
      * ID of the expansion this weapon belongs to.
      */
-    @NotNull(message = "Expansion ID is required")
     private Long expansionId;
 
     /**
      * The tier level of the weapon (1–4).
      */
-    @NotNull(message = "Tier is required")
     @Min(value = 1, message = "Tier must be at least 1")
     @Max(value = 4, message = "Tier must be at most 4")
     private Integer tier;
@@ -51,38 +47,32 @@ public class UpdateWeaponRequest {
     /**
      * Whether this weapon is from official game content.
      */
-    @NotNull(message = "isOfficial is required")
     private Boolean isOfficial;
 
     /**
      * Whether this is a primary weapon (true) or secondary weapon (false).
      */
-    @NotNull(message = "isPrimary is required")
     private Boolean isPrimary;
 
     /**
      * The trait used to attack with this weapon.
      */
-    @NotNull(message = "Trait is required")
     private Trait trait;
 
     /**
      * The effective range of the weapon.
      */
-    @NotNull(message = "Range is required")
     private Range range;
 
     /**
      * The burden type (one-handed or two-handed).
      */
-    @NotNull(message = "Burden is required")
     private Burden burden;
 
     /**
      * The damage roll for this weapon.
      */
     @Valid
-    @NotNull(message = "Damage is required")
     private DamageRollRequest damage;
 
     /**

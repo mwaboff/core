@@ -123,8 +123,12 @@ public class ExpansionService {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Expansion not found with id: " + id));
 
-        expansion.setName(request.getName());
-        expansion.setIsPublished(request.getIsPublished());
+        if (request.getName() != null && !request.getName().isBlank()) {
+            expansion.setName(request.getName());
+        }
+        if (request.getIsPublished() != null) {
+            expansion.setIsPublished(request.getIsPublished());
+        }
 
         Expansion updatedExpansion = expansionRepository.save(expansion);
         log.info("Updated expansion with id: {}", updatedExpansion.getId());

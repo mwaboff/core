@@ -216,21 +216,36 @@ public class ArmorService {
         Armor armor = armorRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
+        if (request.getName() != null && !request.getName().isBlank()) {
+            armor.setName(request.getName());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            armor.setExpansion(expansion);
+        }
+        if (request.getTier() != null) {
+            armor.setTier(request.getTier());
+        }
+        if (request.getIsOfficial() != null) {
+            armor.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getBaseMajorThreshold() != null) {
+            armor.setBaseMajorThreshold(request.getBaseMajorThreshold());
+        }
+        if (request.getBaseSevereThreshold() != null) {
+            armor.setBaseSevereThreshold(request.getBaseSevereThreshold());
+        }
+        if (request.getBaseScore() != null) {
+            armor.setBaseScore(request.getBaseScore());
+        }
 
-        armor.setName(request.getName());
-        armor.setExpansion(expansion);
-        armor.setTier(request.getTier());
-        armor.setIsOfficial(request.getIsOfficial());
-        armor.setBaseMajorThreshold(request.getBaseMajorThreshold());
-        armor.setBaseSevereThreshold(request.getBaseSevereThreshold());
-        armor.setBaseScore(request.getBaseScore());
-
-        Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
-        if (resolvedUpdateFeatures != null) {
-            armor.setFeatures(resolvedUpdateFeatures);
+        if (request.getFeatureIds() != null || request.getFeatures() != null) {
+            Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+            if (resolvedUpdateFeatures != null) {
+                armor.setFeatures(resolvedUpdateFeatures);
+            }
         }
 
         if (request.getOriginalArmorId() != null) {
@@ -238,8 +253,6 @@ public class ArmorService {
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Original armor not found with id: " + request.getOriginalArmorId()));
             armor.setOriginalArmor(originalArmor);
-        } else {
-            armor.setOriginalArmor(null);
         }
 
         Armor updatedArmor = armorRepository.save(armor);
