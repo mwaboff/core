@@ -240,23 +240,35 @@ public class SubclassCardService {
         SubclassCard card = subclassCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassCard not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        SubclassPath path = subclassPathService.resolvePath(
-                request.getSubclassPathId(),
-                request.getSubclassPath(),
-                request.getAssociatedClassId(),
-                request.getExpansionId());
-
-        card.setName(request.getName());
-        card.setDescription(request.getDescription());
-        card.setExpansion(expansion);
-        card.setIsOfficial(request.getIsOfficial());
-        card.setBackgroundImageUrl(request.getBackgroundImageUrl());
-        card.setSubclassPath(path);
-        card.setLevel(request.getLevel());
+        if (request.getName() != null && !request.getName().isBlank()) {
+            card.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            card.setDescription(request.getDescription());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            card.setExpansion(expansion);
+        }
+        if (request.getIsOfficial() != null) {
+            card.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getBackgroundImageUrl() != null) {
+            card.setBackgroundImageUrl(request.getBackgroundImageUrl());
+        }
+        if (request.getSubclassPathId() != null || request.getSubclassPath() != null) {
+            SubclassPath path = subclassPathService.resolvePath(
+                    request.getSubclassPathId(),
+                    request.getSubclassPath(),
+                    request.getAssociatedClassId(),
+                    request.getExpansionId());
+            card.setSubclassPath(path);
+        }
+        if (request.getLevel() != null) {
+            card.setLevel(request.getLevel());
+        }
 
         // Update features
         Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());

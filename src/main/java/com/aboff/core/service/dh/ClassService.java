@@ -165,16 +165,27 @@ public class ClassService {
         Class clazz = classRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Class not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        clazz.setName(request.getName());
-        clazz.setDescription(request.getDescription());
-        clazz.setExpansion(expansion);
-        clazz.setStartingClassItems(request.getStartingClassItems());
-        clazz.setStartingEvasion(request.getStartingEvasion());
-        clazz.setStartingHitPoints(request.getStartingHitPoints());
+        if (request.getName() != null && !request.getName().isBlank()) {
+            clazz.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            clazz.setDescription(request.getDescription());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            clazz.setExpansion(expansion);
+        }
+        if (request.getStartingClassItems() != null) {
+            clazz.setStartingClassItems(request.getStartingClassItems());
+        }
+        if (request.getStartingEvasion() != null) {
+            clazz.setStartingEvasion(request.getStartingEvasion());
+        }
+        if (request.getStartingHitPoints() != null) {
+            clazz.setStartingHitPoints(request.getStartingHitPoints());
+        }
 
         // Update domains (still ID-only)
         if (request.getAssociatedDomainIds() != null) {

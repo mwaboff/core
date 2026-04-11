@@ -2,8 +2,6 @@ package com.aboff.core.model.dto.dh.request;
 
 import com.aboff.core.model.enums.SubclassLevel;
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -23,7 +21,6 @@ public class UpdateSubclassCardRequest {
     /**
      * Name of the card
      */
-    @NotBlank(message = "Card name is required")
     @Size(max = 200, message = "Card name must not exceed 200 characters")
     private String name;
 
@@ -35,13 +32,11 @@ public class UpdateSubclassCardRequest {
     /**
      * ID of the expansion this card belongs to
      */
-    @NotNull(message = "Expansion ID is required")
     private Long expansionId;
 
     /**
      * Whether this card is from official game content
      */
-    @NotNull(message = "isOfficial is required")
     private Boolean isOfficial;
 
     /**
@@ -94,6 +89,5 @@ public class UpdateSubclassCardRequest {
     /**
      * The level at which this subclass becomes available
      */
-    @NotNull(message = "Subclass level is required")
     private SubclassLevel level;
 }

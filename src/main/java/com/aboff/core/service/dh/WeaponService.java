@@ -234,19 +234,36 @@ public class WeaponService {
         Weapon weapon = weaponRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        weapon.setName(request.getName());
-        weapon.setExpansion(expansion);
-        weapon.setTier(request.getTier());
-        weapon.setIsOfficial(request.getIsOfficial());
-        weapon.setIsPrimary(request.getIsPrimary());
-        weapon.setTrait(request.getTrait());
-        weapon.setRange(request.getRange());
-        weapon.setBurden(request.getBurden());
-        weapon.setDamage(toDamageRoll(request.getDamage()));
+        if (request.getName() != null && !request.getName().isBlank()) {
+            weapon.setName(request.getName());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            weapon.setExpansion(expansion);
+        }
+        if (request.getTier() != null) {
+            weapon.setTier(request.getTier());
+        }
+        if (request.getIsOfficial() != null) {
+            weapon.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getIsPrimary() != null) {
+            weapon.setIsPrimary(request.getIsPrimary());
+        }
+        if (request.getTrait() != null) {
+            weapon.setTrait(request.getTrait());
+        }
+        if (request.getRange() != null) {
+            weapon.setRange(request.getRange());
+        }
+        if (request.getBurden() != null) {
+            weapon.setBurden(request.getBurden());
+        }
+        if (request.getDamage() != null) {
+            weapon.setDamage(toDamageRoll(request.getDamage()));
+        }
 
         Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
         if (resolvedUpdateFeatures != null) {
@@ -258,8 +275,6 @@ public class WeaponService {
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Original weapon not found with id: " + request.getOriginalWeaponId()));
             weapon.setOriginalWeapon(originalWeapon);
-        } else {
-            weapon.setOriginalWeapon(null);
         }
 
         Weapon updatedWeapon = weaponRepository.save(weapon);

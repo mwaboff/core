@@ -125,8 +125,12 @@ public class CardCostTagService {
         CardCostTag tag = cardCostTagRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("CardCostTag not found with id: " + id));
 
-        tag.setLabel(request.getLabel());
-        tag.setCategory(request.getCategory());
+        if (request.getLabel() != null && !request.getLabel().isBlank()) {
+            tag.setLabel(request.getLabel());
+        }
+        if (request.getCategory() != null) {
+            tag.setCategory(request.getCategory());
+        }
 
         CardCostTag updatedTag = cardCostTagRepository.save(tag);
         log.info("Updated cost tag with id: {}", updatedTag.getId());

@@ -138,13 +138,18 @@ public class QuestionService {
         Question question = questionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Question not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        question.setQuestionText(request.getQuestionText());
-        question.setQuestionType(request.getQuestionType());
-        question.setExpansion(expansion);
+        if (request.getQuestionText() != null && !request.getQuestionText().isBlank()) {
+            question.setQuestionText(request.getQuestionText());
+        }
+        if (request.getQuestionType() != null) {
+            question.setQuestionType(request.getQuestionType());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            question.setExpansion(expansion);
+        }
 
         Question updatedQuestion = questionRepository.save(question);
         log.info("Updated question with id: {}", updatedQuestion.getId());

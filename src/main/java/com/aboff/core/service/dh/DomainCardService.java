@@ -239,23 +239,39 @@ public class DomainCardService {
         DomainCard card = domainCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
-
-        Domain associatedDomain = domainRepository.findByIdAndDeletedAtIsNull(request.getAssociatedDomainId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Domain not found with id: " + request.getAssociatedDomainId()));
-
-        card.setName(request.getName());
-        card.setDescription(request.getDescription());
-        card.setExpansion(expansion);
-        card.setIsOfficial(request.getIsOfficial());
-        card.setBackgroundImageUrl(request.getBackgroundImageUrl());
-        card.setAssociatedDomain(associatedDomain);
-        card.setLevel(request.getLevel());
-        card.setRecallCost(request.getRecallCost());
-        card.setType(request.getType());
+        if (request.getName() != null && !request.getName().isBlank()) {
+            card.setName(request.getName());
+        }
+        if (request.getDescription() != null) {
+            card.setDescription(request.getDescription());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            card.setExpansion(expansion);
+        }
+        if (request.getIsOfficial() != null) {
+            card.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getBackgroundImageUrl() != null) {
+            card.setBackgroundImageUrl(request.getBackgroundImageUrl());
+        }
+        if (request.getAssociatedDomainId() != null) {
+            Domain associatedDomain = domainRepository.findByIdAndDeletedAtIsNull(request.getAssociatedDomainId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Domain not found with id: " + request.getAssociatedDomainId()));
+            card.setAssociatedDomain(associatedDomain);
+        }
+        if (request.getLevel() != null) {
+            card.setLevel(request.getLevel());
+        }
+        if (request.getRecallCost() != null) {
+            card.setRecallCost(request.getRecallCost());
+        }
+        if (request.getType() != null) {
+            card.setType(request.getType());
+        }
 
         // Update features
         Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());

@@ -215,20 +215,33 @@ public class LootService {
         Loot loot = lootRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + id));
 
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + request.getExpansionId()));
+        if (request.getName() != null && !request.getName().isBlank()) {
+            loot.setName(request.getName());
+        }
+        if (request.getExpansionId() != null) {
+            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Expansion not found with id: " + request.getExpansionId()));
+            loot.setExpansion(expansion);
+        }
+        if (request.getTier() != null) {
+            loot.setTier(request.getTier());
+        }
+        if (request.getIsOfficial() != null) {
+            loot.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getIsConsumable() != null) {
+            loot.setIsConsumable(request.getIsConsumable());
+        }
+        if (request.getDescription() != null) {
+            loot.setDescription(request.getDescription());
+        }
 
-        loot.setName(request.getName());
-        loot.setExpansion(expansion);
-        loot.setTier(request.getTier());
-        loot.setIsOfficial(request.getIsOfficial());
-        loot.setIsConsumable(request.getIsConsumable());
-        loot.setDescription(request.getDescription());
-
-        Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
-        if (resolvedUpdateFeatures != null) {
-            loot.setFeatures(resolvedUpdateFeatures);
+        if (request.getFeatureIds() != null || request.getFeatures() != null) {
+            Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+            if (resolvedUpdateFeatures != null) {
+                loot.setFeatures(resolvedUpdateFeatures);
+            }
         }
 
         if (request.getOriginalLootId() != null) {
@@ -236,8 +249,6 @@ public class LootService {
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Original loot not found with id: " + request.getOriginalLootId()));
             loot.setOriginalLoot(originalLoot);
-        } else {
-            loot.setOriginalLoot(null);
         }
 
         Loot updatedLoot = lootRepository.save(loot);

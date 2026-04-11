@@ -581,14 +581,13 @@ class LootServiceTest {
 
         when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingLoot));
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
         lootService.updateLoot(1L, request);
 
         // Assert
-        verify(featureService).resolveFeatures(isNull(), isNull());
+        verify(featureService, never()).resolveFeatures(any(), any());
     }
 
     @Test
