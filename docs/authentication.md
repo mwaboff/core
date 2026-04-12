@@ -16,7 +16,7 @@ SPA                    Backend                      Google
  |                        |<-- callback with auth code -|
  |                        |   /login/oauth2/code/google |
  |                        |                             |
- |                        | exchange code, fetch profile|
+ |                        | exchange code (scope: openid, email)
  |                        | find-or-create User +       |
  |                        | UserIdentity via            |
  |                        | OAuth2UserProvisioningService
@@ -24,8 +24,13 @@ SPA                    Backend                      Google
  |                        | issue JWT, set AUTH_TOKEN   |
  |                        | HttpOnly cookie             |
  |<-- redirect to         |                             |
- |   FRONTEND_BASE_URL    |                             |
+ |   /choose-username     |   (first-time user)         |
+ |   OR FRONTEND_BASE_URL |   (returning user)          |
 ```
+
+**First-time users** receive a temporary `user-<random>` username and `usernameChosen: false`. The backend redirects them to `${FRONTEND_BASE_URL}/choose-username`. The SPA calls `POST /api/auth/choose-username` with the desired username — no re-login is needed since the JWT cookie was already set.
+
+**Returning users** are redirected straight to `${FRONTEND_BASE_URL}`.
 
 On failure (e.g., user denies consent), the backend redirects to `${FRONTEND_BASE_URL}/login?error`.
 
@@ -43,10 +48,10 @@ When running with `SPRING_PROFILES_ACTIVE=dev`, the `DevAuthController` exposes:
 POST /api/auth/dev-login
 Content-Type: application/json
 
-{"email": "alice@example.com", "role": "USER"}
+{"email": "alice@example.com", "role": "USER", "username": "alice"}
 ```
 
-This creates or retrieves a user by email (with `provider='dev'`), issues a JWT, and sets the cookie. The `role` field is optional and defaults to `USER`. Integration tests use this endpoint to authenticate without hitting Google.
+This creates or retrieves a user by email (with `provider='dev'`), issues a JWT, and sets the cookie. Both `role` and `username` are optional — `role` defaults to `USER`, and `username` is generated from the email local-part if omitted. Dev users always have `usernameChosen: true`, so they skip the choose-username flow. Integration tests use this endpoint to authenticate without hitting Google.
 
 ### Staging / production — real Google OAuth
 

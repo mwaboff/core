@@ -125,4 +125,38 @@ class DevAuthControllerIntegrationTest {
                         .content("{}"))
                 .andExpect(status().is5xxServerError());
     }
+
+    @Test
+    void devLogin_WithExplicitUsername_SetsUsernameAndUsernameChosenTrue() throws Exception {
+        // Act
+        mockMvc.perform(post("/api/auth/dev-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"nameduser@example.com\",\"username\":\"myname\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.username").value("myname"))
+                .andExpect(jsonPath("$.usernameChosen").value(true));
+
+        // Verify persisted
+        assertThat(userRepository.findByEmailIgnoreCase("nameduser@example.com"))
+                .isPresent()
+                .hasValueSatisfying(u -> {
+                    assertThat(u.getUsername()).isEqualTo("myname");
+                    assertThat(u.getUsernameChosen()).isTrue();
+                });
+    }
+
+    @Test
+    void devLogin_WithoutUsername_Returns200WithUsernameChosenTrue() throws Exception {
+        // Act — omitting username should still produce usernameChosen=true for dev users
+        mockMvc.perform(post("/api/auth/dev-login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"defaultuser@example.com\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.usernameChosen").value(true));
+
+        // Verify persisted
+        assertThat(userRepository.findByEmailIgnoreCase("defaultuser@example.com"))
+                .isPresent()
+                .hasValueSatisfying(u -> assertThat(u.getUsernameChosen()).isTrue());
+    }
 }

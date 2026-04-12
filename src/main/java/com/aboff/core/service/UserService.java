@@ -9,6 +9,7 @@ import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.util.CookieUtil;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +20,7 @@ import java.time.LocalDateTime;
  * Service for managing user accounts.
  * Handles user profile updates, password changes, and account deletion.
  */
+@Slf4j
 @Service
 public class UserService {
 
@@ -130,6 +132,42 @@ public class UserService {
     }
 
     /**
+     * Sets the username for a first-time OAuth user who has not yet chosen a username.
+     * <p>
+     * Only allowed when {@code usernameChosen} is {@code false}. Once set,
+     * {@code usernameChosen} is flipped to {@code true} and the user will no longer
+     * be redirected to the choose-username page after OAuth login.
+     * </p>
+     *
+     * @param userId   the ID of the user selecting a username
+     * @param username the desired username
+     * @return the updated user response
+     * @throws UserNotFoundException      if the user is not found
+     * @throws IllegalStateException      if the user has already chosen a username
+     * @throws UserAlreadyExistsException if the username is already taken (case-insensitive)
+     */
+    @Transactional
+    public UserResponse chooseUsername(Long userId, String username) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found"));
+
+        if (Boolean.TRUE.equals(user.getUsernameChosen())) {
+            throw new IllegalStateException("Username has already been chosen");
+        }
+
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new UserAlreadyExistsException("Username already taken");
+        }
+
+        user.setUsername(username);
+        user.setUsernameChosen(true);
+        user = userRepository.save(user);
+
+        log.info("User {} chose username '{}'", userId, username);
+        return mapToUserResponse(user);
+    }
+
+    /**
      * Soft deletes a user account.
      *
      * @param userId   the ID of the user to delete
@@ -193,7 +231,8 @@ public class UserService {
                 .username(user.getUsername())
                 .role(user.getRole())
                 .avatarUrl(user.getAvatarUrl())
-                .createdAt(user.getCreatedAt());
+                .createdAt(user.getCreatedAt())
+                .usernameChosen(user.getUsernameChosen());
 
         if (fullInfo) {
             builder.email(user.getEmail())

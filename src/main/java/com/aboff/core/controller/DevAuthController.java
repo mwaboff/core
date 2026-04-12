@@ -82,7 +82,7 @@ public class DevAuthController {
         log.warn("Dev login used for email: {} — this endpoint must NOT be available in production",
                 request.getEmail());
 
-        User user = provisioningService.findOrCreateDevUser(request.getEmail(), request.getRole());
+        User user = provisioningService.findOrCreateDevUser(request.getEmail(), request.getRole(), request.getUsername());
 
         String ipAddress = extractIpAddress(httpRequest);
         String deviceInfo = extractDeviceInfo(httpRequest);
@@ -132,5 +132,11 @@ public class DevAuthController {
          * The desired role for the dev user; defaults to USER if null.
          */
         private Role role;
+
+        /**
+         * Optional explicit username for the dev user. If omitted or blank,
+         * a username is generated from the email address.
+         */
+        private String username;
     }
 }

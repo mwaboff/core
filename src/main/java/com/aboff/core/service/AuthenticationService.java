@@ -115,6 +115,7 @@ public class AuthenticationService {
                 .timezone(user.getTimezone())
                 .createdAt(user.getCreatedAt())
                 .lastModifiedAt(user.getLastModifiedAt())
+                .usernameChosen(user.getUsernameChosen())
                 .build();
     }
 

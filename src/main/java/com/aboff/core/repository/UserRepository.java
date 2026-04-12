@@ -43,6 +43,15 @@ public interface UserRepository extends JpaRepository<User, Long> {
     boolean existsByEmailIgnoreCase(String email);
 
     /**
+     * Checks if a user exists by username (case-insensitive).
+     * Used during username selection to prevent duplicate usernames.
+     *
+     * @param username the username to check
+     * @return true if the username is already taken, false otherwise
+     */
+    boolean existsByUsernameIgnoreCase(String username);
+
+    /**
      * Finds all non-deleted users.
      *
      * @return list of active users

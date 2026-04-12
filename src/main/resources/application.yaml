@@ -8,7 +8,7 @@ spring:
           google:
             client-id: ${GOOGLE_CLIENT_ID:}
             client-secret: ${GOOGLE_CLIENT_SECRET:}
-            scope: openid, profile, email
+            scope: openid, email
   datasource:
     url: jdbc:postgresql://localhost:5432/${POSTGRES_DB:heartandfear}
     username: ${POSTGRES_USER:postgres}

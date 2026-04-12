@@ -70,4 +70,11 @@ public class UserResponse {
      * The timestamp when the user was banned (privileged users only).
      */
     private LocalDateTime bannedAt;
+
+    /**
+     * Whether the user has explicitly chosen their username.
+     * {@code false} for first-time OAuth users who have not yet completed the
+     * username selection flow.
+     */
+    private Boolean usernameChosen;
 }

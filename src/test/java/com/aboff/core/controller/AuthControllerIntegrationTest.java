@@ -9,6 +9,7 @@ import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
@@ -126,6 +127,167 @@ class AuthControllerIntegrationTest {
         void me_Unauthenticated_Returns401() throws Exception {
                 // Act & Assert - No cookie provided
                 mockMvc.perform(get("/api/auth/me"))
+                                .andExpect(status().isUnauthorized());
+        }
+
+        // ==================== CHOOSE-USERNAME TESTS ====================
+
+        @Test
+        void chooseUsername_ValidUsername_Returns200AndSetsUsername() throws Exception {
+                // Arrange - first-time user with temp username
+                User user = User.builder()
+                                .username("user-tempname")
+                                .email("chooseuser@example.com")
+                                .usernameChosen(false)
+                                .build();
+                user = userRepository.save(user);
+
+                String token = jwtTokenProvider.generateToken(user);
+                ActiveToken activeToken = ActiveToken.builder()
+                                .userId(user.getId())
+                                .tokenHash(jwtTokenProvider.hashToken(token))
+                                .issuedAt(LocalDateTime.now())
+                                .expiresAt(LocalDateTime.now().plusDays(30))
+                                .build();
+                activeTokenRepository.save(activeToken);
+
+                // Act & Assert
+                mockMvc.perform(post("/api/auth/choose-username")
+                                .cookie(new Cookie("AUTH_TOKEN", token))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\": \"mynewusername\"}"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.username").value("mynewusername"))
+                                .andExpect(jsonPath("$.usernameChosen").value(true));
+
+                // Verify changes persisted in DB
+                User updated = userRepository.findById(user.getId()).orElseThrow();
+                assertThat(updated.getUsername()).isEqualTo("mynewusername");
+                assertThat(updated.getUsernameChosen()).isTrue();
+        }
+
+        @Test
+        void chooseUsername_AlreadyChosen_Returns400() throws Exception {
+                // Arrange - user who has already completed the username selection flow
+                User user = User.builder()
+                                .username("alreadychosen")
+                                .email("alreadychosen@example.com")
+                                .usernameChosen(true)
+                                .build();
+                user = userRepository.save(user);
+
+                String token = jwtTokenProvider.generateToken(user);
+                ActiveToken activeToken = ActiveToken.builder()
+                                .userId(user.getId())
+                                .tokenHash(jwtTokenProvider.hashToken(token))
+                                .issuedAt(LocalDateTime.now())
+                                .expiresAt(LocalDateTime.now().plusDays(30))
+                                .build();
+                activeTokenRepository.save(activeToken);
+
+                // Act & Assert - IllegalStateException maps to 400
+                mockMvc.perform(post("/api/auth/choose-username")
+                                .cookie(new Cookie("AUTH_TOKEN", token))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\": \"newname\"}"))
+                                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void chooseUsername_DuplicateUsername_Returns409() throws Exception {
+                // Arrange - another user already owns the desired username
+                User existingUser = User.builder()
+                                .username("takenname")
+                                .email("existing@example.com")
+                                .usernameChosen(true)
+                                .build();
+                userRepository.save(existingUser);
+
+                // New user who hasn't chosen a username yet
+                User newUser = User.builder()
+                                .username("user-newtemp")
+                                .email("newuser@example.com")
+                                .usernameChosen(false)
+                                .build();
+                newUser = userRepository.save(newUser);
+
+                String token = jwtTokenProvider.generateToken(newUser);
+                ActiveToken activeToken = ActiveToken.builder()
+                                .userId(newUser.getId())
+                                .tokenHash(jwtTokenProvider.hashToken(token))
+                                .issuedAt(LocalDateTime.now())
+                                .expiresAt(LocalDateTime.now().plusDays(30))
+                                .build();
+                activeTokenRepository.save(activeToken);
+
+                // Act & Assert - username collision returns 409
+                mockMvc.perform(post("/api/auth/choose-username")
+                                .cookie(new Cookie("AUTH_TOKEN", token))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\": \"takenname\"}"))
+                                .andExpect(status().isConflict());
+        }
+
+        @Test
+        void chooseUsername_TooShort_Returns400() throws Exception {
+                // Arrange
+                User user = User.builder()
+                                .username("user-shorttest")
+                                .email("shorttest@example.com")
+                                .usernameChosen(false)
+                                .build();
+                user = userRepository.save(user);
+
+                String token = jwtTokenProvider.generateToken(user);
+                ActiveToken activeToken = ActiveToken.builder()
+                                .userId(user.getId())
+                                .tokenHash(jwtTokenProvider.hashToken(token))
+                                .issuedAt(LocalDateTime.now())
+                                .expiresAt(LocalDateTime.now().plusDays(30))
+                                .build();
+                activeTokenRepository.save(activeToken);
+
+                // Act & Assert - "ab" is 2 chars, minimum is 3
+                mockMvc.perform(post("/api/auth/choose-username")
+                                .cookie(new Cookie("AUTH_TOKEN", token))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\": \"ab\"}"))
+                                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void chooseUsername_InvalidChars_Returns400() throws Exception {
+                // Arrange
+                User user = User.builder()
+                                .username("user-invalidtest")
+                                .email("invalidtest@example.com")
+                                .usernameChosen(false)
+                                .build();
+                user = userRepository.save(user);
+
+                String token = jwtTokenProvider.generateToken(user);
+                ActiveToken activeToken = ActiveToken.builder()
+                                .userId(user.getId())
+                                .tokenHash(jwtTokenProvider.hashToken(token))
+                                .issuedAt(LocalDateTime.now())
+                                .expiresAt(LocalDateTime.now().plusDays(30))
+                                .build();
+                activeTokenRepository.save(activeToken);
+
+                // Act & Assert - spaces and special characters are not allowed
+                mockMvc.perform(post("/api/auth/choose-username")
+                                .cookie(new Cookie("AUTH_TOKEN", token))
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\": \"my name!\"}"))
+                                .andExpect(status().isBadRequest());
+        }
+
+        @Test
+        void chooseUsername_Unauthenticated_Returns401() throws Exception {
+                // Act & Assert - no AUTH_TOKEN cookie → 401
+                mockMvc.perform(post("/api/auth/choose-username")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"username\": \"anyname\"}"))
                                 .andExpect(status().isUnauthorized());
         }
 }

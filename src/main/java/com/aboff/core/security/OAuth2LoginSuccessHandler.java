@@ -86,7 +86,10 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         cookieUtil.setAuthCookie(response, result.getToken());
         log.info("OAuth login successful for user '{}' via {}", user.getUsername(), provider);
 
-        getRedirectStrategy().sendRedirect(request, response, frontendBaseUrl);
+        String redirectUrl = Boolean.TRUE.equals(user.getUsernameChosen())
+                ? frontendBaseUrl
+                : frontendBaseUrl + "/choose-username";
+        getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 
     /**

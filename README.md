@@ -123,7 +123,8 @@ For full architecture details, see [docs/authentication.md](docs/authentication.
 4. Google redirects back with an authorization code
 5. The backend exchanges the code, provisions a User + UserIdentity if new
 6. A JWT is issued and set as an `AUTH_TOKEN` HttpOnly cookie
-7. The user is redirected back to the frontend (`FRONTEND_BASE_URL`)
+7. **First-time users** (new OAuth sign-in) are redirected to `${FRONTEND_BASE_URL}/choose-username` — they have a temporary `user-<random>` username and `usernameChosen: false`. They call `POST /api/auth/choose-username` to set their real username. No re-login is needed.
+8. **Returning users** are redirected to `${FRONTEND_BASE_URL}` as before
 
 All subsequent API calls are authenticated via the `AUTH_TOKEN` cookie, validated by `JwtAuthenticationFilter`.
 
@@ -164,16 +165,23 @@ SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 
 **Create a user and get an auth cookie:**
 ```bash
-# Create a regular user
+# Create a regular user (username auto-generated from email)
 curl -i -c cookies.txt -X POST http://localhost:8080/api/auth/dev-login \
   -H 'Content-Type: application/json' \
   -d '{"email": "alice@example.com"}'
+
+# Create a user with a specific username
+curl -i -c cookies.txt -X POST http://localhost:8080/api/auth/dev-login \
+  -H 'Content-Type: application/json' \
+  -d '{"email": "alice@example.com", "username": "alice"}'
 
 # Create an admin user
 curl -i -c cookies.txt -X POST http://localhost:8080/api/auth/dev-login \
   -H 'Content-Type: application/json' \
   -d '{"email": "admin@example.com", "role": "ADMIN"}'
 ```
+
+Dev users always have `usernameChosen: true` — they skip the choose-username flow that real OAuth users go through on first login.
 
 **Verify the session:**
 ```bash
@@ -206,8 +214,9 @@ UPDATE users SET role = 'OWNER' WHERE email = 'your-email@example.com';
 |--------|------|------|-------------|
 | GET | `/oauth2/authorization/google` | Public | Initiates Google OAuth2 login flow |
 | GET | `/api/auth/me` | Required | Returns current authenticated user |
+| POST | `/api/auth/choose-username` | Required | Set username for first-time OAuth users |
 | POST | `/api/auth/logout` | Public | Revokes token and clears cookie |
-| POST | `/api/auth/dev-login` | Public (dev only) | Dev mock login with email + optional role |
+| POST | `/api/auth/dev-login` | Public (dev only) | Dev mock login with email + optional role/username |
 
 ### User Management Endpoints
 

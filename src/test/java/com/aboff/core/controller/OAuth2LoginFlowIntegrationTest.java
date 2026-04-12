@@ -52,23 +52,24 @@ class OAuth2LoginFlowIntegrationTest {
         OAuth2User mockOAuth2User = mock(OAuth2User.class);
         when(mockOAuth2User.getAttribute("sub")).thenReturn("google-12345");
         when(mockOAuth2User.getAttribute("email")).thenReturn("newuser@gmail.com");
-        when(mockOAuth2User.getAttribute("name")).thenReturn("New User");
-        when(mockOAuth2User.getAttribute("picture")).thenReturn("https://photo.url/pic.jpg");
 
         // Act
         User user = provisioningService.findOrCreateUserFromOAuth2("google", mockOAuth2User);
 
-        // Assert - user created with correct details
+        // Assert - user created with temp username and usernameChosen=false
         assertThat(user).isNotNull();
         assertThat(user.getId()).isNotNull();
         assertThat(user.getEmail()).isEqualTo("newuser@gmail.com");
-        assertThat(user.getAvatarUrl()).isEqualTo("https://photo.url/pic.jpg");
+        assertThat(user.getUsername()).startsWith("user-");
+        assertThat(user.getUsernameChosen()).isFalse();
+        assertThat(user.getAvatarUrl()).isNotNull();
 
         // Assert - identity created with correct provider coordinates
+        // Name and picture are no longer collected (scope: openid, email only)
         Optional<UserIdentity> identity = userIdentityRepository.findByProviderAndProviderSub("google", "google-12345");
         assertThat(identity).isPresent();
         assertThat(identity.get().getUser().getId()).isEqualTo(user.getId());
-        assertThat(identity.get().getDisplayName()).isEqualTo("New User");
+        assertThat(identity.get().getDisplayName()).isNull();
         assertThat(identity.get().getLastUsedAt()).isNotNull();
     }
 
@@ -113,29 +114,26 @@ class OAuth2LoginFlowIntegrationTest {
     }
 
     @Test
-    void findOrCreateUser_UsernameCollision_AppendsSubSuffix() {
-        // Arrange - pre-create a user with the username that would be generated from the email
-        User existingUser = User.builder()
-                .username("collision")
-                .email("other@example.com")
-                .avatarUrl("https://avatar.url")
-                .timezone("UTC")
-                .build();
-        userRepository.save(existingUser);
+    void findOrCreateUser_MultipleNewUsers_EachGetUniqueUuidTempUsername() {
+        // Arrange - two new OAuth users signing in for the first time
+        OAuth2User firstUser = mock(OAuth2User.class);
+        when(firstUser.getAttribute("sub")).thenReturn("sub-first");
+        when(firstUser.getAttribute("email")).thenReturn("first@gmail.com");
 
-        // The email local-part "collision" is already taken, so a suffix should be appended
-        OAuth2User mockOAuth2User = mock(OAuth2User.class);
-        when(mockOAuth2User.getAttribute("sub")).thenReturn("sub-abc123xyz");
-        when(mockOAuth2User.getAttribute("email")).thenReturn("collision@gmail.com");
-        when(mockOAuth2User.getAttribute("name")).thenReturn("Collision User");
-        when(mockOAuth2User.getAttribute("picture")).thenReturn(null);
+        OAuth2User secondUser = mock(OAuth2User.class);
+        when(secondUser.getAttribute("sub")).thenReturn("sub-second");
+        when(secondUser.getAttribute("email")).thenReturn("second@gmail.com");
 
         // Act
-        User newUser = provisioningService.findOrCreateUserFromOAuth2("google", mockOAuth2User);
+        User user1 = provisioningService.findOrCreateUserFromOAuth2("google", firstUser);
+        User user2 = provisioningService.findOrCreateUserFromOAuth2("google", secondUser);
 
-        // Assert - username differs from the taken one and contains the sub suffix
-        assertThat(newUser.getUsername()).isNotEqualTo("collision");
-        assertThat(newUser.getUsername()).startsWith("collision-");
+        // Assert - both get distinct temp usernames prefixed with "user-"
+        assertThat(user1.getUsername()).startsWith("user-");
+        assertThat(user2.getUsername()).startsWith("user-");
+        assertThat(user1.getUsername()).isNotEqualTo(user2.getUsername());
+        assertThat(user1.getUsernameChosen()).isFalse();
+        assertThat(user2.getUsernameChosen()).isFalse();
     }
 
     // ==================== SECURITY CONFIG TESTS ====================

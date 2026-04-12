@@ -221,6 +221,7 @@ public class AdminController {
                                 .timezone(user.getTimezone())
                                 .createdAt(user.getCreatedAt())
                                 .lastModifiedAt(user.getLastModifiedAt())
+                                .usernameChosen(user.getUsernameChosen())
                                 .build();
         }
 }

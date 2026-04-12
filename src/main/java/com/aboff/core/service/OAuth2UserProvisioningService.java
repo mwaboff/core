@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.UUID;
 
 /**
  * Service responsible for provisioning users from OAuth2 authentication.
@@ -80,16 +81,18 @@ public class OAuth2UserProvisioningService {
             return identity.getUser();
         }
 
-        // Create new user
+        // Create new user — only read sub and email from OAuth2 principal.
+        // Name and picture are intentionally ignored; users will set their own
+        // username via the choose-username flow and use the default avatar.
         String email = principal.getAttribute("email");
-        String name = principal.getAttribute("name");
-        String picture = principal.getAttribute("picture");
+        String tempUsername = "user-" + UUID.randomUUID().toString().substring(0, 8);
 
         User user = User.builder()
                 .email(email)
-                .username(generateUsername(email, finalSub))
-                .avatarUrl(picture != null ? picture : defaultAvatarUrl)
+                .username(tempUsername)
+                .avatarUrl(defaultAvatarUrl)
                 .timezone(defaultTimezone)
+                .usernameChosen(false)
                 .build();
         user = userRepository.save(user);
 
@@ -98,8 +101,6 @@ public class OAuth2UserProvisioningService {
                 .provider(provider)
                 .providerSub(finalSub)
                 .email(email)
-                .displayName(name)
-                .avatarUrl(picture)
                 .linkedAt(LocalDateTime.now())
                 .lastUsedAt(LocalDateTime.now())
                 .build();
@@ -116,13 +117,19 @@ public class OAuth2UserProvisioningService {
      * promotes/demotes the role if a different role is supplied. On first call,
      * creates a new user and identity with the given email and role.
      * </p>
+     * <p>
+     * Dev users always have {@code usernameChosen} set to {@code true} — they are
+     * not redirected to the choose-username flow.
+     * </p>
      *
-     * @param email the email address used as the dev user's identifier
-     * @param role  the desired role; if {@code null}, defaults to {@link Role#USER}
+     * @param email    the email address used as the dev user's identifier
+     * @param role     the desired role; if {@code null}, defaults to {@link Role#USER}
+     * @param username an optional explicit username; if {@code null} or blank, one is
+     *                 generated from the email address
      * @return the existing or newly created user
      */
     @Transactional
-    public User findOrCreateDevUser(String email, Role role) {
+    public User findOrCreateDevUser(String email, Role role, String username) {
         Optional<UserIdentity> existing = userIdentityRepository.findByProviderAndProviderSub("dev", email);
 
         if (existing.isPresent()) {
@@ -137,12 +144,17 @@ public class OAuth2UserProvisioningService {
             return user;
         }
 
+        String resolvedUsername = (username != null && !username.isBlank())
+                ? username
+                : generateDevUsername(email, email);
+
         User user = User.builder()
                 .email(email)
-                .username(generateUsername(email, email))
+                .username(resolvedUsername)
                 .avatarUrl(defaultAvatarUrl)
                 .timezone(defaultTimezone)
                 .role(role != null ? role : Role.USER)
+                .usernameChosen(true)
                 .build();
         user = userRepository.save(user);
 
@@ -162,7 +174,7 @@ public class OAuth2UserProvisioningService {
     }
 
     /**
-     * Generates a URL-safe username from the user's email and OAuth subject identifier.
+     * Generates a URL-safe username for dev users from their email and OAuth subject.
      * <p>
      * The base is derived from the email local-part, slugified to lowercase
      * alphanumeric characters with dashes. If the base is already taken, the first
@@ -173,7 +185,7 @@ public class OAuth2UserProvisioningService {
      * @param sub   the OAuth subject identifier used as a collision-resolution suffix
      * @return a unique username string
      */
-    private String generateUsername(String email, String sub) {
+    private String generateDevUsername(String email, String sub) {
         String base = email != null ? email.split("@")[0] : "user";
         // Slugify: lowercase, replace non-alphanumeric with dashes
         base = base.toLowerCase().replaceAll("[^a-z0-9]", "-").replaceAll("-+", "-").replaceAll("^-|-$", "");

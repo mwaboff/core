@@ -74,6 +74,19 @@ public class User extends BaseEntity {
     private Role role = Role.USER;
 
     /**
+     * Whether the user has explicitly chosen their own username.
+     * <p>
+     * Set to {@code false} on first OAuth sign-in, when a temporary random username
+     * is auto-generated. Set to {@code true} once the user completes the username
+     * selection flow. Used to gate the post-OAuth redirect: first-time users are
+     * sent to the choose-username page until this flag is {@code true}.
+     * </p>
+     */
+    @Column(name = "username_chosen", nullable = false)
+    @Builder.Default
+    private Boolean usernameChosen = false;
+
+    /**
      * Returns whether this user has been soft-deleted.
      *
      * @return true if the user is deleted, false otherwise
