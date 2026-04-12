@@ -24,6 +24,14 @@ spring:
         format_sql: false
 
 logging:
+  file:
+    name: /app/logs/core.log
+  pattern:
+    file: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+  logback:
+    rollingpolicy:
+      max-file-size: 0
+      max-history: 0
   level:
     com.aboff.core.security: INFO
     com.aboff.core.exception: INFO
