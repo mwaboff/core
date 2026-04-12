@@ -1,16 +1,13 @@
 package com.aboff.core.service;
 
-import com.aboff.core.exception.InvalidPasswordException;
 import com.aboff.core.exception.UserAlreadyExistsException;
 import com.aboff.core.exception.UserNotFoundException;
-import com.aboff.core.model.dto.request.ChangePasswordRequest;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.util.CookieUtil;
-import com.aboff.core.util.PasswordValidator;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,7 +15,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -28,6 +24,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
+/**
+ * Unit tests for {@link UserService}.
+ */
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
@@ -39,12 +38,6 @@ class UserServiceTest {
 
         @Mock
         private RoleHierarchyService roleHierarchyService;
-
-        @Mock
-        private PasswordEncoder passwordEncoder;
-
-        @Mock
-        private PasswordValidator passwordValidator;
 
         @Mock
         private CookieUtil cookieUtil;
@@ -360,81 +353,6 @@ class UserServiceTest {
                                 u.getAvatarUrl().equals("https://old.avatar") && // Avatar unchanged
                                 u.getTimezone().equals("America/New_York") // Timezone updated
                 ));
-        }
-
-        // ==================== CHANGE PASSWORD TESTS ====================
-
-        @Test
-        void changePassword_ValidCurrentPassword_UpdatesAndInvalidatesTokens() {
-                // Arrange
-                User user = User.builder()
-                                .id(1L)
-                                .username("testuser")
-                                .email("test@example.com")
-                                .passwordHash("oldHashedPassword")
-                                .build();
-
-                ChangePasswordRequest request = ChangePasswordRequest.builder()
-                                .currentPassword("OldPassword123!")
-                                .newPassword("NewPassword123!")
-                                .build();
-
-                when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-                when(passwordEncoder.matches("OldPassword123!", "oldHashedPassword")).thenReturn(true);
-                when(passwordEncoder.encode("NewPassword123!")).thenReturn("newHashedPassword");
-
-                // Act
-                userService.changePassword(1L, request, response);
-
-                // Assert
-                verify(passwordValidator).validatePassword("NewPassword123!");
-                verify(userRepository).save(argThat(u -> u.getPasswordHash().equals("newHashedPassword")));
-                verify(authenticationService).invalidateAllUserTokens(1L);
-                verify(cookieUtil).clearAuthCookie(response);
-        }
-
-        @Test
-        void changePassword_InvalidCurrentPassword_ThrowsInvalidPasswordException() {
-                // Arrange
-                User user = User.builder()
-                                .id(1L)
-                                .username("testuser")
-                                .email("test@example.com")
-                                .passwordHash("hashedPassword")
-                                .build();
-
-                ChangePasswordRequest request = ChangePasswordRequest.builder()
-                                .currentPassword("WrongPassword!")
-                                .newPassword("NewPassword123!")
-                                .build();
-
-                when(userRepository.findById(1L)).thenReturn(Optional.of(user));
-                when(passwordEncoder.matches("WrongPassword!", "hashedPassword")).thenReturn(false);
-
-                // Act & Assert
-                assertThatThrownBy(() -> userService.changePassword(1L, request, response))
-                                .isInstanceOf(InvalidPasswordException.class)
-                                .hasMessage("Current password is incorrect");
-
-                verify(userRepository, never()).save(any());
-                verify(authenticationService, never()).invalidateAllUserTokens(anyLong());
-                verify(cookieUtil, never()).clearAuthCookie(any());
-        }
-
-        @Test
-        void changePassword_UserNotFound_ThrowsUserNotFoundException() {
-                // Arrange
-                ChangePasswordRequest request = ChangePasswordRequest.builder()
-                                .currentPassword("OldPassword123!")
-                                .newPassword("NewPassword123!")
-                                .build();
-
-                when(userRepository.findById(999L)).thenReturn(Optional.empty());
-
-                // Act & Assert
-                assertThatThrownBy(() -> userService.changePassword(999L, request, response))
-                                .isInstanceOf(UserNotFoundException.class)
-                                .hasMessage("User not found");
         }
 
         // ==================== DELETE USER TESTS ====================

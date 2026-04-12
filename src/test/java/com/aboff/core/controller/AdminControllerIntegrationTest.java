@@ -2,11 +2,9 @@ package com.aboff.core.controller;
 
 import com.aboff.core.model.dto.request.ChangeRoleRequest;
 import com.aboff.core.model.entity.ActiveToken;
-import com.aboff.core.model.entity.LoginAttempt;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
-import com.aboff.core.repository.LoginAttemptRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,17 +13,15 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -46,12 +42,6 @@ class AdminControllerIntegrationTest {
 
         @Autowired
         private ActiveTokenRepository activeTokenRepository;
-
-        @Autowired
-        private LoginAttemptRepository loginAttemptRepository;
-
-        @Autowired
-        private PasswordEncoder passwordEncoder;
 
         @Autowired
         private JwtTokenProvider jwtTokenProvider;
@@ -85,207 +75,6 @@ class AdminControllerIntegrationTest {
                 storeTokenInDatabase(adminUser.getId(), adminToken);
                 storeTokenInDatabase(moderatorUser.getId(), moderatorToken);
                 storeTokenInDatabase(regularUser.getId(), regularToken);
-        }
-
-        // ==================== LOGIN HISTORY TESTS ====================
-
-        @Test
-        void getLoginHistory_AsOwner_Returns200() throws Exception {
-                // Arrange - Create some login attempts
-                createLoginAttempt(ownerUser.getId(), "owner", true);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history")
-                                .cookie(new Cookie("AUTH_TOKEN", ownerToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$").isArray());
-        }
-
-        @Test
-        void getLoginHistory_AsAdmin_Returns200() throws Exception {
-                // Arrange - Create some login attempts
-                createLoginAttempt(adminUser.getId(), "admin", true);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history")
-                                .cookie(new Cookie("AUTH_TOKEN", adminToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$").isArray());
-        }
-
-        @Test
-        void getLoginHistory_AsModerator_Returns403() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history")
-                                .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
-                                .andExpect(status().isForbidden());
-        }
-
-        @Test
-        void getLoginHistory_AsUser_Returns403() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history")
-                                .cookie(new Cookie("AUTH_TOKEN", regularToken)))
-                                .andExpect(status().isForbidden());
-        }
-
-        @Test
-        void getLoginHistory_Unauthenticated_Returns401() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history"))
-                                .andExpect(status().isUnauthorized());
-        }
-
-        @Test
-        void getLoginHistory_WithLimit_ReturnsLimitedResults() throws Exception {
-                // Arrange - Create multiple login attempts
-                createLoginAttempt(ownerUser.getId(), "owner", true);
-                createLoginAttempt(ownerUser.getId(), "owner", true);
-                createLoginAttempt(ownerUser.getId(), "owner", true);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history")
-                                .param("limit", "2")
-                                .cookie(new Cookie("AUTH_TOKEN", ownerToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.length()").value(2));
-        }
-
-        // ==================== LOGIN HISTORY BY USER ID TESTS ====================
-
-        @Test
-        void getLoginHistoryByUserId_AsOwner_Returns200() throws Exception {
-                // Arrange - Create login attempts for specific user
-                createLoginAttempt(regularUser.getId(), "user", true);
-                createLoginAttempt(regularUser.getId(), "user", false);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/user/{userId}", regularUser.getId())
-                                .cookie(new Cookie("AUTH_TOKEN", ownerToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$").isArray())
-                                .andExpect(jsonPath("$.length()").value(2))
-                                .andExpect(jsonPath("$[0].userId").value(regularUser.getId()));
-        }
-
-        @Test
-        void getLoginHistoryByUserId_AsAdmin_Returns200() throws Exception {
-                // Arrange - Create login attempts for specific user
-                createLoginAttempt(regularUser.getId(), "user", true);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/user/{userId}", regularUser.getId())
-                                .cookie(new Cookie("AUTH_TOKEN", adminToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$").isArray());
-        }
-
-        @Test
-        void getLoginHistoryByUserId_AsModerator_Returns403() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/user/{userId}", regularUser.getId())
-                                .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
-                                .andExpect(status().isForbidden());
-        }
-
-        @Test
-        void getLoginHistoryByUserId_AsUser_Returns403() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/user/{userId}", regularUser.getId())
-                                .cookie(new Cookie("AUTH_TOKEN", regularToken)))
-                                .andExpect(status().isForbidden());
-        }
-
-        @Test
-        void getLoginHistoryByUserId_Unauthenticated_Returns401() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/user/{userId}", regularUser.getId()))
-                                .andExpect(status().isUnauthorized());
-        }
-
-        @Test
-        void getLoginHistoryByUserId_WithLimit_ReturnsLimitedResults() throws Exception {
-                // Arrange - Create multiple login attempts
-                createLoginAttempt(regularUser.getId(), "user", true);
-                createLoginAttempt(regularUser.getId(), "user", true);
-                createLoginAttempt(regularUser.getId(), "user", false);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/user/{userId}", regularUser.getId())
-                                .param("limit", "2")
-                                .cookie(new Cookie("AUTH_TOKEN", ownerToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.length()").value(2));
-        }
-
-        // ==================== LOGIN HISTORY BY IP ADDRESS TESTS ====================
-
-        @Test
-        void getLoginHistoryByIpAddress_AsOwner_Returns200() throws Exception {
-                // Arrange - Create login attempts from specific IP
-                String testIp = "192.168.1.100";
-                createLoginAttemptWithIp(regularUser.getId(), "user", true, testIp);
-                createLoginAttemptWithIp(adminUser.getId(), "admin", true, testIp);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/ip/{ipAddress}", testIp)
-                                .cookie(new Cookie("AUTH_TOKEN", ownerToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$").isArray())
-                                .andExpect(jsonPath("$.length()").value(2))
-                                .andExpect(jsonPath("$[0].ipAddress").value(testIp));
-        }
-
-        @Test
-        void getLoginHistoryByIpAddress_AsAdmin_Returns200() throws Exception {
-                // Arrange - Create login attempt from specific IP
-                String testIp = "192.168.1.100";
-                createLoginAttemptWithIp(regularUser.getId(), "user", true, testIp);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/ip/{ipAddress}", testIp)
-                                .cookie(new Cookie("AUTH_TOKEN", adminToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$").isArray());
-        }
-
-        @Test
-        void getLoginHistoryByIpAddress_AsModerator_Returns403() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/ip/{ipAddress}", "192.168.1.100")
-                                .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
-                                .andExpect(status().isForbidden());
-        }
-
-        @Test
-        void getLoginHistoryByIpAddress_AsUser_Returns403() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/ip/{ipAddress}", "192.168.1.100")
-                                .cookie(new Cookie("AUTH_TOKEN", regularToken)))
-                                .andExpect(status().isForbidden());
-        }
-
-        @Test
-        void getLoginHistoryByIpAddress_Unauthenticated_Returns401() throws Exception {
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/ip/{ipAddress}", "192.168.1.100"))
-                                .andExpect(status().isUnauthorized());
-        }
-
-        @Test
-        void getLoginHistoryByIpAddress_WithLimit_ReturnsLimitedResults() throws Exception {
-                // Arrange - Create multiple login attempts from same IP
-                String testIp = "192.168.1.100";
-                createLoginAttemptWithIp(regularUser.getId(), "user", true, testIp);
-                createLoginAttemptWithIp(regularUser.getId(), "user", true, testIp);
-                createLoginAttemptWithIp(adminUser.getId(), "admin", true, testIp);
-
-                // Act & Assert
-                mockMvc.perform(get("/api/admin/login-history/ip/{ipAddress}", testIp)
-                                .param("limit", "2")
-                                .cookie(new Cookie("AUTH_TOKEN", ownerToken)))
-                                .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.length()").value(2));
         }
 
         // ==================== BAN USER TESTS ====================
@@ -549,7 +338,6 @@ class AdminControllerIntegrationTest {
                 User user = User.builder()
                                 .username(username)
                                 .email(email)
-                                .passwordHash(passwordEncoder.encode("Password123!"))
                                 .role(role)
                                 .build();
                 return userRepository.save(user);
@@ -566,29 +354,5 @@ class AdminControllerIntegrationTest {
                                 .expiresAt(LocalDateTime.now().plusDays(30))
                                 .build();
                 activeTokenRepository.save(activeToken);
-        }
-
-        private void createLoginAttempt(Long userId, String username, boolean success) {
-                LoginAttempt attempt = LoginAttempt.builder()
-                                .userId(userId)
-                                .usernameAttempted(username)
-                                .success(success)
-                                .ipAddress("127.0.0.1")
-                                .userAgent("Test Agent")
-                                .createdAt(LocalDateTime.now())
-                                .build();
-                loginAttemptRepository.save(attempt);
-        }
-
-        private void createLoginAttemptWithIp(Long userId, String username, boolean success, String ipAddress) {
-                LoginAttempt attempt = LoginAttempt.builder()
-                                .userId(userId)
-                                .usernameAttempted(username)
-                                .success(success)
-                                .ipAddress(ipAddress)
-                                .userAgent("Test Agent")
-                                .createdAt(LocalDateTime.now())
-                                .build();
-                loginAttemptRepository.save(attempt);
         }
 }

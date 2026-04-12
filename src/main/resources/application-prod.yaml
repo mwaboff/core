@@ -6,6 +6,8 @@ application:
     # Production origins only - no localhost allowed
     # Must be set via CORS_ALLOWED_ORIGINS environment variable
     allowed-origins: ${CORS_ALLOWED_ORIGINS:}
+  frontend:
+    base-url: https://ohsheet.aboff.com
 
 jwt:
   cookie:
@@ -35,4 +37,3 @@ logging:
   level:
     com.aboff.core.security: INFO
     com.aboff.core.exception: INFO
-    com.aboff.core.service.AuthenticationService: INFO

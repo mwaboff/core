@@ -1,7 +1,6 @@
 package com.aboff.core.controller;
 
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
-import com.aboff.core.model.dto.request.ChangePasswordRequest;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
@@ -96,26 +95,6 @@ public class UserController {
 
         Long userId = extractUserId(authentication);
         return userService.updateUser(userId, request);
-    }
-
-    /**
-     * Change current user's password.
-     * POST /api/users/me/change-password
-     * Invalidates all existing tokens and clears current session cookie.
-     *
-     * @param request        the change password request
-     * @param authentication the current authentication object
-     * @param response       the HTTP servlet response to clear the cookie
-     */
-    @PostMapping("/me/change-password")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void changePassword(
-            @Valid @RequestBody ChangePasswordRequest request,
-            Authentication authentication,
-            HttpServletResponse response) {
-
-        Long userId = extractUserId(authentication);
-        userService.changePassword(userId, request, response);
     }
 
     /**

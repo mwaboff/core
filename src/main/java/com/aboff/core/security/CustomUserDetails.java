@@ -11,21 +11,26 @@ import java.util.Collection;
 import java.util.Collections;
 
 /**
- * Custom implementation of Spring Security's UserDetails.
- * Adapts the application's User entity to Spring Security's requirements.
+ * Custom implementation of Spring Security's {@link UserDetails}.
+ * <p>
+ * Adapts the application's {@link User} entity to Spring Security's requirements.
+ * This application uses OAuth-only authentication, so no password is stored or
+ * checked; {@link #getPassword()} returns an empty string to satisfy the interface
+ * contract without exposing sensitive data.
+ * </p>
  */
 @AllArgsConstructor
 @Getter
 public class CustomUserDetails implements UserDetails {
 
     /**
-     * The functional user entity.
+     * The underlying user entity.
      */
     private final User user;
 
     /**
      * Returns the authorities granted to the user.
-     * Maps the user's role to a Spring Security GrantedAuthority.
+     * Maps the user's role to a Spring Security {@link GrantedAuthority}.
      *
      * @return collection of granted authorities
      */
@@ -36,17 +41,18 @@ public class CustomUserDetails implements UserDetails {
     }
 
     /**
-     * Returns the password used to authenticate the user.
+     * Returns an empty string. Passwords are not used in the OAuth-only flow;
+     * this method exists solely to satisfy the {@link UserDetails} interface.
      *
-     * @return the password hash
+     * @return empty string
      */
     @Override
     public String getPassword() {
-        return user.getPasswordHash();
+        return "";
     }
 
     /**
-     * Returns the username used to authenticate the user.
+     * Returns the username used to identify the user within the application.
      *
      * @return the username
      */
@@ -58,7 +64,7 @@ public class CustomUserDetails implements UserDetails {
     /**
      * Indicates whether the user's account has expired.
      *
-     * @return true if the user's account is valid (ie non-expired), false otherwise
+     * @return always {@code true} — account expiry is not modelled in this application
      */
     @Override
     public boolean isAccountNonExpired() {
@@ -66,20 +72,23 @@ public class CustomUserDetails implements UserDetails {
     }
 
     /**
-     * Indicates whether the user is locked or unlocked.
+     * Indicates whether the user's account is locked.
+     * <p>
+     * Account locking was part of the password-based auth flow and has been removed.
+     * All active accounts are considered unlocked.
+     * </p>
      *
-     * @return true if the user is not locked, false otherwise
+     * @return always {@code true}
      */
     @Override
     public boolean isAccountNonLocked() {
-        return !user.isAccountLocked();
+        return true;
     }
 
     /**
-     * Indicates whether the user's credentials (password) has expired.
+     * Indicates whether the user's credentials have expired.
      *
-     * @return true if the user's credentials are valid (ie non-expired), false
-     *         otherwise
+     * @return always {@code true} — credential expiry is not applicable in the OAuth flow
      */
     @Override
     public boolean isCredentialsNonExpired() {
@@ -87,7 +96,8 @@ public class CustomUserDetails implements UserDetails {
     }
 
     /**
-     * Indicates whether the user is enabled or disabled.
+     * Indicates whether the user account is enabled.
+     * A user is enabled if they have not been soft-deleted and are not banned.
      *
      * @return true if the user is enabled, false otherwise
      */
@@ -97,7 +107,7 @@ public class CustomUserDetails implements UserDetails {
     }
 
     /**
-     * Gets the user ID for quick access without exposing the entire User entity.
+     * Gets the user ID for quick access without exposing the entire {@link User} entity.
      *
      * @return the user ID
      */

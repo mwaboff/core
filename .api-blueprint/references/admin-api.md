@@ -8,170 +8,6 @@ Authentication: JWT token via `AUTH_TOKEN` HttpOnly cookie. All endpoints requir
 
 ## Endpoints
 
-### GET `/api/admin/login-history`
-
-Retrieve all login attempts for security monitoring.
-
-**Required Role:** OWNER or ADMIN
-
-**Query Parameters:**
-
-| Parameter | Type    | Required | Description                                    |
-|-----------|---------|----------|------------------------------------------------|
-| `limit`   | Integer | No       | Maximum number of results to return. If omitted, returns all. |
-
-**Response:** `200 OK`
-
-```json
-[
-  {
-    "id": 1,
-    "userId": 4,
-    "usernameAttempted": "owner",
-    "success": true,
-    "failureReason": null,
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Test Agent",
-    "createdAt": "2026-03-13T10:30:00"
-  }
-]
-```
-
-**Errors:**
-
-| Status | Condition          | Error Body                                                         |
-|--------|--------------------|--------------------------------------------------------------------|
-| 401    | No AUTH_TOKEN cookie | Unauthorized                                                      |
-| 403    | Role is MODERATOR or USER | `{"status":403,"error":"Access Denied","message":"You do not have permission to access this resource","path":"/api/admin/login-history","timestamp":"..."}` |
-
-**curl:**
-
-```bash
-curl -s -b "AUTH_TOKEN=<jwt>" "http://localhost:8080/api/admin/login-history?limit=2"
-```
-
----
-
-### GET `/api/admin/login-history/user/{userId}`
-
-Retrieve login attempts for a specific user.
-
-**Required Role:** OWNER or ADMIN
-
-**Path Parameters:**
-
-| Parameter | Type | Required | Description         |
-|-----------|------|----------|---------------------|
-| `userId`  | Long | Yes      | The target user's ID |
-
-**Query Parameters:**
-
-| Parameter | Type    | Required | Description                                    |
-|-----------|---------|----------|------------------------------------------------|
-| `limit`   | Integer | No       | Maximum number of results to return. If omitted, returns all. |
-
-**Response:** `200 OK`
-
-```json
-[
-  {
-    "id": 5,
-    "userId": 7,
-    "usernameAttempted": "user",
-    "success": true,
-    "failureReason": null,
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Test Agent",
-    "createdAt": "2026-03-13T10:30:00"
-  },
-  {
-    "id": 6,
-    "userId": 7,
-    "usernameAttempted": "user",
-    "success": false,
-    "failureReason": null,
-    "ipAddress": "127.0.0.1",
-    "userAgent": "Test Agent",
-    "createdAt": "2026-03-13T10:30:01"
-  }
-]
-```
-
-**Errors:**
-
-| Status | Condition                  |
-|--------|----------------------------|
-| 401    | No AUTH_TOKEN cookie        |
-| 403    | Role is MODERATOR or USER   |
-
-**curl:**
-
-```bash
-curl -s -b "AUTH_TOKEN=<jwt>" "http://localhost:8080/api/admin/login-history/user/7?limit=10"
-```
-
----
-
-### GET `/api/admin/login-history/ip/{ipAddress}`
-
-Retrieve login attempts from a specific IP address.
-
-**Required Role:** OWNER or ADMIN
-
-**Path Parameters:**
-
-| Parameter   | Type   | Required | Description                          |
-|-------------|--------|----------|--------------------------------------|
-| `ipAddress` | String | Yes      | The IP address to filter by (IPv4 or IPv6, max 45 chars) |
-
-**Query Parameters:**
-
-| Parameter | Type    | Required | Description                                    |
-|-----------|---------|----------|------------------------------------------------|
-| `limit`   | Integer | No       | Maximum number of results to return. If omitted, returns all. |
-
-**Response:** `200 OK`
-
-```json
-[
-  {
-    "id": 10,
-    "userId": 7,
-    "usernameAttempted": "user",
-    "success": true,
-    "failureReason": null,
-    "ipAddress": "192.168.1.100",
-    "userAgent": "Test Agent",
-    "createdAt": "2026-03-13T10:30:00"
-  },
-  {
-    "id": 11,
-    "userId": 3,
-    "usernameAttempted": "admin",
-    "success": true,
-    "failureReason": null,
-    "ipAddress": "192.168.1.100",
-    "userAgent": "Test Agent",
-    "createdAt": "2026-03-13T10:30:01"
-  }
-]
-```
-
-**Errors:**
-
-| Status | Condition                  |
-|--------|----------------------------|
-| 401    | No AUTH_TOKEN cookie        |
-| 403    | Role is MODERATOR or USER   |
-
-**curl:**
-
-```bash
-curl -s -b "AUTH_TOKEN=<jwt>" "http://localhost:8080/api/admin/login-history/ip/192.168.1.100?limit=2"
-```
-
----
-
 ### POST `/api/admin/users/{userId}/ban`
 
 Ban a user. Sets `bannedAt` timestamp and invalidates all of the target user's active JWT tokens.
@@ -328,21 +164,6 @@ curl -s -X POST -b "AUTH_TOKEN=<jwt>" \
 
 ## Models
 
-### LoginAttemptResponse
-
-Returned by all `/login-history` endpoints.
-
-| Field               | Type          | Nullable | Description                                      |
-|---------------------|---------------|----------|--------------------------------------------------|
-| `id`                | Long          | No       | Unique identifier of the login attempt            |
-| `userId`            | Long          | Yes      | ID of the user (null if username not found in DB) |
-| `usernameAttempted` | String        | No       | The username that was submitted (max 100 chars)   |
-| `success`           | Boolean       | No       | Whether the login succeeded                       |
-| `failureReason`     | String        | Yes      | Reason for failure (max 100 chars), null on success |
-| `ipAddress`         | String        | Yes      | Client IP address (max 45 chars for IPv6)         |
-| `userAgent`         | String        | Yes      | Client User-Agent header (max 500 chars)          |
-| `createdAt`         | LocalDateTime | No       | Timestamp of the attempt                          |
-
 ### ChangeRoleRequest
 
 Request body for the change-role endpoint.
@@ -409,9 +230,6 @@ Database constraint: `VARCHAR(20) NOT NULL DEFAULT 'USER'` on the `users.role` c
 
 | Endpoint                                 | OWNER | ADMIN | MODERATOR | USER |
 |------------------------------------------|-------|-------|-----------|------|
-| `GET /api/admin/login-history`           | Yes   | Yes   | No (403)  | No (403) |
-| `GET /api/admin/login-history/user/{id}` | Yes   | Yes   | No (403)  | No (403) |
-| `GET /api/admin/login-history/ip/{ip}`   | Yes   | Yes   | No (403)  | No (403) |
 | `POST /api/admin/users/{id}/ban`         | Yes   | Yes   | Yes*      | No (403) |
 | `POST /api/admin/users/{id}/unban`       | Yes   | Yes   | Yes*      | No (403) |
 | `POST /api/admin/users/{id}/change-role` | Yes   | No (403) | No (403) | No (403) |

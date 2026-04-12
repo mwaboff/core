@@ -62,16 +62,6 @@ public class UserResponse {
     private LocalDateTime lastModifiedAt;
 
     /**
-     * The timestamp until which the account is locked (privileged users only).
-     */
-    private LocalDateTime accountLockedUntil;
-
-    /**
-     * The number of failed login attempts (privileged users only).
-     */
-    private Integer failedLoginAttempts;
-
-    /**
      * The timestamp when the user account was soft-deleted (privileged users only).
      */
     private LocalDateTime deletedAt;
@@ -80,6 +70,4 @@ public class UserResponse {
      * The timestamp when the user was banned (privileged users only).
      */
     private LocalDateTime bannedAt;
-
-    // NEVER expose: passwordHash, lastFailedLogin
 }

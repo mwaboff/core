@@ -1,19 +1,15 @@
 package com.aboff.core.service;
 
-import com.aboff.core.exception.InvalidPasswordException;
 import com.aboff.core.exception.UserAlreadyExistsException;
 import com.aboff.core.exception.UserNotFoundException;
-import com.aboff.core.model.dto.request.ChangePasswordRequest;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.util.CookieUtil;
-import com.aboff.core.util.PasswordValidator;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,8 +25,6 @@ public class UserService {
     private final UserRepository userRepository;
     private final AuthenticationService authenticationService;
     private final RoleHierarchyService roleHierarchyService;
-    private final PasswordEncoder passwordEncoder;
-    private final PasswordValidator passwordValidator;
     private final CookieUtil cookieUtil;
 
     /**
@@ -38,22 +32,17 @@ public class UserService {
      *
      * @param userRepository        the user repository
      * @param authenticationService the authentication service
-     * @param passwordEncoder       the password encoder
-     * @param passwordValidator     the password validator
+     * @param roleHierarchyService  the role hierarchy service
      * @param cookieUtil            the cookie utility
      */
     public UserService(
             UserRepository userRepository,
             AuthenticationService authenticationService,
             RoleHierarchyService roleHierarchyService,
-            PasswordEncoder passwordEncoder,
-            PasswordValidator passwordValidator,
             CookieUtil cookieUtil) {
         this.userRepository = userRepository;
         this.authenticationService = authenticationService;
         this.roleHierarchyService = roleHierarchyService;
-        this.passwordEncoder = passwordEncoder;
-        this.passwordValidator = passwordValidator;
         this.cookieUtil = cookieUtil;
     }
 
@@ -141,46 +130,6 @@ public class UserService {
     }
 
     /**
-     * Changes user password and invalidates all existing tokens (force re-login on
-     * all devices).
-     *
-     * @param userId   the ID of the user
-     * @param request  the change password request
-     * @param response the HTTP response to clear cookies
-     * @throws UserNotFoundException    if the user is not found
-     * @throws InvalidPasswordException if the current password is incorrect or new
-     *                                  password is weak
-     */
-    @Transactional
-    public void changePassword(
-            Long userId,
-            ChangePasswordRequest request,
-            HttpServletResponse response) {
-
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new UserNotFoundException("User not found"));
-
-        // Verify current password
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
-            throw new InvalidPasswordException("Current password is incorrect");
-        }
-
-        // Validate new password strength
-        passwordValidator.validatePassword(request.getNewPassword());
-
-        // Hash and save new password
-        String newPasswordHash = passwordEncoder.encode(request.getNewPassword());
-        user.setPasswordHash(newPasswordHash);
-        userRepository.save(user);
-
-        // Invalidate ALL user's tokens (force re-login on all devices)
-        authenticationService.invalidateAllUserTokens(userId);
-
-        // Clear AUTH_TOKEN cookie for current session
-        cookieUtil.clearAuthCookie(response);
-    }
-
-    /**
      * Soft deletes a user account.
      *
      * @param userId   the ID of the user to delete
@@ -253,9 +202,7 @@ public class UserService {
         }
 
         if (privilegedInfo) {
-            builder.accountLockedUntil(user.getAccountLockedUntil())
-                    .failedLoginAttempts(user.getFailedLoginAttempts())
-                    .deletedAt(user.getDeletedAt())
+            builder.deletedAt(user.getDeletedAt())
                     .bannedAt(user.getBannedAt());
         }
 

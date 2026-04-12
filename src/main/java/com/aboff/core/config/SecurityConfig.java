@@ -2,31 +2,27 @@ package com.aboff.core.config;
 
 import com.aboff.core.security.JwtAuthenticationEntryPoint;
 import com.aboff.core.security.JwtAuthenticationFilter;
+import com.aboff.core.security.OAuth2LoginFailureHandler;
+import com.aboff.core.security.OAuth2LoginSuccessHandler;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
-import org.springframework.beans.factory.annotation.Value;
-
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * Configuration class for Spring Security.
- * Configures authentication, authorization, token filters, and password
- * encoding.
+ * Configures OAuth2 login, JWT filter, authorization rules, and CORS.
  */
 @Configuration
 @EnableWebSecurity
@@ -35,24 +31,34 @@ public class SecurityConfig {
 
         private final JwtAuthenticationFilter jwtAuthenticationFilter;
         private final JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint;
+        private final OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler;
+        private final OAuth2LoginFailureHandler oAuth2LoginFailureHandler;
 
         @Value("${application.cors.allowed-origins:}")
         private String allowedOrigins;
 
-        @Value("${application.security.bcrypt-strength:12}")
-        private int bcryptStrength;
-
+        /**
+         * Constructs a new SecurityConfig with required dependencies.
+         *
+         * @param jwtAuthenticationFilter    the JWT authentication filter
+         * @param jwtAuthenticationEntryPoint the JWT authentication entry point
+         * @param oAuth2LoginSuccessHandler  the OAuth2 login success handler
+         * @param oAuth2LoginFailureHandler  the OAuth2 login failure handler
+         */
         public SecurityConfig(
                         JwtAuthenticationFilter jwtAuthenticationFilter,
-                        JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint) {
+                        JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
+                        OAuth2LoginSuccessHandler oAuth2LoginSuccessHandler,
+                        OAuth2LoginFailureHandler oAuth2LoginFailureHandler) {
                 this.jwtAuthenticationFilter = jwtAuthenticationFilter;
                 this.jwtAuthenticationEntryPoint = jwtAuthenticationEntryPoint;
+                this.oAuth2LoginSuccessHandler = oAuth2LoginSuccessHandler;
+                this.oAuth2LoginFailureHandler = oAuth2LoginFailureHandler;
         }
 
         /**
          * Configures the security filter chain.
-         * Disables CSRF, sets session management to stateless, configures public
-         * endpoints,
+         * Disables CSRF, configures OAuth2 login with success/failure handlers,
          * adds the JWT filter, and sets the exception handler.
          *
          * @param http the HttpSecurity to modify
@@ -66,15 +72,20 @@ public class SecurityConfig {
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                                 // Disable CSRF - using SameSite=Strict cookies for protection
                                 .csrf(csrf -> csrf.disable())
-                                // Stateless session management (JWT-based)
+                                // Session required for OAuth2 authorization code flow
                                 .sessionManagement(session -> session
-                                                .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                                                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED))
                                 // Authorization rules
                                 .authorizeHttpRequests(auth -> auth
-                                                .requestMatchers("/api/auth/register", "/api/auth/login").permitAll()
+                                                .requestMatchers("/oauth2/**", "/login/oauth2/**").permitAll()
+                                                .requestMatchers("/api/auth/logout", "/api/auth/dev-login").permitAll()
                                                 .requestMatchers("/actuator/health").permitAll()
                                                 .requestMatchers("/error").permitAll()
                                                 .anyRequest().authenticated())
+                                // OAuth2 login configuration
+                                .oauth2Login(oauth2 -> oauth2
+                                                .successHandler(oAuth2LoginSuccessHandler)
+                                                .failureHandler(oAuth2LoginFailureHandler))
                                 // Add JWT filter before UsernamePasswordAuthenticationFilter
                                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                                 // Handle authentication failures
@@ -85,34 +96,11 @@ public class SecurityConfig {
         }
 
         /**
-         * Provides the password encoder bean.
-         * Uses BCrypt with configurable strength (default 12).
-         * Strength can be overridden via {@code application.security.bcrypt-strength} property.
-         *
-         * @return the BCryptPasswordEncoder
-         */
-        @Bean
-        public PasswordEncoder passwordEncoder() {
-                return new BCryptPasswordEncoder(bcryptStrength);
-        }
-
-        /**
-         * Provides the authentication manager bean.
-         *
-         * @param authConfig the authentication configuration
-         * @return the AuthenticationManager
-         * @throws Exception if an error occurs
-         */
-        @Bean
-        public AuthenticationManager authenticationManager(AuthenticationConfiguration authConfig) throws Exception {
-                return authConfig.getAuthenticationManager();
-        }
-
-        /**
          * Configures CORS settings for cross-origin requests.
          * Allowed origins are configured via application.cors.allowed-origins property.
          * In development, localhost origins are permitted; in production, only explicit origins are allowed.
          * Credentials are allowed to support HttpOnly cookie-based JWT authentication.
+         * The pattern covers all paths including OAuth2 callback endpoints.
          *
          * @return the CorsConfigurationSource
          */
@@ -147,7 +135,7 @@ public class SecurityConfig {
                 configuration.setMaxAge(3600L);
 
                 UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                source.registerCorsConfiguration("/api/**", configuration);
+                source.registerCorsConfiguration("/**", configuration);
                 return source;
         }
 }

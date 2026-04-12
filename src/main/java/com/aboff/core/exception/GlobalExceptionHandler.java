@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,8 +24,6 @@ import java.util.Map;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-
-    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     /**
      * Handles UserAlreadyExistsException.
@@ -48,56 +45,6 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .build();
         return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
-    }
-
-    /**
-     * Handles AccountLockedException.
-     * Returns 403 Forbidden.
-     *
-     * @param ex      the exception
-     * @param request the HTTP request
-     * @return the error response entity
-     */
-    @ExceptionHandler(AccountLockedException.class)
-    public ResponseEntity<ErrorResponse> handleAccountLocked(
-            AccountLockedException ex,
-            HttpServletRequest request) {
-        String message = ex.getMessage();
-        if (ex.getLockedUntil() != null) {
-            message = String.format("%s. Account locked until %s",
-                    message, ex.getLockedUntil().format(DATE_TIME_FORMATTER));
-        }
-
-        ErrorResponse error = ErrorResponse.builder()
-                .status(HttpStatus.FORBIDDEN.value())
-                .error("Account Locked")
-                .message(message)
-                .path(request.getRequestURI())
-                .timestamp(LocalDateTime.now())
-                .build();
-        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(error);
-    }
-
-    /**
-     * Handles InvalidPasswordException.
-     * Returns 400 Bad Request.
-     *
-     * @param ex      the exception
-     * @param request the HTTP request
-     * @return the error response entity
-     */
-    @ExceptionHandler(InvalidPasswordException.class)
-    public ResponseEntity<ErrorResponse> handleInvalidPassword(
-            InvalidPasswordException ex,
-            HttpServletRequest request) {
-        ErrorResponse error = ErrorResponse.builder()
-                .status(HttpStatus.BAD_REQUEST.value())
-                .error("Invalid Password")
-                .message(ex.getMessage())
-                .path(request.getRequestURI())
-                .timestamp(LocalDateTime.now())
-                .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
     }
 
     /**
