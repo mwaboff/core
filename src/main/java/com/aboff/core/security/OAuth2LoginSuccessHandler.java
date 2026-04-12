@@ -74,7 +74,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         if (user.isBanned() || user.isDeleted()) {
             log.warn("OAuth login rejected for banned/deleted user: {}", user.getUsername());
             getRedirectStrategy().sendRedirect(request, response,
-                    frontendBaseUrl + "/login?error=banned");
+                    frontendBaseUrl + "/auth/callback?error=banned");
             return;
         }
 
@@ -86,9 +86,8 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         cookieUtil.setAuthCookie(response, result.getToken());
         log.info("OAuth login successful for user '{}' via {}", user.getUsername(), provider);
 
-        String redirectUrl = Boolean.TRUE.equals(user.getUsernameChosen())
-                ? frontendBaseUrl
-                : frontendBaseUrl + "/choose-username";
+        boolean needsUsername = !Boolean.TRUE.equals(user.getUsernameChosen());
+        String redirectUrl = frontendBaseUrl + "/auth/callback?needsUsername=" + needsUsername;
         getRedirectStrategy().sendRedirect(request, response, redirectUrl);
     }
 

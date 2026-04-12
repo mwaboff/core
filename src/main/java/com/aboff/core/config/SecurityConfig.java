@@ -70,7 +70,7 @@ public class SecurityConfig {
                 http
                                 // Enable CORS with custom configuration
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-                                // Disable CSRF - using SameSite=Strict cookies for protection
+                                // Disable CSRF - using SameSite=Lax cookies for protection
                                 .csrf(csrf -> csrf.disable())
                                 // Session required for OAuth2 authorization code flow
                                 .sessionManagement(session -> session

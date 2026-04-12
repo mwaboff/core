@@ -20,10 +20,10 @@ Initiates the Google OAuth2 login flow. The browser is redirected to Google's co
 3. Google redirects to `GET /login/oauth2/code/google` with authorization code
 4. Spring Security exchanges code for tokens, calls `OAuth2UserProvisioningService` to find or create the user
 5. `OAuth2LoginSuccessHandler` issues a JWT, sets `AUTH_TOKEN` HttpOnly cookie
-6. If `usernameChosen` is `false` (first-time user), redirects to `${FRONTEND_BASE_URL}/choose-username`; otherwise redirects to `${FRONTEND_BASE_URL}`
-7. On failure, `OAuth2LoginFailureHandler` redirects to `${FRONTEND_BASE_URL}/login?error`
+6. If `usernameChosen` is `false` (first-time user), redirects to `${FRONTEND_BASE_URL}/auth/callback?needsUsername=true`; otherwise redirects to `${FRONTEND_BASE_URL}/auth/callback?needsUsername=false`
+7. On failure, `OAuth2LoginFailureHandler` redirects to `${FRONTEND_BASE_URL}/auth/callback?error=auth_failed`
 
-**First-time user flow:** New OAuth users receive a temporary random username and are redirected to `/choose-username`. They call `POST /api/auth/choose-username` with their desired username. Their JWT cookie is already set, so no re-login is needed.
+**First-time user flow:** New OAuth users receive a temporary random username. The popup window is redirected to `/auth/callback?needsUsername=true`, which uses `postMessage` to notify the parent window. The SPA then shows the username selection form and calls `POST /api/auth/choose-username` with their desired username. Their JWT cookie is already set, so no re-login is needed.
 
 **No direct response body** — this endpoint triggers a redirect chain.
 
@@ -44,21 +44,22 @@ On every page load (or route change), the SPA should call `GET /api/auth/me`:
 
 ```
 1. User clicks "Sign in with Google"
-   → SPA navigates to: GET /oauth2/authorization/google
+   → SPA opens popup to: GET /oauth2/authorization/google
 
 2. Google consent screen
    → User grants permission
 
 3. Backend callback (automatic)
    → Creates User + UserIdentity
-   → Sets AUTH_TOKEN HttpOnly cookie
-   → Redirects to: ${FRONTEND_BASE_URL}/choose-username
-     (because usernameChosen is false)
+   → Sets AUTH_TOKEN HttpOnly cookie (SameSite=Lax)
+   → Redirects popup to: ${FRONTEND_BASE_URL}/auth/callback?needsUsername=true
 
-4. SPA renders username selection form
+4. Popup reads query params, sends postMessage to parent, closes itself
+
+5. SPA renders username selection form
    → User types desired username
 
-5. SPA calls: POST /api/auth/choose-username
+6. SPA calls: POST /api/auth/choose-username
    Body: {"username": "desired-name"}
    → 200: username set, usernameChosen now true
    → 400: validation error (too short, invalid chars)
@@ -72,17 +73,18 @@ No re-login is needed — the JWT cookie was set in step 3.
 
 ```
 1. User clicks "Sign in with Google"
-   → SPA navigates to: GET /oauth2/authorization/google
+   → SPA opens popup to: GET /oauth2/authorization/google
 
 2. Google consent screen (may auto-approve if previously consented)
 
 3. Backend callback
    → Finds existing User via UserIdentity
-   → Sets AUTH_TOKEN cookie
-   → Redirects to: ${FRONTEND_BASE_URL}
-     (because usernameChosen is true)
+   → Sets AUTH_TOKEN cookie (SameSite=Lax)
+   → Redirects popup to: ${FRONTEND_BASE_URL}/auth/callback?needsUsername=false
 
-4. SPA loads normally
+4. Popup reads query params, sends postMessage to parent, closes itself
+
+5. SPA loads normally
 ```
 
 ### Logout
@@ -254,7 +256,7 @@ Returns the user's profile and sets the `AUTH_TOKEN` cookie.
 Response headers include:
 
 ```
-Set-Cookie: AUTH_TOKEN=<jwt>; Path=/; HttpOnly; SameSite=Strict
+Set-Cookie: AUTH_TOKEN=<jwt>; Path=/; HttpOnly; SameSite=Lax
 ```
 
 #### Error Responses
@@ -292,7 +294,7 @@ Empty body. The `AUTH_TOKEN` cookie is cleared (set to `maxAge=0`).
 Response headers include:
 
 ```
-Set-Cookie: AUTH_TOKEN=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict
+Set-Cookie: AUTH_TOKEN=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 ```
 
 #### Error Responses
