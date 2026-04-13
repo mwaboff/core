@@ -72,7 +72,7 @@ public class OAuth2UserProvisioningService {
 
         String finalSub = sub;
 
-        Optional<UserIdentity> existingIdentity = userIdentityRepository.findByProviderAndProviderSub(provider, sub);
+        Optional<UserIdentity> existingIdentity = userIdentityRepository.findByProviderAndProviderSubWithUser(provider, sub);
 
         if (existingIdentity.isPresent()) {
             UserIdentity identity = existingIdentity.get();
@@ -130,7 +130,7 @@ public class OAuth2UserProvisioningService {
      */
     @Transactional
     public User findOrCreateDevUser(String email, Role role, String username) {
-        Optional<UserIdentity> existing = userIdentityRepository.findByProviderAndProviderSub("dev", email);
+        Optional<UserIdentity> existing = userIdentityRepository.findByProviderAndProviderSubWithUser("dev", email);
 
         if (existing.isPresent()) {
             UserIdentity identity = existing.get();
