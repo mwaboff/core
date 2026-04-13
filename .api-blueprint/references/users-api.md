@@ -3,6 +3,8 @@
 Base path: `/api/users`
 Authentication: All endpoints require a valid JWT token via `AUTH_TOKEN` HttpOnly cookie. No public endpoints.
 
+> **OAuth migration note:** The `POST /api/users/me/change-password` endpoint has been removed. Password management is no longer applicable in the OAuth-only flow.
+
 ---
 
 ## Endpoints
@@ -29,7 +31,7 @@ Retrieve the authenticated user's own profile. Returns full profile details incl
 }
 ```
 
-Note: `accountLockedUntil`, `failedLoginAttempts`, `deletedAt`, and `bannedAt` are omitted for regular users viewing their own profile (fields are null, and `@JsonInclude(NON_NULL)` suppresses them).
+Note: `deletedAt` and `bannedAt` are omitted for regular users viewing their own profile (fields are null, and `@JsonInclude(NON_NULL)` suppresses them).
 
 **Error Responses:**
 
@@ -101,8 +103,7 @@ Full profile plus admin fields are returned. Null admin fields are omitted.
   "avatarUrl": "https://target.avatar.url",
   "timezone": "America/Chicago",
   "createdAt": "2026-03-13T10:30:00",
-  "lastModifiedAt": "2026-03-13T10:30:00",
-  "failedLoginAttempts": 0
+  "lastModifiedAt": "2026-03-13T10:30:00"
 }
 ```
 
@@ -260,47 +261,6 @@ curl -s -X PATCH http://localhost:8080/api/users/me \
 
 ---
 
-### POST /api/users/me/change-password
-
-Change the authenticated user's password. Invalidates all existing JWT tokens for the user and clears the `AUTH_TOKEN` cookie. The user must re-authenticate after this call.
-
-**Authentication:** Required (JWT cookie)
-**Status:** `204 No Content`
-**Content-Type:** `application/json`
-
-**Request Body:**
-
-```json
-{
-  "currentPassword": "Password123!",
-  "newPassword": "NewPassword456!"
-}
-```
-
-**Response:** No body. The `AUTH_TOKEN` cookie is set with `Max-Age=0` to clear it.
-
-**Password Requirements:** Minimum 8 characters, maximum 100 characters. Must contain uppercase, lowercase, digit, and special character (validated server-side by `PasswordValidator`).
-
-**Error Responses:**
-
-| Status | Condition | Body |
-|--------|-----------|------|
-| `400 Bad Request` | Current password is incorrect | `{"status": 400, "error": "Invalid Password", "message": "Current password is incorrect", "path": "/api/users/me/change-password", "timestamp": "..."}` |
-| `400 Bad Request` | New password too weak or validation field errors | Varies (validation error or password policy error) |
-| `401 Unauthorized` | Missing/invalid token | (no body) |
-| `404 Not Found` | User not found | `{"status": 404, "error": "User Not Found", "message": "User not found", ...}` |
-
-**curl:**
-
-```bash
-curl -s -X POST http://localhost:8080/api/users/me/change-password \
-  --cookie "AUTH_TOKEN=<jwt_token>" \
-  -H "Content-Type: application/json" \
-  -d '{"currentPassword": "Password123!", "newPassword": "NewPassword456!"}'
-```
-
----
-
 ### DELETE /api/users/me
 
 Soft-delete the authenticated user's account. Sets `deletedAt` timestamp on the user record, revokes all active tokens, and clears the `AUTH_TOKEN` cookie. The user cannot authenticate after this operation.
@@ -338,15 +298,6 @@ Request DTO for `PATCH /api/users/me`. All fields are optional for partial updat
 | `avatarUrl` | `String` | No | Max 500 chars | URL to avatar image |
 | `timezone` | `String` | No | Max 50 chars | IANA timezone identifier |
 
-### ChangePasswordRequest
-
-Request DTO for `POST /api/users/me/change-password`.
-
-| Field | Type | Required | Constraints | Description |
-|-------|------|----------|-------------|-------------|
-| `currentPassword` | `String` | Yes | `@NotBlank` | The user's current password |
-| `newPassword` | `String` | Yes | `@NotBlank`, 8-100 chars | The new password (must pass server-side strength validation: uppercase, lowercase, digit, special character) |
-
 ### UserResponse
 
 Response DTO for user profile endpoints. Uses `@JsonInclude(NON_NULL)` so null fields are omitted from the JSON output.
@@ -356,13 +307,11 @@ Response DTO for user profile endpoints. Uses `@JsonInclude(NON_NULL)` so null f
 | `id` | `Long` | No | All | Auto-generated user ID |
 | `username` | `String` | No | All | Unique username |
 | `role` | `Role` | No | All | User's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
-| `email` | `String` | Yes | Self + Privileged | User's email address |
+| `email` | `String` | Yes | Self + Privileged | User's email address (may be null if OAuth provider did not expose it) |
 | `avatarUrl` | `String` | Yes | All | URL to avatar image |
 | `timezone` | `String` | Yes | Self + Privileged | IANA timezone identifier |
 | `createdAt` | `LocalDateTime` | No | All | Account creation timestamp |
 | `lastModifiedAt` | `LocalDateTime` | No | Self + Privileged | Last profile update timestamp |
-| `accountLockedUntil` | `LocalDateTime` | Yes | Privileged only | When the account lock expires |
-| `failedLoginAttempts` | `Integer` | Yes | Privileged only | Count of failed login attempts (default 0) |
 | `deletedAt` | `LocalDateTime` | Yes | Privileged only | Soft-deletion timestamp |
 | `bannedAt` | `LocalDateTime` | Yes | Privileged only | Ban timestamp |
 

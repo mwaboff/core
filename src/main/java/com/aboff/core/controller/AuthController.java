@@ -1,13 +1,20 @@
 package com.aboff.core.controller;
 
-import com.aboff.core.model.dto.request.LoginRequest;
-import com.aboff.core.model.dto.request.RegisterRequest;
 import com.aboff.core.model.dto.response.UserResponse;
+import com.aboff.core.model.entity.User;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuthenticationService;
+import com.aboff.core.service.UserService;
 import com.aboff.core.util.CookieUtil;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.Authentication;
 import org.springframework.validation.annotation.Validated;
@@ -15,7 +22,12 @@ import org.springframework.web.bind.annotation.*;
 
 /**
  * REST controller for authentication operations.
- * Handles registration, login, and logout.
+ * <p>
+ * Registration and credential-based login have been removed as part of the
+ * migration to OAuth-only authentication. The OAuth callback endpoints will be
+ * added in Phase 3. This controller retains the logout endpoint, which is
+ * provider-agnostic.
+ * </p>
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -23,55 +35,27 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthenticationService authenticationService;
+    private final UserService userService;
     private final CookieUtil cookieUtil;
 
+    /**
+     * Constructs a new AuthController with required dependencies.
+     *
+     * @param authenticationService the authentication service
+     * @param userService           the user service
+     * @param cookieUtil            the cookie utility
+     */
     public AuthController(
             AuthenticationService authenticationService,
+            UserService userService,
             CookieUtil cookieUtil) {
         this.authenticationService = authenticationService;
+        this.userService = userService;
         this.cookieUtil = cookieUtil;
     }
 
     /**
-     * Register a new user.
-     * POST /api/auth/register
-     *
-     * @param request the registration request containing user details
-     * @return the registered user response
-     */
-    @PostMapping("/register")
-    @ResponseStatus(HttpStatus.CREATED)
-    public UserResponse register(@Valid @RequestBody RegisterRequest request) {
-        return authenticationService.register(request);
-    }
-
-    /**
-     * Login user and set httpOnly authentication cookie.
-     * POST /api/auth/login
-     *
-     * @param request      the login request containing username and password
-     * @param httpRequest  the HTTP servlet request
-     * @param httpResponse the HTTP servlet response to set the cookie
-     * @return the logged-in user response
-     */
-    @PostMapping("/login")
-    public UserResponse login(
-            @Valid @RequestBody LoginRequest request,
-            HttpServletRequest httpRequest,
-            HttpServletResponse httpResponse) {
-
-        // Authenticate user and get login result
-        AuthenticationService.LoginResult result = authenticationService.login(request, httpRequest);
-
-        // Set httpOnly cookie with JWT token
-        cookieUtil.setAuthCookie(httpResponse, result.getToken());
-
-        // Return user information (token is in cookie, not in response body)
-        return result.getUserResponse();
-    }
-
-    /**
-     * Logout user by revoking token and clearing cookie.
+     * Logout user by revoking token and clearing the auth cookie.
      * POST /api/auth/logout
      *
      * @param httpRequest    the HTTP servlet request
@@ -85,23 +69,89 @@ public class AuthController {
             HttpServletResponse httpResponse,
             Authentication authentication) {
 
-        // Extract token from cookie
         String token = extractTokenFromCookie(httpRequest);
 
         if (token != null) {
-            // Revoke the token in database
             authenticationService.logout(token);
         }
 
-        // Clear the AUTH_TOKEN cookie
         cookieUtil.clearAuthCookie(httpResponse);
     }
 
     /**
-     * Extracts JWT token from AUTH_TOKEN cookie.
+     * Get the current authenticated user's profile.
+     * GET /api/auth/me
+     *
+     * @param authentication the current authentication object
+     * @return the current user's profile response
+     */
+    @GetMapping("/me")
+    public UserResponse me(Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+        return UserResponse.builder()
+                .id(user.getId())
+                .username(user.getUsername())
+                .role(user.getRole())
+                .email(user.getEmail())
+                .avatarUrl(user.getAvatarUrl())
+                .timezone(user.getTimezone())
+                .createdAt(user.getCreatedAt())
+                .lastModifiedAt(user.getLastModifiedAt())
+                .usernameChosen(user.getUsernameChosen())
+                .build();
+    }
+
+    /**
+     * Choose a username for the current user.
+     * <p>
+     * Only permitted when the user has not yet chosen a username (i.e.,
+     * {@code usernameChosen} is {@code false}). This endpoint is called by
+     * first-time OAuth users after being redirected to the choose-username page.
+     * The user is already authenticated via the JWT cookie set during the OAuth
+     * callback — no re-login is required.
+     * </p>
+     * POST /api/auth/choose-username
+     *
+     * @param request        the request containing the desired username
+     * @param authentication the current authentication object
+     * @return the updated user profile response
+     * @throws IllegalStateException      if the user has already chosen a username
+     * @throws com.aboff.core.exception.UserAlreadyExistsException if the username is taken
+     */
+    @PostMapping("/choose-username")
+    public UserResponse chooseUsername(
+            @Valid @RequestBody ChooseUsernameRequest request,
+            Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+        return userService.chooseUsername(user.getId(), request.getUsername());
+    }
+
+    /**
+     * Request body for the choose-username endpoint.
+     */
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class ChooseUsernameRequest {
+
+        /**
+         * The desired username. Must be 3–30 characters and contain only
+         * letters, numbers, underscores, and hyphens.
+         */
+        @NotBlank(message = "Username is required")
+        @Size(min = 3, max = 30, message = "Username must be between 3 and 30 characters")
+        @Pattern(regexp = "^[a-zA-Z0-9_-]+$",
+                message = "Username can only contain letters, numbers, underscores, and hyphens")
+        private String username;
+    }
+
+    /**
+     * Extracts the JWT token from the auth cookie.
      *
      * @param request the HTTP servlet request
-     * @return the token string, or null if not found
+     * @return the token string, or null if not present
      */
     private String extractTokenFromCookie(HttpServletRequest request) {
         if (request.getCookies() != null) {

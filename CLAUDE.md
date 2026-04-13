@@ -43,7 +43,8 @@ com.aboff.core/
 ├── config/                    # Spring configuration
 │   └── SecurityConfig.java    # Spring Security & CORS config
 ├── controller/                # REST API endpoints
-│   ├── AuthController.java    # /api/auth/* (login, register, logout)
+│   ├── AuthController.java    # /api/auth/* (logout, me)
+│   ├── DevAuthController.java # /api/auth/dev-login (@Profile("dev") only)
 │   ├── UserController.java    # /api/users/*
 │   ├── AdminController.java   # /api/admin/* (ADMIN/OWNER only)
 │   └── dh/                    # Daggerheart-specific endpoints
@@ -52,10 +53,10 @@ com.aboff.core/
 │       ├── AdversaryController.java
 │       └── [Card/Item Controllers...]
 ├── service/                   # Business logic layer
-│   ├── AuthenticationService.java    # Login, registration, password validation
+│   ├── AuthenticationService.java         # Token issuance and revocation
+│   ├── OAuth2UserProvisioningService.java # Find-or-create user from OAuth2 principal
 │   ├── UserService.java              # User CRUD, profile management
 │   ├── RoleHierarchyService.java     # Role comparison & permission checks
-│   ├── LoginAttemptService.java      # Audit logging for login attempts
 │   ├── TokenCleanupService.java      # Scheduled cleanup of expired tokens
 │   └── dh/                           # Daggerheart services
 │       ├── CharacterSheetService.java
@@ -64,14 +65,14 @@ com.aboff.core/
 │       └── [Card/Item Services...]
 ├── repository/                # Spring Data JPA repositories
 │   ├── UserRepository.java
+│   ├── UserIdentityRepository.java
 │   ├── ActiveTokenRepository.java
-│   ├── LoginAttemptRepository.java
 │   └── dh/                    # Daggerheart repositories
 ├── model/
 │   ├── entity/                # JPA entities
 │   │   ├── User.java          # Core user entity
 │   │   ├── BaseEntity.java    # Abstract base (id, createdAt, lastModifiedAt)
-│   │   ├── LoginAttempt.java  # Login audit trail
+│   │   ├── UserIdentity.java  # OAuth provider identity linked to a User
 │   │   ├── ActiveToken.java   # JWT token tracking
 │   │   └── dh/                # Daggerheart entities
 │   │       ├── CharacterSheet.java  # Player character data
@@ -93,16 +94,17 @@ com.aboff.core/
 │   └── embeddable/            # JPA embeddable components
 │       └── DamageRoll.java    # Dice + modifier + damage type
 ├── security/                  # JWT authentication infrastructure
-│   ├── JwtTokenProvider.java        # Token generation/validation
-│   ├── JwtAuthenticationFilter.java # Request filter
+│   ├── JwtTokenProvider.java             # Token generation/validation
+│   ├── JwtAuthenticationFilter.java      # Request filter
 │   ├── JwtAuthenticationEntryPoint.java
-│   └── CustomUserDetails.java       # UserDetails implementation
+│   ├── CustomUserDetails.java            # UserDetails implementation
+│   ├── OAuth2LoginSuccessHandler.java    # Issues JWT cookie after OAuth2 success
+│   └── OAuth2LoginFailureHandler.java    # Redirects to frontend on OAuth2 failure
 ├── exception/                 # Exception handling
 │   ├── GlobalExceptionHandler.java  # @ControllerAdvice
 │   └── [Custom exceptions...]
 └── util/                      # Utility classes
-    ├── CookieUtil.java        # JWT cookie management
-    └── PasswordValidator.java # Password strength validation
+    └── CookieUtil.java        # JWT cookie management
 ```
 
 ### Key Paths
@@ -130,7 +132,7 @@ Most entities support soft deletion via `deletedAt` field:
 ### Access Control
 
 Three-tiered access model:
-1. **Public**: `/api/auth/register`, `/api/auth/login`
+1. **Public**: `/oauth2/**`, `/login/oauth2/**`, `/api/auth/logout`, `/api/auth/dev-login` (dev profile only)
 2. **Authenticated**: All other endpoints require valid JWT
 3. **Role-based**: MODERATOR+ can bypass ownership checks
 
@@ -193,14 +195,17 @@ POSTGRES_DB=heartandfear
 POSTGRES_USER=postgres
 POSTGRES_PASSWORD=password
 JWT_SECRET=your-secure-256-bit-secret-here-change-in-production
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+FRONTEND_BASE_URL=http://localhost:5173
 ```
 
 ## Key Configuration (application.yaml)
 
 - JWT expiration: 30 days
-- Failed login lockout: 5 attempts, 30 minute lockout
-- Password: min 8 chars, requires upper/lower/digit/special
-- BCrypt strength: configurable via `application.security.bcrypt-strength` (default 12, tests use 4)
+- OAuth2: Google provider (client-id/secret via `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` env vars)
+- Frontend base URL: configurable via `FRONTEND_BASE_URL` env var (used for post-OAuth redirects)
+- Dev login: available only with `SPRING_PROFILES_ACTIVE=dev`
 
 ## Testing Requirements
 

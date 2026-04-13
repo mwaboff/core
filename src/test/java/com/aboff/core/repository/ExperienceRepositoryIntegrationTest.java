@@ -313,7 +313,6 @@ class ExperienceRepositoryIntegrationTest {
         User user = User.builder()
                 .username(username)
                 .email(email)
-                .passwordHash("hashedPassword")
                 .role(Role.USER)
                 .build();
         return userRepository.save(user);

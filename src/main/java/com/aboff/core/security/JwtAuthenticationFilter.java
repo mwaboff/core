@@ -97,12 +97,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     } else {
                         User user = userOptional.get();
 
-                        // Check if user is not soft-deleted, account is not locked, and user is not
-                        // banned
+                        // Check if user is not soft-deleted or banned
                         if (user.isDeleted()) {
                             log.debug("User account is deleted, userId: {}", userId);
-                        } else if (user.isAccountLocked()) {
-                            log.debug("User account is locked, userId: {}", userId);
                         } else if (user.isBanned()) {
                             log.debug("User account is banned, userId: {}", userId);
                         } else {

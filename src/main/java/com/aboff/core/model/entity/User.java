@@ -13,7 +13,11 @@ import java.time.LocalDateTime;
 
 /**
  * Entity representing a user account.
- * Stores authentication and profile information.
+ * <p>
+ * Stores profile information and role assignment. Authentication credentials
+ * are held in {@link UserIdentity} records linked to this entity — one per
+ * OAuth provider the user has connected.
+ * </p>
  */
 @Entity
 @Table(name = "users")
@@ -24,36 +28,63 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 public class User extends BaseEntity {
 
+    /**
+     * Unique display name for the user. Used for identification within the application.
+     */
     @Column(nullable = false, unique = true, length = 100)
     private String username;
 
-    @Column(nullable = false, unique = true, length = 255)
+    /**
+     * Email address associated with the user's account.
+     * May be null if the OAuth provider does not expose an email address.
+     */
+    @Column(nullable = true, length = 255)
     private String email;
 
+    /**
+     * URL pointing to the user's avatar image.
+     */
     @Column(name = "avatar_url", length = 500)
     private String avatarUrl;
 
+    /**
+     * IANA timezone identifier for the user (e.g. {@code America/New_York}).
+     */
     @Column(length = 50)
     private String timezone;
 
-    @Column(name = "password_hash", length = 60)
-    private String passwordHash;
-
-    @Column(name = "account_locked_until")
-    private LocalDateTime accountLockedUntil;
-
-    @Column(name = "failed_login_attempts")
-    @Builder.Default
-    private Integer failedLoginAttempts = 0;
-
-    @Column(name = "last_failed_login")
-    private LocalDateTime lastFailedLogin;
-
+    /**
+     * Timestamp at which the user was soft-deleted, or {@code null} if active.
+     */
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
 
+    /**
+     * Timestamp at which the user was banned, or {@code null} if not banned.
+     */
     @Column(name = "banned_at")
     private LocalDateTime bannedAt;
+
+    /**
+     * Application-level role governing the user's permissions.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 20)
+    @Builder.Default
+    private Role role = Role.USER;
+
+    /**
+     * Whether the user has explicitly chosen their own username.
+     * <p>
+     * Set to {@code false} on first OAuth sign-in, when a temporary random username
+     * is auto-generated. Set to {@code true} once the user completes the username
+     * selection flow. Used to gate the post-OAuth redirect: first-time users are
+     * sent to the choose-username page until this flag is {@code true}.
+     * </p>
+     */
+    @Column(name = "username_chosen", nullable = false)
+    @Builder.Default
+    private Boolean usernameChosen = false;
 
     /**
      * Returns whether this user has been soft-deleted.
@@ -99,53 +130,5 @@ public class User extends BaseEntity {
      */
     public void unban() {
         this.bannedAt = null;
-    }
-
-    /**
-     * Returns whether this user's account is locked.
-     *
-     * @return true if the account is locked, false otherwise
-     */
-    public boolean isAccountLocked() {
-        return accountLockedUntil != null && accountLockedUntil.isAfter(LocalDateTime.now());
-    }
-
-    /**
-     * Locks the account for the specified number of minutes.
-     *
-     * @param minutes the duration in minutes to lock the account
-     */
-    public void lockAccount(int minutes) {
-        this.accountLockedUntil = LocalDateTime.now().plusMinutes(minutes);
-    }
-
-    /**
-     * Unlocks the account and resets failed login attempts.
-     */
-    public void unlockAccount() {
-        this.accountLockedUntil = null;
-        this.failedLoginAttempts = 0;
-        this.lastFailedLogin = null;
-    }
-
-    /**
-     * Increments the failed login attempts counter.
-     */
-    public void incrementFailedAttempts() {
-        this.failedLoginAttempts = (this.failedLoginAttempts == null ? 0 : this.failedLoginAttempts) + 1;
-        this.lastFailedLogin = LocalDateTime.now();
-    }
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    @Builder.Default
-    private Role role = Role.USER;
-
-    /**
-     * Resets the failed login attempts counter.
-     */
-    public void resetFailedAttempts() {
-        this.failedLoginAttempts = 0;
-        this.lastFailedLogin = null;
     }
 }

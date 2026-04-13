@@ -1,0 +1,12 @@
+# Staging Profile Configuration
+# Activate with: --spring.profiles.active=staging or SPRING_PROFILES_ACTIVE=staging
+
+application:
+  frontend:
+    base-url: ${FRONTEND_BASE_URL:https://staging.ohsheet.aboff.com}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:https://staging.ohsheet.aboff.com}
+
+jwt:
+  cookie:
+    secure: true

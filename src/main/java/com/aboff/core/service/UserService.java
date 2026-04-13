@@ -1,19 +1,16 @@
 package com.aboff.core.service;
 
-import com.aboff.core.exception.InvalidPasswordException;
 import com.aboff.core.exception.UserAlreadyExistsException;
 import com.aboff.core.exception.UserNotFoundException;
-import com.aboff.core.model.dto.request.ChangePasswordRequest;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.util.CookieUtil;
-import com.aboff.core.util.PasswordValidator;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,14 +20,13 @@ import java.time.LocalDateTime;
  * Service for managing user accounts.
  * Handles user profile updates, password changes, and account deletion.
  */
+@Slf4j
 @Service
 public class UserService {
 
     private final UserRepository userRepository;
     private final AuthenticationService authenticationService;
     private final RoleHierarchyService roleHierarchyService;
-    private final PasswordEncoder passwordEncoder;
-    private final PasswordValidator passwordValidator;
     private final CookieUtil cookieUtil;
 
     /**
@@ -38,22 +34,17 @@ public class UserService {
      *
      * @param userRepository        the user repository
      * @param authenticationService the authentication service
-     * @param passwordEncoder       the password encoder
-     * @param passwordValidator     the password validator
+     * @param roleHierarchyService  the role hierarchy service
      * @param cookieUtil            the cookie utility
      */
     public UserService(
             UserRepository userRepository,
             AuthenticationService authenticationService,
             RoleHierarchyService roleHierarchyService,
-            PasswordEncoder passwordEncoder,
-            PasswordValidator passwordValidator,
             CookieUtil cookieUtil) {
         this.userRepository = userRepository;
         this.authenticationService = authenticationService;
         this.roleHierarchyService = roleHierarchyService;
-        this.passwordEncoder = passwordEncoder;
-        this.passwordValidator = passwordValidator;
         this.cookieUtil = cookieUtil;
     }
 
@@ -141,43 +132,39 @@ public class UserService {
     }
 
     /**
-     * Changes user password and invalidates all existing tokens (force re-login on
-     * all devices).
+     * Sets the username for a first-time OAuth user who has not yet chosen a username.
+     * <p>
+     * Only allowed when {@code usernameChosen} is {@code false}. Once set,
+     * {@code usernameChosen} is flipped to {@code true} and the user will no longer
+     * be redirected to the choose-username page after OAuth login.
+     * </p>
      *
-     * @param userId   the ID of the user
-     * @param request  the change password request
-     * @param response the HTTP response to clear cookies
-     * @throws UserNotFoundException    if the user is not found
-     * @throws InvalidPasswordException if the current password is incorrect or new
-     *                                  password is weak
+     * @param userId   the ID of the user selecting a username
+     * @param username the desired username
+     * @return the updated user response
+     * @throws UserNotFoundException      if the user is not found
+     * @throws IllegalStateException      if the user has already chosen a username
+     * @throws UserAlreadyExistsException if the username is already taken (case-insensitive)
      */
     @Transactional
-    public void changePassword(
-            Long userId,
-            ChangePasswordRequest request,
-            HttpServletResponse response) {
-
+    public UserResponse chooseUsername(Long userId, String username) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
-        // Verify current password
-        if (!passwordEncoder.matches(request.getCurrentPassword(), user.getPasswordHash())) {
-            throw new InvalidPasswordException("Current password is incorrect");
+        if (Boolean.TRUE.equals(user.getUsernameChosen())) {
+            throw new IllegalStateException("Username has already been chosen");
         }
 
-        // Validate new password strength
-        passwordValidator.validatePassword(request.getNewPassword());
+        if (userRepository.existsByUsernameIgnoreCase(username)) {
+            throw new UserAlreadyExistsException("Username already taken");
+        }
 
-        // Hash and save new password
-        String newPasswordHash = passwordEncoder.encode(request.getNewPassword());
-        user.setPasswordHash(newPasswordHash);
-        userRepository.save(user);
+        user.setUsername(username);
+        user.setUsernameChosen(true);
+        user = userRepository.save(user);
 
-        // Invalidate ALL user's tokens (force re-login on all devices)
-        authenticationService.invalidateAllUserTokens(userId);
-
-        // Clear AUTH_TOKEN cookie for current session
-        cookieUtil.clearAuthCookie(response);
+        log.info("User {} chose username '{}'", userId, username);
+        return mapToUserResponse(user);
     }
 
     /**
@@ -244,7 +231,8 @@ public class UserService {
                 .username(user.getUsername())
                 .role(user.getRole())
                 .avatarUrl(user.getAvatarUrl())
-                .createdAt(user.getCreatedAt());
+                .createdAt(user.getCreatedAt())
+                .usernameChosen(user.getUsernameChosen());
 
         if (fullInfo) {
             builder.email(user.getEmail())
@@ -253,9 +241,7 @@ public class UserService {
         }
 
         if (privilegedInfo) {
-            builder.accountLockedUntil(user.getAccountLockedUntil())
-                    .failedLoginAttempts(user.getFailedLoginAttempts())
-                    .deletedAt(user.getDeletedAt())
+            builder.deletedAt(user.getDeletedAt())
                     .bannedAt(user.getBannedAt());
         }
 

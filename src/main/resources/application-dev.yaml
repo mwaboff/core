@@ -1,0 +1,6 @@
+# Development Profile Configuration
+# Activate with: --spring.profiles.active=dev or SPRING_PROFILES_ACTIVE=dev
+#
+# Enables the /api/auth/dev-login endpoint for local development and testing.
+# Google OAuth credentials are optional in dev — the dev-login endpoint provides
+# authentication without requiring a real OAuth provider.

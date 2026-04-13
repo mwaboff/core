@@ -1,62 +1,143 @@
 # Auth API
 
 Base path: `/api/auth`
-Authentication: Mixed (register and login are public; logout requires authentication)
+
+Authentication is handled exclusively via OAuth2 providers. The login flow is initiated by navigating to `/oauth2/authorization/{provider}` (e.g., `/oauth2/authorization/google`). On success, the server sets an `AUTH_TOKEN` HttpOnly cookie and redirects to the frontend. The `logout` and `me` endpoints require a valid cookie; `dev-login` is available in the `dev` profile only.
+
+---
+
+## OAuth2 Login Flow
+
+### GET `/oauth2/authorization/google`
+
+Initiates the Google OAuth2 login flow. The browser is redirected to Google's consent screen. After the user grants permission, Google redirects back to `/login/oauth2/code/google`, which the Spring Security filter handles automatically.
+
+**Authentication:** None (public)
+
+**Flow:**
+1. SPA navigates to `GET /oauth2/authorization/google`
+2. Spring Security redirects to Google consent screen (requests `openid, email` scopes only)
+3. Google redirects to `GET /login/oauth2/code/google` with authorization code
+4. Spring Security exchanges code for tokens, calls `OAuth2UserProvisioningService` to find or create the user
+5. `OAuth2LoginSuccessHandler` issues a JWT, sets `AUTH_TOKEN` HttpOnly cookie
+6. If `usernameChosen` is `false` (first-time user), redirects to `${FRONTEND_BASE_URL}/auth/callback?needsUsername=true`; otherwise redirects to `${FRONTEND_BASE_URL}/auth/callback?needsUsername=false`
+7. On failure, `OAuth2LoginFailureHandler` redirects to `${FRONTEND_BASE_URL}/auth/callback?error=auth_failed`
+
+**First-time user flow:** New OAuth users receive a temporary random username. The popup window is redirected to `/auth/callback?needsUsername=true`, which uses `postMessage` to notify the parent window. The SPA then shows the username selection form and calls `POST /api/auth/choose-username` with their desired username. Their JWT cookie is already set, so no re-login is needed.
+
+**No direct response body** — this endpoint triggers a redirect chain.
+
+---
+
+## Frontend Integration Guide
+
+This section describes the complete authentication lifecycle from the SPA's perspective.
+
+### Initial Page Load
+
+On every page load (or route change), the SPA should call `GET /api/auth/me`:
+- **200 with `usernameChosen: true`** — user is fully authenticated. Show the app.
+- **200 with `usernameChosen: false`** — user is authenticated but hasn't picked a username. Redirect to the username selection page.
+- **401** — user is not logged in. Show the login page with a "Sign in with Google" button.
+
+### First-Time Login Flow
+
+```
+1. User clicks "Sign in with Google"
+   → SPA opens popup to: GET /oauth2/authorization/google
+
+2. Google consent screen
+   → User grants permission
+
+3. Backend callback (automatic)
+   → Creates User + UserIdentity
+   → Sets AUTH_TOKEN HttpOnly cookie (SameSite=Lax)
+   → Redirects popup to: ${FRONTEND_BASE_URL}/auth/callback?needsUsername=true
+
+4. Popup reads query params, sends postMessage to parent, closes itself
+
+5. SPA renders username selection form
+   → User types desired username
+
+6. SPA calls: POST /api/auth/choose-username
+   Body: {"username": "desired-name"}
+   → 200: username set, usernameChosen now true
+   → 400: validation error (too short, invalid chars)
+   → 409: username already taken
+   → SPA redirects to main app on success
+
+No re-login is needed — the JWT cookie was set in step 3.
+```
+
+### Returning User Flow
+
+```
+1. User clicks "Sign in with Google"
+   → SPA opens popup to: GET /oauth2/authorization/google
+
+2. Google consent screen (may auto-approve if previously consented)
+
+3. Backend callback
+   → Finds existing User via UserIdentity
+   → Sets AUTH_TOKEN cookie (SameSite=Lax)
+   → Redirects popup to: ${FRONTEND_BASE_URL}/auth/callback?needsUsername=false
+
+4. Popup reads query params, sends postMessage to parent, closes itself
+
+5. SPA loads normally
+```
+
+### Logout
+
+```
+1. SPA calls: POST /api/auth/logout
+   → AUTH_TOKEN cookie cleared
+   → SPA redirects to login page
+```
+
+### Dev Login (Local Development Only)
+
+When running with `SPRING_PROFILES_ACTIVE=dev`, use the mock endpoint instead of Google:
+
+```bash
+curl -X POST http://localhost:8080/api/auth/dev-login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "test@example.com", "role": "USER", "username": "testuser"}'
+```
+
+Dev users always have `usernameChosen: true` so they skip the username selection flow.
+
+### Key Points for Frontend
+
+- The `AUTH_TOKEN` cookie is HttpOnly — JavaScript cannot read it. It's sent automatically by the browser on every request.
+- Use `GET /api/auth/me` as the session check — not cookie inspection.
+- The `usernameChosen` field in the response determines whether to show the username selection page.
+- Username validation: 3–30 characters, only letters, numbers, underscores, hyphens.
+
+---
 
 ## Endpoints
 
-### POST `/api/auth/register`
+### GET `/api/auth/me`
 
-Register a new user account.
+Return the currently authenticated user's profile.
 
-**Authentication:** Public
-**Status:** `201 Created`
+**Authentication:** Authenticated (requires valid `AUTH_TOKEN` cookie)
+**Status:** `200 OK`
 
-#### Request Body: `RegisterRequest`
-
-| Field | Type | Required | Constraints | Description |
-|---|---|---|---|---|
-| `username` | `String` | Yes | 3-100 chars; alphanumeric, underscores, hyphens only (`^[a-zA-Z0-9_-]+$`); unique (case-insensitive) | The desired username |
-| `email` | `String` | Yes | Max 255 chars; valid email format; unique (case-insensitive) | The user's email address |
-| `password` | `String` | Yes | 8-100 chars; must contain uppercase, lowercase, digit, and special character | The user's password |
-| `timezone` | `String` | No | Max 50 chars | User's timezone (defaults to `"UTC"`) |
-| `avatarUrl` | `String` | No | Max 500 chars | URL to avatar image (defaults to `"https://api.dicebear.com/7.x/avatars/svg?seed=default"`) |
-
-```json
-{
-  "username": "testuser",
-  "email": "test@example.com",
-  "password": "Password123!",
-  "timezone": "America/New_York",
-  "avatarUrl": "https://custom.avatar/image.png"
-}
-```
-
-#### Response: `UserResponse` — `201 Created`
-
-| Field | Type | Nullable | Description |
-|---|---|---|---|
-| `id` | `Long` | No | Unique user identifier |
-| `username` | `String` | No | The user's username |
-| `role` | `Role` | No | The user's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
-| `email` | `String` | No | The user's email address |
-| `avatarUrl` | `String` | Yes | URL to the user's avatar image |
-| `timezone` | `String` | Yes | The user's timezone |
-| `createdAt` | `LocalDateTime` | No | Account creation timestamp |
-| `lastModifiedAt` | `LocalDateTime` | No | Last modification timestamp |
-
-Note: `UserResponse` uses `@JsonInclude(NON_NULL)`, so null fields are omitted from the response. The fields `accountLockedUntil`, `failedLoginAttempts`, `deletedAt`, and `bannedAt` are only included for privileged users viewing other accounts and will not appear in the register response.
+#### Response Body
 
 ```json
 {
   "id": 1,
-  "username": "testuser",
+  "username": "johndoe",
   "role": "USER",
-  "email": "test@example.com",
+  "email": "john@example.com",
   "avatarUrl": "https://api.dicebear.com/7.x/avatars/svg?seed=default",
   "timezone": "UTC",
-  "createdAt": "2026-03-13T12:00:00",
-  "lastModifiedAt": "2026-03-13T12:00:00"
+  "createdAt": "2026-04-12T10:00:00",
+  "lastModifiedAt": "2026-04-12T10:00:00",
+  "usernameChosen": true
 }
 ```
 
@@ -64,82 +145,51 @@ Note: `UserResponse` uses `@JsonInclude(NON_NULL)`, so null fields are omitted f
 
 | Status | Condition | Example Body |
 |---|---|---|
-| `400 Bad Request` | Validation failed (missing/invalid fields) | `{"status": 400, "error": "Validation Failed", "fieldErrors": {"username": "Username is required", "password": "Password must be between 8 and 100 characters"}, "path": "/api/auth/register", "timestamp": "2026-03-13T12:00:00"}` |
-| `400 Bad Request` | Password does not meet complexity requirements | `{"status": 400, "error": "Invalid Password", "message": "Password must contain at least one uppercase letter", "path": "/api/auth/register", "timestamp": "2026-03-13T12:00:00"}` |
-| `409 Conflict` | Username already taken (case-insensitive) | `{"status": 409, "error": "User Already Exists", "message": "Username already taken", "path": "/api/auth/register", "timestamp": "2026-03-13T12:00:00"}` |
-| `409 Conflict` | Email already registered (case-insensitive) | `{"status": 409, "error": "User Already Exists", "message": "Email already registered", "path": "/api/auth/register", "timestamp": "2026-03-13T12:00:00"}` |
+| `401 Unauthorized` | No valid `AUTH_TOKEN` cookie | `{"status": 401, "error": "Unauthorized", ...}` |
 
 #### Example
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/register \
-  -H "Content-Type: application/json" \
-  -d '{"username": "testuser", "email": "test@example.com", "password": "Password123!"}'
+curl -s http://localhost:8080/api/auth/me \
+  -b "AUTH_TOKEN=<jwt>"
 ```
 
 ---
 
-### POST `/api/auth/login`
+### POST `/api/auth/choose-username`
 
-Authenticate a user and receive a JWT token via an HttpOnly cookie.
+Choose a username for the current user. Only permitted when `usernameChosen` is `false` (i.e., the user has not yet completed the username selection flow). The user is already authenticated via the JWT cookie set during OAuth — no re-login is needed.
 
-**Authentication:** Public
+**Authentication:** Authenticated (requires valid `AUTH_TOKEN` cookie)
 **Status:** `200 OK`
 
-#### Request Body: `LoginRequest`
-
-| Field | Type | Required | Constraints | Description |
-|---|---|---|---|---|
-| `usernameOrEmail` | `String` | Yes | Must not be blank | Username or email address (case-insensitive lookup) |
-| `password` | `String` | Yes | Must not be blank | The user's password (case-sensitive) |
+#### Request Body
 
 ```json
 {
-  "usernameOrEmail": "testuser",
-  "password": "Password123!"
+  "username": "mycoolname"
 }
 ```
 
-Or with email:
-
-```json
-{
-  "usernameOrEmail": "test@example.com",
-  "password": "Password123!"
-}
-```
-
-#### Response: `UserResponse` — `200 OK`
-
-The response body contains user information. The JWT token is **not** in the response body; it is set as an HttpOnly cookie named `AUTH_TOKEN`.
-
-| Field | Type | Nullable | Description |
+| Field | Type | Required | Constraints |
 |---|---|---|---|
-| `id` | `Long` | No | Unique user identifier |
-| `username` | `String` | No | The user's username |
-| `role` | `Role` | No | The user's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
-| `email` | `String` | No | The user's email address |
-| `avatarUrl` | `String` | Yes | URL to the user's avatar image |
-| `timezone` | `String` | Yes | The user's timezone |
-| `createdAt` | `LocalDateTime` | No | Account creation timestamp |
-| `lastModifiedAt` | `LocalDateTime` | No | Last modification timestamp |
+| `username` | String | Yes | 3–30 characters; letters, numbers, underscores, and hyphens only |
 
-Response headers include:
+#### Response Body
 
-```
-Set-Cookie: AUTH_TOKEN=<jwt-token>; Path=/; HttpOnly; SameSite=Strict
-```
+Returns the updated user profile with `usernameChosen: true`.
 
 ```json
 {
   "id": 1,
-  "username": "testuser",
+  "username": "mycoolname",
   "role": "USER",
-  "email": "test@example.com",
-  "avatarUrl": "https://avatar.url",
+  "email": "john@example.com",
+  "avatarUrl": "https://api.dicebear.com/7.x/avatars/svg?seed=default",
   "timezone": "UTC",
-  "createdAt": "2026-03-13T12:00:00",
-  "lastModifiedAt": "2026-03-13T12:00:00"
+  "createdAt": "2026-04-12T10:00:00",
+  "lastModifiedAt": "2026-04-12T10:00:00",
+  "usernameChosen": true
 }
 ```
 
@@ -147,24 +197,81 @@ Set-Cookie: AUTH_TOKEN=<jwt-token>; Path=/; HttpOnly; SameSite=Strict
 
 | Status | Condition | Example Body |
 |---|---|---|
-| `400 Bad Request` | Validation failed (blank fields) | `{"status": 400, "error": "Validation Failed", "fieldErrors": {"usernameOrEmail": "Username or email is required"}, "path": "/api/auth/login", "timestamp": "2026-03-13T12:00:00"}` |
-| `401 Unauthorized` | Invalid credentials (wrong password, user not found, soft-deleted user, banned user) | `{"status": 401, "error": "Invalid Credentials", "message": "Invalid username or password", "path": "/api/auth/login", "timestamp": "2026-03-13T12:00:00"}` |
-| `403 Forbidden` | Account locked due to too many failed attempts | `{"status": 403, "error": "Account Locked", "message": "Account is temporarily locked due to multiple failed login attempts. Account locked until 2026-03-13T12:30:00", "path": "/api/auth/login", "timestamp": "2026-03-13T12:00:00"}` |
-
-#### Account Lockout Behavior
-
-- After **5 failed login attempts** within a **15-minute window**, the account is locked for **30 minutes**.
-- Each failed attempt increments the `failedLoginAttempts` counter on the user.
-- A successful login resets the counter to 0.
-- All login attempts (success and failure) are recorded in the `login_attempts` audit table.
+| `400 Bad Request` | Validation failed (blank, too short/long, invalid chars) | `{"status": 400, ...}` |
+| `401 Unauthorized` | No valid `AUTH_TOKEN` cookie | `{"status": 401, "error": "Unauthorized", ...}` |
+| `409 Conflict` | Username already taken | `{"status": 409, "error": "Conflict", ...}` |
+| `500 Internal Server Error` | Username already chosen | `{"status": 500, ...}` |
 
 #### Example
 
 ```bash
-curl -X POST http://localhost:8080/api/auth/login \
+curl -s -X POST http://localhost:8080/api/auth/choose-username \
   -H "Content-Type: application/json" \
-  -c cookies.txt \
-  -d '{"usernameOrEmail": "testuser", "password": "Password123!"}'
+  -d '{"username": "mycoolname"}' \
+  -b "AUTH_TOKEN=<jwt>"
+```
+
+---
+
+### POST `/api/auth/dev-login`
+
+Create or retrieve a user by email and issue a JWT session. **Available in the `dev` Spring profile only.** Used for local development and integration tests. If the user does not exist, a new User and UserIdentity (provider=`dev`) are created automatically.
+
+**Authentication:** None (public, dev profile only)
+**Status:** `200 OK`
+
+#### Request Body
+
+```json
+{
+  "email": "alice@example.com",
+  "role": "USER"
+}
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `email` | String | Yes | Email address for the dev user (used as provider_sub) |
+| `role` | String | No | Role to assign (`USER`, `MODERATOR`, `ADMIN`, `OWNER`). Defaults to `USER` |
+| `username` | String | No | Explicit username. If omitted, generated from email. Dev users always have `usernameChosen: true` |
+
+#### Response Body
+
+Returns the user's profile and sets the `AUTH_TOKEN` cookie.
+
+```json
+{
+  "id": 1,
+  "username": "alice",
+  "role": "USER",
+  "email": "alice@example.com",
+  "avatarUrl": "https://api.dicebear.com/7.x/avatars/svg?seed=default",
+  "timezone": "UTC",
+  "createdAt": "2026-04-12T10:00:00",
+  "lastModifiedAt": "2026-04-12T10:00:00",
+  "usernameChosen": true
+}
+```
+
+Response headers include:
+
+```
+Set-Cookie: AUTH_TOKEN=<jwt>; Path=/; HttpOnly; SameSite=Lax
+```
+
+#### Error Responses
+
+| Status | Condition | Example Body |
+|---|---|---|
+| `500 Internal Server Error` | Missing or null email | `{"status": 500, "error": "Internal Server Error", ...}` |
+
+#### Example
+
+```bash
+curl -s -X POST http://localhost:8080/api/auth/dev-login \
+  -H "Content-Type: application/json" \
+  -d '{"email": "alice@example.com", "role": "USER"}' \
+  -c cookies.txt
 ```
 
 ---
@@ -187,14 +294,14 @@ Empty body. The `AUTH_TOKEN` cookie is cleared (set to `maxAge=0`).
 Response headers include:
 
 ```
-Set-Cookie: AUTH_TOKEN=; Path=/; Max-Age=0; HttpOnly; SameSite=Strict
+Set-Cookie: AUTH_TOKEN=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax
 ```
 
 #### Error Responses
 
 | Status | Condition | Example Body |
 |---|---|---|
-| `401 Unauthorized` | No valid `AUTH_TOKEN` cookie provided | `{"status": 401, "error": "Unauthorized", "message": "Full authentication is required to access this resource", "path": "/api/auth/logout", "timestamp": "2026-03-13T12:00:00"}` |
+| `204 No Content` | No token present (still clears cookie) | Empty body |
 
 #### Example
 
@@ -208,27 +315,6 @@ curl -X POST http://localhost:8080/api/auth/logout \
 
 ## Models
 
-### `RegisterRequest`
-
-Request DTO for user registration.
-
-| Field | Type | Required | Constraints | Description |
-|---|---|---|---|---|
-| `username` | `String` | Yes | `@NotBlank`; `@Size(min=3, max=100)`; `@Pattern(^[a-zA-Z0-9_-]+$)` | Alphanumeric username with underscores/hyphens |
-| `email` | `String` | Yes | `@NotBlank`; `@Email`; `@Size(max=255)` | Valid email address |
-| `password` | `String` | Yes | `@NotBlank`; `@Size(min=8, max=100)`; validated by `PasswordValidator` (requires uppercase, lowercase, digit, special char) | User password |
-| `timezone` | `String` | No | `@Size(max=50)` | IANA timezone string (e.g., `"America/New_York"`) |
-| `avatarUrl` | `String` | No | `@Size(max=500)` | URL to avatar image |
-
-### `LoginRequest`
-
-Request DTO for user login.
-
-| Field | Type | Required | Constraints | Description |
-|---|---|---|---|---|
-| `usernameOrEmail` | `String` | Yes | `@NotBlank` | Username or email address (case-insensitive) |
-| `password` | `String` | Yes | `@NotBlank` | User password (case-sensitive) |
-
 ### `UserResponse`
 
 Response DTO containing non-sensitive user profile data. Uses `@JsonInclude(NON_NULL)` so null fields are omitted.
@@ -238,15 +324,14 @@ Response DTO containing non-sensitive user profile data. Uses `@JsonInclude(NON_
 | `id` | `Long` | No | Auto-generated unique identifier (BIGSERIAL) |
 | `username` | `String` | No | The user's username |
 | `role` | `Role` | No | The user's role (e.g., `USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
-| `email` | `String` | No | The user's email address |
+| `email` | `String` | Yes | The user's email address (may be null if OAuth provider did not expose it) |
 | `avatarUrl` | `String` | Yes | URL to avatar image |
 | `timezone` | `String` | Yes | User's timezone |
 | `createdAt` | `LocalDateTime` | No | Account creation timestamp |
 | `lastModifiedAt` | `LocalDateTime` | No | Last update timestamp |
-| `accountLockedUntil` | `LocalDateTime` | Yes | Lock expiration (privileged view only) |
-| `failedLoginAttempts` | `Integer` | Yes | Failed attempt count (privileged view only) |
 | `deletedAt` | `LocalDateTime` | Yes | Soft-deletion timestamp (privileged view only) |
 | `bannedAt` | `LocalDateTime` | Yes | Ban timestamp (privileged view only) |
+| `usernameChosen` | `Boolean` | No | `false` for first-time OAuth users who haven't completed username selection; `true` once chosen |
 
 ### `ErrorResponse`
 
@@ -255,20 +340,8 @@ Standard error response body.
 | Field | Type | Nullable | Description |
 |---|---|---|---|
 | `status` | `int` | No | HTTP status code |
-| `error` | `String` | No | Error category (e.g., `"Invalid Credentials"`) |
+| `error` | `String` | No | Error category (e.g., `"Unauthorized"`) |
 | `message` | `String` | No | Human-readable error message |
-| `path` | `String` | No | Request URI path |
-| `timestamp` | `LocalDateTime` | No | When the error occurred |
-
-### `ValidationErrorResponse`
-
-Validation error response body (returned for `@Valid` failures).
-
-| Field | Type | Nullable | Description |
-|---|---|---|---|
-| `status` | `int` | No | HTTP status code (`400`) |
-| `error` | `String` | No | Always `"Validation Failed"` |
-| `fieldErrors` | `Map<String, String>` | No | Map of field name to error message |
 | `path` | `String` | No | Request URI path |
 | `timestamp` | `LocalDateTime` | No | When the error occurred |
 
@@ -281,25 +354,41 @@ User role hierarchy (highest to lowest privilege):
 | `OWNER` | System owner, highest privilege |
 | `ADMIN` | Administrator |
 | `MODERATOR` | Moderator, can bypass ownership checks |
-| `USER` | Standard user (default for new registrations) |
+| `USER` | Standard user (default for new provisioned accounts) |
 
 ## Database Schema: `users` Table
 
-Final schema after all migrations:
+Post-migration schema (after `V20260412085519583__oauth_only_auth_reset`):
 
 | Column | Type | Nullable | Default | Constraints |
 |---|---|---|---|---|
 | `id` | `BIGSERIAL` | No | Auto-increment | Primary key |
 | `username` | `VARCHAR(100)` | No | -- | Unique; indexed |
-| `email` | `VARCHAR(255)` | No | -- | Unique; indexed |
+| `email` | `VARCHAR(255)` | Yes | `NULL` | No unique constraint (uniqueness lives in `user_identities`) |
 | `avatar_url` | `VARCHAR(500)` | Yes | `NULL` | -- |
 | `timezone` | `VARCHAR(50)` | Yes | `NULL` | -- |
-| `password_hash` | `VARCHAR(60)` | Yes | `NULL` | BCrypt hash |
-| `account_locked_until` | `TIMESTAMP` | Yes | `NULL` | Indexed |
-| `failed_login_attempts` | `INTEGER` | Yes | `0` | -- |
-| `last_failed_login` | `TIMESTAMP` | Yes | `NULL` | -- |
 | `created_at` | `TIMESTAMP` | No | `CURRENT_TIMESTAMP` | -- |
 | `last_modified_at` | `TIMESTAMP` | No | `CURRENT_TIMESTAMP` | -- |
-| `deleted_at` | `TIMESTAMP` | Yes | `NULL` | Indexed; partial index on `NULL` values |
-| `banned_at` | `TIMESTAMP` | Yes | `NULL` | Indexed |
-| `role` | `VARCHAR(20)` | No | `'USER'` | Indexed |
+| `deleted_at` | `TIMESTAMP` | Yes | `NULL` | -- |
+| `banned_at` | `TIMESTAMP` | Yes | `NULL` | -- |
+| `role` | `VARCHAR(20)` | No | `'USER'` | -- |
+| `username_chosen` | `BOOLEAN` | No | `false` | Set to `true` once the user completes the username selection flow |
+
+## Database Schema: `user_identities` Table
+
+OAuth identity records linked to users:
+
+| Column | Type | Nullable | Default | Constraints |
+|---|---|---|---|---|
+| `id` | `BIGSERIAL` | No | Auto-increment | Primary key |
+| `user_id` | `BIGINT` | No | -- | FK → `users(id)` ON DELETE CASCADE |
+| `provider` | `VARCHAR(32)` | No | -- | e.g. `"google"`, `"github"` |
+| `provider_sub` | `VARCHAR(255)` | No | -- | Stable user ID from the provider |
+| `email` | `VARCHAR(255)` | Yes | `NULL` | -- |
+| `display_name` | `VARCHAR(255)` | Yes | `NULL` | -- |
+| `avatar_url` | `VARCHAR(500)` | Yes | `NULL` | -- |
+| `linked_at` | `TIMESTAMPTZ` | No | `now()` | -- |
+| `last_used_at` | `TIMESTAMPTZ` | Yes | `NULL` | -- |
+| `created_at` | `TIMESTAMP` | No | `now()` | -- |
+| `last_modified_at` | `TIMESTAMP` | No | `now()` | -- |
+| `(provider, provider_sub)` | — | — | — | UNIQUE constraint |
