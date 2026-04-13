@@ -82,5 +82,5 @@ logging:
   level:
     com.aboff.core.security: DEBUG
     com.aboff.core.exception: DEBUG
-    # Uncomment below for verbose Spring Security debug logging
-    # org.springframework.security: DEBUG
+    org.springframework.security: DEBUG
+    org.springframework.security.oauth2: TRACE
