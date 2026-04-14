@@ -386,6 +386,10 @@ public class CharacterSheetService {
         }
         if (request.getArmorMax() != null) {
             characterSheet.setArmorMax(request.getArmorMax());
+            // Clamp marked when the user explicitly lowers the base max below marked.
+            if (characterSheet.getArmorMarked() > request.getArmorMax()) {
+                characterSheet.setArmorMarked(request.getArmorMax());
+            }
         }
         if (request.getArmorMarked() != null) {
             characterSheet.setArmorMarked(request.getArmorMarked());
@@ -438,18 +442,27 @@ public class CharacterSheetService {
         // Update resources
         if (request.getHitPointMax() != null) {
             characterSheet.setHitPointMax(request.getHitPointMax());
+            if (characterSheet.getHitPointMarked() > request.getHitPointMax()) {
+                characterSheet.setHitPointMarked(request.getHitPointMax());
+            }
         }
         if (request.getHitPointMarked() != null) {
             characterSheet.setHitPointMarked(request.getHitPointMarked());
         }
         if (request.getStressMax() != null) {
             characterSheet.setStressMax(request.getStressMax());
+            if (characterSheet.getStressMarked() > request.getStressMax()) {
+                characterSheet.setStressMarked(request.getStressMax());
+            }
         }
         if (request.getStressMarked() != null) {
             characterSheet.setStressMarked(request.getStressMarked());
         }
         if (request.getHopeMax() != null) {
             characterSheet.setHopeMax(request.getHopeMax());
+            if (characterSheet.getHopeMarked() > request.getHopeMax()) {
+                characterSheet.setHopeMarked(request.getHopeMax());
+            }
         }
         if (request.getHopeMarked() != null) {
             characterSheet.setHopeMarked(request.getHopeMarked());
@@ -654,23 +667,20 @@ public class CharacterSheetService {
      * Validates character sheet constraints.
      * <p>
      * Validates the following rules:
-     * - armorMarked <= armorMax
-     * - hitPointMarked <= hitPointMax
-     * - stressMarked <= stressMax
-     * - hopeMarked <= hopeMax
      * - severeDamageThreshold >= majorDamageThreshold
+     * </p>
+     * <p>
+     * Note: {@code marked <= max} is intentionally NOT enforced here. Equipped items
+     * and features can raise a character's effective resource caps above the stored
+     * (base) {@code *_max}, so a legitimate marked value may exceed the base max.
+     * Clamping only occurs in {@link #updateCharacterSheet} when the caller explicitly
+     * reduces a {@code *_max} field below its current marked value.
      * </p>
      *
      * @param sheet The character sheet to validate
      * @throws IllegalStateException if any constraint is violated
      */
     private void validateConstraints(CharacterSheet sheet) {
-        // Clamp marked values to their max when max has been reduced
-        sheet.setArmorMarked(Math.min(sheet.getArmorMarked(), sheet.getArmorMax()));
-        sheet.setHitPointMarked(Math.min(sheet.getHitPointMarked(), sheet.getHitPointMax()));
-        sheet.setStressMarked(Math.min(sheet.getStressMarked(), sheet.getStressMax()));
-        sheet.setHopeMarked(Math.min(sheet.getHopeMarked(), sheet.getHopeMax()));
-
         if (sheet.getSevereDamageThreshold() < sheet.getMajorDamageThreshold()) {
             throw new IllegalStateException(
                     "Severe damage threshold (" + sheet.getSevereDamageThreshold() +
