@@ -177,8 +177,9 @@ public class AdversaryService {
                 .description(request.getDescription())
                 .motivesAndTactics(request.getMotivesAndTactics())
                 .difficulty(request.getDifficulty())
-                .majorThreshold(request.getMajorThreshold())
-                .severeThreshold(request.getSevereThreshold())
+                .majorThreshold(request.getMajorThreshold() != null ? request.getMajorThreshold() : 0)
+                .severeThreshold(request.getSevereThreshold() != null ? request.getSevereThreshold()
+                        : request.getMajorThreshold() != null ? request.getMajorThreshold() : 0)
                 .hitPointMax(request.getHitPointMax() != null ? request.getHitPointMax() : 0)
                 .stressMax(request.getStressMax() != null ? request.getStressMax() : 0)
                 .attackModifier(request.getAttackModifier())
@@ -508,6 +509,7 @@ public class AdversaryService {
     private void validateThresholds(Integer majorThreshold, Integer severeThreshold) {
         if (majorThreshold != null && severeThreshold != null
                 && severeThreshold < majorThreshold) {
+            log.warn("Threshold validation failed: majorThreshold={}, severeThreshold={}", majorThreshold, severeThreshold);
             throw new IllegalArgumentException(
                     "Severe threshold must be greater than or equal to major threshold");
         }
@@ -518,10 +520,14 @@ public class AdversaryService {
      */
     private void validateMarkedValues(Adversary adversary) {
         if (adversary.getHitPointMarked() > adversary.getHitPointMax()) {
+            log.warn("Marked value validation failed for adversary id={}: hitPointMarked={} > hitPointMax={}",
+                    adversary.getId(), adversary.getHitPointMarked(), adversary.getHitPointMax());
             throw new IllegalArgumentException(
                     "Hit points marked cannot exceed hit points max");
         }
         if (adversary.getStressMarked() > adversary.getStressMax()) {
+            log.warn("Marked value validation failed for adversary id={}: stressMarked={} > stressMax={}",
+                    adversary.getId(), adversary.getStressMarked(), adversary.getStressMax());
             throw new IllegalArgumentException(
                     "Stress marked cannot exceed stress max");
         }

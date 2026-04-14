@@ -66,7 +66,7 @@ public class SearchIndex extends BaseEntity {
      * Pre-computed PostgreSQL {@code TSVECTOR} for full-text search.
      * This column is populated by a database trigger and is treated as read-only by the application.
      */
-    @Column(name = "search_vector", columnDefinition = "tsvector")
+    @Column(name = "search_vector", columnDefinition = "tsvector", insertable = false, updatable = false)
     private String searchVector;
 
     // -------------------------------------------------------------------------

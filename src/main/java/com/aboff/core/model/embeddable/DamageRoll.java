@@ -130,20 +130,23 @@ public class DamageRoll {
     public String toNotation() {
         StringBuilder sb = new StringBuilder();
 
-        if (diceCount != null) {
-            sb.append(diceCount);
+        if (diceType != null) {
+            if (diceCount != null) {
+                sb.append(diceCount);
+            }
+            sb.append(diceType.getCode());
         }
 
-        sb.append(diceType.getCode());
-
         if (modifier != null && modifier != 0) {
-            if (modifier > 0) {
+            if (sb.length() > 0 && modifier > 0) {
                 sb.append("+");
             }
             sb.append(modifier);
         }
 
-        sb.append(" ").append(damageType.getCode());
+        if (damageType != null) {
+            sb.append(" ").append(damageType.getCode());
+        }
 
         return sb.toString();
     }
