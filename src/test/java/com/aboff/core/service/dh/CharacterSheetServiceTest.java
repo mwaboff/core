@@ -12,6 +12,7 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.*;
@@ -78,6 +79,9 @@ class CharacterSheetServiceTest {
 
     @Mock
     private LootRepository lootRepository;
+
+    @Mock
+    private CampaignRepository campaignRepository;
 
     @Mock
     private CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
@@ -823,6 +827,7 @@ class CharacterSheetServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(campaignRepository.findActiveByCampaignCharacterSheetId(1L)).thenReturn(List.of());
 
         // Act
         characterSheetService.deleteCharacterSheet(1L, authentication);
@@ -847,11 +852,43 @@ class CharacterSheetServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
+        when(campaignRepository.findActiveByCampaignCharacterSheetId(1L)).thenReturn(List.of());
 
         // Act
         characterSheetService.deleteCharacterSheet(1L, authentication);
 
         // Assert
+        assertThat(sheet.isDeleted()).isTrue();
+        verify(characterSheetRepository).save(sheet);
+    }
+
+    @Test
+    void deleteCharacterSheet_InCampaigns_RemovesFromCampaignsBeforeSoftDelete() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        Campaign campaign1 = Campaign.builder().id(10L).name("Campaign A").build();
+        campaign1.getPlayerCharacters().add(sheet);
+        Campaign campaign2 = Campaign.builder().id(11L).name("Campaign B").build();
+        campaign2.getNonPlayerCharacters().add(sheet);
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(campaignRepository.findActiveByCampaignCharacterSheetId(1L)).thenReturn(List.of(campaign1, campaign2));
+
+        // Act
+        characterSheetService.deleteCharacterSheet(1L, authentication);
+
+        // Assert
+        assertThat(campaign1.getPlayerCharacters()).doesNotContain(sheet);
+        assertThat(campaign2.getNonPlayerCharacters()).doesNotContain(sheet);
+        verify(campaignRepository).saveAll(List.of(campaign1, campaign2));
         assertThat(sheet.isDeleted()).isTrue();
         verify(characterSheetRepository).save(sheet);
     }

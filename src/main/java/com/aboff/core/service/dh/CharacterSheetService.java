@@ -604,6 +604,18 @@ public class CharacterSheetService {
         // Validate access - must be owner or moderator+
         validateAccess(characterSheet, auth, "delete");
 
+        // Remove from any campaigns before soft deleting
+        List<Campaign> campaigns = campaignRepository.findActiveByCampaignCharacterSheetId(id);
+        if (!campaigns.isEmpty()) {
+            log.info("Removing character_sheet_id: {} from {} campaign(s) before soft delete", id, campaigns.size());
+            for (Campaign campaign : campaigns) {
+                campaign.getPendingCharacterSheets().removeIf(cs -> cs.getId().equals(id));
+                campaign.getPlayerCharacters().removeIf(cs -> cs.getId().equals(id));
+                campaign.getNonPlayerCharacters().removeIf(cs -> cs.getId().equals(id));
+            }
+            campaignRepository.saveAll(campaigns);
+        }
+
         // Soft delete the character sheet
         characterSheet.softDelete();
         characterSheetRepository.save(characterSheet);
