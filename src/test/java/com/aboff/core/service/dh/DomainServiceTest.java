@@ -8,6 +8,7 @@ import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -43,6 +45,12 @@ class DomainServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private DomainService domainService;
@@ -314,7 +322,7 @@ class DomainServiceTest {
                 .thenReturn(savedDomain);
 
         // Act
-        DomainResponse result = domainService.createDomain(request);
+        DomainResponse result = domainService.createDomain(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -344,7 +352,7 @@ class DomainServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainService.createDomain(request))
+        assertThatThrownBy(() -> domainService.createDomain(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -400,7 +408,7 @@ class DomainServiceTest {
                 .thenReturn(List.of(savedDomain1, savedDomain2));
 
         // Act
-        List<DomainResponse> results = domainService.createDomainsBulk(List.of(request1, request2));
+        List<DomainResponse> results = domainService.createDomainsBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -444,7 +452,7 @@ class DomainServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        DomainResponse result = domainService.updateDomain(1L, request);
+        DomainResponse result = domainService.updateDomain(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -472,7 +480,7 @@ class DomainServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainService.updateDomain(999L, request))
+        assertThatThrownBy(() -> domainService.updateDomain(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Domain not found with id: 999");
 
@@ -510,7 +518,7 @@ class DomainServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainService.updateDomain(1L, request))
+        assertThatThrownBy(() -> domainService.updateDomain(1L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -541,7 +549,7 @@ class DomainServiceTest {
                 .thenReturn(Optional.of(domain));
 
         // Act
-        domainService.deleteDomain(1L);
+        domainService.deleteDomain(1L, authentication);
 
         // Assert
         verify(domainRepository).save(argThat(d -> d.getDeletedAt() != null));
@@ -554,7 +562,7 @@ class DomainServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainService.deleteDomain(999L))
+        assertThatThrownBy(() -> domainService.deleteDomain(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Domain not found with id: 999");
 
@@ -588,7 +596,7 @@ class DomainServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        DomainResponse result = domainService.restoreDomain(1L);
+        DomainResponse result = domainService.restoreDomain(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -617,7 +625,7 @@ class DomainServiceTest {
                 .thenReturn(Optional.of(activeDomain));
 
         // Act & Assert
-        assertThatThrownBy(() -> domainService.restoreDomain(1L))
+        assertThatThrownBy(() -> domainService.restoreDomain(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Domain with id 1 is not deleted");
 
@@ -631,7 +639,7 @@ class DomainServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainService.restoreDomain(999L))
+        assertThatThrownBy(() -> domainService.restoreDomain(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Domain not found with id: 999");
     }

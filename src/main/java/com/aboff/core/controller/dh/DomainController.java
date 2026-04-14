@@ -1,15 +1,19 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateDomainRequest;
 import com.aboff.core.model.dto.dh.request.UpdateDomainRequest;
 import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.DomainService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,6 +32,7 @@ import java.util.List;
 public class DomainController {
 
     private final DomainService domainService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of domains.
@@ -63,9 +68,18 @@ public class DomainController {
     @GetMapping("/{id}")
     public ResponseEntity<DomainResponse> getDomainById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/domains/" + id);
 
         DomainResponse response = domainService.getDomainById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/domains/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -74,14 +88,24 @@ public class DomainController {
      * Requires ADMIN or OWNER role.
      *
      * @param request The creation request containing domain details
+     * @param auth Authentication context
      * @return DomainResponse containing the created domain
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<DomainResponse> createDomain(
-            @Valid @RequestBody CreateDomainRequest request) {
+            @Valid @RequestBody CreateDomainRequest request,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
 
-        DomainResponse response = domainService.createDomain(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/domains");
+
+        DomainResponse response = domainService.createDomain(request, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/domains", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -90,14 +114,24 @@ public class DomainController {
      * Requires ADMIN or OWNER role.
      *
      * @param requests List of creation requests
+     * @param auth Authentication context
      * @return List of created domain responses
      */
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<DomainResponse>> createDomainsBulk(
-            @Valid @RequestBody List<CreateDomainRequest> requests) {
+            @Valid @RequestBody List<CreateDomainRequest> requests,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
 
-        List<DomainResponse> responses = domainService.createDomainsBulk(requests);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/domains/bulk");
+
+        List<DomainResponse> responses = domainService.createDomainsBulk(requests, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/domains/bulk", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
@@ -107,15 +141,25 @@ public class DomainController {
      *
      * @param id The domain ID to update
      * @param request The update request containing new domain details
+     * @param auth Authentication context
      * @return DomainResponse containing the updated domain
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<DomainResponse> updateDomain(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateDomainRequest request) {
+            @Valid @RequestBody UpdateDomainRequest request,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
 
-        DomainResponse response = domainService.updateDomain(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/domains/" + id);
+
+        DomainResponse response = domainService.updateDomain(id, request, auth);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/domains/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -124,12 +168,24 @@ public class DomainController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The domain ID to delete
+     * @param auth Authentication context
      * @return 204 No Content on success
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteDomain(@PathVariable Long id) {
-        domainService.deleteDomain(id);
+    public ResponseEntity<Void> deleteDomain(
+            @PathVariable Long id,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/domains/" + id);
+
+        domainService.deleteDomain(id, auth);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/domains/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -138,12 +194,24 @@ public class DomainController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The domain ID to restore
+     * @param auth Authentication context
      * @return DomainResponse containing the restored domain
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<DomainResponse> restoreDomain(@PathVariable Long id) {
-        DomainResponse response = domainService.restoreDomain(id);
+    public ResponseEntity<DomainResponse> restoreDomain(
+            @PathVariable Long id,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/domains/" + id + "/restore");
+
+        DomainResponse response = domainService.restoreDomain(id, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/domains/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

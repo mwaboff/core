@@ -1,15 +1,19 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateClassRequest;
 import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
 import com.aboff.core.model.dto.dh.response.ClassResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.ClassService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,6 +32,7 @@ import java.util.List;
 public class ClassController {
 
     private final ClassService classService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of classes.
@@ -63,9 +68,18 @@ public class ClassController {
     @GetMapping("/{id}")
     public ResponseEntity<ClassResponse> getClassById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/classes/" + id);
 
         ClassResponse response = classService.getClassById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/classes/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -74,14 +88,24 @@ public class ClassController {
      * Requires ADMIN or OWNER role.
      *
      * @param request The creation request containing class details
+     * @param auth Authentication context
      * @return ClassResponse containing the created class
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<ClassResponse> createClass(
-            @Valid @RequestBody CreateClassRequest request) {
+            @Valid @RequestBody CreateClassRequest request,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
 
-        ClassResponse response = classService.createClass(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/classes");
+
+        ClassResponse response = classService.createClass(request, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/classes", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -90,14 +114,24 @@ public class ClassController {
      * Requires ADMIN or OWNER role.
      *
      * @param requests List of creation requests
+     * @param auth Authentication context
      * @return List of created class responses
      */
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<ClassResponse>> createClassesBulk(
-            @Valid @RequestBody List<CreateClassRequest> requests) {
+            @Valid @RequestBody List<CreateClassRequest> requests,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
 
-        List<ClassResponse> responses = classService.createClassesBulk(requests);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/classes/bulk");
+
+        List<ClassResponse> responses = classService.createClassesBulk(requests, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/classes/bulk", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
@@ -107,15 +141,25 @@ public class ClassController {
      *
      * @param id The class ID to update
      * @param request The update request containing new class details
+     * @param auth Authentication context
      * @return ClassResponse containing the updated class
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<ClassResponse> updateClass(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateClassRequest request) {
+            @Valid @RequestBody UpdateClassRequest request,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
 
-        ClassResponse response = classService.updateClass(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/classes/" + id);
+
+        ClassResponse response = classService.updateClass(id, request, auth);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/classes/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -124,12 +168,24 @@ public class ClassController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The class ID to delete
+     * @param auth Authentication context
      * @return 204 No Content on success
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteClass(@PathVariable Long id) {
-        classService.deleteClass(id);
+    public ResponseEntity<Void> deleteClass(
+            @PathVariable Long id,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/classes/" + id);
+
+        classService.deleteClass(id, auth);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/classes/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -138,12 +194,24 @@ public class ClassController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The class ID to restore
+     * @param auth Authentication context
      * @return ClassResponse containing the restored class
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<ClassResponse> restoreClass(@PathVariable Long id) {
-        ClassResponse response = classService.restoreClass(id);
+    public ResponseEntity<ClassResponse> restoreClass(
+            @PathVariable Long id,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/classes/" + id + "/restore");
+
+        ClassResponse response = classService.restoreClass(id, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/classes/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

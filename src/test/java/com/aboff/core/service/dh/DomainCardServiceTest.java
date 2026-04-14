@@ -19,6 +19,7 @@ import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -26,6 +27,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -66,6 +68,12 @@ class DomainCardServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private DomainCardService domainCardService;
@@ -653,7 +661,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.save(any(DomainCard.class))).thenReturn(savedCard);
 
         // Act
-        DomainCardResponse result = domainCardService.createDomainCard(request);
+        DomainCardResponse result = domainCardService.createDomainCard(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -681,7 +689,7 @@ class DomainCardServiceTest {
         when(domainRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainCardService.createDomainCard(request))
+        assertThatThrownBy(() -> domainCardService.createDomainCard(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Domain not found with id: 999");
 
@@ -731,7 +739,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.saveAll(anyList())).thenReturn(List.of(savedCard1, savedCard2));
 
         // Act
-        List<DomainCardResponse> results = domainCardService.createDomainCardsBulk(List.of(request1, request2));
+        List<DomainCardResponse> results = domainCardService.createDomainCardsBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -782,7 +790,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.save(any(DomainCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        DomainCardResponse result = domainCardService.updateDomainCard(1L, request);
+        DomainCardResponse result = domainCardService.updateDomainCard(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -810,7 +818,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainCardService.updateDomainCard(999L, request))
+        assertThatThrownBy(() -> domainCardService.updateDomainCard(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("DomainCard not found with id: 999");
 
@@ -841,7 +849,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(card));
 
         // Act
-        domainCardService.deleteDomainCard(1L);
+        domainCardService.deleteDomainCard(1L, authentication);
 
         // Assert
         verify(domainCardRepository).save(argThat(c -> c.getDeletedAt() != null));
@@ -853,7 +861,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainCardService.deleteDomainCard(999L))
+        assertThatThrownBy(() -> domainCardService.deleteDomainCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("DomainCard not found with id: 999");
 
@@ -886,7 +894,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.save(any(DomainCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        DomainCardResponse result = domainCardService.restoreDomainCard(1L);
+        DomainCardResponse result = domainCardService.restoreDomainCard(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -915,7 +923,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.findById(1L)).thenReturn(Optional.of(activeCard));
 
         // Act & Assert
-        assertThatThrownBy(() -> domainCardService.restoreDomainCard(1L))
+        assertThatThrownBy(() -> domainCardService.restoreDomainCard(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("DomainCard with id 1 is not deleted");
 
@@ -928,7 +936,7 @@ class DomainCardServiceTest {
         when(domainCardRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> domainCardService.restoreDomainCard(999L))
+        assertThatThrownBy(() -> domainCardService.restoreDomainCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("DomainCard not found with id: 999");
     }

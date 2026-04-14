@@ -1,11 +1,14 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateExpansionRequest;
 import com.aboff.core.model.dto.dh.request.UpdateExpansionRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.event.EntityChangeEvent;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -15,6 +18,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +33,7 @@ public class ExpansionService {
 
     private final ExpansionRepository expansionRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of expansions.
@@ -90,20 +95,21 @@ public class ExpansionService {
      * Creates a new expansion.
      *
      * @param request The creation request containing expansion details
+     * @param authentication The authentication of the current user
      * @return ExpansionResponse containing the created expansion
      */
     @Transactional
-    public ExpansionResponse createExpansion(CreateExpansionRequest request) {
-        log.info("Creating new expansion with name: {}", request.getName());
-
+    public ExpansionResponse createExpansion(CreateExpansionRequest request, Authentication authentication) {
         Expansion expansion = Expansion.builder()
                 .name(request.getName())
                 .isPublished(request.getIsPublished())
                 .build();
 
         Expansion savedExpansion = expansionRepository.save(expansion);
-        log.info("Created expansion with id: {}", savedExpansion.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedExpansion, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED,
+                AuditContext.forUser(authentication).withEntityType("expansion").build(),
+                "\"" + savedExpansion.getName() + "\" (expansion_id: " + savedExpansion.getId() + ")");
 
         return toResponse(savedExpansion);
     }
@@ -113,13 +119,12 @@ public class ExpansionService {
      *
      * @param id The expansion ID to update
      * @param request The update request containing new expansion details
+     * @param authentication The authentication of the current user
      * @return ExpansionResponse containing the updated expansion
      * @throws EntityNotFoundException if the expansion is not found or is deleted
      */
     @Transactional
-    public ExpansionResponse updateExpansion(Long id, UpdateExpansionRequest request) {
-        log.info("Updating expansion with id: {}", id);
-
+    public ExpansionResponse updateExpansion(Long id, UpdateExpansionRequest request, Authentication authentication) {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Expansion not found with id: " + id));
 
@@ -131,8 +136,10 @@ public class ExpansionService {
         }
 
         Expansion updatedExpansion = expansionRepository.save(expansion);
-        log.info("Updated expansion with id: {}", updatedExpansion.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedExpansion, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED,
+                AuditContext.forUser(authentication).withEntityType("expansion").build(),
+                "expansion_id: " + updatedExpansion.getId());
 
         return toResponse(updatedExpansion);
     }
@@ -141,34 +148,33 @@ public class ExpansionService {
      * Soft deletes an expansion by setting its deletedAt timestamp.
      *
      * @param id The expansion ID to delete
+     * @param authentication The authentication of the current user
      * @throws EntityNotFoundException if the expansion is not found or is already deleted
      */
     @Transactional
-    public void deleteExpansion(Long id) {
-        log.info("Soft deleting expansion with id: {}", id);
-
+    public void deleteExpansion(Long id, Authentication authentication) {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Expansion not found with id: " + id));
 
         expansion.softDelete();
         expansionRepository.save(expansion);
         eventPublisher.publishEvent(new EntityChangeEvent(this, expansion, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted expansion with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED,
+                AuditContext.forUser(authentication).withEntityType("expansion").build(),
+                "expansion_id: " + id);
     }
 
     /**
      * Restores a soft-deleted expansion.
      *
      * @param id The expansion ID to restore
+     * @param authentication The authentication of the current user
      * @return ExpansionResponse containing the restored expansion
      * @throws EntityNotFoundException if the expansion is not found
      * @throws IllegalStateException if the expansion is not deleted
      */
     @Transactional
-    public ExpansionResponse restoreExpansion(Long id) {
-        log.info("Restoring expansion with id: {}", id);
-
+    public ExpansionResponse restoreExpansion(Long id, Authentication authentication) {
         Expansion expansion = expansionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Expansion not found with id: " + id));
 
@@ -179,8 +185,9 @@ public class ExpansionService {
         expansion.restore();
         Expansion restoredExpansion = expansionRepository.save(expansion);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredExpansion, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored expansion with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED,
+                AuditContext.forUser(authentication).withEntityType("expansion").build(),
+                "expansion_id: " + id);
 
         return toResponse(restoredExpansion);
     }

@@ -18,7 +18,10 @@ import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.EncounterAdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
@@ -64,6 +67,7 @@ public class EncounterService {
     private final CampaignRepository campaignRepository;
     private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of encounters accessible to the authenticated user.
@@ -149,8 +153,6 @@ public class EncounterService {
      */
     @Transactional
     public EncounterResponse createEncounter(CreateEncounterRequest request, Authentication auth) {
-        log.info("Creating new encounter with name: {}", request.getName());
-
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         User creator = userDetails.getUser();
 
@@ -189,8 +191,9 @@ public class EncounterService {
         }
 
         Encounter savedEncounter = encounterRepository.save(encounter);
-        log.info("Created encounter with id: {}", savedEncounter.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedEncounter, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.ENCOUNTER_CREATED, AuditContext.forUser(auth).build(),
+                "\"" + savedEncounter.getName() + "\" (encounter_id: " + savedEncounter.getId() + ")");
 
         return toResponse(savedEncounter, Set.of());
     }
@@ -207,8 +210,6 @@ public class EncounterService {
      */
     @Transactional
     public EncounterResponse updateEncounter(Long id, UpdateEncounterRequest request, Authentication auth) {
-        log.info("Updating encounter with id: {}", id);
-
         Encounter encounter = encounterRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Encounter not found with id: " + id));
 
@@ -255,8 +256,9 @@ public class EncounterService {
         }
 
         Encounter updatedEncounter = encounterRepository.save(encounter);
-        log.info("Updated encounter with id: {}", updatedEncounter.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedEncounter, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.ENCOUNTER_UPDATED, AuditContext.forUser(auth).build(),
+                "encounter_id: " + updatedEncounter.getId());
 
         return toResponse(updatedEncounter, Set.of());
     }
@@ -271,8 +273,6 @@ public class EncounterService {
      */
     @Transactional
     public void deleteEncounter(Long id, Authentication auth) {
-        log.info("Soft deleting encounter with id: {}", id);
-
         Encounter encounter = encounterRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Encounter not found with id: " + id));
 
@@ -281,8 +281,8 @@ public class EncounterService {
         encounter.softDelete();
         encounterRepository.save(encounter);
         eventPublisher.publishEvent(new EntityChangeEvent(this, encounter, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted encounter with id: {}", id);
+        auditLogger.log(AuditAction.ENCOUNTER_DELETED, AuditContext.forUser(auth).build(),
+                "encounter_id: " + id);
     }
 
     /**
@@ -298,8 +298,6 @@ public class EncounterService {
      */
     @Transactional
     public EncounterResponse restoreEncounter(Long id, Authentication auth) {
-        log.info("Restoring encounter with id: {}", id);
-
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         User user = userDetails.getUser();
 
@@ -317,8 +315,8 @@ public class EncounterService {
         encounter.restore();
         Encounter restoredEncounter = encounterRepository.save(encounter);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredEncounter, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored encounter with id: {}", id);
+        auditLogger.log(AuditAction.ENCOUNTER_RESTORED, AuditContext.forUser(auth).build(),
+                "encounter_id: " + id);
 
         return toResponse(restoredEncounter, Set.of());
     }
@@ -333,8 +331,6 @@ public class EncounterService {
      */
     @Transactional
     public EncounterResponse copyEncounter(Long id, Authentication auth) {
-        log.info("Copying encounter with id: {}", id);
-
         Encounter original = encounterRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Encounter not found with id: " + id));
 
@@ -365,8 +361,9 @@ public class EncounterService {
         }
 
         Encounter savedCopy = encounterRepository.save(copy);
-        log.info("Created copy of encounter {} with new id: {}", id, savedCopy.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedCopy, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.ENCOUNTER_COPIED, AuditContext.forUser(auth).build(),
+                "encounter_id: " + id + " → copy_id: " + savedCopy.getId());
 
         return toResponse(savedCopy, Set.of());
     }
@@ -381,8 +378,6 @@ public class EncounterService {
      */
     @Transactional
     public EncounterResponse addAdversaryToEncounter(Long encounterId, Long adversaryId, Authentication auth) {
-        log.info("Adding adversary {} to encounter {}", adversaryId, encounterId);
-
         Encounter encounter = encounterRepository.findByIdAndDeletedAtIsNull(encounterId)
                 .orElseThrow(() -> new EntityNotFoundException("Encounter not found with id: " + encounterId));
 
@@ -397,8 +392,8 @@ public class EncounterService {
                 .build();
         encounter.getEncounterAdversaries().add(encounterAdversary);
         encounterRepository.save(encounter);
-
-        log.info("Added adversary {} to encounter {}", adversaryId, encounterId);
+        auditLogger.log(AuditAction.ENCOUNTER_ADVERSARY_ADDED, AuditContext.forUser(auth).build(),
+                "adversary_id: " + adversaryId + " → encounter_id: " + encounterId);
 
         return toResponse(encounter, Set.of());
     }
@@ -413,8 +408,6 @@ public class EncounterService {
      */
     @Transactional
     public EncounterResponse removeAdversaryFromEncounter(Long encounterId, Long encounterAdversaryId, Authentication auth) {
-        log.info("Removing encounter adversary {} from encounter {}", encounterAdversaryId, encounterId);
-
         Encounter encounter = encounterRepository.findByIdAndDeletedAtIsNull(encounterId)
                 .orElseThrow(() -> new EntityNotFoundException("Encounter not found with id: " + encounterId));
 
@@ -431,8 +424,8 @@ public class EncounterService {
 
         encounter.getEncounterAdversaries().remove(encounterAdversary);
         encounterAdversaryRepository.delete(encounterAdversary);
-
-        log.info("Removed encounter adversary {} from encounter {}", encounterAdversaryId, encounterId);
+        auditLogger.log(AuditAction.ENCOUNTER_ADVERSARY_REMOVED, AuditContext.forUser(auth).build(),
+                "encounter_adversary_id: " + encounterAdversaryId + " → encounter_id: " + encounterId);
 
         return toResponse(encounter, Set.of());
     }

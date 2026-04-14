@@ -1,15 +1,18 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.AdvancementChoice;
 import com.aboff.core.model.dto.dh.request.DomainCardTradeRequest;
 import com.aboff.core.model.dto.dh.request.LevelUpRequest;
 import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.enums.AdvancementType;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.*;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,6 +51,7 @@ public class LevelUpService {
     private final UserRepository userRepository;
     private final RoleHierarchyService roleHierarchyService;
     private final CharacterSheetService characterSheetService;
+    private final AuditLogger auditLogger;
     private final ObjectMapper objectMapper;
 
     /**
@@ -84,7 +88,7 @@ public class LevelUpService {
 
         long equippedCount = characterSheetDomainCardRepository.countEquippedByCharacterSheetId(characterSheetId);
 
-        log.info("Retrieved level-up options for character sheet {} (level {} -> {})", characterSheetId, currentLevel, nextLevel);
+        log.debug("Retrieved level-up options for character sheet {} (level {} -> {})", characterSheetId, currentLevel, nextLevel);
 
         return LevelUpOptionsResponse.builder()
                 .currentLevel(currentLevel)
@@ -234,7 +238,12 @@ public class LevelUpService {
                 .build();
         CharacterAdvancementLog savedLog = characterAdvancementLogRepository.save(logEntry);
 
-        log.info("Character sheet {} leveled up from {} to {} (tier {})", characterSheetId, currentLevel, nextLevel, nextTier);
+        String advancementSummary = request.getAdvancements().stream()
+                .map(a -> a.getType().name())
+                .collect(Collectors.joining(", "));
+        AuditContext levelUpCtx = AuditContext.forUser(auth).withCharacterSheetId(characterSheetId).build();
+        auditLogger.log(AuditAction.CHARACTER_LEVELED_UP, levelUpCtx,
+                String.format("level %d → %d, tier %d, advancements: %s", currentLevel, nextLevel, nextTier, advancementSummary));
 
         return LevelUpResponse.builder()
                 .characterSheet(characterSheetService.toResponse(savedSheet, Set.of()))
@@ -357,8 +366,9 @@ public class LevelUpService {
         CharacterSheet savedSheet = characterSheetRepository.save(sheet);
         characterAdvancementLogRepository.delete(logEntry);
 
-        log.info("Undid level-up for character sheet {} (from level {} back to {})",
-                characterSheetId, logEntry.getToLevel(), logEntry.getFromLevel());
+        AuditContext undoCtx = AuditContext.forUser(auth).withCharacterSheetId(characterSheetId).build();
+        auditLogger.log(AuditAction.CHARACTER_LEVEL_UNDONE, undoCtx,
+                String.format("level %d → %d", logEntry.getToLevel(), logEntry.getFromLevel()));
 
         return characterSheetService.toResponse(savedSheet, Set.of());
     }

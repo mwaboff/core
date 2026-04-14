@@ -25,8 +25,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
 
 import com.aboff.core.model.dto.dh.request.FeatureInput;
 
@@ -49,6 +53,7 @@ public class FeatureService {
     private final CardCostTagService cardCostTagService;
     private final FeatureModifierService featureModifierService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of features.
@@ -113,11 +118,11 @@ public class FeatureService {
      * Creates a new feature.
      *
      * @param request The creation request containing feature details
+     * @param authentication The authentication context of the requesting user
      * @return FeatureResponse containing the created feature
      */
     @Transactional
-    public FeatureResponse createFeature(CreateFeatureRequest request) {
-        log.info("Creating new feature with name: {}", request.getName());
+    public FeatureResponse createFeature(CreateFeatureRequest request, Authentication authentication) {
 
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -144,8 +149,9 @@ public class FeatureService {
         }
 
         Feature savedFeature = featureRepository.save(feature);
-        log.info("Created feature with id: {}", savedFeature.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedFeature, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("feature").build(),
+                "\"" + savedFeature.getName() + "\" (feature_id: " + savedFeature.getId() + ")");
 
         return toResponse(savedFeature, Set.of());
     }
@@ -155,11 +161,11 @@ public class FeatureService {
      *
      * @param id The feature ID to update
      * @param request The update request containing new feature details
+     * @param authentication The authentication context of the requesting user
      * @return FeatureResponse containing the updated feature
      */
     @Transactional
-    public FeatureResponse updateFeature(Long id, UpdateFeatureRequest request) {
-        log.info("Updating feature with id: {}", id);
+    public FeatureResponse updateFeature(Long id, UpdateFeatureRequest request, Authentication authentication) {
 
         Feature feature = featureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Feature not found with id: " + id));
@@ -194,8 +200,9 @@ public class FeatureService {
         }
 
         Feature updatedFeature = featureRepository.save(feature);
-        log.info("Updated feature with id: {}", updatedFeature.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedFeature, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("feature").build(),
+                "feature_id: " + updatedFeature.getId());
 
         return toResponse(updatedFeature, Set.of());
     }
@@ -204,31 +211,29 @@ public class FeatureService {
      * Soft deletes a feature.
      *
      * @param id The feature ID to delete
+     * @param authentication The authentication context of the requesting user
      */
     @Transactional
-    public void deleteFeature(Long id) {
-        log.info("Soft deleting feature with id: {}", id);
-
+    public void deleteFeature(Long id, Authentication authentication) {
         Feature feature = featureRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Feature not found with id: " + id));
 
         feature.softDelete();
         featureRepository.save(feature);
         eventPublisher.publishEvent(new EntityChangeEvent(this, feature, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted feature with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("feature").build(),
+                "feature_id: " + id);
     }
 
     /**
      * Restores a soft-deleted feature.
      *
      * @param id The feature ID to restore
+     * @param authentication The authentication context of the requesting user
      * @return FeatureResponse containing the restored feature
      */
     @Transactional
-    public FeatureResponse restoreFeature(Long id) {
-        log.info("Restoring feature with id: {}", id);
-
+    public FeatureResponse restoreFeature(Long id, Authentication authentication) {
         Feature feature = featureRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Feature not found with id: " + id));
 
@@ -239,8 +244,8 @@ public class FeatureService {
         feature.restore();
         Feature restoredFeature = featureRepository.save(feature);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredFeature, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored feature with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("feature").build(),
+                "feature_id: " + id);
 
         return toResponse(restoredFeature, Set.of());
     }
@@ -249,11 +254,11 @@ public class FeatureService {
      * Creates multiple features in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication context of the requesting user
      * @return List of created feature responses
      */
     @Transactional
-    public List<FeatureResponse> createFeaturesBulk(List<CreateFeatureRequest> requests) {
-        log.info("Creating {} features in bulk", requests.size());
+    public List<FeatureResponse> createFeaturesBulk(List<CreateFeatureRequest> requests, Authentication authentication) {
 
         List<Feature> features = requests.stream()
                 .map(request -> {
@@ -284,8 +289,9 @@ public class FeatureService {
                 .toList();
 
         List<Feature> savedFeatures = featureRepository.saveAll(features);
-        log.info("Created {} features in bulk", savedFeatures.size());
         savedFeatures.forEach(f -> eventPublisher.publishEvent(new EntityChangeEvent(this, f, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("feature").build(),
+                savedFeatures.size() + " created");
 
         return savedFeatures.stream()
                 .map(feature -> toResponse(feature, Set.of()))
@@ -326,7 +332,7 @@ public class FeatureService {
      * @throws EntityNotFoundException if the expansion referenced by the input does not exist
      */
     private Feature createFeatureFromInput(FeatureInput input) {
-        log.info("Creating new feature with name '{}', type '{}', expansion '{}'",
+        log.debug("Creating new feature with name '{}', type '{}', expansion '{}'",
                 input.getName(), input.getFeatureType(), input.getExpansionId());
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(

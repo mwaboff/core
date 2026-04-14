@@ -1,10 +1,13 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCompanionRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCompanionRequest;
 import com.aboff.core.model.dto.dh.response.CompanionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.CompanionService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -31,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 public class CompanionController {
 
     private final CompanionService companionService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of companions.
@@ -68,9 +72,17 @@ public class CompanionController {
     @GetMapping("/{id}")
     public ResponseEntity<CompanionResponse> getCompanionById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/companions/" + id);
 
         CompanionResponse response = companionService.getCompanionById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/companions/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -88,9 +100,16 @@ public class CompanionController {
     @PostMapping
     public ResponseEntity<CompanionResponse> createCompanion(
             @Valid @RequestBody CreateCompanionRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/companions");
 
         CompanionResponse response = companionService.createCompanion(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/companions", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -111,9 +130,16 @@ public class CompanionController {
     public ResponseEntity<CompanionResponse> updateCompanion(
             @PathVariable Long id,
             @Valid @RequestBody UpdateCompanionRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/companions/" + id);
 
         CompanionResponse response = companionService.updateCompanion(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/companions/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -132,9 +158,16 @@ public class CompanionController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCompanion(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/companions/" + id);
 
         companionService.deleteCompanion(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/companions/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 }

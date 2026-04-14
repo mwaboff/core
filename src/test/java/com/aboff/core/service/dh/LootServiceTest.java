@@ -13,6 +13,7 @@ import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.LootRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
+import com.aboff.core.service.AuditLogger;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -51,6 +52,9 @@ class LootServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
 
     @InjectMocks
     private LootService lootService;
@@ -212,7 +216,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
 
         // Act
-        LootResponse result = lootService.createLoot(request);
+        LootResponse result = lootService.createLoot(request, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -233,7 +237,7 @@ class LootServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> lootService.createLoot(request))
+        assertThatThrownBy(() -> lootService.createLoot(request, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -264,7 +268,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
 
         // Act
-        LootResponse result = lootService.createLoot(request);
+        LootResponse result = lootService.createLoot(request, null);
 
         // Assert
         assertThat(result.getOriginalLootId()).isEqualTo(1L);
@@ -302,7 +306,7 @@ class LootServiceTest {
         when(lootRepository.saveAll(anyList())).thenReturn(List.of(savedLoot1, savedLoot2));
 
         // Act
-        List<LootResponse> results = lootService.createLootBulk(List.of(request1, request2));
+        List<LootResponse> results = lootService.createLootBulk(List.of(request1, request2), null);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -334,7 +338,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        LootResponse result = lootService.updateLoot(1L, request);
+        LootResponse result = lootService.updateLoot(1L, request, null);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -356,7 +360,7 @@ class LootServiceTest {
         when(lootRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> lootService.updateLoot(999L, request))
+        assertThatThrownBy(() -> lootService.updateLoot(999L, request, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Loot not found with id: 999");
 
@@ -375,7 +379,7 @@ class LootServiceTest {
         when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(loot));
 
         // Act
-        lootService.deleteLoot(1L);
+        lootService.deleteLoot(1L, null);
 
         // Assert
         verify(lootRepository).save(argThat(l -> l.getDeletedAt() != null));
@@ -387,7 +391,7 @@ class LootServiceTest {
         when(lootRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> lootService.deleteLoot(999L))
+        assertThatThrownBy(() -> lootService.deleteLoot(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Loot not found with id: 999");
 
@@ -408,7 +412,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        LootResponse result = lootService.restoreLoot(1L);
+        LootResponse result = lootService.restoreLoot(1L, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -425,7 +429,7 @@ class LootServiceTest {
         when(lootRepository.findById(1L)).thenReturn(Optional.of(activeLoot));
 
         // Act & Assert
-        assertThatThrownBy(() -> lootService.restoreLoot(1L))
+        assertThatThrownBy(() -> lootService.restoreLoot(1L, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Loot with id 1 is not deleted");
 
@@ -438,7 +442,7 @@ class LootServiceTest {
         when(lootRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> lootService.restoreLoot(999L))
+        assertThatThrownBy(() -> lootService.restoreLoot(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Loot not found with id: 999");
     }
@@ -491,7 +495,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
 
         // Act
-        LootResponse result = lootService.createLoot(request);
+        LootResponse result = lootService.createLoot(request, null);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -522,7 +526,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
 
         // Act
-        LootResponse result = lootService.createLoot(request);
+        LootResponse result = lootService.createLoot(request, null);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(2L);
@@ -556,7 +560,7 @@ class LootServiceTest {
         });
 
         // Act
-        LootResponse result = lootService.updateLoot(1L, request);
+        LootResponse result = lootService.updateLoot(1L, request, null);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -584,7 +588,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        lootService.updateLoot(1L, request);
+        lootService.updateLoot(1L, request, null);
 
         // Assert
         verify(featureService, never()).resolveFeatures(any(), any());

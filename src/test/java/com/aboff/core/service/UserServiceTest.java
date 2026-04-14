@@ -43,6 +43,9 @@ class UserServiceTest {
         private CookieUtil cookieUtil;
 
         @Mock
+        private AuditLogger auditLogger;
+
+        @Mock
         private Authentication authentication;
 
         @Mock
@@ -243,7 +246,7 @@ class UserServiceTest {
                 when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
                 // Act
-                UserResponse result = userService.updateUser(1L, request);
+                UserResponse result = userService.updateUser(1L, request, authentication);
 
                 // Assert
                 assertThat(result.getEmail()).isEqualTo("new@example.com");
@@ -272,7 +275,7 @@ class UserServiceTest {
                 when(userRepository.existsByEmailIgnoreCase("existing@example.com")).thenReturn(true);
 
                 // Act & Assert
-                assertThatThrownBy(() -> userService.updateUser(1L, request))
+                assertThatThrownBy(() -> userService.updateUser(1L, request, authentication))
                                 .isInstanceOf(UserAlreadyExistsException.class)
                                 .hasMessage("Email already registered");
 
@@ -299,7 +302,7 @@ class UserServiceTest {
                 when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
                 // Act
-                UserResponse result = userService.updateUser(1L, request);
+                UserResponse result = userService.updateUser(1L, request, authentication);
 
                 // Assert
                 assertThat(result.getEmail()).isEqualTo("test@example.com");
@@ -320,7 +323,7 @@ class UserServiceTest {
                 when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
                 // Act & Assert
-                assertThatThrownBy(() -> userService.updateUser(999L, request))
+                assertThatThrownBy(() -> userService.updateUser(999L, request, authentication))
                                 .isInstanceOf(UserNotFoundException.class)
                                 .hasMessage("User not found");
         }
@@ -344,7 +347,7 @@ class UserServiceTest {
                 when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
                 // Act
-                UserResponse result = userService.updateUser(1L, request);
+                UserResponse result = userService.updateUser(1L, request, authentication);
 
                 // Assert
                 assertThat(result.getTimezone()).isEqualTo("America/New_York");
@@ -369,7 +372,7 @@ class UserServiceTest {
                 when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
                 // Act
-                userService.deleteUser(1L, response);
+                userService.deleteUser(1L, response, authentication);
 
                 // Assert
                 verify(userRepository).save(argThat(u -> u.getDeletedAt() != null));
@@ -383,7 +386,7 @@ class UserServiceTest {
                 when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
                 // Act & Assert
-                assertThatThrownBy(() -> userService.deleteUser(999L, response))
+                assertThatThrownBy(() -> userService.deleteUser(999L, response, authentication))
                                 .isInstanceOf(UserNotFoundException.class)
                                 .hasMessage("User not found");
 

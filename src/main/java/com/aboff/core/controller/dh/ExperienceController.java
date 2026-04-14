@@ -1,10 +1,13 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateExperienceRequest;
 import com.aboff.core.model.dto.dh.request.UpdateExperienceRequest;
 import com.aboff.core.model.dto.dh.response.ExperienceResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.ExperienceService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -32,6 +35,7 @@ import org.springframework.web.bind.annotation.*;
 public class ExperienceController {
 
     private final ExperienceService experienceService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of experiences.
@@ -71,9 +75,17 @@ public class ExperienceController {
     @GetMapping("/{id}")
     public ResponseEntity<ExperienceResponse> getExperienceById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/experiences/" + id);
 
         ExperienceResponse response = experienceService.getExperienceById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/experiences/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -91,9 +103,16 @@ public class ExperienceController {
     @PostMapping
     public ResponseEntity<ExperienceResponse> createExperience(
             @Valid @RequestBody CreateExperienceRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/experiences");
 
         ExperienceResponse response = experienceService.createExperience(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/experiences", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -114,9 +133,16 @@ public class ExperienceController {
     public ResponseEntity<ExperienceResponse> updateExperience(
             @PathVariable Long id,
             @Valid @RequestBody UpdateExperienceRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/experiences/" + id);
 
         ExperienceResponse response = experienceService.updateExperience(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/experiences/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -134,9 +160,16 @@ public class ExperienceController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteExperience(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/experiences/" + id);
 
         experienceService.deleteExperience(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/experiences/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 }

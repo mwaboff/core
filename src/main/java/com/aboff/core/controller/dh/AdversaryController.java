@@ -1,5 +1,6 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.BatchCreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.CreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAdversaryRequest;
@@ -7,7 +8,9 @@ import com.aboff.core.model.dto.dh.response.AdversaryResponse;
 import com.aboff.core.model.dto.dh.response.BatchCreateAdversaryResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.enums.AdversaryType;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.AdversaryService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -45,6 +48,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdversaryController {
 
     private final AdversaryService adversaryService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of adversaries.
@@ -96,9 +100,16 @@ public class AdversaryController {
     public ResponseEntity<AdversaryResponse> getAdversaryById(
             @PathVariable Long id,
             @RequestParam(required = false) String expand,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/adversaries/" + id);
 
         AdversaryResponse response = adversaryService.getAdversaryById(id, expand, auth);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/adversaries/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -113,9 +124,16 @@ public class AdversaryController {
     @PostMapping
     public ResponseEntity<AdversaryResponse> createAdversary(
             @Valid @RequestBody CreateAdversaryRequest request,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/adversaries");
 
         AdversaryResponse response = adversaryService.createAdversary(request, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/adversaries", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -128,11 +146,16 @@ public class AdversaryController {
      * @param auth Authentication context
      * @return BatchCreateAdversaryResponse containing created adversaries and any errors
      */
-    @PostMapping("/batch")
+    @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN', 'OWNER')")
     public ResponseEntity<BatchCreateAdversaryResponse> batchCreateAdversaries(
             @Valid @RequestBody BatchCreateAdversaryRequest request,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/adversaries/bulk");
 
         BatchCreateAdversaryResponse response = adversaryService.batchCreateAdversaries(request, auth);
 
@@ -143,6 +166,7 @@ public class AdversaryController {
                         ? HttpStatus.BAD_REQUEST
                         : HttpStatus.CREATED;
 
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/adversaries/bulk", startTime);
         return ResponseEntity.status(status).body(response);
     }
 
@@ -157,9 +181,16 @@ public class AdversaryController {
     @PostMapping("/{id}/copy")
     public ResponseEntity<AdversaryResponse> copyAdversary(
             @PathVariable Long id,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/adversaries/" + id + "/copy");
 
         AdversaryResponse response = adversaryService.copyAdversary(id, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/adversaries/" + id + "/copy", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -182,9 +213,16 @@ public class AdversaryController {
     public ResponseEntity<AdversaryResponse> updateAdversary(
             @PathVariable Long id,
             @Valid @RequestBody UpdateAdversaryRequest request,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/adversaries/" + id);
 
         AdversaryResponse response = adversaryService.updateAdversary(id, request, auth);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/adversaries/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -205,9 +243,16 @@ public class AdversaryController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteAdversary(
             @PathVariable Long id,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/adversaries/" + id);
 
         adversaryService.deleteAdversary(id, auth);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/adversaries/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -223,9 +268,16 @@ public class AdversaryController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<AdversaryResponse> restoreAdversary(
             @PathVariable Long id,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/adversaries/" + id + "/restore");
 
         AdversaryResponse response = adversaryService.restoreAdversary(id, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/adversaries/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

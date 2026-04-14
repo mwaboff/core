@@ -17,6 +17,7 @@ import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.*;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
@@ -64,6 +65,8 @@ class LevelUpServiceTest {
     @Mock
     private CharacterSheetService characterSheetService;
     @Mock
+    private AuditLogger auditLogger;
+    @Mock
     private Authentication authentication;
 
     private ObjectMapper objectMapper = new ObjectMapper();
@@ -78,7 +81,7 @@ class LevelUpServiceTest {
                 characterSheetRepository, characterSheetDomainCardRepository,
                 characterAdvancementLogRepository, experienceRepository,
                 domainCardRepository, subclassCardRepository, subclassPathRepository,
-                userRepository, roleHierarchyService, characterSheetService, objectMapper
+                userRepository, roleHierarchyService, characterSheetService, auditLogger, objectMapper
         );
 
         testOwner = User.builder().id(1L).username("player1").email("player1@test.com").role(Role.USER).build();

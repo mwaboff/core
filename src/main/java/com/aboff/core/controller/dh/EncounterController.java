@@ -1,10 +1,13 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateEncounterRequest;
 import com.aboff.core.model.dto.dh.request.UpdateEncounterRequest;
 import com.aboff.core.model.dto.dh.response.EncounterResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.EncounterService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +37,7 @@ import org.springframework.web.bind.annotation.*;
 public class EncounterController {
 
     private final EncounterService encounterService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of encounters.
@@ -82,9 +86,16 @@ public class EncounterController {
     public ResponseEntity<EncounterResponse> getEncounterById(
             @PathVariable Long id,
             @RequestParam(required = false) String expand,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/encounters/" + id);
 
         EncounterResponse response = encounterService.getEncounterById(id, expand, auth);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/encounters/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -99,9 +110,16 @@ public class EncounterController {
     @PostMapping
     public ResponseEntity<EncounterResponse> createEncounter(
             @Valid @RequestBody CreateEncounterRequest request,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/encounters");
 
         EncounterResponse response = encounterService.createEncounter(request, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/encounters", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -116,9 +134,16 @@ public class EncounterController {
     @PostMapping("/{id}/copy")
     public ResponseEntity<EncounterResponse> copyEncounter(
             @PathVariable Long id,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/encounters/" + id + "/copy");
 
         EncounterResponse response = encounterService.copyEncounter(id, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/encounters/" + id + "/copy", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -141,9 +166,16 @@ public class EncounterController {
     public ResponseEntity<EncounterResponse> updateEncounter(
             @PathVariable Long id,
             @Valid @RequestBody UpdateEncounterRequest request,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/encounters/" + id);
 
         EncounterResponse response = encounterService.updateEncounter(id, request, auth);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/encounters/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -164,9 +196,16 @@ public class EncounterController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteEncounter(
             @PathVariable Long id,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/encounters/" + id);
 
         encounterService.deleteEncounter(id, auth);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/encounters/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -182,9 +221,16 @@ public class EncounterController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<EncounterResponse> restoreEncounter(
             @PathVariable Long id,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/encounters/" + id + "/restore");
 
         EncounterResponse response = encounterService.restoreEncounter(id, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/encounters/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -200,9 +246,16 @@ public class EncounterController {
     public ResponseEntity<EncounterResponse> addAdversaryToEncounter(
             @PathVariable Long id,
             @RequestParam Long adversaryId,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/encounters/" + id + "/adversaries");
 
         EncounterResponse response = encounterService.addAdversaryToEncounter(id, adversaryId, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/encounters/" + id + "/adversaries", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -218,9 +271,16 @@ public class EncounterController {
     public ResponseEntity<Void> removeAdversaryFromEncounter(
             @PathVariable Long id,
             @PathVariable Long encounterAdversaryId,
-            Authentication auth) {
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/encounters/" + id + "/adversaries/" + encounterAdversaryId);
 
         encounterService.removeAdversaryFromEncounter(id, encounterAdversaryId, auth);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/encounters/" + id + "/adversaries/" + encounterAdversaryId, startTime);
         return ResponseEntity.noContent().build();
     }
 }

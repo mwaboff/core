@@ -9,6 +9,9 @@ import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,6 +39,7 @@ public class CardCostTagService {
 
     private final CardCostTagRepository cardCostTagRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of cost tags.
@@ -92,20 +97,20 @@ public class CardCostTagService {
      * Creates a new cost tag.
      *
      * @param request The creation request containing cost tag details
+     * @param authentication The authentication context of the requesting user
      * @return CardCostTagResponse containing the created cost tag
      */
     @Transactional
-    public CardCostTagResponse createCostTag(CreateCardCostTagRequest request) {
-        log.info("Creating new cost tag with label: {}", request.getLabel());
-
+    public CardCostTagResponse createCostTag(CreateCardCostTagRequest request, Authentication authentication) {
         CardCostTag tag = CardCostTag.builder()
                 .label(request.getLabel())
                 .category(request.getCategory())
                 .build();
 
         CardCostTag savedTag = cardCostTagRepository.save(tag);
-        log.info("Created cost tag with id: {}", savedTag.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedTag, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("cost_tag").build(),
+                "\"" + savedTag.getLabel() + "\" (cost_tag_id: " + savedTag.getId() + ")");
 
         return toResponse(savedTag);
     }
@@ -115,13 +120,12 @@ public class CardCostTagService {
      *
      * @param id The cost tag ID to update
      * @param request The update request containing new cost tag details
+     * @param authentication The authentication context of the requesting user
      * @return CardCostTagResponse containing the updated cost tag
      * @throws EntityNotFoundException if the cost tag is not found or is deleted
      */
     @Transactional
-    public CardCostTagResponse updateCostTag(Long id, UpdateCardCostTagRequest request) {
-        log.info("Updating cost tag with id: {}", id);
-
+    public CardCostTagResponse updateCostTag(Long id, UpdateCardCostTagRequest request, Authentication authentication) {
         CardCostTag tag = cardCostTagRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("CardCostTag not found with id: " + id));
 
@@ -133,8 +137,9 @@ public class CardCostTagService {
         }
 
         CardCostTag updatedTag = cardCostTagRepository.save(tag);
-        log.info("Updated cost tag with id: {}", updatedTag.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedTag, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("cost_tag").build(),
+                "cost_tag_id: " + updatedTag.getId());
 
         return toResponse(updatedTag);
     }
@@ -143,34 +148,32 @@ public class CardCostTagService {
      * Soft deletes a cost tag.
      *
      * @param id The cost tag ID to delete
+     * @param authentication The authentication context of the requesting user
      * @throws EntityNotFoundException if the cost tag is not found or is already deleted
      */
     @Transactional
-    public void deleteCostTag(Long id) {
-        log.info("Soft deleting cost tag with id: {}", id);
-
+    public void deleteCostTag(Long id, Authentication authentication) {
         CardCostTag tag = cardCostTagRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("CardCostTag not found with id: " + id));
 
         tag.softDelete();
         cardCostTagRepository.save(tag);
         eventPublisher.publishEvent(new EntityChangeEvent(this, tag, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted cost tag with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("cost_tag").build(),
+                "cost_tag_id: " + id);
     }
 
     /**
      * Restores a soft-deleted cost tag.
      *
      * @param id The cost tag ID to restore
+     * @param authentication The authentication context of the requesting user
      * @return CardCostTagResponse containing the restored cost tag
      * @throws EntityNotFoundException if the cost tag is not found
      * @throws IllegalStateException if the cost tag is not deleted
      */
     @Transactional
-    public CardCostTagResponse restoreCostTag(Long id) {
-        log.info("Restoring cost tag with id: {}", id);
-
+    public CardCostTagResponse restoreCostTag(Long id, Authentication authentication) {
         CardCostTag tag = cardCostTagRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("CardCostTag not found with id: " + id));
 
@@ -181,8 +184,8 @@ public class CardCostTagService {
         tag.restore();
         CardCostTag restoredTag = cardCostTagRepository.save(tag);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredTag, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored cost tag with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("cost_tag").build(),
+                "cost_tag_id: " + id);
 
         return toResponse(restoredTag);
     }
@@ -202,7 +205,7 @@ public class CardCostTagService {
                     return existing;
                 })
                 .orElseGet(() -> {
-                    log.info("Creating new cost tag with label '{}' and category '{}'", label, category);
+                    log.debug("Creating new cost tag with label '{}' and category '{}'", label, category);
                     CardCostTag newTag = CardCostTag.builder()
                             .label(label)
                             .category(category)

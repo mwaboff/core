@@ -13,6 +13,7 @@ import com.aboff.core.model.enums.Range;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -50,6 +51,9 @@ class CompanionServiceTest {
 
     @Mock
     private RoleHierarchyService roleHierarchyService;
+
+    @Mock
+    private AuditLogger auditLogger;
 
     @Mock
     private Authentication authentication;
@@ -223,11 +227,11 @@ class CompanionServiceTest {
         Long userId = 1L;
         Long characterSheetId = 1L;
 
+        User owner = User.builder().id(userId).username("player1").build();
         CustomUserDetails userDetails = mock(CustomUserDetails.class);
         when(userDetails.getUserId()).thenReturn(userId);
+        when(userDetails.getUser()).thenReturn(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
-
-        User owner = User.builder().id(userId).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(characterSheetId)
                 .name("Aragorn")
@@ -280,8 +284,10 @@ class CompanionServiceTest {
         Long ownerId = 1L;
         Long characterSheetId = 1L;
 
+        User moderatorUser = User.builder().id(userId).username("moderator").build();
         CustomUserDetails userDetails = mock(CustomUserDetails.class);
         when(userDetails.getUserId()).thenReturn(userId);
+        when(userDetails.getUser()).thenReturn(moderatorUser);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(true);
 
@@ -401,11 +407,11 @@ class CompanionServiceTest {
         Long userId = 1L;
         Long companionId = 1L;
 
+        User owner = User.builder().id(userId).username("player1").build();
         CustomUserDetails userDetails = mock(CustomUserDetails.class);
         when(userDetails.getUserId()).thenReturn(userId);
+        when(userDetails.getUser()).thenReturn(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
-
-        User owner = User.builder().id(userId).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
                 .name("Aragorn")
@@ -447,11 +453,11 @@ class CompanionServiceTest {
         Long userId = 1L;
         Long companionId = 1L;
 
+        User owner = User.builder().id(userId).username("player1").build();
         CustomUserDetails userDetails = mock(CustomUserDetails.class);
         when(userDetails.getUserId()).thenReturn(userId);
+        when(userDetails.getUser()).thenReturn(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
-
-        User owner = User.builder().id(userId).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
                 .name("Aragorn")
@@ -543,11 +549,11 @@ class CompanionServiceTest {
         Long userId = 1L;
         Long companionId = 1L;
 
+        User owner = User.builder().id(userId).username("player1").build();
         CustomUserDetails userDetails = mock(CustomUserDetails.class);
         when(userDetails.getUserId()).thenReturn(userId);
+        when(userDetails.getUser()).thenReturn(owner);
         when(authentication.getPrincipal()).thenReturn(userDetails);
-
-        User owner = User.builder().id(userId).username("player1").build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
                 .name("Aragorn")

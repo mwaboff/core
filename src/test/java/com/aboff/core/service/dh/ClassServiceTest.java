@@ -22,6 +22,7 @@ import com.aboff.core.model.enums.QuestionType;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -29,6 +30,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
@@ -69,6 +71,12 @@ class ClassServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private ClassService classService;
@@ -319,7 +327,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
         // Act
-        ClassResponse result = classService.createClass(request);
+        ClassResponse result = classService.createClass(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -343,7 +351,7 @@ class ClassServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> classService.createClass(request))
+        assertThatThrownBy(() -> classService.createClass(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -387,7 +395,7 @@ class ClassServiceTest {
         when(classRepository.saveAll(anyList())).thenReturn(List.of(savedClass1, savedClass2));
 
         // Act
-        List<ClassResponse> results = classService.createClassesBulk(List.of(request1, request2));
+        List<ClassResponse> results = classService.createClassesBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -438,7 +446,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ClassResponse result = classService.updateClass(1L, request);
+        ClassResponse result = classService.updateClass(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -463,7 +471,7 @@ class ClassServiceTest {
         when(classRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> classService.updateClass(999L, request))
+        assertThatThrownBy(() -> classService.updateClass(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Class not found with id: 999");
 
@@ -491,7 +499,7 @@ class ClassServiceTest {
         when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
 
         // Act
-        classService.deleteClass(1L);
+        classService.deleteClass(1L, authentication);
 
         // Assert
         verify(classRepository).save(argThat(c -> c.getDeletedAt() != null));
@@ -503,7 +511,7 @@ class ClassServiceTest {
         when(classRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> classService.deleteClass(999L))
+        assertThatThrownBy(() -> classService.deleteClass(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Class not found with id: 999");
 
@@ -533,7 +541,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ClassResponse result = classService.restoreClass(1L);
+        ClassResponse result = classService.restoreClass(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -559,7 +567,7 @@ class ClassServiceTest {
         when(classRepository.findById(1L)).thenReturn(Optional.of(activeClass));
 
         // Act & Assert
-        assertThatThrownBy(() -> classService.restoreClass(1L))
+        assertThatThrownBy(() -> classService.restoreClass(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Class with id 1 is not deleted");
 
@@ -572,7 +580,7 @@ class ClassServiceTest {
         when(classRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> classService.restoreClass(999L))
+        assertThatThrownBy(() -> classService.restoreClass(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Class not found with id: 999");
     }
@@ -779,7 +787,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
         // Act
-        ClassResponse result = classService.createClass(request);
+        ClassResponse result = classService.createClass(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -813,7 +821,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
         // Act
-        ClassResponse result = classService.createClass(request);
+        ClassResponse result = classService.createClass(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -848,7 +856,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
         // Act
-        ClassResponse result = classService.createClass(request);
+        ClassResponse result = classService.createClass(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -883,7 +891,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
         // Act
-        ClassResponse result = classService.createClass(request);
+        ClassResponse result = classService.createClass(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -921,7 +929,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
         // Act
-        ClassResponse result = classService.createClass(request);
+        ClassResponse result = classService.createClass(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -963,7 +971,7 @@ class ClassServiceTest {
         when(classRepository.saveAll(anyList())).thenReturn(List.of(savedClass1, savedClass2));
 
         // Act
-        List<ClassResponse> results = classService.createClassesBulk(List.of(request1, request2));
+        List<ClassResponse> results = classService.createClassesBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -1001,7 +1009,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ClassResponse result = classService.updateClass(1L, request);
+        ClassResponse result = classService.updateClass(1L, request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -1033,7 +1041,7 @@ class ClassServiceTest {
         when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ClassResponse result = classService.updateClass(1L, request);
+        ClassResponse result = classService.updateClass(1L, request, authentication);
 
         // Assert - existing features should be preserved since resolveFeatures returned null
         assertThat(result).isNotNull();

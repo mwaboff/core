@@ -1,6 +1,7 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
 import com.aboff.core.model.dto.dh.response.CampaignCharacterSummaryResponse;
@@ -14,11 +15,13 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.CampaignInvite;
 import com.aboff.core.model.entity.dh.CharacterSheet;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.CampaignInviteRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
@@ -70,6 +73,7 @@ public class CampaignService {
     private final UserRepository userRepository;
     private final CharacterSheetRepository characterSheetRepository;
     private final RoleHierarchyService roleHierarchyService;
+    private final AuditLogger auditLogger;
 
     // ==================== CRUD OPERATIONS ====================
 
@@ -153,8 +157,6 @@ public class CampaignService {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
-        log.info("Creating new campaign '{}' for user {}", request.getName(), userId);
-
         User creator = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
 
@@ -193,7 +195,10 @@ public class CampaignService {
         }
 
         Campaign savedCampaign = campaignRepository.save(campaign);
-        log.info("Created campaign with id: {} for user {}", savedCampaign.getId(), userId);
+
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(savedCampaign.getId()).build();
+        auditLogger.log(AuditAction.CAMPAIGN_CREATED, ctx,
+                String.format("\"%s\" (campaign_id: %d)", savedCampaign.getName(), savedCampaign.getId()));
 
         return toResponse(savedCampaign, Set.of());
     }
@@ -214,8 +219,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse updateCampaign(Long id, UpdateCampaignRequest request, Authentication auth) {
-        log.info("Updating campaign with id: {}", id);
-
         Campaign campaign = campaignRepository.findActiveById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + id));
 
@@ -230,7 +233,10 @@ public class CampaignService {
         }
 
         Campaign updatedCampaign = campaignRepository.save(campaign);
-        log.info("Updated campaign with id: {}", updatedCampaign.getId());
+
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(updatedCampaign.getId()).build();
+        auditLogger.log(AuditAction.CAMPAIGN_UPDATED, ctx,
+                String.format("\"%s\" (campaign_id: %d)", updatedCampaign.getName(), updatedCampaign.getId()));
 
         return toResponse(updatedCampaign, Set.of());
     }
@@ -249,8 +255,6 @@ public class CampaignService {
      */
     @Transactional
     public void deleteCampaign(Long id, Authentication auth) {
-        log.info("Deleting campaign with id: {}", id);
-
         Campaign campaign = campaignRepository.findActiveById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + id));
 
@@ -259,7 +263,9 @@ public class CampaignService {
         campaign.softDelete();
         campaignRepository.save(campaign);
 
-        log.info("Soft deleted campaign with id: {}", id);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(id).build();
+        auditLogger.log(AuditAction.CAMPAIGN_DELETED, ctx,
+                String.format("\"%s\" (campaign_id: %d)", campaign.getName(), id));
     }
 
     // ==================== USER MANAGEMENT ====================
@@ -280,8 +286,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse addGameMaster(Long campaignId, Long userId, Authentication auth) {
-        log.info("Adding game master {} to campaign {}", userId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -294,7 +298,10 @@ public class CampaignService {
         campaign.getGameMasters().add(user);
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Added game master {} to campaign {}", userId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withTargetUserId(userId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_GM_ADDED, ctx,
+                String.format("user_id: %d to \"%s\" (campaign_id: %d)", userId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -315,8 +322,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse removeGameMaster(Long campaignId, Long userId, Authentication auth) {
-        log.info("Removing game master {} from campaign {}", userId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -330,7 +335,10 @@ public class CampaignService {
         campaign.getGameMasters().removeIf(gm -> gm.getId().equals(userId));
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Removed game master {} from campaign {}", userId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withTargetUserId(userId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_GM_REMOVED, ctx,
+                String.format("user_id: %d from \"%s\" (campaign_id: %d)", userId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -350,8 +358,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse addPlayer(Long campaignId, Long userId, Authentication auth) {
-        log.info("Adding player {} to campaign {}", userId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -364,7 +370,10 @@ public class CampaignService {
         campaign.getPlayers().add(user);
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Added player {} to campaign {}", userId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withTargetUserId(userId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_PLAYER_ADDED, ctx,
+                String.format("user_id: %d to \"%s\" (campaign_id: %d)", userId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -385,8 +394,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse kickPlayer(Long campaignId, Long userId, Authentication auth) {
-        log.info("Kicking player {} from campaign {}", userId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -402,7 +409,10 @@ public class CampaignService {
 
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Kicked player {} from campaign {} (cascaded character sheet removal)", userId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withTargetUserId(userId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_PLAYER_KICKED, ctx,
+                String.format("user_id: %d from \"%s\" (campaign_id: %d)", userId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -424,8 +434,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse submitCharacterSheet(Long campaignId, Long characterSheetId, Authentication auth) {
-        log.info("Submitting character sheet {} to campaign {}", characterSheetId, campaignId);
-
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
@@ -458,7 +466,11 @@ public class CampaignService {
         campaign.getPendingCharacterSheets().add(characterSheet);
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Submitted character sheet {} to campaign {}", characterSheetId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withCharacterSheetId(characterSheetId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_CHARACTER_SUBMITTED, ctx,
+                String.format("\"%s\" (character_sheet_id: %d) to \"%s\" (campaign_id: %d)",
+                        characterSheet.getName(), characterSheetId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -478,8 +490,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse approveCharacterSheet(Long campaignId, Long characterSheetId, Authentication auth) {
-        log.info("Approving character sheet {} in campaign {}", characterSheetId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -497,7 +507,11 @@ public class CampaignService {
         campaign.getPlayerCharacters().add(characterSheet);
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Approved character sheet {} in campaign {}", characterSheetId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withCharacterSheetId(characterSheetId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_CHARACTER_APPROVED, ctx,
+                String.format("\"%s\" (character_sheet_id: %d) in \"%s\" (campaign_id: %d)",
+                        characterSheet.getName(), characterSheetId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -517,8 +531,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse rejectCharacterSheet(Long campaignId, Long characterSheetId, Authentication auth) {
-        log.info("Rejecting character sheet {} in campaign {}", characterSheetId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -532,7 +544,11 @@ public class CampaignService {
 
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Rejected character sheet {} in campaign {}", characterSheetId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withCharacterSheetId(characterSheetId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_CHARACTER_REJECTED, ctx,
+                String.format("character_sheet_id: %d in \"%s\" (campaign_id: %d)",
+                        characterSheetId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -551,8 +567,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse addNonPlayerCharacter(Long campaignId, Long characterSheetId, Authentication auth) {
-        log.info("Adding NPC {} to campaign {}", characterSheetId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -571,7 +585,11 @@ public class CampaignService {
         campaign.getNonPlayerCharacters().add(characterSheet);
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Added NPC {} to campaign {}", characterSheetId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withCharacterSheetId(characterSheetId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_NPC_ADDED, ctx,
+                String.format("\"%s\" (character_sheet_id: %d) to \"%s\" (campaign_id: %d)",
+                        characterSheet.getName(), characterSheetId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -592,8 +610,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse removeCharacterSheet(Long campaignId, Long characterSheetId, Authentication auth) {
-        log.info("Removing character sheet {} from campaign {}", characterSheetId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -616,7 +632,11 @@ public class CampaignService {
 
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Removed character sheet {} from campaign {}", characterSheetId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withCharacterSheetId(characterSheetId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_CHARACTER_REMOVED, ctx,
+                String.format("character_sheet_id: %d from \"%s\" (campaign_id: %d)",
+                        characterSheetId, campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -717,8 +737,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignResponse endCampaign(Long id, Authentication auth) {
-        log.info("Ending campaign with id: {}", id);
-
         Campaign campaign = campaignRepository.findActiveById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + id));
 
@@ -731,7 +749,10 @@ public class CampaignService {
         campaign.endCampaign();
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Ended campaign with id: {}", id);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(id).build();
+        auditLogger.log(AuditAction.CAMPAIGN_ENDED, ctx,
+                String.format("\"%s\" (campaign_id: %d)", campaign.getName(), id));
+
         return toResponse(updatedCampaign, Set.of());
     }
 
@@ -751,8 +772,6 @@ public class CampaignService {
      */
     @Transactional
     public CampaignInviteResponse generateInvite(Long campaignId, Authentication auth) {
-        log.info("Generating invite for campaign {}", campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -770,7 +789,10 @@ public class CampaignService {
 
         CampaignInvite savedInvite = campaignInviteRepository.save(invite);
 
-        log.info("Generated invite {} for campaign {}", savedInvite.getToken(), campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_INVITE_GENERATED, ctx,
+                String.format("\"%s\" (campaign_id: %d)", campaign.getName(), campaignId));
+
         return CampaignInviteResponse.builder()
                 .id(savedInvite.getId())
                 .campaignId(campaignId)
@@ -795,8 +817,6 @@ public class CampaignService {
      */
     @Transactional
     public JoinCampaignResponse joinViaInvite(String token, Authentication auth) {
-        log.info("Attempting to join campaign via invite token");
-
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
@@ -829,7 +849,9 @@ public class CampaignService {
         campaignRepository.save(campaign);
         campaignInviteRepository.save(invite);
 
-        log.info("User {} joined campaign {} via invite", userId, campaign.getId());
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaign.getId()).build();
+        auditLogger.log(AuditAction.CAMPAIGN_JOINED_VIA_INVITE, ctx,
+                String.format("\"%s\" (campaign_id: %d)", campaign.getName(), campaign.getId()));
 
         return JoinCampaignResponse.builder()
                 .campaignId(campaign.getId())
@@ -856,8 +878,6 @@ public class CampaignService {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
-        log.info("Player {} leaving campaign {}", userId, campaignId);
-
         Campaign campaign = campaignRepository.findActiveById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
 
@@ -868,7 +888,10 @@ public class CampaignService {
         campaign.getPlayers().removeIf(player -> player.getId().equals(userId));
         Campaign updatedCampaign = campaignRepository.save(campaign);
 
-        log.info("Player {} left campaign {}", userId, campaignId);
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_PLAYER_LEFT, ctx,
+                String.format("\"%s\" (campaign_id: %d)", campaign.getName(), campaignId));
+
         return toResponse(updatedCampaign, Set.of());
     }
 

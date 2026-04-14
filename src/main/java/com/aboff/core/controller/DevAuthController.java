@@ -1,8 +1,10 @@
 package com.aboff.core.controller;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.Role;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.AuthenticationService;
 import com.aboff.core.service.OAuth2UserProvisioningService;
 import com.aboff.core.util.CookieUtil;
@@ -37,6 +39,7 @@ public class DevAuthController {
     private final OAuth2UserProvisioningService provisioningService;
     private final AuthenticationService authenticationService;
     private final CookieUtil cookieUtil;
+    private final AuditLogger auditLogger;
 
     /**
      * Constructs a new DevAuthController with required dependencies.
@@ -44,14 +47,17 @@ public class DevAuthController {
      * @param provisioningService   the OAuth2 user provisioning service
      * @param authenticationService the authentication service
      * @param cookieUtil            the cookie utility
+     * @param auditLogger           the audit logger
      */
     public DevAuthController(
             OAuth2UserProvisioningService provisioningService,
             AuthenticationService authenticationService,
-            CookieUtil cookieUtil) {
+            CookieUtil cookieUtil,
+            AuditLogger auditLogger) {
         this.provisioningService = provisioningService;
         this.authenticationService = authenticationService;
         this.cookieUtil = cookieUtil;
+        this.auditLogger = auditLogger;
     }
 
     /**
@@ -79,6 +85,10 @@ public class DevAuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse) {
 
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/auth/dev-login");
+
         log.warn("Dev login used for email: {} — this endpoint must NOT be available in production",
                 request.getEmail());
 
@@ -90,6 +100,7 @@ public class DevAuthController {
 
         cookieUtil.setAuthCookie(httpResponse, result.getToken());
 
+        auditLogger.requestCompleted(ctx, "POST", "/api/auth/dev-login", startTime);
         return result.getUserResponse();
     }
 

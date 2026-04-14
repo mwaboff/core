@@ -18,6 +18,9 @@ import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.SubclassPathRepository;
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
@@ -27,6 +30,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,6 +54,7 @@ public class SubclassPathService {
     private final ClassRepository classRepository;
     private final DomainRepository domainRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of subclass paths.
@@ -113,13 +118,12 @@ public class SubclassPathService {
      * Creates a new subclass path.
      *
      * @param request The creation request containing path details
+     * @param authentication The authentication context of the requesting user
      * @return SubclassPathResponse containing the created path
      * @throws EntityNotFoundException if the referenced class, expansion, or domains are not found
      */
     @Transactional
-    public SubclassPathResponse createSubclassPath(CreateSubclassPathRequest request) {
-        log.info("Creating new subclass path with name: {}", request.getName());
-
+    public SubclassPathResponse createSubclassPath(CreateSubclassPathRequest request, Authentication authentication) {
         Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Class not found with id: " + request.getAssociatedClassId()));
@@ -142,8 +146,9 @@ public class SubclassPathService {
         }
 
         SubclassPath savedPath = subclassPathRepository.save(path);
-        log.info("Created subclass path with id: {}", savedPath.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedPath, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("subclass_path").build(),
+                "\"" + savedPath.getName() + "\" (subclass_path_id: " + savedPath.getId() + ")");
 
         return toResponse(savedPath, Set.of());
     }
@@ -152,12 +157,11 @@ public class SubclassPathService {
      * Creates multiple subclass paths in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication context of the requesting user
      * @return List of created subclass path responses
      */
     @Transactional
-    public List<SubclassPathResponse> createSubclassPathsBulk(List<CreateSubclassPathRequest> requests) {
-        log.info("Creating {} subclass paths in bulk", requests.size());
-
+    public List<SubclassPathResponse> createSubclassPathsBulk(List<CreateSubclassPathRequest> requests, Authentication authentication) {
         List<SubclassPath> paths = requests.stream()
                 .map(request -> {
                     Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
@@ -186,8 +190,9 @@ public class SubclassPathService {
                 .collect(Collectors.toList());
 
         List<SubclassPath> savedPaths = subclassPathRepository.saveAll(paths);
-        log.info("Created {} subclass paths in bulk", savedPaths.size());
         savedPaths.forEach(p -> eventPublisher.publishEvent(new EntityChangeEvent(this, p, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("subclass_path").build(),
+                savedPaths.size() + " created");
 
         return savedPaths.stream()
                 .map(path -> toResponse(path, Set.of()))
@@ -199,13 +204,12 @@ public class SubclassPathService {
      *
      * @param id The subclass path ID to update
      * @param request The update request containing new path details
+     * @param authentication The authentication context of the requesting user
      * @return SubclassPathResponse containing the updated path
      * @throws EntityNotFoundException if the path, class, expansion, or domains are not found
      */
     @Transactional
-    public SubclassPathResponse updateSubclassPath(Long id, UpdateSubclassPathRequest request) {
-        log.info("Updating subclass path with id: {}", id);
-
+    public SubclassPathResponse updateSubclassPath(Long id, UpdateSubclassPathRequest request, Authentication authentication) {
         SubclassPath path = subclassPathRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassPath not found with id: " + id));
 
@@ -239,8 +243,9 @@ public class SubclassPathService {
         }
 
         SubclassPath updatedPath = subclassPathRepository.save(path);
-        log.info("Updated subclass path with id: {}", updatedPath.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedPath, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("subclass_path").build(),
+                "subclass_path_id: " + updatedPath.getId());
 
         return toResponse(updatedPath, Set.of());
     }
@@ -249,34 +254,32 @@ public class SubclassPathService {
      * Soft deletes a subclass path by setting its deletedAt timestamp.
      *
      * @param id The subclass path ID to delete
+     * @param authentication The authentication context of the requesting user
      * @throws EntityNotFoundException if the path is not found or is already deleted
      */
     @Transactional
-    public void deleteSubclassPath(Long id) {
-        log.info("Soft deleting subclass path with id: {}", id);
-
+    public void deleteSubclassPath(Long id, Authentication authentication) {
         SubclassPath path = subclassPathRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassPath not found with id: " + id));
 
         path.softDelete();
         subclassPathRepository.save(path);
         eventPublisher.publishEvent(new EntityChangeEvent(this, path, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted subclass path with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("subclass_path").build(),
+                "subclass_path_id: " + id);
     }
 
     /**
      * Restores a soft-deleted subclass path.
      *
      * @param id The subclass path ID to restore
+     * @param authentication The authentication context of the requesting user
      * @return SubclassPathResponse containing the restored path
      * @throws EntityNotFoundException if the path is not found
      * @throws IllegalStateException if the path is not deleted
      */
     @Transactional
-    public SubclassPathResponse restoreSubclassPath(Long id) {
-        log.info("Restoring subclass path with id: {}", id);
-
+    public SubclassPathResponse restoreSubclassPath(Long id, Authentication authentication) {
         SubclassPath path = subclassPathRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassPath not found with id: " + id));
 
@@ -287,8 +290,8 @@ public class SubclassPathService {
         path.restore();
         SubclassPath restoredPath = subclassPathRepository.save(path);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredPath, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored subclass path with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("subclass_path").build(),
+                "subclass_path_id: " + id);
 
         return toResponse(restoredPath, Set.of());
     }
@@ -310,8 +313,6 @@ public class SubclassPathService {
     @Transactional
     public SubclassPath findOrCreate(String name, Long classId, Long expansionId,
                                      List<Long> domainIds, Trait spellcastingTrait) {
-        log.info("Finding or creating subclass path with name: {} for class id: {}", name, classId);
-
         return subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull(name, classId)
                 .map(existingPath -> {
                     boolean updated = false;
@@ -333,7 +334,7 @@ public class SubclassPathService {
                     }
 
                     if (updated) {
-                        log.info("Updated existing subclass path with id: {} with missing attributes",
+                        log.debug("Updated existing subclass path with id: {} with missing attributes",
                                 existingPath.getId());
                         return subclassPathRepository.save(existingPath);
                     }
@@ -341,7 +342,7 @@ public class SubclassPathService {
                     return existingPath;
                 })
                 .orElseGet(() -> {
-                    log.info("SubclassPath not found, creating new path with name: {}", name);
+                    log.debug("SubclassPath not found, creating new path with name: {}", name);
 
                     Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(classId)
                             .orElseThrow(() -> new EntityNotFoundException(
@@ -365,7 +366,7 @@ public class SubclassPathService {
                     }
 
                     SubclassPath savedPath = subclassPathRepository.save(newPath);
-                    log.info("Created new subclass path with id: {}", savedPath.getId());
+                    log.debug("Created new subclass path with id: {}", savedPath.getId());
                     return savedPath;
                 });
     }

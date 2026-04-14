@@ -1,6 +1,7 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateExperienceRequest;
 import com.aboff.core.model.dto.dh.request.UpdateExperienceRequest;
 import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
@@ -11,16 +12,17 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Companion;
 import com.aboff.core.model.entity.dh.Experience;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -46,7 +48,6 @@ import java.util.Set;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class ExperienceService {
 
     private final ExperienceRepository experienceRepository;
@@ -54,6 +55,7 @@ public class ExperienceService {
     private final CompanionRepository companionRepository;
     private final UserRepository userRepository;
     private final RoleHierarchyService roleHierarchyService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of experiences.
@@ -167,8 +169,6 @@ public class ExperienceService {
 
         if (request.getCompanionId() != null) {
             // Handle companion experience
-            log.info("Creating new experience for companion {} by user {}", request.getCompanionId(), userId);
-
             companion = companionRepository.findById(request.getCompanionId())
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Companion not found with id: " + request.getCompanionId()));
@@ -184,8 +184,6 @@ public class ExperienceService {
             }
         } else {
             // Handle character sheet experience
-            log.info("Creating new experience for character sheet {} by user {}", request.getCharacterSheetId(), userId);
-
             characterSheet = characterSheetRepository.findActiveById(request.getCharacterSheetId())
                     .orElseThrow(() -> new EntityNotFoundException(
                             "CharacterSheet not found with id: " + request.getCharacterSheetId()));
@@ -203,9 +201,13 @@ public class ExperienceService {
         Experience savedExperience = experienceRepository.save(experience);
 
         if (companion != null) {
-            log.info("Created experience with id: {} for companion {}", savedExperience.getId(), companion.getId());
+            auditLogger.log(AuditAction.EXPERIENCE_CREATED,
+                    AuditContext.forUser(auth).build(),
+                    "experience_id: " + savedExperience.getId() + " for companion_id: " + companion.getId());
         } else {
-            log.info("Created experience with id: {} for character sheet {}", savedExperience.getId(), characterSheet.getId());
+            auditLogger.log(AuditAction.EXPERIENCE_CREATED,
+                    AuditContext.forUser(auth).build(),
+                    "experience_id: " + savedExperience.getId() + " for character_sheet_id: " + characterSheet.getId());
         }
 
         return toResponse(savedExperience, Set.of());
@@ -228,8 +230,6 @@ public class ExperienceService {
      */
     @Transactional
     public ExperienceResponse updateExperience(Long id, UpdateExperienceRequest request, Authentication auth) {
-        log.info("Updating experience with id: {}", id);
-
         Experience experience = experienceRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Experience not found with id: " + id));
 
@@ -245,7 +245,10 @@ public class ExperienceService {
         }
 
         Experience updatedExperience = experienceRepository.save(experience);
-        log.info("Updated experience with id: {}", updatedExperience.getId());
+
+        auditLogger.log(AuditAction.EXPERIENCE_UPDATED,
+                AuditContext.forUser(auth).build(),
+                "experience_id: " + updatedExperience.getId());
 
         return toResponse(updatedExperience, Set.of());
     }
@@ -264,8 +267,6 @@ public class ExperienceService {
      */
     @Transactional
     public void deleteExperience(Long id, Authentication auth) {
-        log.info("Deleting experience with id: {}", id);
-
         Experience experience = experienceRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Experience not found with id: " + id));
 
@@ -273,7 +274,10 @@ public class ExperienceService {
         validateAccess(experience, auth, "delete");
 
         experienceRepository.delete(experience);
-        log.info("Deleted experience with id: {}", id);
+
+        auditLogger.log(AuditAction.EXPERIENCE_DELETED,
+                AuditContext.forUser(auth).build(),
+                "experience_id: " + id);
     }
 
     /**

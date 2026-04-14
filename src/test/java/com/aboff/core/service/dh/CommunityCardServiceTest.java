@@ -16,6 +16,7 @@ import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.CommunityCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
@@ -24,6 +25,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
+import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
@@ -60,6 +62,12 @@ class CommunityCardServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private CommunityCardService communityCardService;
@@ -576,7 +584,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.save(any(CommunityCard.class))).thenReturn(savedCard);
 
         // Act
-        CommunityCardResponse result = communityCardService.createCommunityCard(request);
+        CommunityCardResponse result = communityCardService.createCommunityCard(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -598,7 +606,7 @@ class CommunityCardServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> communityCardService.createCommunityCard(request))
+        assertThatThrownBy(() -> communityCardService.createCommunityCard(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -636,7 +644,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.saveAll(anyList())).thenReturn(List.of(savedCard1, savedCard2));
 
         // Act
-        List<CommunityCardResponse> results = communityCardService.createCommunityCardsBulk(List.of(request1, request2));
+        List<CommunityCardResponse> results = communityCardService.createCommunityCardsBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -677,7 +685,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.save(any(CommunityCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        CommunityCardResponse result = communityCardService.updateCommunityCard(1L, request);
+        CommunityCardResponse result = communityCardService.updateCommunityCard(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -699,7 +707,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> communityCardService.updateCommunityCard(999L, request))
+        assertThatThrownBy(() -> communityCardService.updateCommunityCard(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("CommunityCard not found with id: 999");
 
@@ -725,7 +733,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(card));
 
         // Act
-        communityCardService.deleteCommunityCard(1L);
+        communityCardService.deleteCommunityCard(1L, authentication);
 
         // Assert
         verify(communityCardRepository).save(argThat(c -> c.getDeletedAt() != null));
@@ -737,7 +745,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> communityCardService.deleteCommunityCard(999L))
+        assertThatThrownBy(() -> communityCardService.deleteCommunityCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("CommunityCard not found with id: 999");
 
@@ -765,7 +773,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.save(any(CommunityCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        CommunityCardResponse result = communityCardService.restoreCommunityCard(1L);
+        CommunityCardResponse result = communityCardService.restoreCommunityCard(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -789,7 +797,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.findById(1L)).thenReturn(Optional.of(activeCard));
 
         // Act & Assert
-        assertThatThrownBy(() -> communityCardService.restoreCommunityCard(1L))
+        assertThatThrownBy(() -> communityCardService.restoreCommunityCard(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("CommunityCard with id 1 is not deleted");
 
@@ -802,7 +810,7 @@ class CommunityCardServiceTest {
         when(communityCardRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> communityCardService.restoreCommunityCard(999L))
+        assertThatThrownBy(() -> communityCardService.restoreCommunityCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("CommunityCard not found with id: 999");
     }

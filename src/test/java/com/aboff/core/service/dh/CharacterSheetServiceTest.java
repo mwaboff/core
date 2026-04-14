@@ -16,6 +16,7 @@ import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.*;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -89,6 +90,9 @@ class CharacterSheetServiceTest {
 
     @Mock
     private CharacterSheetLootRepository characterSheetLootRepository;
+
+    @Mock
+    private AuditLogger auditLogger;
 
     @Mock
     private RoleHierarchyService roleHierarchyService;

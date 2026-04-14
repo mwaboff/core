@@ -9,6 +9,7 @@ import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.enums.QuestionType;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.QuestionRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -19,6 +20,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,6 +46,12 @@ class QuestionServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private QuestionService questionService;
@@ -336,7 +344,7 @@ class QuestionServiceTest {
                 .thenReturn(savedQuestion);
 
         // Act
-        QuestionResponse result = questionService.createQuestion(request);
+        QuestionResponse result = questionService.createQuestion(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -363,7 +371,7 @@ class QuestionServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> questionService.createQuestion(request))
+        assertThatThrownBy(() -> questionService.createQuestion(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -415,7 +423,7 @@ class QuestionServiceTest {
                 .thenReturn(List.of(savedQuestion1, savedQuestion2));
 
         // Act
-        List<QuestionResponse> results = questionService.createQuestionsBulk(List.of(request1, request2));
+        List<QuestionResponse> results = questionService.createQuestionsBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -457,7 +465,7 @@ class QuestionServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        QuestionResponse result = questionService.updateQuestion(1L, request);
+        QuestionResponse result = questionService.updateQuestion(1L, request, authentication);
 
         // Assert
         assertThat(result.getQuestionText()).isEqualTo("Updated question text");
@@ -482,7 +490,7 @@ class QuestionServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> questionService.updateQuestion(999L, request))
+        assertThatThrownBy(() -> questionService.updateQuestion(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Question not found with id: 999");
 
@@ -518,7 +526,7 @@ class QuestionServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> questionService.updateQuestion(1L, request))
+        assertThatThrownBy(() -> questionService.updateQuestion(1L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -548,7 +556,7 @@ class QuestionServiceTest {
                 .thenReturn(Optional.of(question));
 
         // Act
-        questionService.deleteQuestion(1L);
+        questionService.deleteQuestion(1L, authentication);
 
         // Assert
         verify(questionRepository).save(argThat(q -> q.getDeletedAt() != null));
@@ -561,7 +569,7 @@ class QuestionServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> questionService.deleteQuestion(999L))
+        assertThatThrownBy(() -> questionService.deleteQuestion(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Question not found with id: 999");
 
@@ -594,7 +602,7 @@ class QuestionServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        QuestionResponse result = questionService.restoreQuestion(1L);
+        QuestionResponse result = questionService.restoreQuestion(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -622,7 +630,7 @@ class QuestionServiceTest {
                 .thenReturn(Optional.of(activeQuestion));
 
         // Act & Assert
-        assertThatThrownBy(() -> questionService.restoreQuestion(1L))
+        assertThatThrownBy(() -> questionService.restoreQuestion(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Question with id 1 is not deleted");
 
@@ -636,7 +644,7 @@ class QuestionServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> questionService.restoreQuestion(999L))
+        assertThatThrownBy(() -> questionService.restoreQuestion(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Question not found with id: 999");
     }

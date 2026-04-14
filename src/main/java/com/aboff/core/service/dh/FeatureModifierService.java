@@ -5,7 +5,10 @@ import com.aboff.core.model.dto.dh.request.FeatureModifierInput;
 import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.FeatureModifier;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.FeatureModifierRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -13,6 +16,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -39,6 +43,7 @@ import java.util.Set;
 public class FeatureModifierService {
 
     private final FeatureModifierRepository featureModifierRepository;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of feature modifiers.
@@ -90,12 +95,11 @@ public class FeatureModifierService {
      * Creates a new feature modifier.
      *
      * @param request The creation request containing modifier details
+     * @param authentication The authentication context of the requesting user
      * @return FeatureModifierResponse containing the created modifier
      */
     @Transactional
-    public FeatureModifierResponse createModifier(CreateFeatureModifierRequest request) {
-        log.info("Creating new feature modifier: {} {} {}", request.getOperation(), request.getValue(), request.getTarget());
-
+    public FeatureModifierResponse createModifier(CreateFeatureModifierRequest request, Authentication authentication) {
         FeatureModifier modifier = FeatureModifier.builder()
                 .target(request.getTarget())
                 .operation(request.getOperation())
@@ -103,7 +107,8 @@ public class FeatureModifierService {
                 .build();
 
         FeatureModifier savedModifier = featureModifierRepository.save(modifier);
-        log.info("Created feature modifier with id: {}", savedModifier.getId());
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("feature_modifier").build(),
+                "\"" + savedModifier.getOperation() + " " + savedModifier.getValue() + " " + savedModifier.getTarget() + "\" (feature_modifier_id: " + savedModifier.getId() + ")");
 
         return toResponse(savedModifier);
     }
@@ -112,33 +117,31 @@ public class FeatureModifierService {
      * Soft deletes a feature modifier.
      *
      * @param id The modifier ID to delete
+     * @param authentication The authentication context of the requesting user
      * @throws EntityNotFoundException if the modifier is not found or is already deleted
      */
     @Transactional
-    public void deleteModifier(Long id) {
-        log.info("Soft deleting feature modifier with id: {}", id);
-
+    public void deleteModifier(Long id, Authentication authentication) {
         FeatureModifier modifier = featureModifierRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("FeatureModifier not found with id: " + id));
 
         modifier.softDelete();
         featureModifierRepository.save(modifier);
-
-        log.info("Soft deleted feature modifier with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("feature_modifier").build(),
+                "feature_modifier_id: " + id);
     }
 
     /**
      * Restores a soft-deleted feature modifier.
      *
      * @param id The modifier ID to restore
+     * @param authentication The authentication context of the requesting user
      * @return FeatureModifierResponse containing the restored modifier
      * @throws EntityNotFoundException if the modifier is not found
      * @throws IllegalStateException if the modifier is not deleted
      */
     @Transactional
-    public FeatureModifierResponse restoreModifier(Long id) {
-        log.info("Restoring feature modifier with id: {}", id);
-
+    public FeatureModifierResponse restoreModifier(Long id, Authentication authentication) {
         FeatureModifier modifier = featureModifierRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("FeatureModifier not found with id: " + id));
 
@@ -148,8 +151,8 @@ public class FeatureModifierService {
 
         modifier.restore();
         FeatureModifier restoredModifier = featureModifierRepository.save(modifier);
-
-        log.info("Restored feature modifier with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("feature_modifier").build(),
+                "feature_modifier_id: " + id);
 
         return toResponse(restoredModifier);
     }
@@ -172,7 +175,7 @@ public class FeatureModifierService {
                     return existing;
                 })
                 .orElseGet(() -> {
-                    log.info("Creating new feature modifier: {} {} {}",
+                    log.debug("Creating new feature modifier: {} {} {}",
                             input.getOperation(), input.getValue(), input.getTarget());
                     FeatureModifier newModifier = FeatureModifier.builder()
                             .target(input.getTarget())

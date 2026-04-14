@@ -2,9 +2,11 @@ package com.aboff.core.service;
 
 import com.aboff.core.exception.UserAlreadyExistsException;
 import com.aboff.core.exception.UserNotFoundException;
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.util.CookieUtil;
@@ -28,6 +30,7 @@ public class UserService {
     private final AuthenticationService authenticationService;
     private final RoleHierarchyService roleHierarchyService;
     private final CookieUtil cookieUtil;
+    private final AuditLogger auditLogger;
 
     /**
      * Constructs a new UserService with required dependencies.
@@ -36,16 +39,19 @@ public class UserService {
      * @param authenticationService the authentication service
      * @param roleHierarchyService  the role hierarchy service
      * @param cookieUtil            the cookie utility
+     * @param auditLogger           the audit logger
      */
     public UserService(
             UserRepository userRepository,
             AuthenticationService authenticationService,
             RoleHierarchyService roleHierarchyService,
-            CookieUtil cookieUtil) {
+            CookieUtil cookieUtil,
+            AuditLogger auditLogger) {
         this.userRepository = userRepository;
         this.authenticationService = authenticationService;
         this.roleHierarchyService = roleHierarchyService;
         this.cookieUtil = cookieUtil;
+        this.auditLogger = auditLogger;
     }
 
     /**
@@ -105,7 +111,7 @@ public class UserService {
      * @throws UserAlreadyExistsException if the new email is already taken
      */
     @Transactional
-    public UserResponse updateUser(Long userId, UpdateUserRequest request) {
+    public UserResponse updateUser(Long userId, UpdateUserRequest request, Authentication authentication) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
@@ -128,6 +134,13 @@ public class UserService {
         }
 
         user = userRepository.save(user);
+
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withTargetUserId(userId)
+                .build();
+        auditLogger.log(AuditAction.USER_PROFILE_UPDATED, ctx,
+                String.format("user_id: %d", userId));
+
         return mapToUserResponse(user);
     }
 
@@ -147,7 +160,7 @@ public class UserService {
      * @throws UserAlreadyExistsException if the username is already taken (case-insensitive)
      */
     @Transactional
-    public UserResponse chooseUsername(Long userId, String username) {
+    public UserResponse chooseUsername(Long userId, String username, Authentication authentication) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
@@ -163,7 +176,10 @@ public class UserService {
         user.setUsernameChosen(true);
         user = userRepository.save(user);
 
-        log.info("User {} chose username '{}'", userId, username);
+        AuditContext ctx = AuditContext.forUser(authentication).build();
+        auditLogger.log(AuditAction.USER_USERNAME_CHOSEN, ctx,
+                String.format("username: %s (user_id: %d)", username, userId));
+
         return mapToUserResponse(user);
     }
 
@@ -175,7 +191,7 @@ public class UserService {
      * @throws UserNotFoundException if the user is not found
      */
     @Transactional
-    public void deleteUser(Long userId, HttpServletResponse response) {
+    public void deleteUser(Long userId, HttpServletResponse response, Authentication authentication) {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UserNotFoundException("User not found"));
 
@@ -188,6 +204,12 @@ public class UserService {
 
         // Clear AUTH_TOKEN cookie
         cookieUtil.clearAuthCookie(response);
+
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withTargetUserId(userId)
+                .build();
+        auditLogger.log(AuditAction.USER_ACCOUNT_DELETED, ctx,
+                String.format("user_id: %d, username: %s", userId, user.getUsername()));
     }
 
     /**

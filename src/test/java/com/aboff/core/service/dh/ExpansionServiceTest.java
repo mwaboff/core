@@ -6,6 +6,7 @@ import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -39,6 +41,12 @@ class ExpansionServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private ExpansionService expansionService;
@@ -199,7 +207,7 @@ class ExpansionServiceTest {
                 .thenReturn(savedExpansion);
 
         // Act
-        ExpansionResponse result = expansionService.createExpansion(request);
+        ExpansionResponse result = expansionService.createExpansion(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -236,7 +244,7 @@ class ExpansionServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ExpansionResponse result = expansionService.updateExpansion(1L, request);
+        ExpansionResponse result = expansionService.updateExpansion(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -260,7 +268,7 @@ class ExpansionServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> expansionService.updateExpansion(999L, request))
+        assertThatThrownBy(() -> expansionService.updateExpansion(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -283,7 +291,7 @@ class ExpansionServiceTest {
                 .thenReturn(Optional.of(expansion));
 
         // Act
-        expansionService.deleteExpansion(1L);
+        expansionService.deleteExpansion(1L, authentication);
 
         // Assert
         verify(expansionRepository).save(argThat(exp -> exp.getDeletedAt() != null));
@@ -296,7 +304,7 @@ class ExpansionServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> expansionService.deleteExpansion(999L))
+        assertThatThrownBy(() -> expansionService.deleteExpansion(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -322,7 +330,7 @@ class ExpansionServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ExpansionResponse result = expansionService.restoreExpansion(1L);
+        ExpansionResponse result = expansionService.restoreExpansion(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -343,7 +351,7 @@ class ExpansionServiceTest {
                 .thenReturn(Optional.of(activeExpansion));
 
         // Act & Assert
-        assertThatThrownBy(() -> expansionService.restoreExpansion(1L))
+        assertThatThrownBy(() -> expansionService.restoreExpansion(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Expansion with id 1 is not deleted");
 
@@ -357,7 +365,7 @@ class ExpansionServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> expansionService.restoreExpansion(999L))
+        assertThatThrownBy(() -> expansionService.restoreExpansion(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
     }

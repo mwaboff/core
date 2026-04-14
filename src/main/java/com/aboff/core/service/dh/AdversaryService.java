@@ -23,7 +23,10 @@ import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -72,6 +75,7 @@ public class AdversaryService {
     private final UserRepository userRepository;
     private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of adversaries accessible to the authenticated user.
@@ -159,8 +163,6 @@ public class AdversaryService {
      */
     @Transactional
     public AdversaryResponse createAdversary(CreateAdversaryRequest request, Authentication auth) {
-        log.info("Creating new adversary with name: {}", request.getName());
-
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         User creator = userDetails.getUser();
 
@@ -215,8 +217,9 @@ public class AdversaryService {
         }
 
         Adversary savedAdversary = adversaryRepository.save(adversary);
-        log.info("Created adversary with id: {}", savedAdversary.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedAdversary, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.ADVERSARY_CREATED, AuditContext.forUser(auth).build(),
+                "\"" + savedAdversary.getName() + "\" (adversary_id: " + savedAdversary.getId() + ")");
 
         return toResponse(savedAdversary, Set.of());
     }
@@ -232,8 +235,6 @@ public class AdversaryService {
     @Transactional
     public BatchCreateAdversaryResponse batchCreateAdversaries(
             BatchCreateAdversaryRequest request, Authentication auth) {
-        log.info("Batch creating {} adversaries", request.getAdversaries().size());
-
         List<AdversaryResponse> created = new ArrayList<>();
         List<BatchCreateAdversaryResponse.BatchError> errors = new ArrayList<>();
 
@@ -243,7 +244,8 @@ public class AdversaryService {
                 AdversaryResponse response = createAdversary(adversaryRequest, auth);
                 created.add(response);
             } catch (Exception e) {
-                log.warn("Failed to create adversary at index {}: {}", i, e.getMessage());
+                auditLogger.warn(AuditAction.ADVERSARY_BATCH_CREATED, AuditContext.forUser(auth).build(),
+                        "Failed to create adversary at index " + i + ": " + e.getMessage());
                 errors.add(BatchCreateAdversaryResponse.BatchError.builder()
                         .index(i)
                         .name(adversaryRequest.getName())
@@ -252,8 +254,8 @@ public class AdversaryService {
             }
         }
 
-        log.info("Batch create complete: {} created, {} failed",
-                created.size(), errors.size());
+        auditLogger.log(AuditAction.ADVERSARY_BATCH_CREATED, AuditContext.forUser(auth).build(),
+                created.size() + " created, " + errors.size() + " failed");
 
         return BatchCreateAdversaryResponse.builder()
                 .created(created)
@@ -276,8 +278,6 @@ public class AdversaryService {
      */
     @Transactional
     public AdversaryResponse updateAdversary(Long id, UpdateAdversaryRequest request, Authentication auth) {
-        log.info("Updating adversary with id: {}", id);
-
         Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Adversary not found with id: " + id));
 
@@ -354,8 +354,9 @@ public class AdversaryService {
         }
 
         Adversary updatedAdversary = adversaryRepository.save(adversary);
-        log.info("Updated adversary with id: {}", updatedAdversary.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedAdversary, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.ADVERSARY_UPDATED, AuditContext.forUser(auth).build(),
+                "adversary_id: " + updatedAdversary.getId());
 
         return toResponse(updatedAdversary, Set.of());
     }
@@ -370,8 +371,6 @@ public class AdversaryService {
      */
     @Transactional
     public void deleteAdversary(Long id, Authentication auth) {
-        log.info("Soft deleting adversary with id: {}", id);
-
         Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Adversary not found with id: " + id));
 
@@ -380,8 +379,8 @@ public class AdversaryService {
         adversary.softDelete();
         adversaryRepository.save(adversary);
         eventPublisher.publishEvent(new EntityChangeEvent(this, adversary, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted adversary with id: {}", id);
+        auditLogger.log(AuditAction.ADVERSARY_DELETED, AuditContext.forUser(auth).build(),
+                "adversary_id: " + id);
     }
 
     /**
@@ -397,8 +396,6 @@ public class AdversaryService {
      */
     @Transactional
     public AdversaryResponse restoreAdversary(Long id, Authentication auth) {
-        log.info("Restoring adversary with id: {}", id);
-
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         User user = userDetails.getUser();
 
@@ -416,8 +413,8 @@ public class AdversaryService {
         adversary.restore();
         Adversary restoredAdversary = adversaryRepository.save(adversary);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredAdversary, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored adversary with id: {}", id);
+        auditLogger.log(AuditAction.ADVERSARY_RESTORED, AuditContext.forUser(auth).build(),
+                "adversary_id: " + id);
 
         return toResponse(restoredAdversary, Set.of());
     }
@@ -432,8 +429,6 @@ public class AdversaryService {
      */
     @Transactional
     public AdversaryResponse copyAdversary(Long id, Authentication auth) {
-        log.info("Copying adversary with id: {}", id);
-
         Adversary original = adversaryRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Adversary not found with id: " + id));
 
@@ -467,8 +462,9 @@ public class AdversaryService {
                 .build();
 
         Adversary savedCopy = adversaryRepository.save(copy);
-        log.info("Created copy of adversary {} with new id: {}", id, savedCopy.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedCopy, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.ADVERSARY_COPIED, AuditContext.forUser(auth).build(),
+                "adversary_id: " + id + " → copy_id: " + savedCopy.getId());
 
         return toResponse(savedCopy, Set.of());
     }
