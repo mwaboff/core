@@ -146,7 +146,7 @@ public class AdversaryController {
      * @param auth Authentication context
      * @return BatchCreateAdversaryResponse containing created adversaries and any errors
      */
-    @PostMapping("/batch")
+    @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN', 'OWNER')")
     public ResponseEntity<BatchCreateAdversaryResponse> batchCreateAdversaries(
             @Valid @RequestBody BatchCreateAdversaryRequest request,
@@ -155,7 +155,7 @@ public class AdversaryController {
 
         long startTime = System.nanoTime();
         AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
-        auditLogger.requestReceived(ctx, "POST", "/api/dh/adversaries/batch");
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/adversaries/bulk");
 
         BatchCreateAdversaryResponse response = adversaryService.batchCreateAdversaries(request, auth);
 
@@ -166,7 +166,7 @@ public class AdversaryController {
                         ? HttpStatus.BAD_REQUEST
                         : HttpStatus.CREATED;
 
-        auditLogger.requestCompleted(ctx, "POST", "/api/dh/adversaries/batch", startTime);
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/adversaries/bulk", startTime);
         return ResponseEntity.status(status).body(response);
     }
 

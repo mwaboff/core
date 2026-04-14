@@ -540,7 +540,7 @@ class AdversaryControllerIntegrationTest {
             """.formatted(testExpansion.getId(), testExpansion.getId());
 
         // Act & Assert
-        mockMvc.perform(post("/api/dh/adversaries/batch")
+        mockMvc.perform(post("/api/dh/adversaries/bulk")
                         .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(batchRequest))
@@ -572,7 +572,7 @@ class AdversaryControllerIntegrationTest {
             """.formatted(testExpansion.getId());
 
         // Act & Assert - regular user cannot batch create
-        mockMvc.perform(post("/api/dh/adversaries/batch")
+        mockMvc.perform(post("/api/dh/adversaries/bulk")
                         .cookie(new Cookie("AUTH_TOKEN", userToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(batchRequest))
@@ -777,7 +777,7 @@ class AdversaryControllerIntegrationTest {
             """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
 
         // Act & Assert
-        mockMvc.perform(post("/api/dh/adversaries/batch")
+        mockMvc.perform(post("/api/dh/adversaries/bulk")
                         .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(batchRequest))

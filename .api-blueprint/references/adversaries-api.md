@@ -330,7 +330,7 @@ curl -X POST -b "AUTH_TOKEN=<token>" \
 ### Batch Create Adversaries
 
 ```
-POST /api/dh/adversaries/batch
+POST /api/dh/adversaries/bulk
 ```
 
 **Authorization:** MODERATOR, ADMIN, or OWNER role required. Regular USER returns `403 Forbidden`.
@@ -382,7 +382,7 @@ curl -X POST -b "AUTH_TOKEN=<token>" \
       }
     ]
   }' \
-  "http://localhost:8080/api/dh/adversaries/batch"
+  "http://localhost:8080/api/dh/adversaries/bulk"
 ```
 
 **Example Response (all success):**
