@@ -1,11 +1,9 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
-import com.aboff.core.model.dto.dh.request.BatchCreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.CreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAdversaryRequest;
 import com.aboff.core.model.dto.dh.response.AdversaryResponse;
-import com.aboff.core.model.dto.dh.response.BatchCreateAdversaryResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.ExperienceResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
@@ -225,45 +223,23 @@ public class AdversaryService {
     }
 
     /**
-     * Creates multiple adversaries in a batch operation.
-     * Supports partial success - individual failures do not affect other creates.
+     * Creates multiple adversaries in a bulk operation.
      *
-     * @param request The batch creation request
+     * @param requests List of creation requests
      * @param auth Authentication context
-     * @return BatchCreateAdversaryResponse containing created adversaries and errors
+     * @return List of created adversary responses
      */
     @Transactional
-    public BatchCreateAdversaryResponse batchCreateAdversaries(
-            BatchCreateAdversaryRequest request, Authentication auth) {
-        List<AdversaryResponse> created = new ArrayList<>();
-        List<BatchCreateAdversaryResponse.BatchError> errors = new ArrayList<>();
-
-        for (int i = 0; i < request.getAdversaries().size(); i++) {
-            CreateAdversaryRequest adversaryRequest = request.getAdversaries().get(i);
-            try {
-                AdversaryResponse response = createAdversary(adversaryRequest, auth);
-                created.add(response);
-            } catch (Exception e) {
-                auditLogger.warn(AuditAction.ADVERSARY_BATCH_CREATED, AuditContext.forUser(auth).build(),
-                        "Failed to create adversary at index " + i + ": " + e.getMessage());
-                errors.add(BatchCreateAdversaryResponse.BatchError.builder()
-                        .index(i)
-                        .name(adversaryRequest.getName())
-                        .error(e.getMessage())
-                        .build());
-            }
-        }
+    public List<AdversaryResponse> createAdversariesBulk(
+            List<CreateAdversaryRequest> requests, Authentication auth) {
+        List<AdversaryResponse> responses = requests.stream()
+                .map(request -> createAdversary(request, auth))
+                .toList();
 
         auditLogger.log(AuditAction.ADVERSARY_BATCH_CREATED, AuditContext.forUser(auth).build(),
-                created.size() + " created, " + errors.size() + " failed");
+                responses.size() + " adversaries created in bulk");
 
-        return BatchCreateAdversaryResponse.builder()
-                .created(created)
-                .errors(errors.isEmpty() ? null : errors)
-                .totalRequested(request.getAdversaries().size())
-                .totalCreated(created.size())
-                .totalFailed(errors.size())
-                .build();
+        return responses;
     }
 
     /**

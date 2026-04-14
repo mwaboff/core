@@ -509,73 +509,69 @@ class AdversaryControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
-    // ==================== BATCH CREATE TESTS ====================
+    // ==================== BULK CREATE TESTS ====================
 
     @Test
-    void batchCreateAdversaries_AsModerator_Returns201() throws Exception {
+    void createAdversariesBulk_AsModerator_Returns201() throws Exception {
         // Arrange
-        String batchRequest = """
-            {
-                "adversaries": [
-                    {
-                        "name": "Goblin 1",
-                        "tier": 1,
-                        "adversaryType": "MINION",
-                        "difficulty": 5,
-                        "majorThreshold": 3,
-                        "severeThreshold": 6,
-                        "expansionId": %d
-                    },
-                    {
-                        "name": "Goblin 2",
-                        "tier": 1,
-                        "adversaryType": "MINION",
-                        "difficulty": 5,
-                        "majorThreshold": 3,
-                        "severeThreshold": 6,
-                        "expansionId": %d
-                    }
-                ]
-            }
+        String bulkRequest = """
+            [
+                {
+                    "name": "Goblin 1",
+                    "tier": 1,
+                    "adversaryType": "MINION",
+                    "difficulty": 5,
+                    "majorThreshold": 3,
+                    "severeThreshold": 6,
+                    "expansionId": %d
+                },
+                {
+                    "name": "Goblin 2",
+                    "tier": 1,
+                    "adversaryType": "MINION",
+                    "difficulty": 5,
+                    "majorThreshold": 3,
+                    "severeThreshold": 6,
+                    "expansionId": %d
+                }
+            ]
             """.formatted(testExpansion.getId(), testExpansion.getId());
 
         // Act & Assert
         mockMvc.perform(post("/api/dh/adversaries/bulk")
                         .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(batchRequest))
+                        .content(bulkRequest))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.totalCreated").value(2))
-                .andExpect(jsonPath("$.totalFailed").value(0))
-                .andExpect(jsonPath("$.created.length()").value(2));
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].name").value("Goblin 1"))
+                .andExpect(jsonPath("$[1].name").value("Goblin 2"));
 
         assertThat(adversaryRepository.findAll()).hasSize(2);
     }
 
     @Test
-    void batchCreateAdversaries_AsUser_Returns403() throws Exception {
+    void createAdversariesBulk_AsUser_Returns403() throws Exception {
         // Arrange
-        String batchRequest = """
-            {
-                "adversaries": [
-                    {
-                        "name": "Goblin",
-                        "tier": 1,
-                        "adversaryType": "MINION",
-                        "difficulty": 5,
-                        "majorThreshold": 3,
-                        "severeThreshold": 6,
-                        "expansionId": %d
-                    }
-                ]
-            }
+        String bulkRequest = """
+            [
+                {
+                    "name": "Goblin",
+                    "tier": 1,
+                    "adversaryType": "MINION",
+                    "difficulty": 5,
+                    "majorThreshold": 3,
+                    "severeThreshold": 6,
+                    "expansionId": %d
+                }
+            ]
             """.formatted(testExpansion.getId());
 
-        // Act & Assert - regular user cannot batch create
+        // Act & Assert - regular user cannot bulk create
         mockMvc.perform(post("/api/dh/adversaries/bulk")
                         .cookie(new Cookie("AUTH_TOKEN", userToken))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(batchRequest))
+                        .content(bulkRequest))
                 .andExpect(status().isForbidden());
     }
 
@@ -741,48 +737,46 @@ class AdversaryControllerIntegrationTest {
     }
 
     @Test
-    void batchCreateAdversaries_WithInlineFeatures_Returns201() throws Exception {
+    void createAdversariesBulk_WithInlineFeatures_Returns201() throws Exception {
         // Arrange
-        String batchRequest = """
-            {
-                "adversaries": [
-                    {
-                        "name": "Batch Goblin 1",
-                        "tier": 1,
-                        "adversaryType": "MINION",
-                        "difficulty": 5,
-                        "majorThreshold": 3,
-                        "severeThreshold": 6,
-                        "expansionId": %d,
-                        "features": [
-                            {
-                                "name": "Batch Feature",
-                                "description": "Feature from batch",
-                                "featureType": "OTHER",
-                                "expansionId": %d
-                            }
-                        ]
-                    },
-                    {
-                        "name": "Batch Goblin 2",
-                        "tier": 1,
-                        "adversaryType": "MINION",
-                        "difficulty": 5,
-                        "majorThreshold": 3,
-                        "severeThreshold": 6,
-                        "expansionId": %d
-                    }
-                ]
-            }
+        String bulkRequest = """
+            [
+                {
+                    "name": "Bulk Goblin 1",
+                    "tier": 1,
+                    "adversaryType": "MINION",
+                    "difficulty": 5,
+                    "majorThreshold": 3,
+                    "severeThreshold": 6,
+                    "expansionId": %d,
+                    "features": [
+                        {
+                            "name": "Bulk Feature",
+                            "description": "Feature from bulk",
+                            "featureType": "OTHER",
+                            "expansionId": %d
+                        }
+                    ]
+                },
+                {
+                    "name": "Bulk Goblin 2",
+                    "tier": 1,
+                    "adversaryType": "MINION",
+                    "difficulty": 5,
+                    "majorThreshold": 3,
+                    "severeThreshold": 6,
+                    "expansionId": %d
+                }
+            ]
             """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
 
         // Act & Assert
         mockMvc.perform(post("/api/dh/adversaries/bulk")
                         .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(batchRequest))
+                        .content(bulkRequest))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.totalCreated").value(2));
+                .andExpect(jsonPath("$.length()").value(2));
 
         assertThat(featureRepository.findAll()).hasSize(1);
     }

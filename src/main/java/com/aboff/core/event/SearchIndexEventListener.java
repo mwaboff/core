@@ -9,7 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
-import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Spring event listener that keeps the search index in sync with entity lifecycle changes.
@@ -48,7 +47,6 @@ public class SearchIndexEventListener {
      *
      * @param event the entity change event to handle
      */
-    @Transactional
     @TransactionalEventListener(phase = TransactionPhase.BEFORE_COMMIT)
     public void onEntityChange(EntityChangeEvent event) {
         Object entity = event.getEntity();
