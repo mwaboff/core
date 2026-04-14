@@ -334,18 +334,20 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
-    void createCharacterSheet_WithMarkedExceedsMax_ClampsMarkedToMax() throws Exception {
+    void createCharacterSheet_WithMarkedExceedsMax_PreservesMarked() throws Exception {
+        // Equipped items/features can raise the effective max above the stored base max,
+        // so marked values submitted above armorMax must be persisted as-is.
         // Arrange
         CreateCharacterSheetRequest request = createValidRequest();
-        request.setArmorMarked(100); // Exceeds armorMax of 5
+        request.setArmorMarked(100); // Exceeds armorMax of 5 - representing items boosting effective max
 
-        // Act & Assert - marked value should be clamped to max
+        // Act & Assert - marked value is NOT clamped
         mockMvc.perform(post("/api/dh/character-sheets")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.armorMarked").value(request.getArmorMax()));
+                .andExpect(jsonPath("$.armorMarked").value(100));
     }
 
     // ==================== UPDATE CHARACTER SHEET TESTS ====================
@@ -472,19 +474,53 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
-    void updateCharacterSheet_WithMarkedExceedsMax_ClampsMarkedToMax() throws Exception {
+    void updateCharacterSheet_WithMarkedExceedsMaxWithoutChangingMax_PreservesMarked() throws Exception {
+        // When the update does not touch *_max, a marked value above the stored base max
+        // (e.g. produced by equipped items boosting the effective cap) must be preserved.
         // Arrange
         UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
-                .armorMarked(100) // Exceeds armorMax
+                .armorMarked(100) // Exceeds armorMax; max not being changed
+                .hitPointMarked(500)
+                .stressMarked(300)
+                .hopeMarked(200)
                 .build();
 
-        // Act & Assert - marked value should be clamped to max
+        // Act & Assert - marked values are NOT clamped
         mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request))
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.armorMarked").value(testSheet.getArmorMax()));
+                .andExpect(jsonPath("$.armorMarked").value(100))
+                .andExpect(jsonPath("$.hitPointMarked").value(500))
+                .andExpect(jsonPath("$.stressMarked").value(300))
+                .andExpect(jsonPath("$.hopeMarked").value(200));
+    }
+
+    @Test
+    void updateCharacterSheet_WhenReducingMaxBelowMarked_ClampsMarkedToNewMax() throws Exception {
+        // First set armorMarked high (e.g. while a shield was equipped raising the effective cap).
+        UpdateCharacterSheetRequest raiseMarked = UpdateCharacterSheetRequest.builder()
+                .armorMarked(8)
+                .build();
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(raiseMarked))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk());
+
+        // Now the user explicitly lowers the base armorMax below the current marked value.
+        UpdateCharacterSheetRequest lowerMax = UpdateCharacterSheetRequest.builder()
+                .armorMax(3)
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(lowerMax))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.armorMax").value(3))
+                .andExpect(jsonPath("$.armorMarked").value(3));
     }
 
     // ==================== DELETE CHARACTER SHEET TESTS ====================

@@ -528,7 +528,7 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void createCharacterSheet_WithArmorMarkedExceedsMax_ClampsMarkedToMax() {
+    void createCharacterSheet_WithArmorMarkedExceedsMax_PreservesMarked() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -584,11 +584,11 @@ class CharacterSheetServiceTest {
         // Assert
         ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
         verify(characterSheetRepository).save(captor.capture());
-        assertThat(captor.getValue().getArmorMarked()).isEqualTo(5);
+        assertThat(captor.getValue().getArmorMarked()).isEqualTo(10);
     }
 
     @Test
-    void createCharacterSheet_WithHitPointMarkedExceedsMax_ClampsMarkedToMax() {
+    void createCharacterSheet_WithHitPointMarkedExceedsMax_PreservesMarked() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -644,11 +644,11 @@ class CharacterSheetServiceTest {
         // Assert
         ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
         verify(characterSheetRepository).save(captor.capture());
-        assertThat(captor.getValue().getHitPointMarked()).isEqualTo(10);
+        assertThat(captor.getValue().getHitPointMarked()).isEqualTo(15);
     }
 
     @Test
-    void createCharacterSheet_WithStressMarkedExceedsMax_ClampsMarkedToMax() {
+    void createCharacterSheet_WithStressMarkedExceedsMax_PreservesMarked() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -704,11 +704,11 @@ class CharacterSheetServiceTest {
         // Assert
         ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
         verify(characterSheetRepository).save(captor.capture());
-        assertThat(captor.getValue().getStressMarked()).isEqualTo(6);
+        assertThat(captor.getValue().getStressMarked()).isEqualTo(10);
     }
 
     @Test
-    void createCharacterSheet_WithHopeMarkedExceedsMax_ClampsMarkedToMax() {
+    void createCharacterSheet_WithHopeMarkedExceedsMax_PreservesMarked() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
 
@@ -764,7 +764,7 @@ class CharacterSheetServiceTest {
         // Assert
         ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
         verify(characterSheetRepository).save(captor.capture());
-        assertThat(captor.getValue().getHopeMarked()).isEqualTo(3);
+        assertThat(captor.getValue().getHopeMarked()).isEqualTo(5);
     }
 
     @Test
@@ -1945,7 +1945,10 @@ class CharacterSheetServiceTest {
     }
 
     @Test
-    void updateCharacterSheet_WithArmorMarkedExceedsMax_ClampsMarkedToMax() {
+    void updateCharacterSheet_WithArmorMarkedExceedsMaxWithoutChangingMax_PreservesMarked() {
+        // Equipped items/features can raise the effective max above the stored base max.
+        // When the update does NOT touch armorMax, the marked value must be preserved
+        // as-is even if it exceeds the stored base max.
         // Arrange
         User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
         CharacterSheet sheet = CharacterSheet.builder()
@@ -1966,7 +1969,7 @@ class CharacterSheetServiceTest {
                 .build();
 
         UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
-                .armorMarked(10) // Exceeds armorMax
+                .armorMarked(10) // Exceeds armorMax but max is not being changed
                 .build();
 
         CustomUserDetails userDetails = new CustomUserDetails(owner);
@@ -1991,6 +1994,59 @@ class CharacterSheetServiceTest {
         // Assert
         ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
         verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getArmorMarked()).isEqualTo(10);
+    }
+
+    @Test
+    void updateCharacterSheet_WhenReducingMaxBelowExistingMarked_ClampsMarkedToNewMax() {
+        // When the user explicitly lowers a *_max below the current marked value,
+        // the marked value should be clamped down to the new max.
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .evasion(10)
+                .armorMax(10)
+                .armorMarked(8)
+                .majorDamageThreshold(3)
+                .severeDamageThreshold(6)
+                .hitPointMax(10)
+                .hitPointMarked(0)
+                .stressMax(6)
+                .stressMarked(0)
+                .hopeMax(3)
+                .hopeMarked(0)
+                .build();
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .armorMax(5) // Reduces max below current armorMarked=8
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getArmorMax()).isEqualTo(5);
         assertThat(captor.getValue().getArmorMarked()).isEqualTo(5);
     }
 
