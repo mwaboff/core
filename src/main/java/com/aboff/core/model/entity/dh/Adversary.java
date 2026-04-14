@@ -185,7 +185,7 @@ public class Adversary extends BaseEntity {
     @Embedded
     @AttributeOverrides({
         @AttributeOverride(name = "diceCount", column = @Column(name = "damage_dice_count")),
-        @AttributeOverride(name = "diceType", column = @Column(name = "damage_dice_type", length = 10)),
+        @AttributeOverride(name = "diceType", column = @Column(name = "damage_dice_type", length = 10, nullable = true)),
         @AttributeOverride(name = "modifier", column = @Column(name = "damage_modifier")),
         @AttributeOverride(name = "damageType", column = @Column(name = "damage_type", length = 10))
     })

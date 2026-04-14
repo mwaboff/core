@@ -12,6 +12,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
@@ -205,6 +206,47 @@ public class GlobalExceptionHandler {
                 fieldErrors.put(objectName, errorMessage);
             }
         });
+
+        log.warn("Validation failed on {}: {}", request.getRequestURI(), fieldErrors);
+
+        ValidationErrorResponse errorResponse = ValidationErrorResponse.builder()
+                .status(HttpStatus.BAD_REQUEST.value())
+                .error("Validation Failed")
+                .fieldErrors(fieldErrors)
+                .path(request.getRequestURI())
+                .timestamp(LocalDateTime.now())
+                .build();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
+    /**
+     * Handles HandlerMethodValidationException (Spring 6+).
+     * Thrown for @Valid on list/collection @RequestBody parameters.
+     * Returns 400 Bad Request with field errors.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the validation error response entity
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ValidationErrorResponse> handleHandlerMethodValidation(
+            HandlerMethodValidationException ex,
+            HttpServletRequest request) {
+        Map<String, String> fieldErrors = new HashMap<>();
+
+        ex.getParameterValidationResults().forEach(result -> {
+            String prefix = result.getContainerIndex() != null ? "[" + result.getContainerIndex() + "]." : "";
+            result.getResolvableErrors().forEach(error -> {
+                if (error instanceof FieldError fieldError) {
+                    fieldErrors.put(prefix + fieldError.getField(), fieldError.getDefaultMessage());
+                } else {
+                    fieldErrors.put(prefix + error.getClass().getSimpleName(), error.getDefaultMessage());
+                }
+            });
+        });
+
+        log.warn("Validation failed on {}: {}", request.getRequestURI(), fieldErrors);
 
         ValidationErrorResponse errorResponse = ValidationErrorResponse.builder()
                 .status(HttpStatus.BAD_REQUEST.value())

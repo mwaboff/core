@@ -1,11 +1,9 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.AuditContext;
-import com.aboff.core.model.dto.dh.request.BatchCreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.CreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAdversaryRequest;
 import com.aboff.core.model.dto.dh.response.AdversaryResponse;
-import com.aboff.core.model.dto.dh.response.BatchCreateAdversaryResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.enums.AdversaryType;
 import com.aboff.core.service.AuditLogger;
@@ -26,6 +24,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 /**
  * REST controller for managing Adversary resources.
@@ -138,18 +138,17 @@ public class AdversaryController {
     }
 
     /**
-     * Creates multiple adversaries in a batch operation.
+     * Creates multiple adversaries in a bulk operation.
      * Requires MODERATOR, ADMIN, or OWNER role.
-     * Supports partial success - individual failures do not affect other creates.
      *
-     * @param request The batch creation request containing multiple adversaries
+     * @param requests List of creation requests containing adversary details
      * @param auth Authentication context
-     * @return BatchCreateAdversaryResponse containing created adversaries and any errors
+     * @return List of created adversary responses
      */
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN', 'OWNER')")
-    public ResponseEntity<BatchCreateAdversaryResponse> batchCreateAdversaries(
-            @Valid @RequestBody BatchCreateAdversaryRequest request,
+    public ResponseEntity<List<AdversaryResponse>> createAdversariesBulk(
+            @Valid @RequestBody List<CreateAdversaryRequest> requests,
             Authentication auth,
             HttpServletRequest httpRequest) {
 
@@ -157,17 +156,10 @@ public class AdversaryController {
         AuditContext ctx = AuditContext.forUser(auth).withIp(httpRequest.getRemoteAddr()).build();
         auditLogger.requestReceived(ctx, "POST", "/api/dh/adversaries/bulk");
 
-        BatchCreateAdversaryResponse response = adversaryService.batchCreateAdversaries(request, auth);
-
-        // Return 207 Multi-Status if there are partial failures
-        HttpStatus status = response.getTotalFailed() > 0 && response.getTotalCreated() > 0
-                ? HttpStatus.MULTI_STATUS
-                : response.getTotalFailed() > 0
-                        ? HttpStatus.BAD_REQUEST
-                        : HttpStatus.CREATED;
+        List<AdversaryResponse> responses = adversaryService.createAdversariesBulk(requests, auth);
 
         auditLogger.requestCompleted(ctx, "POST", "/api/dh/adversaries/bulk", startTime);
-        return ResponseEntity.status(status).body(response);
+        return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
     /**

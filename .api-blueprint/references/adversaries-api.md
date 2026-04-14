@@ -327,7 +327,7 @@ curl -X POST -b "AUTH_TOKEN=<token>" \
 
 ---
 
-### Batch Create Adversaries
+### Bulk Create Adversaries
 
 ```
 POST /api/dh/adversaries/bulk
@@ -335,129 +335,97 @@ POST /api/dh/adversaries/bulk
 
 **Authorization:** MODERATOR, ADMIN, or OWNER role required. Regular USER returns `403 Forbidden`.
 
-Supports partial success: individual failures do not affect other creates.
-
-**Request Body:** `BatchCreateAdversaryRequest` (JSON)
+**Request Body:** JSON array of `CreateAdversaryRequest` objects.
 
 **Response:**
 
 | Status | Condition                                    |
 |--------|----------------------------------------------|
 | `201`  | All adversaries created successfully         |
-| `207`  | Partial success (some created, some failed)  |
-| `400`  | All adversaries failed to create             |
 
 **Example Request:**
 
 ```bash
 curl -X POST -b "AUTH_TOKEN=<token>" \
   -H "Content-Type: application/json" \
-  -d '{
-    "adversaries": [
-      {
-        "name": "Goblin 1",
-        "tier": 1,
-        "adversaryType": "MINION",
-        "difficulty": 5,
-        "majorThreshold": 3,
-        "severeThreshold": 6,
-        "expansionId": 1,
-        "features": [
-          {
-            "name": "Batch Feature",
-            "description": "Feature from batch",
-            "featureType": "OTHER",
-            "expansionId": 1
-          }
-        ]
-      },
-      {
-        "name": "Goblin 2",
-        "tier": 1,
-        "adversaryType": "MINION",
-        "difficulty": 5,
-        "majorThreshold": 3,
-        "severeThreshold": 6,
-        "expansionId": 1
-      }
-    ]
-  }' \
-  "http://localhost:8080/api/dh/adversaries/bulk"
-```
-
-**Example Response (all success):**
-
-```json
-{
-  "created": [
+  -d '[
     {
-      "id": 4,
       "name": "Goblin 1",
       "tier": 1,
       "adversaryType": "MINION",
       "difficulty": 5,
       "majorThreshold": 3,
       "severeThreshold": 6,
-      "hitPointMax": 0,
-      "hitPointMarked": 0,
-      "stressMax": 0,
-      "stressMarked": 0,
-      "isOfficial": false,
-      "isPublic": false,
       "expansionId": 1,
-      "creatorId": 3,
-      "experienceIds": [],
-      "featureIds": [12],
-      "createdAt": "2026-03-13T15:00:00",
-      "lastModifiedAt": "2026-03-13T15:00:00"
+      "features": [
+        {
+          "name": "Bulk Feature",
+          "description": "Feature from bulk",
+          "featureType": "OTHER",
+          "expansionId": 1
+        }
+      ]
     },
     {
-      "id": 5,
       "name": "Goblin 2",
       "tier": 1,
       "adversaryType": "MINION",
       "difficulty": 5,
       "majorThreshold": 3,
       "severeThreshold": 6,
-      "hitPointMax": 0,
-      "hitPointMarked": 0,
-      "stressMax": 0,
-      "stressMarked": 0,
-      "isOfficial": false,
-      "isPublic": false,
-      "expansionId": 1,
-      "creatorId": 3,
-      "experienceIds": [],
-      "featureIds": [],
-      "createdAt": "2026-03-13T15:00:00",
-      "lastModifiedAt": "2026-03-13T15:00:00"
+      "expansionId": 1
     }
-  ],
-  "errors": [],
-  "totalRequested": 2,
-  "totalCreated": 2,
-  "totalFailed": 0
-}
+  ]' \
+  "http://localhost:8080/api/dh/adversaries/bulk"
 ```
 
-**Example Response (partial failure):**
+**Example Response:**
 
 ```json
-{
-  "created": [
-    { "id": 6, "name": "Goblin 1", "..." : "..." }
-  ],
-  "errors": [
-    {
-      "index": 1,
-      "name": "Invalid Goblin",
-      "error": "Severe threshold must be >= major threshold"
-    }
-  ],
-  "totalRequested": 2,
-  "totalCreated": 1,
-  "totalFailed": 1
-}
+[
+  {
+    "id": 4,
+    "name": "Goblin 1",
+    "tier": 1,
+    "adversaryType": "MINION",
+    "difficulty": 5,
+    "majorThreshold": 3,
+    "severeThreshold": 6,
+    "hitPointMax": 0,
+    "hitPointMarked": 0,
+    "stressMax": 0,
+    "stressMarked": 0,
+    "isOfficial": false,
+    "isPublic": false,
+    "expansionId": 1,
+    "creatorId": 3,
+    "experienceIds": [],
+    "featureIds": [12],
+    "createdAt": "2026-03-13T15:00:00",
+    "lastModifiedAt": "2026-03-13T15:00:00"
+  },
+  {
+    "id": 5,
+    "name": "Goblin 2",
+    "tier": 1,
+    "adversaryType": "MINION",
+    "difficulty": 5,
+    "majorThreshold": 3,
+    "severeThreshold": 6,
+    "hitPointMax": 0,
+    "hitPointMarked": 0,
+    "stressMax": 0,
+    "stressMarked": 0,
+    "isOfficial": false,
+    "isPublic": false,
+    "expansionId": 1,
+    "creatorId": 3,
+    "experienceIds": [],
+    "featureIds": [],
+    "createdAt": "2026-03-13T15:00:00",
+    "lastModifiedAt": "2026-03-13T15:00:00"
+  }
+]
 ```
 
 ---
@@ -813,28 +781,9 @@ All fields are optional for partial updates. Providing `experienceIds`, `feature
 | `featureIds`        | Set\<long\>                | No       | --                               | Replaces existing feature associations       |
 | `features`          | List\<FeatureInput\>       | No       | Valid nested objects             | Inline features to find-or-create, merged with featureIds |
 
-### BatchCreateAdversaryRequest
+### Bulk Create Request
 
-| Field        | Type                          | Required | Validation            | Description                    |
-|--------------|-------------------------------|----------|-----------------------|--------------------------------|
-| `adversaries`| List\<CreateAdversaryRequest\>| Yes      | 1-100 items, each valid | List of adversaries to create |
-
-### BatchCreateAdversaryResponse
-
-| Field            | Type                     | Description                              |
-|------------------|--------------------------|------------------------------------------|
-| `created`        | List\<AdversaryResponse\>| Successfully created adversaries         |
-| `errors`         | List\<BatchError\>       | Errors for failed adversaries            |
-| `totalRequested` | integer                  | Total adversaries in the request         |
-| `totalCreated`   | integer                  | Number successfully created              |
-| `totalFailed`    | integer                  | Number that failed                       |
-
-### BatchError (nested in BatchCreateAdversaryResponse)
-
-| Field   | Type    | Description                                    |
-|---------|---------|------------------------------------------------|
-| `index` | integer | Zero-based index in the original request       |
-| `name`  | string  | Name of the adversary that failed              |
+The bulk create endpoint accepts a JSON array of `CreateAdversaryRequest` objects directly (not wrapped in an object). Returns a JSON array of `AdversaryResponse` objects.
 | `error` | string  | Error message describing the failure           |
 
 ### FeatureInput (inline feature creation)

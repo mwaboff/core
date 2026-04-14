@@ -66,17 +66,15 @@ public class CreateAdversaryRequest {
     private Integer difficulty;
 
     /**
-     * Damage threshold for major injuries.
+     * Damage threshold for major injuries. If omitted, defaults to 0.
      */
-    @NotNull(message = "Major threshold is required")
-    @Min(value = 1, message = "Major threshold must be at least 1")
+    @Min(value = 0, message = "Major threshold cannot be negative")
     private Integer majorThreshold;
 
     /**
-     * Damage threshold for severe injuries.
+     * Damage threshold for severe injuries. If omitted, defaults to 0.
      */
-    @NotNull(message = "Severe threshold is required")
-    @Min(value = 1, message = "Severe threshold must be at least 1")
+    @Min(value = 0, message = "Severe threshold cannot be negative")
     private Integer severeThreshold;
 
     /**
@@ -163,9 +161,8 @@ public class CreateAdversaryRequest {
         private Integer diceCount;
 
         /**
-         * The type of die to roll.
+         * The type of die to roll. Null indicates flat modifier-only damage (no dice).
          */
-        @NotNull(message = "Dice type is required")
         private DiceType diceType;
 
         /**

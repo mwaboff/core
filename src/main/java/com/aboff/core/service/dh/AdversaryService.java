@@ -1,11 +1,9 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
-import com.aboff.core.model.dto.dh.request.BatchCreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.CreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAdversaryRequest;
 import com.aboff.core.model.dto.dh.response.AdversaryResponse;
-import com.aboff.core.model.dto.dh.response.BatchCreateAdversaryResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.ExperienceResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
@@ -179,8 +177,9 @@ public class AdversaryService {
                 .description(request.getDescription())
                 .motivesAndTactics(request.getMotivesAndTactics())
                 .difficulty(request.getDifficulty())
-                .majorThreshold(request.getMajorThreshold())
-                .severeThreshold(request.getSevereThreshold())
+                .majorThreshold(request.getMajorThreshold() != null ? request.getMajorThreshold() : 0)
+                .severeThreshold(request.getSevereThreshold() != null ? request.getSevereThreshold()
+                        : request.getMajorThreshold() != null ? request.getMajorThreshold() : 0)
                 .hitPointMax(request.getHitPointMax() != null ? request.getHitPointMax() : 0)
                 .stressMax(request.getStressMax() != null ? request.getStressMax() : 0)
                 .attackModifier(request.getAttackModifier())
@@ -225,45 +224,23 @@ public class AdversaryService {
     }
 
     /**
-     * Creates multiple adversaries in a batch operation.
-     * Supports partial success - individual failures do not affect other creates.
+     * Creates multiple adversaries in a bulk operation.
      *
-     * @param request The batch creation request
+     * @param requests List of creation requests
      * @param auth Authentication context
-     * @return BatchCreateAdversaryResponse containing created adversaries and errors
+     * @return List of created adversary responses
      */
     @Transactional
-    public BatchCreateAdversaryResponse batchCreateAdversaries(
-            BatchCreateAdversaryRequest request, Authentication auth) {
-        List<AdversaryResponse> created = new ArrayList<>();
-        List<BatchCreateAdversaryResponse.BatchError> errors = new ArrayList<>();
-
-        for (int i = 0; i < request.getAdversaries().size(); i++) {
-            CreateAdversaryRequest adversaryRequest = request.getAdversaries().get(i);
-            try {
-                AdversaryResponse response = createAdversary(adversaryRequest, auth);
-                created.add(response);
-            } catch (Exception e) {
-                auditLogger.warn(AuditAction.ADVERSARY_BATCH_CREATED, AuditContext.forUser(auth).build(),
-                        "Failed to create adversary at index " + i + ": " + e.getMessage());
-                errors.add(BatchCreateAdversaryResponse.BatchError.builder()
-                        .index(i)
-                        .name(adversaryRequest.getName())
-                        .error(e.getMessage())
-                        .build());
-            }
-        }
+    public List<AdversaryResponse> createAdversariesBulk(
+            List<CreateAdversaryRequest> requests, Authentication auth) {
+        List<AdversaryResponse> responses = requests.stream()
+                .map(request -> createAdversary(request, auth))
+                .toList();
 
         auditLogger.log(AuditAction.ADVERSARY_BATCH_CREATED, AuditContext.forUser(auth).build(),
-                created.size() + " created, " + errors.size() + " failed");
+                responses.size() + " adversaries created in bulk");
 
-        return BatchCreateAdversaryResponse.builder()
-                .created(created)
-                .errors(errors.isEmpty() ? null : errors)
-                .totalRequested(request.getAdversaries().size())
-                .totalCreated(created.size())
-                .totalFailed(errors.size())
-                .build();
+        return responses;
     }
 
     /**
@@ -532,6 +509,7 @@ public class AdversaryService {
     private void validateThresholds(Integer majorThreshold, Integer severeThreshold) {
         if (majorThreshold != null && severeThreshold != null
                 && severeThreshold < majorThreshold) {
+            log.warn("Threshold validation failed: majorThreshold={}, severeThreshold={}", majorThreshold, severeThreshold);
             throw new IllegalArgumentException(
                     "Severe threshold must be greater than or equal to major threshold");
         }
@@ -542,10 +520,14 @@ public class AdversaryService {
      */
     private void validateMarkedValues(Adversary adversary) {
         if (adversary.getHitPointMarked() > adversary.getHitPointMax()) {
+            log.warn("Marked value validation failed for adversary id={}: hitPointMarked={} > hitPointMax={}",
+                    adversary.getId(), adversary.getHitPointMarked(), adversary.getHitPointMax());
             throw new IllegalArgumentException(
                     "Hit points marked cannot exceed hit points max");
         }
         if (adversary.getStressMarked() > adversary.getStressMax()) {
+            log.warn("Marked value validation failed for adversary id={}: stressMarked={} > stressMax={}",
+                    adversary.getId(), adversary.getStressMarked(), adversary.getStressMax());
             throw new IllegalArgumentException(
                     "Stress marked cannot exceed stress max");
         }

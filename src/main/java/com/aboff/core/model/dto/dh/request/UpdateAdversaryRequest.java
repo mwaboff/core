@@ -63,13 +63,13 @@ public class UpdateAdversaryRequest {
     /**
      * Damage threshold for major injuries.
      */
-    @Min(value = 1, message = "Major threshold must be at least 1")
+    @Min(value = 0, message = "Major threshold cannot be negative")
     private Integer majorThreshold;
 
     /**
      * Damage threshold for severe injuries.
      */
-    @Min(value = 1, message = "Severe threshold must be at least 1")
+    @Min(value = 0, message = "Severe threshold cannot be negative")
     private Integer severeThreshold;
 
     /**

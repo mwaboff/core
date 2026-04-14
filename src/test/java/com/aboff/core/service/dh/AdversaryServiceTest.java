@@ -1,11 +1,9 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
-import com.aboff.core.model.dto.dh.request.BatchCreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.CreateAdversaryRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAdversaryRequest;
 import com.aboff.core.model.dto.dh.response.AdversaryResponse;
-import com.aboff.core.model.dto.dh.response.BatchCreateAdversaryResponse;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
@@ -711,10 +709,10 @@ class AdversaryServiceTest {
         assertThat(result.getDamage().getDiceType()).isEqualTo(DiceType.D8);
     }
 
-    // ==================== BATCH CREATE ADVERSARIES TESTS ====================
+    // ==================== BULK CREATE ADVERSARIES TESTS ====================
 
     @Test
-    void batchCreateAdversaries_ValidRequests_CreatesAllAdversaries() {
+    void createAdversariesBulk_ValidRequests_CreatesAllAdversaries() {
         // Arrange
         setupAuthenticationWith(regularUserDetails);
 
@@ -723,10 +721,6 @@ class AdversaryServiceTest {
 
         CreateAdversaryRequest request2 = createTestAdversaryRequest();
         request2.setName("Goblin 2");
-
-        BatchCreateAdversaryRequest batchRequest = BatchCreateAdversaryRequest.builder()
-                .adversaries(List.of(request1, request2))
-                .build();
 
         Adversary savedAdversary1 = createTestAdversary(1L, "Goblin 1", expansion, regularUser);
         Adversary savedAdversary2 = createTestAdversary(2L, "Goblin 2", expansion, regularUser);
@@ -737,77 +731,29 @@ class AdversaryServiceTest {
                 .thenReturn(savedAdversary2);
 
         // Act
-        BatchCreateAdversaryResponse result = adversaryService.batchCreateAdversaries(batchRequest, authentication);
+        List<AdversaryResponse> result = adversaryService.createAdversariesBulk(
+                List.of(request1, request2), authentication);
 
         // Assert
-        assertThat(result.getTotalRequested()).isEqualTo(2);
-        assertThat(result.getTotalCreated()).isEqualTo(2);
-        assertThat(result.getTotalFailed()).isEqualTo(0);
-        assertThat(result.getCreated()).hasSize(2);
-        assertThat(result.getErrors()).isNull();
+        assertThat(result).hasSize(2);
+        assertThat(result.get(0).getName()).isEqualTo("Goblin 1");
+        assertThat(result.get(1).getName()).isEqualTo("Goblin 2");
     }
 
     @Test
-    void batchCreateAdversaries_PartialFailure_ReturnsCreatedAndErrors() {
+    void createAdversariesBulk_InvalidRequest_ThrowsException() {
         // Arrange
         setupAuthenticationWith(regularUserDetails);
-
-        CreateAdversaryRequest validRequest = createTestAdversaryRequest();
-        validRequest.setName("Valid Goblin");
 
         CreateAdversaryRequest invalidRequest = createTestAdversaryRequest();
-        invalidRequest.setName("Invalid Goblin");
         invalidRequest.setExpansionId(999L);
 
-        BatchCreateAdversaryRequest batchRequest = BatchCreateAdversaryRequest.builder()
-                .adversaries(List.of(validRequest, invalidRequest))
-                .build();
-
-        Adversary savedAdversary = createTestAdversary(1L, "Valid Goblin", expansion, regularUser);
-
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
-        when(adversaryRepository.save(any(Adversary.class))).thenReturn(savedAdversary);
 
-        // Act
-        BatchCreateAdversaryResponse result = adversaryService.batchCreateAdversaries(batchRequest, authentication);
-
-        // Assert
-        assertThat(result.getTotalRequested()).isEqualTo(2);
-        assertThat(result.getTotalCreated()).isEqualTo(1);
-        assertThat(result.getTotalFailed()).isEqualTo(1);
-        assertThat(result.getCreated()).hasSize(1);
-        assertThat(result.getErrors()).hasSize(1);
-        assertThat(result.getErrors().get(0).getIndex()).isEqualTo(1);
-        assertThat(result.getErrors().get(0).getName()).isEqualTo("Invalid Goblin");
-    }
-
-    @Test
-    void batchCreateAdversaries_AllFail_ReturnsOnlyErrors() {
-        // Arrange
-        setupAuthenticationWith(regularUserDetails);
-
-        CreateAdversaryRequest invalidRequest1 = createTestAdversaryRequest();
-        invalidRequest1.setExpansionId(997L);
-
-        CreateAdversaryRequest invalidRequest2 = createTestAdversaryRequest();
-        invalidRequest2.setExpansionId(998L);
-
-        BatchCreateAdversaryRequest batchRequest = BatchCreateAdversaryRequest.builder()
-                .adversaries(List.of(invalidRequest1, invalidRequest2))
-                .build();
-
-        when(expansionRepository.findByIdAndDeletedAtIsNull(anyLong())).thenReturn(Optional.empty());
-
-        // Act
-        BatchCreateAdversaryResponse result = adversaryService.batchCreateAdversaries(batchRequest, authentication);
-
-        // Assert
-        assertThat(result.getTotalRequested()).isEqualTo(2);
-        assertThat(result.getTotalCreated()).isEqualTo(0);
-        assertThat(result.getTotalFailed()).isEqualTo(2);
-        assertThat(result.getCreated()).isEmpty();
-        assertThat(result.getErrors()).hasSize(2);
+        // Act & Assert
+        assertThatThrownBy(() -> adversaryService.createAdversariesBulk(
+                List.of(invalidRequest), authentication))
+                .isInstanceOf(EntityNotFoundException.class);
     }
 
     // ==================== UPDATE ADVERSARY TESTS ====================
