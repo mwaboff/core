@@ -794,7 +794,7 @@ All error responses use a standard format:
 | Status | Condition                                                              |
 |--------|------------------------------------------------------------------------|
 | `400`  | Validation failure (missing required fields, out-of-range values)      |
-| `400`  | Constraint violation (e.g., armorMarked > armorMax)                    |
+| `400`  | Constraint violation (e.g., severeDamageThreshold < majorDamageThreshold) |
 | `401`  | Missing or invalid authentication token                                |
 | `403`  | Insufficient permissions (non-owner on update/delete, non-moderator on list all) |
 | `404`  | Character sheet not found or soft-deleted                              |
@@ -817,7 +817,7 @@ All fields marked **required** must be present. Equipment and collection IDs are
 | `proficiency`            | integer   | No       | >= 1, defaults to 1                           |
 | `evasion`                | integer   | Yes      | >= 0                                          |
 | `armorMax`               | integer   | Yes      | >= 0                                          |
-| `armorMarked`            | integer   | Yes      | >= 0, must be <= armorMax                     |
+| `armorMarked`            | integer   | Yes      | >= 0 (may exceed `armorMax`; see Marked vs. Max below) |
 | `majorDamageThreshold`   | integer   | Yes      | > 0                                           |
 | `severeDamageThreshold`  | integer   | Yes      | > 0, must be >= majorDamageThreshold          |
 | `agilityModifier`        | integer   | Yes      | --                                            |
@@ -833,11 +833,11 @@ All fields marked **required** must be present. Equipment and collection IDs are
 | `knowledgeModifier`      | integer   | Yes      | --                                            |
 | `knowledgeMarked`        | boolean   | Yes      | --                                            |
 | `hitPointMax`            | integer   | Yes      | > 0                                           |
-| `hitPointMarked`         | integer   | Yes      | >= 0, must be <= hitPointMax                  |
+| `hitPointMarked`         | integer   | Yes      | >= 0 (may exceed `hitPointMax`; see Marked vs. Max below) |
 | `stressMax`              | integer   | Yes      | > 0                                           |
-| `stressMarked`           | integer   | Yes      | >= 0, must be <= stressMax                    |
+| `stressMarked`           | integer   | Yes      | >= 0 (may exceed `stressMax`; see Marked vs. Max below) |
 | `hopeMax`                | integer   | Yes      | > 0                                           |
-| `hopeMarked`             | integer   | Yes      | >= 0, must be <= hopeMax                      |
+| `hopeMarked`             | integer   | Yes      | >= 0 (may exceed `hopeMax`; see Marked vs. Max below) |
 | `gold`                   | integer   | Yes      | >= 0                                          |
 | `communityCardIds`       | long[]    | No       | Each must reference existing CommunityCard    |
 | `ancestryCardIds`        | long[]    | No       | Each must reference existing AncestryCard     |
@@ -874,6 +874,8 @@ All fields marked **required** must be present. Equipment and collection IDs are
 ### UpdateCharacterSheetRequest
 
 All fields are optional. Only non-null fields are applied. Same validation rules as create but no required fields.
+
+**Marked/Max clamping:** If an update request sets a `*_max` field (`armorMax`, `hitPointMax`, `stressMax`, `hopeMax`) to a value lower than the current stored `*_marked`, the service clamps `*_marked` down to the new max. Otherwise `*_marked` is applied exactly as submitted — including values above `*_max` (e.g. produced by equipped items raising the effective cap). See "Marked vs. Max" under Database Constraints.
 
 Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `inventoryWeapons`, `inventoryArmors`, `inventoryItems`) replace the entire collection when provided. Omit to leave the collection unchanged.
 
@@ -1515,12 +1517,14 @@ The `character_sheets` table enforces these constraints at the database level:
 |-------------------------------------|-----------------------------------------------------|
 | `check_level_positive`              | `level >= 1`                                        |
 | `check_severe_gte_major`            | `severe_damage_threshold >= major_damage_threshold`  |
-| `check_hit_point_marked_lte_max`    | `hit_point_marked <= hit_point_max`                  |
-| `check_stress_marked_lte_max`       | `stress_marked <= stress_max`                        |
-| `check_hope_marked_lte_max`         | `hope_marked <= hope_max`                            |
-| `check_armor_marked_lte_max`        | `armor_marked <= armor_max`                          |
 
-These constraints are also validated in the service layer before persistence, returning `400 Bad Request` with descriptive error messages.
+The service layer also enforces `severe_damage_threshold >= major_damage_threshold`, returning `400 Bad Request` on violation.
+
+### Marked vs. Max
+
+The stored `*_max` columns (`armor_max`, `hit_point_max`, `stress_max`, `hope_max`) represent a character's **base** maximum. Equipped items and features can raise the effective maximum at runtime (e.g. a shield granting +1 armor max). The backend therefore allows `*_marked` to exceed the corresponding `*_max` — clients (the frontend) are the source of truth for the effective cap and submit `*_marked` values accordingly. The previous DB-level `*_marked <= *_max` constraints were removed in migration `V20260414170355941`.
+
+The only exception: when an update request explicitly sets a `*_max` field to a value lower than the current `*_marked`, the service clamps `*_marked` down to the new max. A create request, or an update that does not touch `*_max`, never alters the submitted `*_marked` value.
 
 ### Foreign Key Behavior
 
