@@ -17,6 +17,7 @@ import com.aboff.core.model.enums.ModifierOperation;
 import com.aboff.core.model.enums.ModifierTarget;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
@@ -27,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -60,6 +62,12 @@ class FeatureServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private FeatureService featureService;
@@ -363,7 +371,7 @@ class FeatureServiceTest {
                 .thenReturn(savedFeature);
 
         // Act
-        FeatureResponse result = featureService.createFeature(request);
+        FeatureResponse result = featureService.createFeature(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -401,7 +409,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
 
         // Act
-        FeatureResponse result = featureService.createFeature(request);
+        FeatureResponse result = featureService.createFeature(request, authentication);
 
         // Assert
         assertThat(result.getName()).isNull();
@@ -426,7 +434,7 @@ class FeatureServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> featureService.createFeature(request))
+        assertThatThrownBy(() -> featureService.createFeature(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -468,7 +476,7 @@ class FeatureServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureResponse result = featureService.updateFeature(1L, request);
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -496,7 +504,7 @@ class FeatureServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> featureService.updateFeature(999L, request))
+        assertThatThrownBy(() -> featureService.updateFeature(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Feature not found with id: 999");
 
@@ -534,7 +542,7 @@ class FeatureServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> featureService.updateFeature(1L, request))
+        assertThatThrownBy(() -> featureService.updateFeature(1L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -565,7 +573,7 @@ class FeatureServiceTest {
                 .thenReturn(Optional.of(feature));
 
         // Act
-        featureService.deleteFeature(1L);
+        featureService.deleteFeature(1L, authentication);
 
         // Assert
         verify(featureRepository).save(argThat(f -> f.getDeletedAt() != null));
@@ -578,7 +586,7 @@ class FeatureServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> featureService.deleteFeature(999L))
+        assertThatThrownBy(() -> featureService.deleteFeature(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Feature not found with id: 999");
 
@@ -612,7 +620,7 @@ class FeatureServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureResponse result = featureService.restoreFeature(1L);
+        FeatureResponse result = featureService.restoreFeature(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -641,7 +649,7 @@ class FeatureServiceTest {
                 .thenReturn(Optional.of(activeFeature));
 
         // Act & Assert
-        assertThatThrownBy(() -> featureService.restoreFeature(1L))
+        assertThatThrownBy(() -> featureService.restoreFeature(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Feature with id 1 is not deleted");
 
@@ -655,7 +663,7 @@ class FeatureServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> featureService.restoreFeature(999L))
+        assertThatThrownBy(() -> featureService.restoreFeature(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Feature not found with id: 999");
     }
@@ -691,7 +699,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
 
         // Act
-        FeatureResponse result = featureService.createFeature(request);
+        FeatureResponse result = featureService.createFeature(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -731,7 +739,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
 
         // Act
-        FeatureResponse result = featureService.createFeature(request);
+        FeatureResponse result = featureService.createFeature(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -773,7 +781,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
 
         // Act
-        FeatureResponse result = featureService.createFeature(request);
+        FeatureResponse result = featureService.createFeature(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -811,7 +819,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureResponse result = featureService.updateFeature(1L, request);
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -849,7 +857,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureResponse result = featureService.updateFeature(1L, request);
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -885,7 +893,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureResponse result = featureService.updateFeature(1L, request);
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -955,7 +963,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
 
         // Act
-        FeatureResponse result = featureService.createFeature(request);
+        FeatureResponse result = featureService.createFeature(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -1000,7 +1008,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
 
         // Act
-        FeatureResponse result = featureService.createFeature(request);
+        FeatureResponse result = featureService.createFeature(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -1049,7 +1057,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenReturn(savedFeature);
 
         // Act
-        FeatureResponse result = featureService.createFeature(request);
+        FeatureResponse result = featureService.createFeature(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -1088,7 +1096,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureResponse result = featureService.updateFeature(1L, request);
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -1127,7 +1135,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureResponse result = featureService.updateFeature(1L, request);
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -1164,7 +1172,7 @@ class FeatureServiceTest {
         when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureResponse result = featureService.updateFeature(1L, request);
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -1358,7 +1366,7 @@ class FeatureServiceTest {
         when(featureRepository.saveAll(anyList())).thenReturn(List.of(savedFeature1, savedFeature2));
 
         // Act
-        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request1, request2));
+        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -1391,7 +1399,7 @@ class FeatureServiceTest {
         when(featureRepository.saveAll(anyList())).thenReturn(List.of(savedFeature));
 
         // Act
-        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request));
+        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request), authentication);
 
         // Assert
         assertThat(results).hasSize(1);
@@ -1412,7 +1420,7 @@ class FeatureServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> featureService.createFeaturesBulk(List.of(request)))
+        assertThatThrownBy(() -> featureService.createFeaturesBulk(List.of(request), authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -1445,7 +1453,7 @@ class FeatureServiceTest {
         when(featureRepository.saveAll(anyList())).thenReturn(List.of(savedFeature));
 
         // Act
-        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request));
+        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request), authentication);
 
         // Assert
         assertThat(results).hasSize(1);

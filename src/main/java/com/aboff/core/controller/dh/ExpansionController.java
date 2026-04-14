@@ -1,15 +1,19 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateExpansionRequest;
 import com.aboff.core.model.dto.dh.request.UpdateExpansionRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.ExpansionService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -26,6 +30,7 @@ import org.springframework.web.bind.annotation.*;
 public class ExpansionController {
 
     private final ExpansionService expansionService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of expansions.
@@ -53,11 +58,24 @@ public class ExpansionController {
      * Retrieves a single expansion by ID.
      *
      * @param id The expansion ID
+     * @param authentication The authentication of the current user
+     * @param httpRequest The HTTP servlet request
      * @return ExpansionResponse containing the expansion details
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ExpansionResponse> getExpansionById(@PathVariable Long id) {
+    public ResponseEntity<ExpansionResponse> getExpansionById(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/expansions/" + id);
+
         ExpansionResponse response = expansionService.getExpansionById(id);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/expansions/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -66,14 +84,24 @@ public class ExpansionController {
      * Requires ADMIN or OWNER role.
      *
      * @param request The creation request containing expansion details
+     * @param auth Authentication context
      * @return ExpansionResponse containing the created expansion
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<ExpansionResponse> createExpansion(
-            @Valid @RequestBody CreateExpansionRequest request) {
+            @Valid @RequestBody CreateExpansionRequest request,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
 
-        ExpansionResponse response = expansionService.createExpansion(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/expansions");
+
+        ExpansionResponse response = expansionService.createExpansion(request, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/expansions", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -83,15 +111,25 @@ public class ExpansionController {
      *
      * @param id The expansion ID to update
      * @param request The update request containing new expansion details
+     * @param auth Authentication context
      * @return ExpansionResponse containing the updated expansion
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<ExpansionResponse> updateExpansion(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateExpansionRequest request) {
+            @Valid @RequestBody UpdateExpansionRequest request,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
 
-        ExpansionResponse response = expansionService.updateExpansion(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/expansions/" + id);
+
+        ExpansionResponse response = expansionService.updateExpansion(id, request, auth);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/expansions/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -100,12 +138,24 @@ public class ExpansionController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The expansion ID to delete
+     * @param auth Authentication context
      * @return 204 No Content on success
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteExpansion(@PathVariable Long id) {
-        expansionService.deleteExpansion(id);
+    public ResponseEntity<Void> deleteExpansion(
+            @PathVariable Long id,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/expansions/" + id);
+
+        expansionService.deleteExpansion(id, auth);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/expansions/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -114,12 +164,24 @@ public class ExpansionController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The expansion ID to restore
+     * @param auth Authentication context
      * @return ExpansionResponse containing the restored expansion
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<ExpansionResponse> restoreExpansion(@PathVariable Long id) {
-        ExpansionResponse response = expansionService.restoreExpansion(id);
+    public ResponseEntity<ExpansionResponse> restoreExpansion(
+            @PathVariable Long id,
+            Authentication auth,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(auth)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/expansions/" + id + "/restore");
+
+        ExpansionResponse response = expansionService.restoreExpansion(id, auth);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/expansions/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

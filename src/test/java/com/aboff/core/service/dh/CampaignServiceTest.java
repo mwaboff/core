@@ -17,6 +17,7 @@ import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
@@ -62,6 +63,9 @@ class CampaignServiceTest {
 
     @Mock
     private RoleHierarchyService roleHierarchyService;
+
+    @Mock
+    private AuditLogger auditLogger;
 
     @Mock
     private Authentication authentication;

@@ -28,8 +28,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 import java.util.Set;
@@ -50,6 +54,7 @@ public class DomainCardService {
     private final CardCostTagService cardCostTagService;
     private final DomainRepository domainRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of domain cards.
@@ -123,12 +128,12 @@ public class DomainCardService {
      * Creates a new domain card.
      *
      * @param request The creation request containing card details
+     * @param authentication The authentication of the requesting user
      * @return DomainCardResponse containing the created card
      * @throws EntityNotFoundException if referenced entities are not found
      */
     @Transactional
-    public DomainCardResponse createDomainCard(CreateDomainCardRequest request) {
-        log.info("Creating new domain card with name: {}", request.getName());
+    public DomainCardResponse createDomainCard(CreateDomainCardRequest request, Authentication authentication) {
 
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -163,8 +168,9 @@ public class DomainCardService {
         }
 
         DomainCard savedCard = domainCardRepository.save(card);
-        log.info("Created domain card with id: {}", savedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("domain_card").build(),
+                "\"" + savedCard.getName() + "\" (domain_card_id: " + savedCard.getId() + ")");
 
         return toResponse(savedCard, Set.of());
     }
@@ -173,11 +179,11 @@ public class DomainCardService {
      * Creates multiple domain cards in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the requesting user
      * @return List of created card responses
      */
     @Transactional
-    public List<DomainCardResponse> createDomainCardsBulk(List<CreateDomainCardRequest> requests) {
-        log.info("Creating {} domain cards in bulk", requests.size());
+    public List<DomainCardResponse> createDomainCardsBulk(List<CreateDomainCardRequest> requests, Authentication authentication) {
 
         List<DomainCard> cards = requests.stream()
                 .map(request -> {
@@ -216,8 +222,9 @@ public class DomainCardService {
                 .toList();
 
         List<DomainCard> savedCards = domainCardRepository.saveAll(cards);
-        log.info("Created {} domain cards in bulk", savedCards.size());
         savedCards.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("domain_card").build(),
+                savedCards.size() + " domain cards created");
 
         return savedCards.stream()
                 .map(card -> toResponse(card, Set.of()))
@@ -229,12 +236,12 @@ public class DomainCardService {
      *
      * @param id The card ID to update
      * @param request The update request containing new card details
+     * @param authentication The authentication of the requesting user
      * @return DomainCardResponse containing the updated card
      * @throws EntityNotFoundException if the card or referenced entities are not found
      */
     @Transactional
-    public DomainCardResponse updateDomainCard(Long id, UpdateDomainCardRequest request) {
-        log.info("Updating domain card with id: {}", id);
+    public DomainCardResponse updateDomainCard(Long id, UpdateDomainCardRequest request, Authentication authentication) {
 
         DomainCard card = domainCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + id));
@@ -286,8 +293,9 @@ public class DomainCardService {
         }
 
         DomainCard updatedCard = domainCardRepository.save(card);
-        log.info("Updated domain card with id: {}", updatedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("domain_card").build(),
+                "domain_card_id: " + updatedCard.getId());
 
         return toResponse(updatedCard, Set.of());
     }
@@ -296,34 +304,32 @@ public class DomainCardService {
      * Soft deletes a domain card by setting its deletedAt timestamp.
      *
      * @param id The card ID to delete
+     * @param authentication The authentication of the requesting user
      * @throws EntityNotFoundException if the card is not found or is already deleted
      */
     @Transactional
-    public void deleteDomainCard(Long id) {
-        log.info("Soft deleting domain card with id: {}", id);
-
+    public void deleteDomainCard(Long id, Authentication authentication) {
         DomainCard card = domainCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + id));
 
         card.softDelete();
         domainCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted domain card with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("domain_card").build(),
+                "domain_card_id: " + id);
     }
 
     /**
      * Restores a soft-deleted domain card.
      *
      * @param id The card ID to restore
+     * @param authentication The authentication of the requesting user
      * @return DomainCardResponse containing the restored card
      * @throws EntityNotFoundException if the card is not found
      * @throws IllegalStateException if the card is not deleted
      */
     @Transactional
-    public DomainCardResponse restoreDomainCard(Long id) {
-        log.info("Restoring domain card with id: {}", id);
-
+    public DomainCardResponse restoreDomainCard(Long id, Authentication authentication) {
         DomainCard card = domainCardRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + id));
 
@@ -334,8 +340,8 @@ public class DomainCardService {
         card.restore();
         DomainCard restoredCard = domainCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredCard, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored domain card with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("domain_card").build(),
+                "domain_card_id: " + id);
 
         return toResponse(restoredCard, Set.of());
     }

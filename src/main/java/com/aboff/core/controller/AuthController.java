@@ -1,8 +1,10 @@
 package com.aboff.core.controller;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.AuthenticationService;
 import com.aboff.core.service.UserService;
 import com.aboff.core.util.CookieUtil;
@@ -37,6 +39,7 @@ public class AuthController {
     private final AuthenticationService authenticationService;
     private final UserService userService;
     private final CookieUtil cookieUtil;
+    private final AuditLogger auditLogger;
 
     /**
      * Constructs a new AuthController with required dependencies.
@@ -44,14 +47,17 @@ public class AuthController {
      * @param authenticationService the authentication service
      * @param userService           the user service
      * @param cookieUtil            the cookie utility
+     * @param auditLogger           the audit logger
      */
     public AuthController(
             AuthenticationService authenticationService,
             UserService userService,
-            CookieUtil cookieUtil) {
+            CookieUtil cookieUtil,
+            AuditLogger auditLogger) {
         this.authenticationService = authenticationService;
         this.userService = userService;
         this.cookieUtil = cookieUtil;
+        this.auditLogger = auditLogger;
     }
 
     /**
@@ -68,6 +74,10 @@ public class AuthController {
             HttpServletRequest httpRequest,
             HttpServletResponse httpResponse,
             Authentication authentication) {
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/auth/logout");
 
         String token = extractTokenFromCookie(httpRequest);
 
@@ -76,6 +86,8 @@ public class AuthController {
         }
 
         cookieUtil.clearAuthCookie(httpResponse);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/auth/logout", startTime);
     }
 
     /**
@@ -86,10 +98,15 @@ public class AuthController {
      * @return the current user's profile response
      */
     @GetMapping("/me")
-    public UserResponse me(Authentication authentication) {
+    public UserResponse me(Authentication authentication, HttpServletRequest httpRequest) {
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/auth/me");
+
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         User user = userDetails.getUser();
-        return UserResponse.builder()
+        UserResponse result = UserResponse.builder()
                 .id(user.getId())
                 .username(user.getUsername())
                 .role(user.getRole())
@@ -100,6 +117,9 @@ public class AuthController {
                 .lastModifiedAt(user.getLastModifiedAt())
                 .usernameChosen(user.getUsernameChosen())
                 .build();
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/auth/me", startTime);
+        return result;
     }
 
     /**
@@ -122,10 +142,19 @@ public class AuthController {
     @PostMapping("/choose-username")
     public UserResponse chooseUsername(
             @Valid @RequestBody ChooseUsernameRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/auth/choose-username");
+
         CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
         User user = userDetails.getUser();
-        return userService.chooseUsername(user.getId(), request.getUsername());
+        UserResponse result = userService.chooseUsername(user.getId(), request.getUsername(), authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/auth/choose-username", startTime);
+        return result;
     }
 
     /**

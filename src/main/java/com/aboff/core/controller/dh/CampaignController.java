@@ -1,12 +1,15 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
 import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
 import com.aboff.core.model.dto.dh.response.JoinCampaignResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.CampaignService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -42,6 +45,7 @@ import org.springframework.web.bind.annotation.*;
 public class CampaignController {
 
     private final CampaignService campaignService;
+    private final AuditLogger auditLogger;
 
     // ==================== MY CAMPAIGNS & INVITE ENDPOINTS ====================
 
@@ -82,9 +86,16 @@ public class CampaignController {
     @PostMapping("/join/{token}")
     public ResponseEntity<JoinCampaignResponse> joinCampaign(
             @PathVariable String token,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/join/" + token);
 
         JoinCampaignResponse response = campaignService.joinViaInvite(token, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/join/" + token, startTime, "campaign_id: " + response.getCampaignId());
         return ResponseEntity.ok(response);
     }
 
@@ -133,9 +144,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> getCampaignById(
             @PathVariable Long id,
             @RequestParam(required = false) String expand,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/campaigns/" + id);
 
         CampaignResponse response = campaignService.getCampaignById(id, expand, authentication);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/campaigns/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -153,9 +171,16 @@ public class CampaignController {
     @PostMapping
     public ResponseEntity<CampaignResponse> createCampaign(
             @Valid @RequestBody CreateCampaignRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns");
 
         CampaignResponse response = campaignService.createCampaign(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns", startTime, "campaign_id: " + response.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -175,9 +200,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> updateCampaign(
             @PathVariable Long id,
             @Valid @RequestBody UpdateCampaignRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/campaigns/" + id);
 
         CampaignResponse response = campaignService.updateCampaign(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/campaigns/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -195,9 +227,16 @@ public class CampaignController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCampaign(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/campaigns/" + id);
 
         campaignService.deleteCampaign(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/campaigns/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -217,9 +256,16 @@ public class CampaignController {
     @PostMapping("/{id}/invites")
     public ResponseEntity<CampaignInviteResponse> generateInvite(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/invites");
 
         CampaignInviteResponse response = campaignService.generateInvite(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/invites", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -236,9 +282,16 @@ public class CampaignController {
     @PostMapping("/{id}/end")
     public ResponseEntity<CampaignResponse> endCampaign(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/end");
 
         CampaignResponse response = campaignService.endCampaign(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/end", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -256,9 +309,16 @@ public class CampaignController {
     @PostMapping("/{id}/leave")
     public ResponseEntity<CampaignResponse> leaveCampaign(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/leave");
 
         CampaignResponse response = campaignService.leaveCampaign(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/leave", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -279,9 +339,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> addGameMaster(
             @PathVariable Long id,
             @PathVariable Long userId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/game-masters/" + userId);
 
         CampaignResponse response = campaignService.addGameMaster(id, userId, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/game-masters/" + userId, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -301,9 +368,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> removeGameMaster(
             @PathVariable Long id,
             @PathVariable Long userId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/campaigns/" + id + "/game-masters/" + userId);
 
         CampaignResponse response = campaignService.removeGameMaster(id, userId, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/campaigns/" + id + "/game-masters/" + userId, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -322,9 +396,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> addPlayer(
             @PathVariable Long id,
             @PathVariable Long userId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/players/" + userId);
 
         CampaignResponse response = campaignService.addPlayer(id, userId, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/players/" + userId, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -344,9 +425,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> kickPlayer(
             @PathVariable Long id,
             @PathVariable Long userId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/campaigns/" + id + "/players/" + userId);
 
         CampaignResponse response = campaignService.kickPlayer(id, userId, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/campaigns/" + id + "/players/" + userId, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -367,9 +455,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> submitCharacterSheet(
             @PathVariable Long id,
             @PathVariable Long sheetId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId + "/submit");
 
         CampaignResponse response = campaignService.submitCharacterSheet(id, sheetId, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId + "/submit", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -388,9 +483,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> approveCharacterSheet(
             @PathVariable Long id,
             @PathVariable Long sheetId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId + "/approve");
 
         CampaignResponse response = campaignService.approveCharacterSheet(id, sheetId, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId + "/approve", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -409,9 +511,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> rejectCharacterSheet(
             @PathVariable Long id,
             @PathVariable Long sheetId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId + "/reject");
 
         CampaignResponse response = campaignService.rejectCharacterSheet(id, sheetId, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId + "/reject", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -430,9 +539,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> addNonPlayerCharacter(
             @PathVariable Long id,
             @PathVariable Long sheetId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/campaigns/" + id + "/npcs/" + sheetId);
 
         CampaignResponse response = campaignService.addNonPlayerCharacter(id, sheetId, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/npcs/" + sheetId, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -451,9 +567,16 @@ public class CampaignController {
     public ResponseEntity<CampaignResponse> removeCharacterSheet(
             @PathVariable Long id,
             @PathVariable Long sheetId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId);
 
         CampaignResponse response = campaignService.removeCharacterSheet(id, sheetId, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId, startTime);
         return ResponseEntity.ok(response);
     }
 }

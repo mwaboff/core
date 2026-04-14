@@ -15,6 +15,7 @@ import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.SubclassPathRepository;
 import jakarta.persistence.EntityNotFoundException;
+import com.aboff.core.service.AuditLogger;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +25,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -58,6 +60,12 @@ class SubclassPathServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private SubclassPathService subclassPathService;
@@ -247,7 +255,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.save(any(SubclassPath.class))).thenReturn(savedPath);
 
         // Act
-        SubclassPathResponse result = subclassPathService.createSubclassPath(request);
+        SubclassPathResponse result = subclassPathService.createSubclassPath(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -284,7 +292,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.save(any(SubclassPath.class))).thenReturn(savedPath);
 
         // Act
-        SubclassPathResponse result = subclassPathService.createSubclassPath(request);
+        SubclassPathResponse result = subclassPathService.createSubclassPath(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -325,7 +333,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.save(any(SubclassPath.class))).thenReturn(savedPath);
 
         // Act
-        SubclassPathResponse result = subclassPathService.createSubclassPath(request);
+        SubclassPathResponse result = subclassPathService.createSubclassPath(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -345,7 +353,7 @@ class SubclassPathServiceTest {
         when(classRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassPathService.createSubclassPath(request))
+        assertThatThrownBy(() -> subclassPathService.createSubclassPath(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Class not found with id: 999");
 
@@ -369,7 +377,7 @@ class SubclassPathServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassPathService.createSubclassPath(request))
+        assertThatThrownBy(() -> subclassPathService.createSubclassPath(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -409,7 +417,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.saveAll(anyList())).thenReturn(List.of(savedPath1, savedPath2));
 
         // Act
-        List<SubclassPathResponse> results = subclassPathService.createSubclassPathsBulk(List.of(request1, request2));
+        List<SubclassPathResponse> results = subclassPathService.createSubclassPathsBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -448,7 +456,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.save(any(SubclassPath.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        SubclassPathResponse result = subclassPathService.updateSubclassPath(1L, request);
+        SubclassPathResponse result = subclassPathService.updateSubclassPath(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Warden of Renewal");
@@ -467,7 +475,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassPathService.updateSubclassPath(999L, request))
+        assertThatThrownBy(() -> subclassPathService.updateSubclassPath(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("SubclassPath not found with id: 999");
 
@@ -493,7 +501,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(path));
 
         // Act
-        subclassPathService.deleteSubclassPath(1L);
+        subclassPathService.deleteSubclassPath(1L, authentication);
 
         // Assert
         verify(subclassPathRepository).save(argThat(p -> p.getDeletedAt() != null));
@@ -505,7 +513,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassPathService.deleteSubclassPath(999L))
+        assertThatThrownBy(() -> subclassPathService.deleteSubclassPath(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("SubclassPath not found with id: 999");
 
@@ -534,7 +542,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.save(any(SubclassPath.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        SubclassPathResponse result = subclassPathService.restoreSubclassPath(1L);
+        SubclassPathResponse result = subclassPathService.restoreSubclassPath(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -558,7 +566,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.findById(1L)).thenReturn(Optional.of(activePath));
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassPathService.restoreSubclassPath(1L))
+        assertThatThrownBy(() -> subclassPathService.restoreSubclassPath(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("SubclassPath with id 1 is not deleted");
 
@@ -571,7 +579,7 @@ class SubclassPathServiceTest {
         when(subclassPathRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassPathService.restoreSubclassPath(999L))
+        assertThatThrownBy(() -> subclassPathService.restoreSubclassPath(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("SubclassPath not found with id: 999");
     }

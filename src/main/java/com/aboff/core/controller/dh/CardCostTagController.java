@@ -1,16 +1,20 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.enums.CostTagCategory;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.CardCostTagService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -23,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 public class CardCostTagController {
 
     private final CardCostTagService cardCostTagService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of cost tags.
@@ -53,8 +58,18 @@ public class CardCostTagController {
      * @return CardCostTagResponse containing the cost tag details
      */
     @GetMapping("/{id}")
-    public ResponseEntity<CardCostTagResponse> getCostTagById(@PathVariable Long id) {
+    public ResponseEntity<CardCostTagResponse> getCostTagById(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/cost-tags/" + id);
+
         CardCostTagResponse response = cardCostTagService.getCostTagById(id);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/cost-tags/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -68,9 +83,17 @@ public class CardCostTagController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<CardCostTagResponse> createCostTag(
-            @Valid @RequestBody CreateCardCostTagRequest request) {
+            @Valid @RequestBody CreateCardCostTagRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        CardCostTagResponse response = cardCostTagService.createCostTag(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/cost-tags");
+
+        CardCostTagResponse response = cardCostTagService.createCostTag(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/cost-tags", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -86,9 +109,17 @@ public class CardCostTagController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<CardCostTagResponse> updateCostTag(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateCardCostTagRequest request) {
+            @Valid @RequestBody UpdateCardCostTagRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        CardCostTagResponse response = cardCostTagService.updateCostTag(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/cost-tags/" + id);
+
+        CardCostTagResponse response = cardCostTagService.updateCostTag(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/cost-tags/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -101,8 +132,18 @@ public class CardCostTagController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteCostTag(@PathVariable Long id) {
-        cardCostTagService.deleteCostTag(id);
+    public ResponseEntity<Void> deleteCostTag(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/cost-tags/" + id);
+
+        cardCostTagService.deleteCostTag(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/cost-tags/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -115,8 +156,18 @@ public class CardCostTagController {
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<CardCostTagResponse> restoreCostTag(@PathVariable Long id) {
-        CardCostTagResponse response = cardCostTagService.restoreCostTag(id);
+    public ResponseEntity<CardCostTagResponse> restoreCostTag(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/cost-tags/" + id + "/restore");
+
+        CardCostTagResponse response = cardCostTagService.restoreCostTag(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/cost-tags/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

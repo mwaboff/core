@@ -1,5 +1,6 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.request.LevelUpRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
@@ -7,8 +8,10 @@ import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
 import com.aboff.core.model.dto.dh.response.LevelUpOptionsResponse;
 import com.aboff.core.model.dto.dh.response.LevelUpResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.CharacterSheetService;
 import com.aboff.core.service.dh.LevelUpService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -37,6 +40,7 @@ public class CharacterSheetController {
 
     private final CharacterSheetService characterSheetService;
     private final LevelUpService levelUpService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of character sheets.
@@ -89,9 +93,16 @@ public class CharacterSheetController {
     public ResponseEntity<CharacterSheetResponse> getCharacterSheetById(
             @PathVariable Long id,
             @RequestParam(required = false) String expand,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/character-sheets/" + id);
 
         CharacterSheetResponse response = characterSheetService.getCharacterSheetById(id, expand, authentication);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/character-sheets/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -109,9 +120,16 @@ public class CharacterSheetController {
     @PostMapping
     public ResponseEntity<CharacterSheetResponse> createCharacterSheet(
             @Valid @RequestBody CreateCharacterSheetRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/character-sheets");
 
         CharacterSheetResponse response = characterSheetService.createCharacterSheet(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/character-sheets", startTime, "character_sheet_id: " + response.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -132,9 +150,16 @@ public class CharacterSheetController {
     public ResponseEntity<CharacterSheetResponse> updateCharacterSheet(
             @PathVariable Long id,
             @Valid @RequestBody UpdateCharacterSheetRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/character-sheets/" + id);
 
         CharacterSheetResponse response = characterSheetService.updateCharacterSheet(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/character-sheets/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -152,9 +177,16 @@ public class CharacterSheetController {
     @GetMapping("/{id}/level-up-options")
     public ResponseEntity<LevelUpOptionsResponse> getLevelUpOptions(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/character-sheets/" + id + "/level-up-options");
 
         LevelUpOptionsResponse response = levelUpService.getLevelUpOptions(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/character-sheets/" + id + "/level-up-options", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -174,9 +206,16 @@ public class CharacterSheetController {
     public ResponseEntity<LevelUpResponse> levelUp(
             @PathVariable Long id,
             @Valid @RequestBody LevelUpRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/character-sheets/" + id + "/level-up");
 
         LevelUpResponse response = levelUpService.levelUp(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/character-sheets/" + id + "/level-up", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -193,9 +232,16 @@ public class CharacterSheetController {
     @DeleteMapping("/{id}/level-up")
     public ResponseEntity<CharacterSheetResponse> undoLevelUp(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/character-sheets/" + id + "/level-up");
 
         CharacterSheetResponse response = levelUpService.undoLevelUp(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/character-sheets/" + id + "/level-up", startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -214,9 +260,16 @@ public class CharacterSheetController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteCharacterSheet(
             @PathVariable Long id,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/character-sheets/" + id);
 
         characterSheetService.deleteCharacterSheet(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/character-sheets/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 }

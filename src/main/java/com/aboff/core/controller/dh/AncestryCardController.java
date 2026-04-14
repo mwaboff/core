@@ -1,16 +1,20 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateAncestryCardRequest;
 import com.aboff.core.model.dto.dh.request.CreateMixedAncestryCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateAncestryCardRequest;
 import com.aboff.core.model.dto.dh.response.AncestryCardResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.AncestryCardService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,6 +33,7 @@ import java.util.List;
 public class AncestryCardController {
 
     private final AncestryCardService ancestryCardService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of ancestry cards.
@@ -63,14 +68,24 @@ public class AncestryCardController {
      *
      * @param id The card ID
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,features")
+     * @param httpRequest The HTTP servlet request for IP extraction
+     * @param authentication The authentication context for audit logging
      * @return AncestryCardResponse containing the card details
      */
     @GetMapping("/{id}")
     public ResponseEntity<AncestryCardResponse> getAncestryCardById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            HttpServletRequest httpRequest,
+            Authentication authentication) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/cards/ancestry/" + id);
 
         AncestryCardResponse response = ancestryCardService.getAncestryCardById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/cards/ancestry/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -79,14 +94,24 @@ public class AncestryCardController {
      * Requires ADMIN or OWNER role.
      *
      * @param request The creation request containing card details
+     * @param httpRequest The HTTP servlet request for IP extraction
+     * @param authentication The authentication context for audit logging
      * @return AncestryCardResponse containing the created card
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<AncestryCardResponse> createAncestryCard(
-            @Valid @RequestBody CreateAncestryCardRequest request) {
+            @Valid @RequestBody CreateAncestryCardRequest request,
+            HttpServletRequest httpRequest,
+            Authentication authentication) {
 
-        AncestryCardResponse response = ancestryCardService.createAncestryCard(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/cards/ancestry");
+
+        AncestryCardResponse response = ancestryCardService.createAncestryCard(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/cards/ancestry", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -95,14 +120,24 @@ public class AncestryCardController {
      * Requires ADMIN or OWNER role.
      *
      * @param requests List of creation requests
+     * @param httpRequest The HTTP servlet request for IP extraction
+     * @param authentication The authentication context for audit logging
      * @return List of created card responses
      */
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<AncestryCardResponse>> createAncestryCardsBulk(
-            @Valid @RequestBody List<CreateAncestryCardRequest> requests) {
+            @Valid @RequestBody List<CreateAncestryCardRequest> requests,
+            HttpServletRequest httpRequest,
+            Authentication authentication) {
 
-        List<AncestryCardResponse> responses = ancestryCardService.createAncestryCardsBulk(requests);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/cards/ancestry/bulk");
+
+        List<AncestryCardResponse> responses = ancestryCardService.createAncestryCardsBulk(requests, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/cards/ancestry/bulk", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
@@ -111,13 +146,23 @@ public class AncestryCardController {
      * Any authenticated user can create mixed ancestry cards.
      *
      * @param request The creation request containing mixed ancestry details
+     * @param httpRequest The HTTP servlet request for IP extraction
+     * @param authentication The authentication context for audit logging
      * @return AncestryCardResponse containing the created mixed ancestry card
      */
     @PostMapping("/mixed")
     public ResponseEntity<AncestryCardResponse> createMixedAncestryCard(
-            @Valid @RequestBody CreateMixedAncestryCardRequest request) {
+            @Valid @RequestBody CreateMixedAncestryCardRequest request,
+            HttpServletRequest httpRequest,
+            Authentication authentication) {
 
-        AncestryCardResponse response = ancestryCardService.createMixedAncestryCard(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/cards/ancestry/mixed");
+
+        AncestryCardResponse response = ancestryCardService.createMixedAncestryCard(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/cards/ancestry/mixed", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -127,15 +172,25 @@ public class AncestryCardController {
      *
      * @param id The card ID to update
      * @param request The update request containing new card details
+     * @param httpRequest The HTTP servlet request for IP extraction
+     * @param authentication The authentication context for audit logging
      * @return AncestryCardResponse containing the updated card
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<AncestryCardResponse> updateAncestryCard(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateAncestryCardRequest request) {
+            @Valid @RequestBody UpdateAncestryCardRequest request,
+            HttpServletRequest httpRequest,
+            Authentication authentication) {
 
-        AncestryCardResponse response = ancestryCardService.updateAncestryCard(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/cards/ancestry/" + id);
+
+        AncestryCardResponse response = ancestryCardService.updateAncestryCard(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/cards/ancestry/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -144,12 +199,24 @@ public class AncestryCardController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The card ID to delete
+     * @param httpRequest The HTTP servlet request for IP extraction
+     * @param authentication The authentication context for audit logging
      * @return 204 No Content on success
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteAncestryCard(@PathVariable Long id) {
-        ancestryCardService.deleteAncestryCard(id);
+    public ResponseEntity<Void> deleteAncestryCard(
+            @PathVariable Long id,
+            HttpServletRequest httpRequest,
+            Authentication authentication) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/cards/ancestry/" + id);
+
+        ancestryCardService.deleteAncestryCard(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/cards/ancestry/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -158,12 +225,24 @@ public class AncestryCardController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The card ID to restore
+     * @param httpRequest The HTTP servlet request for IP extraction
+     * @param authentication The authentication context for audit logging
      * @return AncestryCardResponse containing the restored card
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<AncestryCardResponse> restoreAncestryCard(@PathVariable Long id) {
-        AncestryCardResponse response = ancestryCardService.restoreAncestryCard(id);
+    public ResponseEntity<AncestryCardResponse> restoreAncestryCard(
+            @PathVariable Long id,
+            HttpServletRequest httpRequest,
+            Authentication authentication) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/cards/ancestry/" + id + "/restore");
+
+        AncestryCardResponse response = ancestryCardService.restoreAncestryCard(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/cards/ancestry/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

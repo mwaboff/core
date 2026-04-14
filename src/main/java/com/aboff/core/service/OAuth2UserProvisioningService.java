@@ -1,7 +1,9 @@
 package com.aboff.core.service;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.UserIdentity;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.UserIdentityRepository;
 import com.aboff.core.repository.UserRepository;
@@ -29,6 +31,7 @@ public class OAuth2UserProvisioningService {
 
     private final UserRepository userRepository;
     private final UserIdentityRepository userIdentityRepository;
+    private final AuditLogger auditLogger;
 
     @Value("${application.user.default-avatar-url}")
     private String defaultAvatarUrl;
@@ -41,12 +44,15 @@ public class OAuth2UserProvisioningService {
      *
      * @param userRepository         the user repository
      * @param userIdentityRepository the user identity repository
+     * @param auditLogger            the audit logger
      */
     public OAuth2UserProvisioningService(
             UserRepository userRepository,
-            UserIdentityRepository userIdentityRepository) {
+            UserIdentityRepository userIdentityRepository,
+            AuditLogger auditLogger) {
         this.userRepository = userRepository;
         this.userIdentityRepository = userIdentityRepository;
+        this.auditLogger = auditLogger;
     }
 
     /**
@@ -106,7 +112,10 @@ public class OAuth2UserProvisioningService {
                 .build();
         userIdentityRepository.save(identity);
 
-        log.info("Created new user '{}' via {} OAuth", user.getUsername(), provider);
+        AuditContext ctx = AuditContext.forIp(null).build();
+        auditLogger.log(AuditAction.USER_PROVISIONED, ctx,
+                String.format("username: %s, provider: %s (user_id: %d)", user.getUsername(), provider, user.getId()));
+
         return user;
     }
 
@@ -169,7 +178,10 @@ public class OAuth2UserProvisioningService {
                 .build();
         userIdentityRepository.save(identity);
 
-        log.info("Created dev user '{}' with role {}", user.getUsername(), user.getRole());
+        AuditContext ctx = AuditContext.forIp(null).build();
+        auditLogger.log(AuditAction.USER_PROVISIONED, ctx,
+                String.format("username: %s, role: %s, provider: dev (user_id: %d)", user.getUsername(), user.getRole(), user.getId()));
+
         return user;
     }
 

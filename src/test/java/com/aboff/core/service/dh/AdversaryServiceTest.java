@@ -24,6 +24,7 @@ import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.BeforeEach;
@@ -84,6 +85,9 @@ class AdversaryServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
 
     @InjectMocks
     private AdversaryService adversaryService;

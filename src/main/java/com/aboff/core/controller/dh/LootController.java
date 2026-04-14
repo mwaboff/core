@@ -1,15 +1,19 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateLootRequest;
 import com.aboff.core.model.dto.dh.request.UpdateLootRequest;
 import com.aboff.core.model.dto.dh.response.LootResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.LootService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -28,6 +32,7 @@ import java.util.List;
 public class LootController {
 
     private final LootService lootService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of loot items.
@@ -69,9 +74,18 @@ public class LootController {
     @GetMapping("/{id}")
     public ResponseEntity<LootResponse> getLootById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/loot/" + id);
 
         LootResponse response = lootService.getLootById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/loot/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -80,14 +94,24 @@ public class LootController {
      * Requires ADMIN or OWNER role.
      *
      * @param request The creation request containing loot details
+     * @param authentication The authentication of the current user
      * @return LootResponse containing the created loot
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<LootResponse> createLoot(
-            @Valid @RequestBody CreateLootRequest request) {
+            @Valid @RequestBody CreateLootRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        LootResponse response = lootService.createLoot(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/loot");
+
+        LootResponse response = lootService.createLoot(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/loot", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -96,14 +120,24 @@ public class LootController {
      * Requires ADMIN or OWNER role.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the current user
      * @return List of created loot responses
      */
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<LootResponse>> createLootBulk(
-            @Valid @RequestBody List<CreateLootRequest> requests) {
+            @Valid @RequestBody List<CreateLootRequest> requests,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        List<LootResponse> responses = lootService.createLootBulk(requests);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/loot/bulk");
+
+        List<LootResponse> responses = lootService.createLootBulk(requests, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/loot/bulk", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
@@ -113,15 +147,25 @@ public class LootController {
      *
      * @param id The loot ID to update
      * @param request The update request containing new loot details
+     * @param authentication The authentication of the current user
      * @return LootResponse containing the updated loot
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<LootResponse> updateLoot(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateLootRequest request) {
+            @Valid @RequestBody UpdateLootRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        LootResponse response = lootService.updateLoot(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/loot/" + id);
+
+        LootResponse response = lootService.updateLoot(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/loot/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -130,12 +174,24 @@ public class LootController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The loot ID to delete
+     * @param authentication The authentication of the current user
      * @return 204 No Content on success
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteLoot(@PathVariable Long id) {
-        lootService.deleteLoot(id);
+    public ResponseEntity<Void> deleteLoot(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/loot/" + id);
+
+        lootService.deleteLoot(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/loot/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -144,12 +200,24 @@ public class LootController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The loot ID to restore
+     * @param authentication The authentication of the current user
      * @return LootResponse containing the restored loot
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<LootResponse> restoreLoot(@PathVariable Long id) {
-        LootResponse response = lootService.restoreLoot(id);
+    public ResponseEntity<LootResponse> restoreLoot(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/loot/" + id + "/restore");
+
+        LootResponse response = lootService.restoreLoot(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/loot/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

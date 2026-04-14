@@ -24,8 +24,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 import java.util.Set;
@@ -45,6 +49,7 @@ public class CommunityCardService {
     private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of community cards.
@@ -110,12 +115,12 @@ public class CommunityCardService {
      * Creates a new community card.
      *
      * @param request The creation request containing card details
+     * @param authentication The authentication of the requesting user
      * @return CommunityCardResponse containing the created card
      * @throws EntityNotFoundException if referenced entities are not found
      */
     @Transactional
-    public CommunityCardResponse createCommunityCard(CreateCommunityCardRequest request) {
-        log.info("Creating new community card with name: {}", request.getName());
+    public CommunityCardResponse createCommunityCard(CreateCommunityCardRequest request, Authentication authentication) {
 
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -142,8 +147,9 @@ public class CommunityCardService {
         }
 
         CommunityCard savedCard = communityCardRepository.save(card);
-        log.info("Created community card with id: {}", savedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("community_card").build(),
+                "\"" + savedCard.getName() + "\" (community_card_id: " + savedCard.getId() + ")");
 
         return toResponse(savedCard, Set.of());
     }
@@ -152,11 +158,11 @@ public class CommunityCardService {
      * Creates multiple community cards in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the requesting user
      * @return List of created card responses
      */
     @Transactional
-    public List<CommunityCardResponse> createCommunityCardsBulk(List<CreateCommunityCardRequest> requests) {
-        log.info("Creating {} community cards in bulk", requests.size());
+    public List<CommunityCardResponse> createCommunityCardsBulk(List<CreateCommunityCardRequest> requests, Authentication authentication) {
 
         List<CommunityCard> cards = requests.stream()
                 .map(request -> {
@@ -187,8 +193,9 @@ public class CommunityCardService {
                 .toList();
 
         List<CommunityCard> savedCards = communityCardRepository.saveAll(cards);
-        log.info("Created {} community cards in bulk", savedCards.size());
         savedCards.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("community_card").build(),
+                savedCards.size() + " community cards created");
 
         return savedCards.stream()
                 .map(card -> toResponse(card, Set.of()))
@@ -200,12 +207,12 @@ public class CommunityCardService {
      *
      * @param id The card ID to update
      * @param request The update request containing new card details
+     * @param authentication The authentication of the requesting user
      * @return CommunityCardResponse containing the updated card
      * @throws EntityNotFoundException if the card or referenced entities are not found
      */
     @Transactional
-    public CommunityCardResponse updateCommunityCard(Long id, UpdateCommunityCardRequest request) {
-        log.info("Updating community card with id: {}", id);
+    public CommunityCardResponse updateCommunityCard(Long id, UpdateCommunityCardRequest request, Authentication authentication) {
 
         CommunityCard card = communityCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("CommunityCard not found with id: " + id));
@@ -242,8 +249,9 @@ public class CommunityCardService {
         }
 
         CommunityCard updatedCard = communityCardRepository.save(card);
-        log.info("Updated community card with id: {}", updatedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("community_card").build(),
+                "community_card_id: " + updatedCard.getId());
 
         return toResponse(updatedCard, Set.of());
     }
@@ -252,34 +260,32 @@ public class CommunityCardService {
      * Soft deletes a community card by setting its deletedAt timestamp.
      *
      * @param id The card ID to delete
+     * @param authentication The authentication of the requesting user
      * @throws EntityNotFoundException if the card is not found or is already deleted
      */
     @Transactional
-    public void deleteCommunityCard(Long id) {
-        log.info("Soft deleting community card with id: {}", id);
-
+    public void deleteCommunityCard(Long id, Authentication authentication) {
         CommunityCard card = communityCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("CommunityCard not found with id: " + id));
 
         card.softDelete();
         communityCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted community card with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("community_card").build(),
+                "community_card_id: " + id);
     }
 
     /**
      * Restores a soft-deleted community card.
      *
      * @param id The card ID to restore
+     * @param authentication The authentication of the requesting user
      * @return CommunityCardResponse containing the restored card
      * @throws EntityNotFoundException if the card is not found
      * @throws IllegalStateException if the card is not deleted
      */
     @Transactional
-    public CommunityCardResponse restoreCommunityCard(Long id) {
-        log.info("Restoring community card with id: {}", id);
-
+    public CommunityCardResponse restoreCommunityCard(Long id, Authentication authentication) {
         CommunityCard card = communityCardRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("CommunityCard not found with id: " + id));
 
@@ -290,8 +296,8 @@ public class CommunityCardService {
         card.restore();
         CommunityCard restoredCard = communityCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredCard, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored community card with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("community_card").build(),
+                "community_card_id: " + id);
 
         return toResponse(restoredCard, Set.of());
     }

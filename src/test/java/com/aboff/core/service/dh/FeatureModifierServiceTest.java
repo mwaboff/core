@@ -8,6 +8,7 @@ import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.enums.ModifierOperation;
 import com.aboff.core.model.enums.ModifierTarget;
 import com.aboff.core.repository.dh.FeatureModifierRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -38,6 +40,12 @@ class FeatureModifierServiceTest {
 
     @Mock
     private FeatureModifierRepository featureModifierRepository;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private FeatureModifierService featureModifierService;
@@ -181,7 +189,7 @@ class FeatureModifierServiceTest {
                 .thenReturn(savedModifier);
 
         // Act
-        FeatureModifierResponse result = featureModifierService.createModifier(request);
+        FeatureModifierResponse result = featureModifierService.createModifier(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -214,7 +222,7 @@ class FeatureModifierServiceTest {
                 .thenReturn(Optional.of(modifier));
 
         // Act
-        featureModifierService.deleteModifier(1L);
+        featureModifierService.deleteModifier(1L, authentication);
 
         // Assert
         verify(featureModifierRepository).save(argThat(m -> m.getDeletedAt() != null));
@@ -227,7 +235,7 @@ class FeatureModifierServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> featureModifierService.deleteModifier(999L))
+        assertThatThrownBy(() -> featureModifierService.deleteModifier(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("FeatureModifier not found with id: 999");
 
@@ -254,7 +262,7 @@ class FeatureModifierServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        FeatureModifierResponse result = featureModifierService.restoreModifier(1L);
+        FeatureModifierResponse result = featureModifierService.restoreModifier(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -276,7 +284,7 @@ class FeatureModifierServiceTest {
                 .thenReturn(Optional.of(activeModifier));
 
         // Act & Assert
-        assertThatThrownBy(() -> featureModifierService.restoreModifier(1L))
+        assertThatThrownBy(() -> featureModifierService.restoreModifier(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("FeatureModifier with id 1 is not deleted");
 
@@ -290,7 +298,7 @@ class FeatureModifierServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> featureModifierService.restoreModifier(999L))
+        assertThatThrownBy(() -> featureModifierService.restoreModifier(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("FeatureModifier not found with id: 999");
     }

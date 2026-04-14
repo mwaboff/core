@@ -22,8 +22,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
 
 import java.util.HashSet;
 import java.util.List;
@@ -41,6 +45,7 @@ public class QuestionService {
     private final QuestionRepository questionRepository;
     private final ExpansionRepository expansionRepository;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     @Transactional(readOnly = true)
     public PagedResponse<QuestionResponse> getAllQuestions(
@@ -84,9 +89,7 @@ public class QuestionService {
     }
 
     @Transactional
-    public QuestionResponse createQuestion(CreateQuestionRequest request) {
-        log.info("Creating new question");
-
+    public QuestionResponse createQuestion(CreateQuestionRequest request, Authentication authentication) {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
@@ -98,16 +101,15 @@ public class QuestionService {
                 .build();
 
         Question savedQuestion = questionRepository.save(question);
-        log.info("Created question with id: {}", savedQuestion.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedQuestion, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("question").build(),
+                "\"" + savedQuestion.getQuestionText() + "\" (question_id: " + savedQuestion.getId() + ")");
 
         return toResponse(savedQuestion, Set.of());
     }
 
     @Transactional
-    public List<QuestionResponse> createQuestionsBulk(List<CreateQuestionRequest> requests) {
-        log.info("Creating {} questions in bulk", requests.size());
-
+    public List<QuestionResponse> createQuestionsBulk(List<CreateQuestionRequest> requests, Authentication authentication) {
         List<Question> questions = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -123,8 +125,9 @@ public class QuestionService {
                 .collect(Collectors.toList());
 
         List<Question> savedQuestions = questionRepository.saveAll(questions);
-        log.info("Created {} questions in bulk", savedQuestions.size());
         savedQuestions.forEach(q -> eventPublisher.publishEvent(new EntityChangeEvent(this, q, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("question").build(),
+                savedQuestions.size() + " created");
 
         return savedQuestions.stream()
                 .map(question -> toResponse(question, Set.of()))
@@ -132,9 +135,7 @@ public class QuestionService {
     }
 
     @Transactional
-    public QuestionResponse updateQuestion(Long id, UpdateQuestionRequest request) {
-        log.info("Updating question with id: {}", id);
-
+    public QuestionResponse updateQuestion(Long id, UpdateQuestionRequest request, Authentication authentication) {
         Question question = questionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Question not found with id: " + id));
 
@@ -152,30 +153,27 @@ public class QuestionService {
         }
 
         Question updatedQuestion = questionRepository.save(question);
-        log.info("Updated question with id: {}", updatedQuestion.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedQuestion, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("question").build(),
+                "question_id: " + updatedQuestion.getId());
 
         return toResponse(updatedQuestion, Set.of());
     }
 
     @Transactional
-    public void deleteQuestion(Long id) {
-        log.info("Soft deleting question with id: {}", id);
-
+    public void deleteQuestion(Long id, Authentication authentication) {
         Question question = questionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Question not found with id: " + id));
 
         question.softDelete();
         questionRepository.save(question);
         eventPublisher.publishEvent(new EntityChangeEvent(this, question, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted question with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("question").build(),
+                "question_id: " + id);
     }
 
     @Transactional
-    public QuestionResponse restoreQuestion(Long id) {
-        log.info("Restoring question with id: {}", id);
-
+    public QuestionResponse restoreQuestion(Long id, Authentication authentication) {
         Question question = questionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Question not found with id: " + id));
 
@@ -186,8 +184,8 @@ public class QuestionService {
         question.restore();
         Question restoredQuestion = questionRepository.save(question);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredQuestion, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored question with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("question").build(),
+                "question_id: " + id);
 
         return toResponse(restoredQuestion, Set.of());
     }
@@ -220,7 +218,7 @@ public class QuestionService {
      * @return the newly created question
      */
     private Question createQuestionFromInput(QuestionInput input) {
-        log.info("Creating new question with type '{}', expansion '{}'", input.getQuestionType(), input.getExpansionId());
+        log.debug("Creating new question with type '{}', expansion '{}'", input.getQuestionType(), input.getExpansionId());
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + input.getExpansionId()));

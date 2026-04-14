@@ -1,6 +1,7 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCompanionRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCompanionRequest;
 import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
@@ -9,14 +10,15 @@ import com.aboff.core.model.dto.dh.response.ExperienceResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Companion;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -42,12 +44,12 @@ import java.util.Set;
  */
 @Service
 @RequiredArgsConstructor
-@Slf4j
 public class CompanionService {
 
     private final CompanionRepository companionRepository;
     private final CharacterSheetRepository characterSheetRepository;
     private final RoleHierarchyService roleHierarchyService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of companions.
@@ -132,8 +134,6 @@ public class CompanionService {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
-        log.info("Creating new companion for character sheet {} by user {}", request.getCharacterSheetId(), userId);
-
         // Verify character sheet exists and is not deleted
         CharacterSheet characterSheet = characterSheetRepository.findActiveById(request.getCharacterSheetId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -163,7 +163,11 @@ public class CompanionService {
                 .build();
 
         Companion savedCompanion = companionRepository.save(companion);
-        log.info("Created companion with id: {} for character sheet {}", savedCompanion.getId(), characterSheet.getId());
+
+        auditLogger.log(AuditAction.COMPANION_CREATED,
+                AuditContext.forUser(auth).withCharacterSheetId(characterSheet.getId()).build(),
+                "\"" + savedCompanion.getName() + "\" (companion_id: " + savedCompanion.getId()
+                        + ", character_sheet_id: " + characterSheet.getId() + ")");
 
         return toResponse(savedCompanion, Set.of());
     }
@@ -185,8 +189,6 @@ public class CompanionService {
      */
     @Transactional
     public CompanionResponse updateCompanion(Long id, UpdateCompanionRequest request, Authentication auth) {
-        log.info("Updating companion with id: {}", id);
-
         Companion companion = companionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Companion not found with id: " + id));
 
@@ -220,7 +222,10 @@ public class CompanionService {
         }
 
         Companion updatedCompanion = companionRepository.save(companion);
-        log.info("Updated companion with id: {}", updatedCompanion.getId());
+
+        auditLogger.log(AuditAction.COMPANION_UPDATED,
+                AuditContext.forUser(auth).withCharacterSheetId(updatedCompanion.getCharacterSheet().getId()).build(),
+                "companion_id: " + updatedCompanion.getId());
 
         return toResponse(updatedCompanion, Set.of());
     }
@@ -240,8 +245,6 @@ public class CompanionService {
      */
     @Transactional
     public void deleteCompanion(Long id, Authentication auth) {
-        log.info("Deleting companion with id: {}", id);
-
         Companion companion = companionRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Companion not found with id: " + id));
 
@@ -249,7 +252,10 @@ public class CompanionService {
         validateAccess(companion, auth, "delete");
 
         companionRepository.delete(companion);
-        log.info("Deleted companion with id: {}", id);
+
+        auditLogger.log(AuditAction.COMPANION_DELETED,
+                AuditContext.forUser(auth).withCharacterSheetId(companion.getCharacterSheet().getId()).build(),
+                "companion_id: " + id);
     }
 
     /**

@@ -1,5 +1,6 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateArmorRequest;
 import com.aboff.core.model.dto.dh.request.UpdateArmorRequest;
 import com.aboff.core.model.dto.dh.response.ArmorResponse;
@@ -9,9 +10,11 @@ import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -19,6 +22,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +47,7 @@ public class ArmorService {
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of armors.
@@ -110,13 +115,12 @@ public class ArmorService {
      * Creates a new armor.
      *
      * @param request The creation request containing armor details
+     * @param authentication The authentication of the current user
      * @return ArmorResponse containing the created armor
      * @throws EntityNotFoundException if referenced entities are not found
      */
     @Transactional
-    public ArmorResponse createArmor(CreateArmorRequest request) {
-        log.info("Creating new armor with name: {}", request.getName());
-
+    public ArmorResponse createArmor(CreateArmorRequest request, Authentication authentication) {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
@@ -144,8 +148,9 @@ public class ArmorService {
         }
 
         Armor savedArmor = armorRepository.save(armor);
-        log.info("Created armor with id: {}", savedArmor.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedArmor, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
+                "\"" + savedArmor.getName() + "\" (armor_id: " + savedArmor.getId() + ")");
 
         return toResponse(savedArmor, Set.of());
     }
@@ -154,12 +159,11 @@ public class ArmorService {
      * Creates multiple armors in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the current user
      * @return List of created armor responses
      */
     @Transactional
-    public List<ArmorResponse> createArmorsBulk(List<CreateArmorRequest> requests) {
-        log.info("Creating {} armors in bulk", requests.size());
-
+    public List<ArmorResponse> createArmorsBulk(List<CreateArmorRequest> requests, Authentication authentication) {
         List<Armor> armors = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -193,8 +197,9 @@ public class ArmorService {
                 .toList();
 
         List<Armor> savedArmors = armorRepository.saveAll(armors);
-        log.info("Created {} armors in bulk", savedArmors.size());
         savedArmors.forEach(a -> eventPublisher.publishEvent(new EntityChangeEvent(this, a, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
+                savedArmors.size() + " created, 0 failed");
 
         return savedArmors.stream()
                 .map(armor -> toResponse(armor, Set.of()))
@@ -206,13 +211,12 @@ public class ArmorService {
      *
      * @param id The armor ID to update
      * @param request The update request containing new armor details
+     * @param authentication The authentication of the current user
      * @return ArmorResponse containing the updated armor
      * @throws EntityNotFoundException if the armor or referenced entities are not found
      */
     @Transactional
-    public ArmorResponse updateArmor(Long id, UpdateArmorRequest request) {
-        log.info("Updating armor with id: {}", id);
-
+    public ArmorResponse updateArmor(Long id, UpdateArmorRequest request, Authentication authentication) {
         Armor armor = armorRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + id));
 
@@ -256,8 +260,9 @@ public class ArmorService {
         }
 
         Armor updatedArmor = armorRepository.save(armor);
-        log.info("Updated armor with id: {}", updatedArmor.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedArmor, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
+                "armor_id: " + updatedArmor.getId());
 
         return toResponse(updatedArmor, Set.of());
     }
@@ -266,34 +271,32 @@ public class ArmorService {
      * Soft deletes an armor by setting its deletedAt timestamp.
      *
      * @param id The armor ID to delete
+     * @param authentication The authentication of the current user
      * @throws EntityNotFoundException if the armor is not found or is already deleted
      */
     @Transactional
-    public void deleteArmor(Long id) {
-        log.info("Soft deleting armor with id: {}", id);
-
+    public void deleteArmor(Long id, Authentication authentication) {
         Armor armor = armorRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + id));
 
         armor.softDelete();
         armorRepository.save(armor);
         eventPublisher.publishEvent(new EntityChangeEvent(this, armor, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted armor with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("armor").build(),
+                "armor_id: " + id);
     }
 
     /**
      * Restores a soft-deleted armor.
      *
      * @param id The armor ID to restore
+     * @param authentication The authentication of the current user
      * @return ArmorResponse containing the restored armor
      * @throws EntityNotFoundException if the armor is not found
      * @throws IllegalStateException if the armor is not deleted
      */
     @Transactional
-    public ArmorResponse restoreArmor(Long id) {
-        log.info("Restoring armor with id: {}", id);
-
+    public ArmorResponse restoreArmor(Long id, Authentication authentication) {
         Armor armor = armorRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + id));
 
@@ -304,8 +307,8 @@ public class ArmorService {
         armor.restore();
         Armor restoredArmor = armorRepository.save(armor);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredArmor, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored armor with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("armor").build(),
+                "armor_id: " + id);
 
         return toResponse(restoredArmor, Set.of());
     }

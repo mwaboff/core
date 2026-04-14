@@ -1,5 +1,6 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
@@ -10,12 +11,14 @@ import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Weapon;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -23,6 +26,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,6 +51,7 @@ public class WeaponService {
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of weapons.
@@ -124,13 +129,12 @@ public class WeaponService {
      * Creates a new weapon.
      *
      * @param request The creation request containing weapon details
+     * @param authentication The authentication of the current user
      * @return WeaponResponse containing the created weapon
      * @throws EntityNotFoundException if referenced entities are not found
      */
     @Transactional
-    public WeaponResponse createWeapon(CreateWeaponRequest request) {
-        log.info("Creating new weapon with name: {}", request.getName());
-
+    public WeaponResponse createWeapon(CreateWeaponRequest request, Authentication authentication) {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
@@ -160,8 +164,9 @@ public class WeaponService {
         }
 
         Weapon savedWeapon = weaponRepository.save(weapon);
-        log.info("Created weapon with id: {}", savedWeapon.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedWeapon, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
+                "\"" + savedWeapon.getName() + "\" (weapon_id: " + savedWeapon.getId() + ")");
 
         return toResponse(savedWeapon, Set.of());
     }
@@ -170,12 +175,11 @@ public class WeaponService {
      * Creates multiple weapons in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the current user
      * @return List of created weapon responses
      */
     @Transactional
-    public List<WeaponResponse> createWeaponsBulk(List<CreateWeaponRequest> requests) {
-        log.info("Creating {} weapons in bulk", requests.size());
-
+    public List<WeaponResponse> createWeaponsBulk(List<CreateWeaponRequest> requests, Authentication authentication) {
         List<Weapon> weapons = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -211,8 +215,9 @@ public class WeaponService {
                 .toList();
 
         List<Weapon> savedWeapons = weaponRepository.saveAll(weapons);
-        log.info("Created {} weapons in bulk", savedWeapons.size());
         savedWeapons.forEach(w -> eventPublisher.publishEvent(new EntityChangeEvent(this, w, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
+                savedWeapons.size() + " created, 0 failed");
 
         return savedWeapons.stream()
                 .map(weapon -> toResponse(weapon, Set.of()))
@@ -224,13 +229,12 @@ public class WeaponService {
      *
      * @param id The weapon ID to update
      * @param request The update request containing new weapon details
+     * @param authentication The authentication of the current user
      * @return WeaponResponse containing the updated weapon
      * @throws EntityNotFoundException if the weapon or referenced entities are not found
      */
     @Transactional
-    public WeaponResponse updateWeapon(Long id, UpdateWeaponRequest request) {
-        log.info("Updating weapon with id: {}", id);
-
+    public WeaponResponse updateWeapon(Long id, UpdateWeaponRequest request, Authentication authentication) {
         Weapon weapon = weaponRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + id));
 
@@ -278,8 +282,9 @@ public class WeaponService {
         }
 
         Weapon updatedWeapon = weaponRepository.save(weapon);
-        log.info("Updated weapon with id: {}", updatedWeapon.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedWeapon, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
+                "weapon_id: " + updatedWeapon.getId());
 
         return toResponse(updatedWeapon, Set.of());
     }
@@ -288,34 +293,32 @@ public class WeaponService {
      * Soft deletes a weapon by setting its deletedAt timestamp.
      *
      * @param id The weapon ID to delete
+     * @param authentication The authentication of the current user
      * @throws EntityNotFoundException if the weapon is not found or is already deleted
      */
     @Transactional
-    public void deleteWeapon(Long id) {
-        log.info("Soft deleting weapon with id: {}", id);
-
+    public void deleteWeapon(Long id, Authentication authentication) {
         Weapon weapon = weaponRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + id));
 
         weapon.softDelete();
         weaponRepository.save(weapon);
         eventPublisher.publishEvent(new EntityChangeEvent(this, weapon, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted weapon with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
+                "weapon_id: " + id);
     }
 
     /**
      * Restores a soft-deleted weapon.
      *
      * @param id The weapon ID to restore
+     * @param authentication The authentication of the current user
      * @return WeaponResponse containing the restored weapon
      * @throws EntityNotFoundException if the weapon is not found
      * @throws IllegalStateException if the weapon is not deleted
      */
     @Transactional
-    public WeaponResponse restoreWeapon(Long id) {
-        log.info("Restoring weapon with id: {}", id);
-
+    public WeaponResponse restoreWeapon(Long id, Authentication authentication) {
         Weapon weapon = weaponRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + id));
 
@@ -326,8 +329,8 @@ public class WeaponService {
         weapon.restore();
         Weapon restoredWeapon = weaponRepository.save(weapon);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredWeapon, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored weapon with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
+                "weapon_id: " + id);
 
         return toResponse(restoredWeapon, Set.of());
     }

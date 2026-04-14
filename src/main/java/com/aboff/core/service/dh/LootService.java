@@ -1,5 +1,6 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateLootRequest;
 import com.aboff.core.model.dto.dh.request.UpdateLootRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
@@ -8,8 +9,10 @@ import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.LootRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -17,6 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -42,6 +46,7 @@ public class LootService {
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of loot items.
@@ -111,13 +116,12 @@ public class LootService {
      * Creates a new loot item.
      *
      * @param request The creation request containing loot details
+     * @param authentication The authentication of the current user
      * @return LootResponse containing the created loot
      * @throws EntityNotFoundException if referenced entities are not found
      */
     @Transactional
-    public LootResponse createLoot(CreateLootRequest request) {
-        log.info("Creating new loot with name: {}", request.getName());
-
+    public LootResponse createLoot(CreateLootRequest request, Authentication authentication) {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
@@ -144,8 +148,9 @@ public class LootService {
         }
 
         Loot savedLoot = lootRepository.save(loot);
-        log.info("Created loot with id: {}", savedLoot.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedLoot, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
+                "\"" + savedLoot.getName() + "\" (loot_id: " + savedLoot.getId() + ")");
 
         return toResponse(savedLoot, Set.of());
     }
@@ -154,12 +159,11 @@ public class LootService {
      * Creates multiple loot items in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the current user
      * @return List of created loot responses
      */
     @Transactional
-    public List<LootResponse> createLootBulk(List<CreateLootRequest> requests) {
-        log.info("Creating {} loot items in bulk", requests.size());
-
+    public List<LootResponse> createLootBulk(List<CreateLootRequest> requests, Authentication authentication) {
         List<Loot> lootItems = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -192,8 +196,9 @@ public class LootService {
                 .toList();
 
         List<Loot> savedLoot = lootRepository.saveAll(lootItems);
-        log.info("Created {} loot items in bulk", savedLoot.size());
         savedLoot.forEach(l -> eventPublisher.publishEvent(new EntityChangeEvent(this, l, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
+                savedLoot.size() + " created, 0 failed");
 
         return savedLoot.stream()
                 .map(loot -> toResponse(loot, Set.of()))
@@ -205,13 +210,12 @@ public class LootService {
      *
      * @param id The loot ID to update
      * @param request The update request containing new loot details
+     * @param authentication The authentication of the current user
      * @return LootResponse containing the updated loot
      * @throws EntityNotFoundException if the loot or referenced entities are not found
      */
     @Transactional
-    public LootResponse updateLoot(Long id, UpdateLootRequest request) {
-        log.info("Updating loot with id: {}", id);
-
+    public LootResponse updateLoot(Long id, UpdateLootRequest request, Authentication authentication) {
         Loot loot = lootRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + id));
 
@@ -252,8 +256,9 @@ public class LootService {
         }
 
         Loot updatedLoot = lootRepository.save(loot);
-        log.info("Updated loot with id: {}", updatedLoot.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedLoot, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
+                "loot_id: " + updatedLoot.getId());
 
         return toResponse(updatedLoot, Set.of());
     }
@@ -262,34 +267,32 @@ public class LootService {
      * Soft deletes a loot item by setting its deletedAt timestamp.
      *
      * @param id The loot ID to delete
+     * @param authentication The authentication of the current user
      * @throws EntityNotFoundException if the loot is not found or is already deleted
      */
     @Transactional
-    public void deleteLoot(Long id) {
-        log.info("Soft deleting loot with id: {}", id);
-
+    public void deleteLoot(Long id, Authentication authentication) {
         Loot loot = lootRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + id));
 
         loot.softDelete();
         lootRepository.save(loot);
         eventPublisher.publishEvent(new EntityChangeEvent(this, loot, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted loot with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("loot").build(),
+                "loot_id: " + id);
     }
 
     /**
      * Restores a soft-deleted loot item.
      *
      * @param id The loot ID to restore
+     * @param authentication The authentication of the current user
      * @return LootResponse containing the restored loot
      * @throws EntityNotFoundException if the loot is not found
      * @throws IllegalStateException if the loot is not deleted
      */
     @Transactional
-    public LootResponse restoreLoot(Long id) {
-        log.info("Restoring loot with id: {}", id);
-
+    public LootResponse restoreLoot(Long id, Authentication authentication) {
         Loot loot = lootRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + id));
 
@@ -300,8 +303,8 @@ public class LootService {
         loot.restore();
         Loot restoredLoot = lootRepository.save(loot);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredLoot, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored loot with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("loot").build(),
+                "loot_id: " + id);
 
         return toResponse(restoredLoot, Set.of());
     }

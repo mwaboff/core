@@ -1,12 +1,15 @@
 package com.aboff.core.controller;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.UserService;
 import com.aboff.core.service.dh.CampaignService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -26,16 +29,19 @@ public class UserController {
 
     private final UserService userService;
     private final CampaignService campaignService;
+    private final AuditLogger auditLogger;
 
     /**
      * Constructs a new UserController with required dependencies.
      *
-     * @param userService the user service
+     * @param userService     the user service
      * @param campaignService the campaign service
+     * @param auditLogger     the audit logger
      */
-    public UserController(UserService userService, CampaignService campaignService) {
+    public UserController(UserService userService, CampaignService campaignService, AuditLogger auditLogger) {
         this.userService = userService;
         this.campaignService = campaignService;
+        this.auditLogger = auditLogger;
     }
 
     /**
@@ -50,9 +56,18 @@ public class UserController {
     @GetMapping({ "/me", "/{userId}" })
     public UserResponse getCurrentUser(
             @PathVariable(required = false) String userId,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+        long startTime = System.nanoTime();
         String targetId = (userId != null) ? userId : "me";
-        return userService.getUserProfile(targetId, authentication);
+        String path = "/api/users/" + targetId;
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", path);
+
+        UserResponse result = userService.getUserProfile(targetId, authentication);
+
+        auditLogger.requestCompleted(ctx, "GET", path, startTime);
+        return result;
     }
 
     /**
@@ -76,8 +91,18 @@ public class UserController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) String expand,
-            Authentication authentication) {
-        return ResponseEntity.ok(campaignService.getUserCampaigns(userId, page, size, expand, authentication));
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+        long startTime = System.nanoTime();
+        String path = "/api/users/" + userId + "/campaigns";
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", path);
+
+        ResponseEntity<PagedResponse<CampaignResponse>> result =
+                ResponseEntity.ok(campaignService.getUserCampaigns(userId, page, size, expand, authentication));
+
+        auditLogger.requestCompleted(ctx, "GET", path, startTime);
+        return result;
     }
 
     /**
@@ -91,10 +116,17 @@ public class UserController {
     @PatchMapping("/me")
     public UserResponse updateCurrentUser(
             @Valid @RequestBody UpdateUserRequest request,
-            Authentication authentication) {
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PATCH", "/api/users/me");
 
         Long userId = extractUserId(authentication);
-        return userService.updateUser(userId, request);
+        UserResponse result = userService.updateUser(userId, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PATCH", "/api/users/me", startTime);
+        return result;
     }
 
     /**
@@ -109,10 +141,16 @@ public class UserController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteCurrentUser(
             Authentication authentication,
-            HttpServletResponse response) {
+            HttpServletResponse response,
+            HttpServletRequest httpRequest) {
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/users/me");
 
         Long userId = extractUserId(authentication);
-        userService.deleteUser(userId, response);
+        userService.deleteUser(userId, response, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/users/me", startTime);
     }
 
     /**

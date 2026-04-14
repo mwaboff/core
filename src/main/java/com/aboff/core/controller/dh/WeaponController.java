@@ -1,5 +1,6 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
@@ -8,12 +9,15 @@ import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Trait;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.WeaponService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -32,6 +36,7 @@ import java.util.List;
 public class WeaponController {
 
     private final WeaponService weaponService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of weapons.
@@ -76,14 +81,25 @@ public class WeaponController {
      *
      * @param id The weapon ID
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,feature,originalWeapon")
+     * @param authentication The authentication of the current user
+     * @param httpRequest The HTTP servlet request
      * @return WeaponResponse containing the weapon details
      */
     @GetMapping("/{id}")
     public ResponseEntity<WeaponResponse> getWeaponById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/weapons/" + id);
 
         WeaponResponse response = weaponService.getWeaponById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/weapons/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -92,14 +108,24 @@ public class WeaponController {
      * Requires ADMIN or OWNER role.
      *
      * @param request The creation request containing weapon details
+     * @param authentication The authentication of the current user
      * @return WeaponResponse containing the created weapon
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<WeaponResponse> createWeapon(
-            @Valid @RequestBody CreateWeaponRequest request) {
+            @Valid @RequestBody CreateWeaponRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        WeaponResponse response = weaponService.createWeapon(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/weapons");
+
+        WeaponResponse response = weaponService.createWeapon(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/weapons", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -108,14 +134,24 @@ public class WeaponController {
      * Requires ADMIN or OWNER role.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the current user
      * @return List of created weapon responses
      */
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<WeaponResponse>> createWeaponsBulk(
-            @Valid @RequestBody List<CreateWeaponRequest> requests) {
+            @Valid @RequestBody List<CreateWeaponRequest> requests,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        List<WeaponResponse> responses = weaponService.createWeaponsBulk(requests);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/weapons/bulk");
+
+        List<WeaponResponse> responses = weaponService.createWeaponsBulk(requests, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/weapons/bulk", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
@@ -125,15 +161,25 @@ public class WeaponController {
      *
      * @param id The weapon ID to update
      * @param request The update request containing new weapon details
+     * @param authentication The authentication of the current user
      * @return WeaponResponse containing the updated weapon
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<WeaponResponse> updateWeapon(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateWeaponRequest request) {
+            @Valid @RequestBody UpdateWeaponRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        WeaponResponse response = weaponService.updateWeapon(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/weapons/" + id);
+
+        WeaponResponse response = weaponService.updateWeapon(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/weapons/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -142,12 +188,24 @@ public class WeaponController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The weapon ID to delete
+     * @param authentication The authentication of the current user
      * @return 204 No Content on success
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteWeapon(@PathVariable Long id) {
-        weaponService.deleteWeapon(id);
+    public ResponseEntity<Void> deleteWeapon(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/weapons/" + id);
+
+        weaponService.deleteWeapon(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/weapons/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -156,12 +214,24 @@ public class WeaponController {
      * Requires ADMIN or OWNER role.
      *
      * @param id The weapon ID to restore
+     * @param authentication The authentication of the current user
      * @return WeaponResponse containing the restored weapon
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<WeaponResponse> restoreWeapon(@PathVariable Long id) {
-        WeaponResponse response = weaponService.restoreWeapon(id);
+    public ResponseEntity<WeaponResponse> restoreWeapon(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/weapons/" + id + "/restore");
+
+        WeaponResponse response = weaponService.restoreWeapon(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/weapons/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

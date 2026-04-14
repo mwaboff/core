@@ -17,6 +17,7 @@ import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
+import com.aboff.core.service.AuditLogger;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -55,6 +56,9 @@ class ArmorServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
 
     @InjectMocks
     private ArmorService armorService;
@@ -231,7 +235,7 @@ class ArmorServiceTest {
         when(armorRepository.save(any(Armor.class))).thenReturn(savedArmor);
 
         // Act
-        ArmorResponse result = armorService.createArmor(request);
+        ArmorResponse result = armorService.createArmor(request, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -255,7 +259,7 @@ class ArmorServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> armorService.createArmor(request))
+        assertThatThrownBy(() -> armorService.createArmor(request, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -287,7 +291,7 @@ class ArmorServiceTest {
         when(armorRepository.save(any(Armor.class))).thenReturn(savedArmor);
 
         // Act
-        ArmorResponse result = armorService.createArmor(request);
+        ArmorResponse result = armorService.createArmor(request, null);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -328,7 +332,7 @@ class ArmorServiceTest {
         when(armorRepository.saveAll(anyList())).thenReturn(List.of(savedArmor1, savedArmor2));
 
         // Act
-        List<ArmorResponse> results = armorService.createArmorsBulk(List.of(request1, request2));
+        List<ArmorResponse> results = armorService.createArmorsBulk(List.of(request1, request2), null);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -361,7 +365,7 @@ class ArmorServiceTest {
         when(armorRepository.save(any(Armor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ArmorResponse result = armorService.updateArmor(1L, request);
+        ArmorResponse result = armorService.updateArmor(1L, request, null);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -387,7 +391,7 @@ class ArmorServiceTest {
         when(armorRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> armorService.updateArmor(999L, request))
+        assertThatThrownBy(() -> armorService.updateArmor(999L, request, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Armor not found with id: 999");
 
@@ -406,7 +410,7 @@ class ArmorServiceTest {
         when(armorRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(armor));
 
         // Act
-        armorService.deleteArmor(1L);
+        armorService.deleteArmor(1L, null);
 
         // Assert
         verify(armorRepository).save(argThat(a -> a.getDeletedAt() != null));
@@ -418,7 +422,7 @@ class ArmorServiceTest {
         when(armorRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> armorService.deleteArmor(999L))
+        assertThatThrownBy(() -> armorService.deleteArmor(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Armor not found with id: 999");
 
@@ -439,7 +443,7 @@ class ArmorServiceTest {
         when(armorRepository.save(any(Armor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ArmorResponse result = armorService.restoreArmor(1L);
+        ArmorResponse result = armorService.restoreArmor(1L, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -456,7 +460,7 @@ class ArmorServiceTest {
         when(armorRepository.findById(1L)).thenReturn(Optional.of(activeArmor));
 
         // Act & Assert
-        assertThatThrownBy(() -> armorService.restoreArmor(1L))
+        assertThatThrownBy(() -> armorService.restoreArmor(1L, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Armor with id 1 is not deleted");
 
@@ -469,7 +473,7 @@ class ArmorServiceTest {
         when(armorRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> armorService.restoreArmor(999L))
+        assertThatThrownBy(() -> armorService.restoreArmor(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Armor not found with id: 999");
     }

@@ -1,15 +1,19 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateSubclassPathRequest;
 import com.aboff.core.model.dto.dh.request.UpdateSubclassPathRequest;
 import com.aboff.core.model.dto.dh.response.SubclassPathResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.SubclassPathService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -33,6 +37,7 @@ import java.util.List;
 public class SubclassPathController {
 
     private final SubclassPathService subclassPathService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of subclass paths.
@@ -70,9 +75,17 @@ public class SubclassPathController {
     @GetMapping("/{id}")
     public ResponseEntity<SubclassPathResponse> getSubclassPathById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/subclass-paths/" + id);
 
         SubclassPathResponse response = subclassPathService.getSubclassPathById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/subclass-paths/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -86,9 +99,17 @@ public class SubclassPathController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<SubclassPathResponse> createSubclassPath(
-            @Valid @RequestBody CreateSubclassPathRequest request) {
+            @Valid @RequestBody CreateSubclassPathRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        SubclassPathResponse response = subclassPathService.createSubclassPath(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/subclass-paths");
+
+        SubclassPathResponse response = subclassPathService.createSubclassPath(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/subclass-paths", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -102,9 +123,17 @@ public class SubclassPathController {
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<SubclassPathResponse>> createSubclassPathsBulk(
-            @Valid @RequestBody List<CreateSubclassPathRequest> requests) {
+            @Valid @RequestBody List<CreateSubclassPathRequest> requests,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        List<SubclassPathResponse> responses = subclassPathService.createSubclassPathsBulk(requests);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/subclass-paths/bulk");
+
+        List<SubclassPathResponse> responses = subclassPathService.createSubclassPathsBulk(requests, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/subclass-paths/bulk", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
@@ -120,9 +149,17 @@ public class SubclassPathController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<SubclassPathResponse> updateSubclassPath(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateSubclassPathRequest request) {
+            @Valid @RequestBody UpdateSubclassPathRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        SubclassPathResponse response = subclassPathService.updateSubclassPath(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/subclass-paths/" + id);
+
+        SubclassPathResponse response = subclassPathService.updateSubclassPath(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/subclass-paths/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -135,8 +172,18 @@ public class SubclassPathController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteSubclassPath(@PathVariable Long id) {
-        subclassPathService.deleteSubclassPath(id);
+    public ResponseEntity<Void> deleteSubclassPath(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/subclass-paths/" + id);
+
+        subclassPathService.deleteSubclassPath(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/subclass-paths/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -149,8 +196,18 @@ public class SubclassPathController {
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<SubclassPathResponse> restoreSubclassPath(@PathVariable Long id) {
-        SubclassPathResponse response = subclassPathService.restoreSubclassPath(id);
+    public ResponseEntity<SubclassPathResponse> restoreSubclassPath(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/subclass-paths/" + id + "/restore");
+
+        SubclassPathResponse response = subclassPathService.restoreSubclassPath(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/subclass-paths/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

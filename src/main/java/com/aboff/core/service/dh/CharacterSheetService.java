@@ -1,6 +1,8 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.request.InventoryArmorRequest;
 import com.aboff.core.model.dto.dh.request.InventoryLootRequest;
@@ -17,6 +19,7 @@ import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.*;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
@@ -54,6 +57,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class CharacterSheetService {
 
+    private final AuditLogger auditLogger;
     private final CharacterSheetRepository characterSheetRepository;
     private final CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
     private final CharacterSheetWeaponRepository characterSheetWeaponRepository;
@@ -194,8 +198,6 @@ public class CharacterSheetService {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
-        log.info("Creating new character sheet '{}' for user {}", request.getName(), userId);
-
         // Get the current user who will be the owner
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + userId));
@@ -335,7 +337,8 @@ public class CharacterSheetService {
         validateConstraints(characterSheet);
 
         CharacterSheet savedSheet = characterSheetRepository.save(characterSheet);
-        log.info("Created character sheet with id: {} for user {}", savedSheet.getId(), userId);
+        auditLogger.log(AuditAction.CHARACTER_CREATED, AuditContext.forUser(auth).build(),
+                "\"" + savedSheet.getName() + "\" (character_sheet_id: " + savedSheet.getId() + ")");
 
         return toResponse(savedSheet, Set.of());
     }
@@ -357,8 +360,6 @@ public class CharacterSheetService {
      */
     @Transactional
     public CharacterSheetResponse updateCharacterSheet(Long id, UpdateCharacterSheetRequest request, Authentication auth) {
-        log.info("Updating character sheet with id: {}", id);
-
         CharacterSheet characterSheet = characterSheetRepository.findActiveById(id)
                 .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
 
@@ -576,7 +577,8 @@ public class CharacterSheetService {
         validateConstraints(characterSheet);
 
         CharacterSheet updatedSheet = characterSheetRepository.save(characterSheet);
-        log.info("Updated character sheet with id: {}", updatedSheet.getId());
+        auditLogger.log(AuditAction.CHARACTER_UPDATED, AuditContext.forUser(auth).build(),
+                "\"" + updatedSheet.getName() + "\" (character_sheet_id: " + updatedSheet.getId() + ")");
 
         return toResponse(updatedSheet, Set.of());
     }
@@ -596,8 +598,6 @@ public class CharacterSheetService {
      */
     @Transactional
     public void deleteCharacterSheet(Long id, Authentication auth) {
-        log.info("Deleting character sheet with id: {}", id);
-
         CharacterSheet characterSheet = characterSheetRepository.findActiveById(id)
                 .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
 
@@ -608,7 +608,8 @@ public class CharacterSheetService {
         characterSheet.softDelete();
         characterSheetRepository.save(characterSheet);
 
-        log.info("Soft deleted character sheet with id: {}", id);
+        auditLogger.log(AuditAction.CHARACTER_DELETED, AuditContext.forUser(auth).build(),
+                "\"" + characterSheet.getName() + "\" (character_sheet_id: " + id + ")");
     }
 
     /**

@@ -22,6 +22,7 @@ import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
@@ -30,6 +31,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
+import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
@@ -69,6 +71,12 @@ class SubclassCardServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private SubclassCardService subclassCardService;
@@ -711,7 +719,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.save(any(SubclassCard.class))).thenReturn(savedCard);
 
         // Act
-        SubclassCardResponse result = subclassCardService.createSubclassCard(request);
+        SubclassCardResponse result = subclassCardService.createSubclassCard(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -761,7 +769,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.saveAll(anyList())).thenReturn(List.of(savedCard1, savedCard2));
 
         // Act
-        List<SubclassCardResponse> results = subclassCardService.createSubclassCardsBulk(List.of(request1, request2));
+        List<SubclassCardResponse> results = subclassCardService.createSubclassCardsBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -809,7 +817,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        SubclassCardResponse result = subclassCardService.updateSubclassCard(1L, request);
+        SubclassCardResponse result = subclassCardService.updateSubclassCard(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -833,7 +841,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassCardService.updateSubclassCard(999L, request))
+        assertThatThrownBy(() -> subclassCardService.updateSubclassCard(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("SubclassCard not found with id: 999");
 
@@ -863,7 +871,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(card));
 
         // Act
-        subclassCardService.deleteSubclassCard(1L);
+        subclassCardService.deleteSubclassCard(1L, authentication);
 
         // Assert
         verify(subclassCardRepository).save(argThat(c -> c.getDeletedAt() != null));
@@ -875,7 +883,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassCardService.deleteSubclassCard(999L))
+        assertThatThrownBy(() -> subclassCardService.deleteSubclassCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("SubclassCard not found with id: 999");
 
@@ -907,7 +915,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        SubclassCardResponse result = subclassCardService.restoreSubclassCard(1L);
+        SubclassCardResponse result = subclassCardService.restoreSubclassCard(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -935,7 +943,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.findById(1L)).thenReturn(Optional.of(activeCard));
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassCardService.restoreSubclassCard(1L))
+        assertThatThrownBy(() -> subclassCardService.restoreSubclassCard(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("SubclassCard with id 1 is not deleted");
 
@@ -948,7 +956,7 @@ class SubclassCardServiceTest {
         when(subclassCardRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> subclassCardService.restoreSubclassCard(999L))
+        assertThatThrownBy(() -> subclassCardService.restoreSubclassCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("SubclassCard not found with id: 999");
     }

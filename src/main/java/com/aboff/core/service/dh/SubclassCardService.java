@@ -29,8 +29,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
 
 import java.util.List;
 import java.util.Set;
@@ -51,6 +55,7 @@ public class SubclassCardService {
     private final CardCostTagService cardCostTagService;
     private final SubclassPathService subclassPathService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of subclass cards.
@@ -122,13 +127,13 @@ public class SubclassCardService {
      * Creates a new subclass card.
      *
      * @param request The creation request containing card details
+     * @param authentication The authentication of the requesting user
      * @return SubclassCardResponse containing the created card
      * @throws EntityNotFoundException if referenced entities are not found
      * @throws IllegalArgumentException if subclass path resolution fails
      */
     @Transactional
-    public SubclassCardResponse createSubclassCard(CreateSubclassCardRequest request) {
-        log.info("Creating new subclass card with name: {}", request.getName());
+    public SubclassCardResponse createSubclassCard(CreateSubclassCardRequest request, Authentication authentication) {
 
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -163,8 +168,9 @@ public class SubclassCardService {
         }
 
         SubclassCard savedCard = subclassCardRepository.save(card);
-        log.info("Created subclass card with id: {}", savedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("subclass_card").build(),
+                "\"" + savedCard.getName() + "\" (subclass_card_id: " + savedCard.getId() + ")");
 
         return toResponse(savedCard, Set.of());
     }
@@ -173,11 +179,11 @@ public class SubclassCardService {
      * Creates multiple subclass cards in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the requesting user
      * @return List of created card responses
      */
     @Transactional
-    public List<SubclassCardResponse> createSubclassCardsBulk(List<CreateSubclassCardRequest> requests) {
-        log.info("Creating {} subclass cards in bulk", requests.size());
+    public List<SubclassCardResponse> createSubclassCardsBulk(List<CreateSubclassCardRequest> requests, Authentication authentication) {
 
         List<SubclassCard> cards = requests.stream()
                 .map(request -> {
@@ -216,8 +222,9 @@ public class SubclassCardService {
                 .toList();
 
         List<SubclassCard> savedCards = subclassCardRepository.saveAll(cards);
-        log.info("Created {} subclass cards in bulk", savedCards.size());
         savedCards.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("subclass_card").build(),
+                savedCards.size() + " subclass cards created");
 
         return savedCards.stream()
                 .map(card -> toResponse(card, Set.of()))
@@ -229,13 +236,13 @@ public class SubclassCardService {
      *
      * @param id The card ID to update
      * @param request The update request containing new card details
+     * @param authentication The authentication of the requesting user
      * @return SubclassCardResponse containing the updated card
      * @throws EntityNotFoundException if the card or referenced entities are not found
      * @throws IllegalArgumentException if subclass path resolution fails
      */
     @Transactional
-    public SubclassCardResponse updateSubclassCard(Long id, UpdateSubclassCardRequest request) {
-        log.info("Updating subclass card with id: {}", id);
+    public SubclassCardResponse updateSubclassCard(Long id, UpdateSubclassCardRequest request, Authentication authentication) {
 
         SubclassCard card = subclassCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassCard not found with id: " + id));
@@ -283,8 +290,9 @@ public class SubclassCardService {
         }
 
         SubclassCard updatedCard = subclassCardRepository.save(card);
-        log.info("Updated subclass card with id: {}", updatedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("subclass_card").build(),
+                "subclass_card_id: " + updatedCard.getId());
 
         return toResponse(updatedCard, Set.of());
     }
@@ -293,34 +301,32 @@ public class SubclassCardService {
      * Soft deletes a subclass card by setting its deletedAt timestamp.
      *
      * @param id The card ID to delete
+     * @param authentication The authentication of the requesting user
      * @throws EntityNotFoundException if the card is not found or is already deleted
      */
     @Transactional
-    public void deleteSubclassCard(Long id) {
-        log.info("Soft deleting subclass card with id: {}", id);
-
+    public void deleteSubclassCard(Long id, Authentication authentication) {
         SubclassCard card = subclassCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassCard not found with id: " + id));
 
         card.softDelete();
         subclassCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted subclass card with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("subclass_card").build(),
+                "subclass_card_id: " + id);
     }
 
     /**
      * Restores a soft-deleted subclass card.
      *
      * @param id The card ID to restore
+     * @param authentication The authentication of the requesting user
      * @return SubclassCardResponse containing the restored card
      * @throws EntityNotFoundException if the card is not found
      * @throws IllegalStateException if the card is not deleted
      */
     @Transactional
-    public SubclassCardResponse restoreSubclassCard(Long id) {
-        log.info("Restoring subclass card with id: {}", id);
-
+    public SubclassCardResponse restoreSubclassCard(Long id, Authentication authentication) {
         SubclassCard card = subclassCardRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassCard not found with id: " + id));
 
@@ -331,8 +337,8 @@ public class SubclassCardService {
         card.restore();
         SubclassCard restoredCard = subclassCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredCard, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored subclass card with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("subclass_card").build(),
+                "subclass_card_id: " + id);
 
         return toResponse(restoredCard, Set.of());
     }

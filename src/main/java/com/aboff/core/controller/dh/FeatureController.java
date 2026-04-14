@@ -1,16 +1,20 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.FeatureService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -25,6 +29,7 @@ import java.util.List;
 public class FeatureController {
 
     private final FeatureService featureService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of features.
@@ -62,9 +67,17 @@ public class FeatureController {
     @GetMapping("/{id}")
     public ResponseEntity<FeatureResponse> getFeatureById(
             @PathVariable Long id,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/features/" + id);
 
         FeatureResponse response = featureService.getFeatureById(id, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/features/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -78,9 +91,17 @@ public class FeatureController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<FeatureResponse> createFeature(
-            @Valid @RequestBody CreateFeatureRequest request) {
+            @Valid @RequestBody CreateFeatureRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        FeatureResponse response = featureService.createFeature(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/features");
+
+        FeatureResponse response = featureService.createFeature(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/features", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -94,9 +115,17 @@ public class FeatureController {
     @PostMapping("/bulk")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<List<FeatureResponse>> createFeaturesBulk(
-            @Valid @RequestBody List<CreateFeatureRequest> requests) {
+            @Valid @RequestBody List<CreateFeatureRequest> requests,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        List<FeatureResponse> responses = featureService.createFeaturesBulk(requests);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/features/bulk");
+
+        List<FeatureResponse> responses = featureService.createFeaturesBulk(requests, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/features/bulk", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(responses);
     }
 
@@ -112,9 +141,17 @@ public class FeatureController {
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<FeatureResponse> updateFeature(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateFeatureRequest request) {
+            @Valid @RequestBody UpdateFeatureRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        FeatureResponse response = featureService.updateFeature(id, request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", "/api/dh/features/" + id);
+
+        FeatureResponse response = featureService.updateFeature(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", "/api/dh/features/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -127,8 +164,18 @@ public class FeatureController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteFeature(@PathVariable Long id) {
-        featureService.deleteFeature(id);
+    public ResponseEntity<Void> deleteFeature(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/features/" + id);
+
+        featureService.deleteFeature(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/features/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -141,8 +188,18 @@ public class FeatureController {
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<FeatureResponse> restoreFeature(@PathVariable Long id) {
-        FeatureResponse response = featureService.restoreFeature(id);
+    public ResponseEntity<FeatureResponse> restoreFeature(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/features/" + id + "/restore");
+
+        FeatureResponse response = featureService.restoreFeature(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/features/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }

@@ -1,8 +1,10 @@
 package com.aboff.core.service;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
@@ -30,6 +32,7 @@ public class AuthenticationService {
     private final UserRepository userRepository;
     private final ActiveTokenRepository activeTokenRepository;
     private final JwtTokenProvider jwtTokenProvider;
+    private final AuditLogger auditLogger;
 
     /**
      * Constructs a new AuthenticationService with required dependencies.
@@ -37,14 +40,17 @@ public class AuthenticationService {
      * @param userRepository        the user repository
      * @param activeTokenRepository the active token repository
      * @param jwtTokenProvider      the JWT token provider
+     * @param auditLogger           the audit logger
      */
     public AuthenticationService(
             UserRepository userRepository,
             ActiveTokenRepository activeTokenRepository,
-            JwtTokenProvider jwtTokenProvider) {
+            JwtTokenProvider jwtTokenProvider,
+            AuditLogger auditLogger) {
         this.userRepository = userRepository;
         this.activeTokenRepository = activeTokenRepository;
         this.jwtTokenProvider = jwtTokenProvider;
+        this.auditLogger = auditLogger;
     }
 
     /**
@@ -70,7 +76,11 @@ public class AuthenticationService {
                 .build();
 
         activeTokenRepository.save(activeToken);
-        log.info("Issued JWT for userId: {}", user.getId());
+
+        AuditContext ctx = AuditContext.forIp(ipAddress)
+                .build();
+        auditLogger.log(AuditAction.USER_LOGIN, ctx,
+                String.format("user_id: %d, username: %s", user.getId(), user.getUsername()));
 
         return LoginResult.builder()
                 .userResponse(mapToUserResponse(user))
@@ -85,12 +95,15 @@ public class AuthenticationService {
      */
     @Transactional
     public void logout(String token) {
-        log.debug("Processing logout request");
         String tokenHash = jwtTokenProvider.hashToken(token);
         activeTokenRepository.findByTokenHash(tokenHash).ifPresent(activeToken -> {
-            log.info("Revoking token for userId: {}", activeToken.getUserId());
             activeToken.revoke();
             activeTokenRepository.save(activeToken);
+
+            AuditContext ctx = AuditContext.forIp(activeToken.getIpAddress())
+                    .build();
+            auditLogger.log(AuditAction.USER_LOGOUT, ctx,
+                    String.format("user_id: %d", activeToken.getUserId()));
         });
     }
 
@@ -101,8 +114,13 @@ public class AuthenticationService {
      */
     @Transactional
     public void invalidateAllUserTokens(Long userId) {
-        log.info("Invalidating all tokens for userId: {}", userId);
         activeTokenRepository.revokeAllUserTokens(userId, LocalDateTime.now());
+
+        AuditContext ctx = AuditContext.forIp(null)
+                .withTargetUserId(userId)
+                .build();
+        auditLogger.log(AuditAction.USER_TOKENS_INVALIDATED, ctx,
+                String.format("user_id: %d", userId));
     }
 
     private UserResponse mapToUserResponse(User user) {

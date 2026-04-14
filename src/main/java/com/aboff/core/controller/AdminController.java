@@ -1,18 +1,22 @@
 package com.aboff.core.controller;
 
 import com.aboff.core.exception.UserNotFoundException;
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.request.ChangeRoleRequest;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.AuthenticationService;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.service.SearchIndexService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -33,6 +37,7 @@ public class AdminController {
         private final RoleHierarchyService roleHierarchyService;
         private final AuthenticationService authenticationService;
         private final SearchIndexService searchIndexService;
+        private final AuditLogger auditLogger;
 
         /**
          * Constructs a new AdminController with required dependencies.
@@ -41,16 +46,19 @@ public class AdminController {
          * @param roleHierarchyService  the role hierarchy service
          * @param authenticationService the authentication service
          * @param searchIndexService    the search index service
+         * @param auditLogger           the audit logger
          */
         public AdminController(
                         UserRepository userRepository,
                         RoleHierarchyService roleHierarchyService,
                         AuthenticationService authenticationService,
-                        SearchIndexService searchIndexService) {
+                        SearchIndexService searchIndexService,
+                        AuditLogger auditLogger) {
                 this.userRepository = userRepository;
                 this.roleHierarchyService = roleHierarchyService;
                 this.authenticationService = authenticationService;
                 this.searchIndexService = searchIndexService;
+                this.auditLogger = auditLogger;
         }
 
         /**
@@ -79,7 +87,16 @@ public class AdminController {
         @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
         public UserResponse banUser(
                         @PathVariable Long userId,
-                        @AuthenticationPrincipal CustomUserDetails currentUser) {
+                        @AuthenticationPrincipal CustomUserDetails currentUser,
+                        Authentication authentication,
+                        HttpServletRequest httpRequest) {
+
+                long startTime = System.nanoTime();
+                AuditContext ctx = AuditContext.forUser(authentication)
+                                .withIp(httpRequest.getRemoteAddr())
+                                .withTargetUserId(userId)
+                                .build();
+                auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/ban");
 
                 // Find the target user
                 User targetUser = userRepository.findById(userId)
@@ -95,6 +112,7 @@ public class AdminController {
                 // Invalidate all the user's tokens
                 authenticationService.invalidateAllUserTokens(userId);
 
+                auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/ban", startTime);
                 return mapToUserResponse(targetUser);
         }
 
@@ -124,7 +142,16 @@ public class AdminController {
         @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
         public UserResponse unbanUser(
                         @PathVariable Long userId,
-                        @AuthenticationPrincipal CustomUserDetails currentUser) {
+                        @AuthenticationPrincipal CustomUserDetails currentUser,
+                        Authentication authentication,
+                        HttpServletRequest httpRequest) {
+
+                long startTime = System.nanoTime();
+                AuditContext ctx = AuditContext.forUser(authentication)
+                                .withIp(httpRequest.getRemoteAddr())
+                                .withTargetUserId(userId)
+                                .build();
+                auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/unban");
 
                 // Find the target user
                 User targetUser = userRepository.findById(userId)
@@ -137,6 +164,7 @@ public class AdminController {
                 targetUser.unban();
                 userRepository.save(targetUser);
 
+                auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/unban", startTime);
                 return mapToUserResponse(targetUser);
         }
 
@@ -155,7 +183,16 @@ public class AdminController {
         @ResponseStatus(HttpStatus.OK)
         public UserResponse changeUserRole(
                         @PathVariable Long userId,
-                        @Valid @RequestBody ChangeRoleRequest request) {
+                        @Valid @RequestBody ChangeRoleRequest request,
+                        Authentication authentication,
+                        HttpServletRequest httpRequest) {
+
+                long startTime = System.nanoTime();
+                AuditContext ctx = AuditContext.forUser(authentication)
+                                .withIp(httpRequest.getRemoteAddr())
+                                .withTargetUserId(userId)
+                                .build();
+                auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/change-role");
 
                 // Find the target user
                 User targetUser = userRepository.findById(userId)
@@ -168,6 +205,7 @@ public class AdminController {
                 // Invalidate all user's tokens to force re-authentication with new role
                 authenticationService.invalidateAllUserTokens(userId);
 
+                auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/change-role", startTime);
                 return mapToUserResponse(targetUser);
         }
 
@@ -191,7 +229,16 @@ public class AdminController {
         @PostMapping("/search/reindex")
         @PreAuthorize("hasRole('OWNER')")
         public Map<String, Object> reindexSearch(
-                        @RequestParam(required = false) SearchableEntityType type) {
+                        @RequestParam(required = false) SearchableEntityType type,
+                        Authentication authentication,
+                        HttpServletRequest httpRequest) {
+
+                long startTime = System.nanoTime();
+                AuditContext ctx = AuditContext.forUser(authentication)
+                                .withIp(httpRequest.getRemoteAddr())
+                                .build();
+                auditLogger.requestReceived(ctx, "POST", "/api/admin/search/reindex");
+
                 int indexed;
                 String scope;
                 if (type == null) {
@@ -201,6 +248,8 @@ public class AdminController {
                         indexed = searchIndexService.reindexAll(type);
                         scope = type.name();
                 }
+
+                auditLogger.requestCompleted(ctx, "POST", "/api/admin/search/reindex", startTime);
                 return Map.of(
                                 "scope", scope,
                                 "indexed", indexed);

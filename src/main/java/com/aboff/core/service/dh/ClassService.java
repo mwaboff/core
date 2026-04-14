@@ -1,5 +1,6 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateClassRequest;
 import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
 import com.aboff.core.model.dto.dh.response.ClassResponse;
@@ -12,9 +13,11 @@ import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Question;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +25,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,6 +53,7 @@ public class ClassService {
     private final FeatureService featureService;
     private final QuestionService questionService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of classes.
@@ -112,17 +117,18 @@ public class ClassService {
      * Creates a new class.
      *
      * @param request The creation request containing class details
+     * @param authentication The authentication of the current user
      * @return ClassResponse containing the created class
      * @throws EntityNotFoundException if referenced entities are not found
      */
     @Transactional
-    public ClassResponse createClass(CreateClassRequest request) {
-        log.info("Creating new class with name: {}", request.getName());
-
+    public ClassResponse createClass(CreateClassRequest request, Authentication authentication) {
         Class clazz = buildClassFromRequest(request);
         Class savedClass = classRepository.save(clazz);
-        log.info("Created class with id: {}", savedClass.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedClass, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED,
+                AuditContext.forUser(authentication).withEntityType("class").build(),
+                "\"" + savedClass.getName() + "\" (class_id: " + savedClass.getId() + ")");
 
         return toResponse(savedClass, Set.of());
     }
@@ -131,19 +137,20 @@ public class ClassService {
      * Creates multiple classes in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the current user
      * @return List of created class responses
      */
     @Transactional
-    public List<ClassResponse> createClassesBulk(List<CreateClassRequest> requests) {
-        log.info("Creating {} classes in bulk", requests.size());
-
+    public List<ClassResponse> createClassesBulk(List<CreateClassRequest> requests, Authentication authentication) {
         List<Class> classes = requests.stream()
                 .map(this::buildClassFromRequest)
                 .toList();
 
         List<Class> savedClasses = classRepository.saveAll(classes);
-        log.info("Created {} classes in bulk", savedClasses.size());
         savedClasses.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED,
+                AuditContext.forUser(authentication).withEntityType("class").build(),
+                savedClasses.size() + " created");
 
         return savedClasses.stream()
                 .map(clazz -> toResponse(clazz, Set.of()))
@@ -155,13 +162,12 @@ public class ClassService {
      *
      * @param id The class ID to update
      * @param request The update request containing new class details
+     * @param authentication The authentication of the current user
      * @return ClassResponse containing the updated class
      * @throws EntityNotFoundException if the class or referenced entities are not found
      */
     @Transactional
-    public ClassResponse updateClass(Long id, UpdateClassRequest request) {
-        log.info("Updating class with id: {}", id);
-
+    public ClassResponse updateClass(Long id, UpdateClassRequest request, Authentication authentication) {
         Class clazz = classRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Class not found with id: " + id));
 
@@ -226,8 +232,10 @@ public class ClassService {
         }
 
         Class updatedClass = classRepository.save(clazz);
-        log.info("Updated class with id: {}", updatedClass.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedClass, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED,
+                AuditContext.forUser(authentication).withEntityType("class").build(),
+                "class_id: " + updatedClass.getId());
 
         return toResponse(updatedClass, Set.of());
     }
@@ -236,34 +244,33 @@ public class ClassService {
      * Soft deletes a class by setting its deletedAt timestamp.
      *
      * @param id The class ID to delete
+     * @param authentication The authentication of the current user
      * @throws EntityNotFoundException if the class is not found or is already deleted
      */
     @Transactional
-    public void deleteClass(Long id) {
-        log.info("Soft deleting class with id: {}", id);
-
+    public void deleteClass(Long id, Authentication authentication) {
         Class clazz = classRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Class not found with id: " + id));
 
         clazz.softDelete();
         classRepository.save(clazz);
         eventPublisher.publishEvent(new EntityChangeEvent(this, clazz, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted class with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED,
+                AuditContext.forUser(authentication).withEntityType("class").build(),
+                "class_id: " + id);
     }
 
     /**
      * Restores a soft-deleted class.
      *
      * @param id The class ID to restore
+     * @param authentication The authentication of the current user
      * @return ClassResponse containing the restored class
      * @throws EntityNotFoundException if the class is not found
      * @throws IllegalStateException if the class is not deleted
      */
     @Transactional
-    public ClassResponse restoreClass(Long id) {
-        log.info("Restoring class with id: {}", id);
-
+    public ClassResponse restoreClass(Long id, Authentication authentication) {
         Class clazz = classRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("Class not found with id: " + id));
 
@@ -274,8 +281,9 @@ public class ClassService {
         clazz.restore();
         Class restoredClass = classRepository.save(clazz);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredClass, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored class with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED,
+                AuditContext.forUser(authentication).withEntityType("class").build(),
+                "class_id: " + id);
 
         return toResponse(restoredClass, Set.of());
     }

@@ -19,6 +19,7 @@ import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.AncestryCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -27,6 +28,7 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
+import org.springframework.security.core.Authentication;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 
@@ -66,6 +68,12 @@ class AncestryCardServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private AncestryCardService ancestryCardService;
@@ -581,7 +589,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenReturn(savedCard);
 
         // Act
-        AncestryCardResponse result = ancestryCardService.createAncestryCard(request);
+        AncestryCardResponse result = ancestryCardService.createAncestryCard(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -619,7 +627,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenReturn(savedCard);
 
         // Act
-        AncestryCardResponse result = ancestryCardService.createAncestryCard(request);
+        AncestryCardResponse result = ancestryCardService.createAncestryCard(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -659,7 +667,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenReturn(savedCard);
 
         // Act
-        AncestryCardResponse result = ancestryCardService.createAncestryCard(request);
+        AncestryCardResponse result = ancestryCardService.createAncestryCard(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -701,7 +709,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenReturn(savedCard);
 
         // Act
-        AncestryCardResponse result = ancestryCardService.createAncestryCard(request);
+        AncestryCardResponse result = ancestryCardService.createAncestryCard(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -752,7 +760,7 @@ class AncestryCardServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> ancestryCardService.createAncestryCard(request))
+        assertThatThrownBy(() -> ancestryCardService.createAncestryCard(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -790,7 +798,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.saveAll(anyList())).thenReturn(List.of(savedCard1, savedCard2));
 
         // Act
-        List<AncestryCardResponse> results = ancestryCardService.createAncestryCardsBulk(List.of(request1, request2));
+        List<AncestryCardResponse> results = ancestryCardService.createAncestryCardsBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -831,7 +839,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        AncestryCardResponse result = ancestryCardService.updateAncestryCard(1L, request);
+        AncestryCardResponse result = ancestryCardService.updateAncestryCard(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -853,7 +861,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> ancestryCardService.updateAncestryCard(999L, request))
+        assertThatThrownBy(() -> ancestryCardService.updateAncestryCard(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("AncestryCard not found with id: 999");
 
@@ -879,7 +887,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(card));
 
         // Act
-        ancestryCardService.deleteAncestryCard(1L);
+        ancestryCardService.deleteAncestryCard(1L, authentication);
 
         // Assert
         verify(ancestryCardRepository).save(argThat(c -> c.getDeletedAt() != null));
@@ -891,7 +899,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> ancestryCardService.deleteAncestryCard(999L))
+        assertThatThrownBy(() -> ancestryCardService.deleteAncestryCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("AncestryCard not found with id: 999");
 
@@ -919,7 +927,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        AncestryCardResponse result = ancestryCardService.restoreAncestryCard(1L);
+        AncestryCardResponse result = ancestryCardService.restoreAncestryCard(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -943,7 +951,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.findById(1L)).thenReturn(Optional.of(activeCard));
 
         // Act & Assert
-        assertThatThrownBy(() -> ancestryCardService.restoreAncestryCard(1L))
+        assertThatThrownBy(() -> ancestryCardService.restoreAncestryCard(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("AncestryCard with id 1 is not deleted");
 
@@ -956,7 +964,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> ancestryCardService.restoreAncestryCard(999L))
+        assertThatThrownBy(() -> ancestryCardService.restoreAncestryCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("AncestryCard not found with id: 999");
     }
@@ -993,7 +1001,7 @@ class AncestryCardServiceTest {
         when(ancestryCardRepository.save(any(AncestryCard.class))).thenReturn(savedCard);
 
         // Act
-        AncestryCardResponse result = ancestryCardService.createMixedAncestryCard(request);
+        AncestryCardResponse result = ancestryCardService.createMixedAncestryCard(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -1016,7 +1024,7 @@ class AncestryCardServiceTest {
                 .build();
 
         // Act & Assert
-        assertThatThrownBy(() -> ancestryCardService.createMixedAncestryCard(request))
+        assertThatThrownBy(() -> ancestryCardService.createMixedAncestryCard(request, authentication))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Exactly two feature IDs must be provided for a mixed ancestry card");
 
@@ -1034,7 +1042,7 @@ class AncestryCardServiceTest {
                 .build();
 
         // Act & Assert
-        assertThatThrownBy(() -> ancestryCardService.createMixedAncestryCard(request))
+        assertThatThrownBy(() -> ancestryCardService.createMixedAncestryCard(request, authentication))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Exactly two feature IDs must be provided for a mixed ancestry card");
 

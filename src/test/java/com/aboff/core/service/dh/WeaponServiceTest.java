@@ -17,6 +17,7 @@ import com.aboff.core.model.enums.*;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import jakarta.persistence.EntityNotFoundException;
+import com.aboff.core.service.AuditLogger;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -56,6 +57,9 @@ class WeaponServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
 
     @InjectMocks
     private WeaponService weaponService;
@@ -326,7 +330,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenReturn(savedWeapon);
 
         // Act
-        WeaponResponse result = weaponService.createWeapon(request);
+        WeaponResponse result = weaponService.createWeapon(request, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -355,7 +359,7 @@ class WeaponServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> weaponService.createWeapon(request))
+        assertThatThrownBy(() -> weaponService.createWeapon(request, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -392,7 +396,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenReturn(savedWeapon);
 
         // Act
-        WeaponResponse result = weaponService.createWeapon(request);
+        WeaponResponse result = weaponService.createWeapon(request, null);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -444,7 +448,7 @@ class WeaponServiceTest {
         when(weaponRepository.saveAll(anyList())).thenReturn(List.of(savedWeapon1, savedWeapon2));
 
         // Act
-        List<WeaponResponse> results = weaponService.createWeaponsBulk(List.of(request1, request2));
+        List<WeaponResponse> results = weaponService.createWeaponsBulk(List.of(request1, request2), null);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -484,7 +488,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        WeaponResponse result = weaponService.updateWeapon(1L, request);
+        WeaponResponse result = weaponService.updateWeapon(1L, request, null);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -516,7 +520,7 @@ class WeaponServiceTest {
         when(weaponRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> weaponService.updateWeapon(999L, request))
+        assertThatThrownBy(() -> weaponService.updateWeapon(999L, request, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Weapon not found with id: 999");
 
@@ -535,7 +539,7 @@ class WeaponServiceTest {
         when(weaponRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(weapon));
 
         // Act
-        weaponService.deleteWeapon(1L);
+        weaponService.deleteWeapon(1L, null);
 
         // Assert
         verify(weaponRepository).save(argThat(w -> w.getDeletedAt() != null));
@@ -547,7 +551,7 @@ class WeaponServiceTest {
         when(weaponRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> weaponService.deleteWeapon(999L))
+        assertThatThrownBy(() -> weaponService.deleteWeapon(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Weapon not found with id: 999");
 
@@ -568,7 +572,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        WeaponResponse result = weaponService.restoreWeapon(1L);
+        WeaponResponse result = weaponService.restoreWeapon(1L, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -585,7 +589,7 @@ class WeaponServiceTest {
         when(weaponRepository.findById(1L)).thenReturn(Optional.of(activeWeapon));
 
         // Act & Assert
-        assertThatThrownBy(() -> weaponService.restoreWeapon(1L))
+        assertThatThrownBy(() -> weaponService.restoreWeapon(1L, null))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("Weapon with id 1 is not deleted");
 
@@ -598,7 +602,7 @@ class WeaponServiceTest {
         when(weaponRepository.findById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> weaponService.restoreWeapon(999L))
+        assertThatThrownBy(() -> weaponService.restoreWeapon(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Weapon not found with id: 999");
     }
@@ -650,7 +654,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenReturn(savedWeapon);
 
         // Act
-        WeaponResponse result = weaponService.createWeapon(request);
+        WeaponResponse result = weaponService.createWeapon(request, null);
 
         // Assert
         assertThat(result.getDamage()).isNotNull();

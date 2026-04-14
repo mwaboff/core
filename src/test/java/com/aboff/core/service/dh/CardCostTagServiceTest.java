@@ -8,6 +8,7 @@ import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.repository.dh.CardCostTagRepository;
+import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
@@ -18,6 +19,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -41,6 +43,12 @@ class CardCostTagServiceTest {
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
+
+    @Mock
+    private AuditLogger auditLogger;
+
+    @Mock
+    private Authentication authentication;
 
     @InjectMocks
     private CardCostTagService cardCostTagService;
@@ -201,7 +209,7 @@ class CardCostTagServiceTest {
                 .thenReturn(savedTag);
 
         // Act
-        CardCostTagResponse result = cardCostTagService.createCostTag(request);
+        CardCostTagResponse result = cardCostTagService.createCostTag(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -238,7 +246,7 @@ class CardCostTagServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        CardCostTagResponse result = cardCostTagService.updateCostTag(1L, request);
+        CardCostTagResponse result = cardCostTagService.updateCostTag(1L, request, authentication);
 
         // Assert
         assertThat(result.getLabel()).isEqualTo("Updated Label");
@@ -262,7 +270,7 @@ class CardCostTagServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> cardCostTagService.updateCostTag(999L, request))
+        assertThatThrownBy(() -> cardCostTagService.updateCostTag(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("CardCostTag not found with id: 999");
 
@@ -285,7 +293,7 @@ class CardCostTagServiceTest {
                 .thenReturn(Optional.of(tag));
 
         // Act
-        cardCostTagService.deleteCostTag(1L);
+        cardCostTagService.deleteCostTag(1L, authentication);
 
         // Assert
         verify(cardCostTagRepository).save(argThat(t -> t.getDeletedAt() != null));
@@ -298,7 +306,7 @@ class CardCostTagServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> cardCostTagService.deleteCostTag(999L))
+        assertThatThrownBy(() -> cardCostTagService.deleteCostTag(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("CardCostTag not found with id: 999");
 
@@ -324,7 +332,7 @@ class CardCostTagServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        CardCostTagResponse result = cardCostTagService.restoreCostTag(1L);
+        CardCostTagResponse result = cardCostTagService.restoreCostTag(1L, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -345,7 +353,7 @@ class CardCostTagServiceTest {
                 .thenReturn(Optional.of(activeTag));
 
         // Act & Assert
-        assertThatThrownBy(() -> cardCostTagService.restoreCostTag(1L))
+        assertThatThrownBy(() -> cardCostTagService.restoreCostTag(1L, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("CardCostTag with id 1 is not deleted");
 
@@ -359,7 +367,7 @@ class CardCostTagServiceTest {
                 .thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> cardCostTagService.restoreCostTag(999L))
+        assertThatThrownBy(() -> cardCostTagService.restoreCostTag(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("CardCostTag not found with id: 999");
     }

@@ -26,8 +26,12 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
 
 import java.util.HashSet;
 import java.util.List;
@@ -49,6 +53,7 @@ public class AncestryCardService {
     private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
     private final ApplicationEventPublisher eventPublisher;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of ancestry cards.
@@ -118,12 +123,12 @@ public class AncestryCardService {
      * Creates a new ancestry card.
      *
      * @param request The creation request containing card details
+     * @param authentication The authentication of the requesting user
      * @return AncestryCardResponse containing the created card
      * @throws EntityNotFoundException if referenced entities are not found
      */
     @Transactional
-    public AncestryCardResponse createAncestryCard(CreateAncestryCardRequest request) {
-        log.info("Creating new ancestry card with name: {}", request.getName());
+    public AncestryCardResponse createAncestryCard(CreateAncestryCardRequest request, Authentication authentication) {
 
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -150,8 +155,9 @@ public class AncestryCardService {
         }
 
         AncestryCard savedCard = ancestryCardRepository.save(card);
-        log.info("Created ancestry card with id: {}", savedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("ancestry_card").build(),
+                "\"" + savedCard.getName() + "\" (ancestry_card_id: " + savedCard.getId() + ")");
 
         return toResponse(savedCard, Set.of());
     }
@@ -160,11 +166,11 @@ public class AncestryCardService {
      * Creates multiple ancestry cards in bulk.
      *
      * @param requests List of creation requests
+     * @param authentication The authentication of the requesting user
      * @return List of created card responses
      */
     @Transactional
-    public List<AncestryCardResponse> createAncestryCardsBulk(List<CreateAncestryCardRequest> requests) {
-        log.info("Creating {} ancestry cards in bulk", requests.size());
+    public List<AncestryCardResponse> createAncestryCardsBulk(List<CreateAncestryCardRequest> requests, Authentication authentication) {
 
         List<AncestryCard> cards = requests.stream()
                 .map(request -> {
@@ -195,8 +201,9 @@ public class AncestryCardService {
                 .toList();
 
         List<AncestryCard> savedCards = ancestryCardRepository.saveAll(cards);
-        log.info("Created {} ancestry cards in bulk", savedCards.size());
         savedCards.forEach(c -> eventPublisher.publishEvent(new EntityChangeEvent(this, c, EntityChangeEvent.ChangeType.CREATED)));
+        auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("ancestry_card").build(),
+                savedCards.size() + " ancestry cards created");
 
         return savedCards.stream()
                 .map(card -> toResponse(card, Set.of()))
@@ -208,13 +215,13 @@ public class AncestryCardService {
      * Mixed ancestry cards are always non-official user-created content.
      *
      * @param request The creation request containing mixed ancestry details
+     * @param authentication The authentication of the requesting user
      * @return AncestryCardResponse containing the created mixed ancestry card
      * @throws IllegalArgumentException if featureIds does not contain exactly two entries
      * @throws EntityNotFoundException if referenced expansion or features are not found
      */
     @Transactional
-    public AncestryCardResponse createMixedAncestryCard(CreateMixedAncestryCardRequest request) {
-        log.info("Creating mixed ancestry card with name: {}", request.getName());
+    public AncestryCardResponse createMixedAncestryCard(CreateMixedAncestryCardRequest request, Authentication authentication) {
 
         if (request.getFeatureIds() == null || request.getFeatureIds().size() != 2) {
             throw new IllegalArgumentException("Exactly two feature IDs must be provided for a mixed ancestry card");
@@ -240,8 +247,9 @@ public class AncestryCardService {
                 .build();
 
         AncestryCard savedCard = ancestryCardRepository.save(card);
-        log.info("Created mixed ancestry card with id: {}", savedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("ancestry_card").build(),
+                "\"" + savedCard.getName() + "\" (ancestry_card_id: " + savedCard.getId() + ")");
 
         return toResponse(savedCard, Set.of());
     }
@@ -251,12 +259,12 @@ public class AncestryCardService {
      *
      * @param id The card ID to update
      * @param request The update request containing new card details
+     * @param authentication The authentication of the requesting user
      * @return AncestryCardResponse containing the updated card
      * @throws EntityNotFoundException if the card or referenced entities are not found
      */
     @Transactional
-    public AncestryCardResponse updateAncestryCard(Long id, UpdateAncestryCardRequest request) {
-        log.info("Updating ancestry card with id: {}", id);
+    public AncestryCardResponse updateAncestryCard(Long id, UpdateAncestryCardRequest request, Authentication authentication) {
 
         AncestryCard card = ancestryCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("AncestryCard not found with id: " + id));
@@ -293,8 +301,9 @@ public class AncestryCardService {
         }
 
         AncestryCard updatedCard = ancestryCardRepository.save(card);
-        log.info("Updated ancestry card with id: {}", updatedCard.getId());
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
+        auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("ancestry_card").build(),
+                "ancestry_card_id: " + updatedCard.getId());
 
         return toResponse(updatedCard, Set.of());
     }
@@ -303,34 +312,32 @@ public class AncestryCardService {
      * Soft deletes an ancestry card by setting its deletedAt timestamp.
      *
      * @param id The card ID to delete
+     * @param authentication The authentication of the requesting user
      * @throws EntityNotFoundException if the card is not found or is already deleted
      */
     @Transactional
-    public void deleteAncestryCard(Long id) {
-        log.info("Soft deleting ancestry card with id: {}", id);
-
+    public void deleteAncestryCard(Long id, Authentication authentication) {
         AncestryCard card = ancestryCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("AncestryCard not found with id: " + id));
 
         card.softDelete();
         ancestryCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.SOFT_DELETED));
-
-        log.info("Soft deleted ancestry card with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_DELETED, AuditContext.forUser(authentication).withEntityType("ancestry_card").build(),
+                "ancestry_card_id: " + id);
     }
 
     /**
      * Restores a soft-deleted ancestry card.
      *
      * @param id The card ID to restore
+     * @param authentication The authentication of the requesting user
      * @return AncestryCardResponse containing the restored card
      * @throws EntityNotFoundException if the card is not found
      * @throws IllegalStateException if the card is not deleted
      */
     @Transactional
-    public AncestryCardResponse restoreAncestryCard(Long id) {
-        log.info("Restoring ancestry card with id: {}", id);
-
+    public AncestryCardResponse restoreAncestryCard(Long id, Authentication authentication) {
         AncestryCard card = ancestryCardRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("AncestryCard not found with id: " + id));
 
@@ -341,8 +348,8 @@ public class AncestryCardService {
         card.restore();
         AncestryCard restoredCard = ancestryCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, restoredCard, EntityChangeEvent.ChangeType.RESTORED));
-
-        log.info("Restored ancestry card with id: {}", id);
+        auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("ancestry_card").build(),
+                "ancestry_card_id: " + id);
 
         return toResponse(restoredCard, Set.of());
     }

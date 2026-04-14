@@ -1,14 +1,18 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateFeatureModifierRequest;
 import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.dh.FeatureModifierService;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -25,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 public class FeatureModifierController {
 
     private final FeatureModifierService featureModifierService;
+    private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of feature modifiers.
@@ -53,8 +58,18 @@ public class FeatureModifierController {
      * @return FeatureModifierResponse containing the modifier details
      */
     @GetMapping("/{id}")
-    public ResponseEntity<FeatureModifierResponse> getModifierById(@PathVariable Long id) {
+    public ResponseEntity<FeatureModifierResponse> getModifierById(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/feature-modifiers/" + id);
+
         FeatureModifierResponse response = featureModifierService.getModifier(id);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/feature-modifiers/" + id, startTime);
         return ResponseEntity.ok(response);
     }
 
@@ -68,9 +83,17 @@ public class FeatureModifierController {
     @PostMapping
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<FeatureModifierResponse> createModifier(
-            @Valid @RequestBody CreateFeatureModifierRequest request) {
+            @Valid @RequestBody CreateFeatureModifierRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
 
-        FeatureModifierResponse response = featureModifierService.createModifier(request);
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/feature-modifiers");
+
+        FeatureModifierResponse response = featureModifierService.createModifier(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/feature-modifiers", startTime);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
@@ -83,8 +106,18 @@ public class FeatureModifierController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<Void> deleteModifier(@PathVariable Long id) {
-        featureModifierService.deleteModifier(id);
+    public ResponseEntity<Void> deleteModifier(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "DELETE", "/api/dh/feature-modifiers/" + id);
+
+        featureModifierService.deleteModifier(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/feature-modifiers/" + id, startTime);
         return ResponseEntity.noContent().build();
     }
 
@@ -97,8 +130,18 @@ public class FeatureModifierController {
      */
     @PostMapping("/{id}/restore")
     @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
-    public ResponseEntity<FeatureModifierResponse> restoreModifier(@PathVariable Long id) {
-        FeatureModifierResponse response = featureModifierService.restoreModifier(id);
+    public ResponseEntity<FeatureModifierResponse> restoreModifier(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/feature-modifiers/" + id + "/restore");
+
+        FeatureModifierResponse response = featureModifierService.restoreModifier(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/feature-modifiers/" + id + "/restore", startTime);
         return ResponseEntity.ok(response);
     }
 }
