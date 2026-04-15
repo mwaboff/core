@@ -24,10 +24,18 @@ import java.util.List;
 public class LevelUpRequest {
 
     /**
-     * The two advancements chosen for this level-up.
+     * The advancements applied during this level-up.
+     * <p>
+     * The list must contain the two player-chosen advancements and may additionally include
+     * any number of {@link com.aboff.core.model.enums.AdvancementType#FEATURE_DOMAIN_CARD}
+     * entries granted by subclass features (e.g. foundation features with a
+     * {@code BONUS_DOMAIN_CARD_SELECTIONS} modifier). The "exactly 2 player advancements"
+     * invariant is enforced in {@code LevelUpService.validateLevelUpRequest}, counting only
+     * non-{@code FEATURE_DOMAIN_CARD} entries.
+     * </p>
      */
     @NotNull(message = "Advancements are required")
-    @Size(min = 2, max = 2, message = "Exactly 2 advancements are required")
+    @Size(min = 2, message = "At least 2 advancements are required")
     @Valid
     private List<AdvancementChoice> advancements;
 

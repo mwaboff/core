@@ -1918,6 +1918,244 @@ class LevelUpServiceTest {
                 .hasMessageContaining("exceeds tier limit");
     }
 
+    // ==================== FEATURE_DOMAIN_CARD TESTS ====================
+
+    @Test
+    void levelUp_featureDomainCardAlongsideTwoPlayerAdvancements_addsUnequippedCard() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(3);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+        DomainCard featureCard = buildDomainCard(50L, 2);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+        when(domainCardRepository.findById(50L)).thenReturn(Optional.of(featureCard));
+        when(characterSheetDomainCardRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.FEATURE_DOMAIN_CARD)
+                                .domainCardId(50L)
+                                .build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        ArgumentCaptor<CharacterSheetDomainCard> captor = ArgumentCaptor.forClass(CharacterSheetDomainCard.class);
+        verify(characterSheetDomainCardRepository, atLeastOnce()).save(captor.capture());
+        var saved = captor.getAllValues().stream()
+                .filter(c -> c.getDomainCard().getId().equals(50L))
+                .findFirst().orElseThrow();
+        assertThat(saved.getEquipped()).isFalse();
+    }
+
+    @Test
+    void levelUp_featureDomainCardDoesNotCountTowardGainDomainCardLimit() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(3);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+        DomainCard playerCard = buildDomainCard(20L, 2);
+        DomainCard featureCard = buildDomainCard(50L, 2);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+        when(domainCardRepository.findById(20L)).thenReturn(Optional.of(playerCard));
+        when(domainCardRepository.findById(50L)).thenReturn(Optional.of(featureCard));
+        when(characterSheetDomainCardRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.GAIN_DOMAIN_CARD)
+                                .domainCardId(20L)
+                                .equipDomainCard(false)
+                                .build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.FEATURE_DOMAIN_CARD)
+                                .domainCardId(50L)
+                                .build()
+                ))
+                .build();
+
+        // Should not throw — FEATURE_DOMAIN_CARD is not counted toward GAIN_DOMAIN_CARD's 1-per-tier limit.
+        levelUpService.levelUp(1L, request, authentication);
+
+        verify(characterSheetDomainCardRepository, atLeast(2)).save(any());
+    }
+
+    @Test
+    void levelUp_threePlayerAdvancements_fails() {
+        CharacterSheet sheet = buildSheet(3);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build(),
+                        AdvancementChoice.builder().type(AdvancementType.BOOST_EVASION).build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Exactly 2 player advancements");
+    }
+
+    @Test
+    void levelUp_onePlayerAdvancementPlusFeatureEntry_fails() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(3);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.FEATURE_DOMAIN_CARD)
+                                .domainCardId(50L)
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Exactly 2 player advancements");
+    }
+
+    @Test
+    void levelUp_featureDomainCardFromInaccessibleDomain_fails() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(3);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+        Domain otherDomain = Domain.builder().id(999L).name("Forbidden").build();
+        DomainCard featureCard = DomainCard.builder().id(50L).name("Forbidden Card")
+                .associatedDomain(otherDomain).level(2).recallCost(0)
+                .type(DomainCardType.SPELL).isOfficial(true).build();
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(domainCardRepository.findById(50L)).thenReturn(Optional.of(featureCard));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.FEATURE_DOMAIN_CARD)
+                                .domainCardId(50L)
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("accessible domain");
+    }
+
+    @Test
+    void levelUp_featureDomainCardExceedsTierCap_fails() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(3);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+        DomainCard featureCard = buildDomainCard(50L, 10); // level 10 card, tier 2 cap is 4
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(domainCardRepository.findById(50L)).thenReturn(Optional.of(featureCard));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build(),
+                        AdvancementChoice.builder()
+                                .type(AdvancementType.FEATURE_DOMAIN_CARD)
+                                .domainCardId(50L)
+                                .build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("level exceeds cap");
+    }
+
+    @Test
+    void getLevelUpOptions_doesNotIncludeFeatureDomainCardAsAvailable() {
+        CharacterSheet sheet = buildSheet(1);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+
+        LevelUpOptionsResponse response = levelUpService.getLevelUpOptions(1L, authentication);
+
+        assertThat(response.getAvailableAdvancements())
+                .noneMatch(a -> a.getType() == AdvancementType.FEATURE_DOMAIN_CARD);
+    }
+
+    @Test
+    void undoLevelUp_removesFeatureDomainCard() throws Exception {
+        CharacterSheet sheet = buildSheetWithSubclassCards(4);
+        sheet.setMajorDamageThreshold(5);
+        sheet.setSevereDamageThreshold(8);
+        DomainCard featureCard = buildDomainCard(50L, 2);
+        CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                .characterSheet(sheet).domainCard(featureCard).equipped(false).build();
+        sheet.getCharacterSheetDomainCards().add(csdc);
+
+        Map<String, Object> advData = new LinkedHashMap<>();
+        advData.put("previousValues", Map.of(
+                "proficiency", 1, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                "traitModifiers", Map.of("AGILITY", 0, "STRENGTH", 0, "FINESSE", 0,
+                        "INSTINCT", 0, "PRESENCE", 0, "KNOWLEDGE", 0),
+                "traitMarks", Map.of("AGILITY", false, "STRENGTH", false, "FINESSE", false,
+                        "INSTINCT", false, "PRESENCE", false, "KNOWLEDGE", false),
+                "experienceModifiers", Map.of()
+        ));
+        advData.put("previousDamageThresholds", Map.of("major", 4, "severe", 7));
+        advData.put("advancements", List.of(
+                Map.of("type", "GAIN_HP"),
+                Map.of("type", "GAIN_STRESS"),
+                Map.of("type", "FEATURE_DOMAIN_CARD", "domainCardId", 50, "equipped", false)
+        ));
+        String json = objectMapper.writeValueAsString(advData);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(3).toLevel(4).tier(2).advancementData(json).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getCharacterSheetDomainCards())
+                .noneMatch(c -> c.getDomainCard().getId().equals(50L));
+    }
+
     // ==================== HELPER METHODS ====================
 
     private CharacterSheet buildSheet(int level) {
