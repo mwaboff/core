@@ -510,6 +510,11 @@ public class LevelUpService {
             case UPGRADE_SUBCLASS -> 1;
             case BOOST_PROFICIENCY -> 2;
             case MULTICLASS -> 2;
+            // Feature-granted cards have no per-tier cap — quantity is gated by the subclass
+            // feature's modifier, not by level-up usage limits. Value is unused because
+            // FEATURE_DOMAIN_CARD is never counted in usage maps, but Integer.MAX_VALUE makes
+            // the "unlimited" intent explicit if anyone does consult it.
+            case FEATURE_DOMAIN_CARD -> Integer.MAX_VALUE;
         };
     }
 
@@ -560,6 +565,9 @@ public class LevelUpService {
 
         for (AdvancementType type : AdvancementType.values()) {
             if (type.getMinTier() > nextTier) continue;
+            // FEATURE_DOMAIN_CARD is not a player-selectable advancement — the client injects
+            // it based on the subclass feature's BONUS_DOMAIN_CARD_SELECTIONS modifier.
+            if (type == AdvancementType.FEATURE_DOMAIN_CARD) continue;
 
             int limit = getAdvancementLimitPerTier(type);
             int used = usageMap.getOrDefault(type, 0);
@@ -604,17 +612,30 @@ public class LevelUpService {
     private void validateLevelUpRequest(LevelUpRequest request, CharacterSheet sheet,
                                         int nextTier, Map<AdvancementType, Integer> usageMap,
                                         boolean isTierTransition, int nextLevel) {
-        if (request.getAdvancements() == null || request.getAdvancements().size() != 2) {
-            throw new IllegalStateException("Exactly 2 advancements are required");
+        if (request.getAdvancements() == null) {
+            throw new IllegalStateException("Advancements are required");
+        }
+
+        // Partition player-chosen entries from feature-granted entries. Only player entries
+        // are subject to the "exactly 2 advancements" rule and the per-tier usage limits.
+        List<AdvancementChoice> playerEntries = request.getAdvancements().stream()
+                .filter(c -> c.getType() != AdvancementType.FEATURE_DOMAIN_CARD)
+                .toList();
+        List<AdvancementChoice> featureEntries = request.getAdvancements().stream()
+                .filter(c -> c.getType() == AdvancementType.FEATURE_DOMAIN_CARD)
+                .toList();
+
+        if (playerEntries.size() != 2) {
+            throw new IllegalStateException("Exactly 2 player advancements are required");
         }
 
         if (isTierTransition && (request.getNewExperienceDescription() == null || request.getNewExperienceDescription().isBlank())) {
             throw new IllegalStateException("New experience description is required for tier transitions");
         }
 
-        // Count types in this request
+        // Count types in this request (player entries only — feature entries are not limit-counted).
         Map<AdvancementType, Integer> requestCounts = new EnumMap<>(AdvancementType.class);
-        for (AdvancementChoice choice : request.getAdvancements()) {
+        for (AdvancementChoice choice : playerEntries) {
             requestCounts.merge(choice.getType(), 1, Integer::sum);
         }
 
@@ -634,7 +655,7 @@ public class LevelUpService {
         Set<Long> accessibleDomainIds = getAccessibleDomainIds(sheet);
         Integer domainCardLevelCap = getDomainCardLevelCap(nextTier);
 
-        for (AdvancementChoice choice : request.getAdvancements()) {
+        for (AdvancementChoice choice : playerEntries) {
             AdvancementType type = choice.getType();
 
             // Check tier availability
@@ -663,11 +684,16 @@ public class LevelUpService {
             }
         }
 
+        // Feature-granted domain card entries: per-entry validation only (no tier-usage counting).
+        for (AdvancementChoice choice : featureEntries) {
+            validateGainDomainCard(choice, accessibleDomainIds, domainCardLevelCap);
+        }
+
         // Cross-validation for duplicate advancement types in the same request
         if (requestCounts.getOrDefault(AdvancementType.BOOST_TRAITS, 0) == 2) {
             Set<Trait> allTraits = new HashSet<>();
             int totalTraitCount = 0;
-            for (AdvancementChoice choice : request.getAdvancements()) {
+            for (AdvancementChoice choice : playerEntries) {
                 if (choice.getType() == AdvancementType.BOOST_TRAITS) {
                     allTraits.addAll(choice.getTraits());
                     totalTraitCount += choice.getTraits().size();
@@ -680,7 +706,7 @@ public class LevelUpService {
 
         if (requestCounts.getOrDefault(AdvancementType.MULTICLASS, 0) == 2) {
             Set<Long> targetClassIds = new HashSet<>();
-            for (AdvancementChoice choice : request.getAdvancements()) {
+            for (AdvancementChoice choice : playerEntries) {
                 if (choice.getType() == AdvancementType.MULTICLASS) {
                     SubclassCard card = subclassCardRepository.findById(choice.getSubclassCardId())
                             .orElseThrow(() -> new EntityNotFoundException(
@@ -1013,6 +1039,20 @@ public class LevelUpService {
                 advData.put("subclassCardId", card.getId());
                 appliedChanges.add("Multiclassed into " + card.getName());
             }
+            case FEATURE_DOMAIN_CARD -> {
+                DomainCard card = domainCardRepository.findById(choice.getDomainCardId())
+                        .orElseThrow(() -> new EntityNotFoundException("DomainCard not found with id: " + choice.getDomainCardId()));
+                // Feature-granted cards are always added unequipped; they do not consume an equipped slot.
+                CharacterSheetDomainCard csdc = CharacterSheetDomainCard.builder()
+                        .characterSheet(sheet)
+                        .domainCard(card)
+                        .equipped(false)
+                        .build();
+                characterSheetDomainCardRepository.save(csdc);
+                advData.put("domainCardId", card.getId());
+                advData.put("equipped", false);
+                appliedChanges.add("Gained bonus domain card '" + card.getName() + "' from subclass feature");
+            }
         }
 
         return advData;
@@ -1116,7 +1156,7 @@ public class LevelUpService {
                     }
                 }
             }
-            case GAIN_DOMAIN_CARD -> {
+            case GAIN_DOMAIN_CARD, FEATURE_DOMAIN_CARD -> {
                 Long domainCardId = toLong(adv.get("domainCardId"));
                 if (domainCardId != null) {
                     sheet.getCharacterSheetDomainCards()

@@ -58,7 +58,18 @@ public enum AdvancementType {
      * Add a foundation subclass card from a new class.
      * Mutually exclusive with UPGRADE_SUBCLASS within a tier.
      */
-    MULTICLASS(3);
+    MULTICLASS(3),
+
+    /**
+     * Domain card granted by a subclass feature's {@code BONUS_DOMAIN_CARD_SELECTIONS} modifier.
+     * <p>
+     * This advancement type is injected by the client when a qualifying subclass feature is taken.
+     * It does <b>not</b> count toward the "exactly 2 player advancements" rule, does not count
+     * toward {@link #GAIN_DOMAIN_CARD}'s per-tier limit, and is not returned by
+     * {@code getLevelUpOptions} as a selectable option. Cards granted this way are added unequipped.
+     * </p>
+     */
+    FEATURE_DOMAIN_CARD(1);
 
     /**
      * The minimum tier at which this advancement type becomes available.
