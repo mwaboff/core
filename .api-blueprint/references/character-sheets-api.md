@@ -981,7 +981,7 @@ Request body for the `POST /api/dh/character-sheets/{id}/level-up` endpoint.
 
 | Field                      | Type                       | Required | Validation / Notes                                                     |
 |----------------------------|----------------------------|----------|------------------------------------------------------------------------|
-| `advancements`             | AdvancementChoice[]        | Yes      | Exactly 2 items (`@Size(min=2, max=2)`)                               |
+| `advancements`             | AdvancementChoice[]        | Yes      | At least 2 items (`@Size(min=2)`). Must contain exactly two player-chosen entries (any type other than `FEATURE_DOMAIN_CARD`). Additional `FEATURE_DOMAIN_CARD` entries may be appended when a subclass feature's `BONUS_DOMAIN_CARD_SELECTIONS` modifier grants bonus cards. |
 | `newExperienceDescription` | string                     | Cond.    | Required at tier transitions (levels 2, 5, 8). Description for the new experience created during tier achievement. |
 | `newDomainCardId`          | long                       | Yes      | ID of the domain card to add in Step 4. Must be from an accessible domain and within the tier's level cap. |
 | `equipNewDomainCard`       | boolean                    | No       | Default `false`. Whether to equip the new domain card (equipped count must not exceed 5). |
@@ -998,7 +998,7 @@ One of the two advancement choices included in a `LevelUpRequest`.
 | `traits`                    | Trait[] | BOOST_TRAITS | Exactly 2 traits. Must be unmarked, except during tier transitions at levels 5 and 8 where marks are cleared. |
 | `experienceIds`             | long[]  | BOOST_EXPERIENCES | Exactly 2 experience IDs belonging to the character.                       |
 | `boostNewExperience`        | boolean | No           | `false`. When `true`, automatically includes the newly created tier transition experience as the second boost target. Only valid during tier transitions with BOOST_EXPERIENCES. |
-| `domainCardId`              | long    | GAIN_DOMAIN_CARD | ID of a domain card from an accessible domain, within level cap.            |
+| `domainCardId`              | long    | GAIN_DOMAIN_CARD / FEATURE_DOMAIN_CARD | ID of a domain card from an accessible domain, within level cap.            |
 | `equipDomainCard`           | boolean | No           | Default `false`. For GAIN_DOMAIN_CARD: whether to equip the gained card.        |
 | `subclassCardId`            | long    | UPGRADE_SUBCLASS / MULTICLASS | For UPGRADE_SUBCLASS: ID of the next-level subclass card in a path the character already has. For MULTICLASS: ID of a FOUNDATION-level subclass card from a class the character doesn't already have. |
 
@@ -1015,6 +1015,7 @@ One of the two advancement choices included in a `LevelUpRequest`.
 | `UPGRADE_SUBCLASS`  | `subclassCardId`                                          |
 | `BOOST_PROFICIENCY` | None (type only)                                          |
 | `MULTICLASS`        | `subclassCardId` (must be a FOUNDATION-level card)        |
+| `FEATURE_DOMAIN_CARD` | `domainCardId` (always added unequipped; bypasses the two-advancements count and the `GAIN_DOMAIN_CARD` per-tier limit; not returned by `getLevelUpOptions` — injected by the client when a subclass feature has a `BONUS_DOMAIN_CARD_SELECTIONS` modifier) |
 
 ### DomainCardTradeRequest
 
@@ -1496,6 +1497,8 @@ The six core character traits in Daggerheart.
 | `DAMAGE_ROLL`           | Modifies the character's damage roll result         |
 | `PRIMARY_DAMAGE_ROLL`   | Modifies the character's primary damage roll result |
 | `ARMOR_SCORE`           | Modifies the character's armor score                |
+| `BONUS_DOMAIN_CARD_SELECTIONS` | Declarative: grants extra domain card selections at level-up / character creation. Server does not enforce counts — the client reads it and injects `FEATURE_DOMAIN_CARD` advancement entries. |
+| `BONUS_EXPERIENCE_MODIFIER`    | Declarative: grants a one-time +N bonus to a player-chosen existing experience at level-up / character creation. Server does not apply the bonus — the client reads it to prompt the player and writes the bonus into the chosen experience. |
 
 ### ModifierOperation
 

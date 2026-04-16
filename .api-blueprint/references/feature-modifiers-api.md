@@ -185,7 +185,7 @@ Restores a soft-deleted feature modifier.
 
 ### ModifierTarget
 
-18 values:
+19 values:
 
 | Value                    | Description                                          |
 |--------------------------|------------------------------------------------------|
@@ -207,6 +207,8 @@ Restores a soft-deleted feature modifier.
 | DAMAGE_ROLL              | Modifies the character's damage roll result           |
 | PRIMARY_DAMAGE_ROLL      | Modifies the character's primary damage roll result   |
 | ARMOR_SCORE              | Modifies the character's armor score                  |
+| BONUS_DOMAIN_CARD_SELECTIONS | Declarative: grants additional domain card selections during level-up and character creation. Server does not enforce counts — clients read this modifier to render extra picker slots and inject `FEATURE_DOMAIN_CARD` advancement entries into level-up requests. Intended on subclass foundation features. Typical shape: `{ target: "BONUS_DOMAIN_CARD_SELECTIONS", operation: "ADD", value: 1 }`. |
+| BONUS_EXPERIENCE_MODIFIER | Declarative: grants a one-time +N bonus to a player-chosen existing experience during level-up or character creation. Server does not apply the bonus — clients read this modifier to prompt the player to pick an experience and write the resulting bonus into the chosen experience. Typical shape: `{ target: "BONUS_EXPERIENCE_MODIFIER", operation: "ADD", value: 1 }`. |
 
 ### ModifierOperation
 

@@ -237,12 +237,15 @@ Character advancement options available during level-up. Each type has a minimum
 | `UPGRADE_SUBCLASS` | Take upgraded subclass card (Tier 3+) | 3 |
 | `BOOST_PROFICIENCY` | +1 proficiency (Tier 3+) | 3 |
 | `MULTICLASS` | Choose additional class (Tier 3+) | 3 |
+| `FEATURE_DOMAIN_CARD` | Bonus domain card granted by a subclass feature's `BONUS_DOMAIN_CARD_SELECTIONS` modifier. Client-injected; not returned by `getLevelUpOptions` and not player-selectable. | 1 |
 
-**Per-tier limits:** BOOST_TRAITS: 3, GAIN_HP: 2, GAIN_STRESS: 2, BOOST_EXPERIENCES: 1, GAIN_DOMAIN_CARD: 1, BOOST_EVASION: 1, UPGRADE_SUBCLASS: 1, BOOST_PROFICIENCY: 2, MULTICLASS: 2. Players may select the same advancement type twice in one level-up if the per-tier limit allows it.
+**Per-tier limits:** BOOST_TRAITS: 3, GAIN_HP: 2, GAIN_STRESS: 2, BOOST_EXPERIENCES: 1, GAIN_DOMAIN_CARD: 1, BOOST_EVASION: 1, UPGRADE_SUBCLASS: 1, BOOST_PROFICIENCY: 2, MULTICLASS: 2. Players may select the same advancement type twice in one level-up if the per-tier limit allows it. `FEATURE_DOMAIN_CARD` has no per-tier cap and does not count toward `GAIN_DOMAIN_CARD`'s limit.
 
 **Mutual exclusion:** UPGRADE_SUBCLASS and MULTICLASS are mutually exclusive within a tier. If one is chosen at any point during a tier, the other becomes unavailable for the remainder of that tier. Both types cannot appear in the same level-up request.
 
 **Cross-validation for duplicates:** When the same type is chosen twice in one request: BOOST_TRAITS requires all traits to be distinct across both choices; MULTICLASS requires each choice to target a different class.
+
+**Player vs. feature entries:** The `advancements` list must contain exactly two player-chosen entries (any type other than `FEATURE_DOMAIN_CARD`). Additional `FEATURE_DOMAIN_CARD` entries may ride along — they are validated per-entry (domain accessibility, tier cap) but are not counted toward the "exactly 2" rule or any tier-usage cap. Cards granted by `FEATURE_DOMAIN_CARD` are always added unequipped.
 
 **Used by:** LevelUpRequest (AdvancementChoice), LevelUpOptionsResponse, CharacterAdvancementLog entity, LevelUpService
 
@@ -284,5 +287,7 @@ Character attributes that a feature modifier can affect.
 | `DAMAGE_ROLL` | Modifies the character's damage roll result |
 | `PRIMARY_DAMAGE_ROLL` | Modifies the character's primary damage roll result |
 | `ARMOR_SCORE` | Modifies the character's armor score |
+| `BONUS_DOMAIN_CARD_SELECTIONS` | Declarative marker — subclass features with this modifier grant additional domain card selections at character creation and level-up. The server does not enforce counts from this value; the client reads it to render extra picker slots and injects `FEATURE_DOMAIN_CARD` advancement entries into level-up requests. |
+| `BONUS_EXPERIENCE_MODIFIER` | Declarative marker — features with this modifier grant a one-time +N bonus to a player-chosen existing experience at character creation or level-up. The server does not apply the bonus; the client reads it to prompt the player to pick an experience and writes the resulting bonus into the experience itself. |
 
 **Used by:** FeatureModifier entity, FeatureModifierResponse, CreateFeatureModifierRequest, FeatureModifierInput, FeatureModifierRepository
