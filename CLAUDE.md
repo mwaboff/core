@@ -182,6 +182,11 @@ When adding a new entity that should appear in search results, complete all of t
 - **Always use `./scripts/create-migration.sh <name>`** - Never manually create migration filenames
 - **Always use new migrations over modifying existing** - Create new migration for schema changes
 - Naming: `V{timestamp}__{description}.sql`
+- **ALWAYS check for database constraints when adding new enum values, columns, or relationships.** Adding a value to a Java enum is NOT enough — PostgreSQL `CHECK` constraints, foreign keys, unique indexes, and NOT NULL columns live in the schema and will reject otherwise-valid application data at runtime. This has bitten us repeatedly. Before considering an enum/schema change complete:
+  1. `grep -rn "CHECK (.*IN (" src/main/resources/db/migration/` and look for any constraint that enumerates the old set of values for the enum/column you're touching.
+  2. Check for foreign key constraints, unique indexes, and NOT NULL defaults that could reject the new shape.
+  3. If a constraint needs updating, create a new Flyway migration that `DROP CONSTRAINT` + `ADD CONSTRAINT` with the expanded value list (see `V20260228212539470__add_damage_roll_*.sql` for the pattern).
+  4. Verify by starting the app (`./mvnw spring-boot:run`) and exercising the new value end-to-end, not just by running unit tests — unit tests hit mocks and won't catch constraint violations.
 
 ## Controller/Endpoint Updates
 
