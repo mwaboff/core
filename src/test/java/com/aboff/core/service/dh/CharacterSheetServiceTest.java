@@ -10,6 +10,7 @@ import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
+import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
@@ -121,6 +122,9 @@ class CharacterSheetServiceTest {
 
     @Mock
     private LootService lootService;
+
+    @Mock
+    private ClassService classService;
 
     @Mock
     private Authentication authentication;
@@ -2595,5 +2599,176 @@ class CharacterSheetServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getInventoryWeapons()).hasSize(2);
+    }
+
+    // ==================== CLASS INFO TESTS ====================
+
+    @Test
+    void getCharacterSheet_WithSubclassCards_PopulatesClassIdAndName() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+
+        Class characterClass = Class.builder().id(10L).name("Warrior").build();
+        SubclassPath path = SubclassPath.builder().id(5L).name("Stalwart").associatedClass(characterClass).build();
+        SubclassCard subclassCard = SubclassCard.builder().id(1L).name("Guardian").subclassPath(path).build();
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L).name("Aragorn").level(1).proficiency(0)
+                .evasion(10).armorMax(0).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(6).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(2).hopeMarked(0).gold(0)
+                .owner(owner)
+                .subclassCards(new HashSet<>(List.of(subclassCard)))
+                .communityCards(new HashSet<>()).ancestryCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassId()).isEqualTo(10L);
+        assertThat(result.getClassName()).isEqualTo("Warrior");
+        assertThat(result.getClassObject()).isNull();
+    }
+
+    @Test
+    void getCharacterSheet_WithNoSubclassCards_ClassInfoIsNull() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L).name("Aragorn").level(1).proficiency(0)
+                .evasion(10).armorMax(0).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(6).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(2).hopeMarked(0).gold(0)
+                .owner(owner)
+                .subclassCards(new HashSet<>())
+                .communityCards(new HashSet<>()).ancestryCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassId()).isNull();
+        assertThat(result.getClassName()).isNull();
+        assertThat(result.getClassObject()).isNull();
+    }
+
+    @Test
+    void getCharacterSheet_WithExpandClass_PopulatesClassObject() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+
+        Class characterClass = Class.builder().id(10L).name("Warrior").build();
+        SubclassPath path = SubclassPath.builder().id(5L).name("Stalwart").associatedClass(characterClass).build();
+        SubclassCard subclassCard = SubclassCard.builder().id(1L).name("Guardian").subclassPath(path).build();
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L).name("Aragorn").level(1).proficiency(0)
+                .evasion(10).armorMax(0).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(6).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(2).hopeMarked(0).gold(0)
+                .owner(owner)
+                .subclassCards(new HashSet<>(List.of(subclassCard)))
+                .communityCards(new HashSet<>()).ancestryCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        ClassResponse classResponse = ClassResponse.builder().id(10L).name("Warrior").build();
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(classService.toResponse(eq(characterClass), anySet())).thenReturn(classResponse);
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "class");
+
+        // Assert
+        assertThat(result.getClassId()).isEqualTo(10L);
+        assertThat(result.getClassName()).isEqualTo("Warrior");
+        assertThat(result.getClassObject()).isNotNull();
+        assertThat(result.getClassObject().getId()).isEqualTo(10L);
+        assertThat(result.getClassObject().getName()).isEqualTo("Warrior");
+    }
+
+    @Test
+    void getCharacterSheet_SubclassCardWithNullSubclassPath_ClassInfoIsNull() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+
+        SubclassCard subclassCard = SubclassCard.builder().id(1L).name("Guardian").build(); // no subclassPath
+
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L).name("Aragorn").level(1).proficiency(0)
+                .evasion(10).armorMax(0).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(6).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(2).hopeMarked(0).gold(0)
+                .owner(owner)
+                .subclassCards(new HashSet<>(List.of(subclassCard)))
+                .communityCards(new HashSet<>()).ancestryCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassId()).isNull();
+        assertThat(result.getClassName()).isNull();
     }
 }

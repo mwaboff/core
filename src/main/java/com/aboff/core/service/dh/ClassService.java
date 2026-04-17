@@ -353,7 +353,7 @@ public class ClassService {
      * @param expand Set of relationships to expand
      * @return ClassResponse DTO
      */
-    private ClassResponse toResponse(Class clazz, Set<String> expand) {
+    public ClassResponse toResponse(Class clazz, Set<String> expand) {
         ClassResponse.ClassResponseBuilder builder = ClassResponse.builder()
                 .id(clazz.getId())
                 .name(clazz.getName())
@@ -426,15 +426,16 @@ public class ClassService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand hope features if requested
-        if (ExpandUtil.shouldExpand(expand, "hopeFeatures") && clazz.getHopeFeatures() != null) {
+        // Expand hope features if requested (either "hopeFeatures" or generic "features" key)
+        boolean expandFeatures = ExpandUtil.shouldExpand(expand, "features");
+        if ((ExpandUtil.shouldExpand(expand, "hopeFeatures") || expandFeatures) && clazz.getHopeFeatures() != null) {
             builder.hopeFeatures(clazz.getHopeFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));
         }
 
-        // Expand class features if requested
-        if (ExpandUtil.shouldExpand(expand, "classFeatures") && clazz.getClassFeatures() != null) {
+        // Expand class features if requested (either "classFeatures" or generic "features" key)
+        if ((ExpandUtil.shouldExpand(expand, "classFeatures") || expandFeatures) && clazz.getClassFeatures() != null) {
             builder.classFeatures(clazz.getClassFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, expand))
                     .collect(Collectors.toList()));

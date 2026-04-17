@@ -2,6 +2,7 @@ package com.aboff.core.model.dto.dh.response;
 
 import com.aboff.core.model.dto.response.UserResponse;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -216,6 +217,24 @@ public class CharacterSheetResponse {
      * Full user object (included only when ?expand=owner is specified)
      */
     private UserResponse owner;
+
+    // ========== Class ==========
+
+    /**
+     * ID of the character's class, derived from their subclass cards (always included, null if no subclass cards)
+     */
+    private Long classId;
+
+    /**
+     * Name of the character's class, derived from their subclass cards (always included, null if no subclass cards)
+     */
+    private String className;
+
+    /**
+     * Full class object (included only when ?expand=class is specified)
+     */
+    @JsonProperty("class")
+    private ClassResponse classObject;
 
     // ========== Card Collections ==========
 
