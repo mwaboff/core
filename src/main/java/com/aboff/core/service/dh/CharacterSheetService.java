@@ -13,6 +13,7 @@ import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
+import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
@@ -81,6 +82,7 @@ public class CharacterSheetService {
     private final SubclassCardService subclassCardService;
     private final DomainCardService domainCardService;
     private final LootService lootService;
+    private final ClassService classService;
 
     /**
      * Retrieves a paginated list of character sheets.
@@ -797,6 +799,20 @@ public class CharacterSheetService {
         builder.communityCardIds(sheet.getCommunityCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
         builder.ancestryCardIds(sheet.getAncestryCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
         builder.subclassCardIds(sheet.getSubclassCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
+
+        // Always include class info derived from subclass cards
+        Class characterClass = sheet.getSubclassCards().stream()
+                .map(SubclassCard::getSubclassPath)
+                .filter(path -> path != null)
+                .map(SubclassPath::getAssociatedClass)
+                .filter(c -> c != null)
+                .findFirst()
+                .orElse(null);
+        if (characterClass != null) {
+            builder.classId(characterClass.getId());
+            builder.className(characterClass.getName());
+        }
+
         // Domain card IDs split by equipped/vault
         List<Long> equippedDomainCardIds = sheet.getCharacterSheetDomainCards().stream()
                 .filter(CharacterSheetDomainCard::getEquipped)
@@ -905,6 +921,11 @@ public class CharacterSheetService {
             builder.subclassCards(sheet.getSubclassCards().stream()
                     .map(card -> toSubclassCardResponse(card, expand))
                     .collect(Collectors.toList()));
+        }
+
+        // Expand class if requested
+        if (ExpandUtil.shouldExpand(expand, "class") && characterClass != null) {
+            builder.classObject(classService.toResponse(characterClass, expand));
         }
 
         // Expand domain cards if requested

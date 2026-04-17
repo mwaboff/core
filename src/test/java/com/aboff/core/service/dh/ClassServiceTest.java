@@ -759,6 +759,78 @@ class ClassServiceTest {
         assertThat(hopeFeature.getCostTags()).isEmpty();
     }
 
+    // ==================== GENERIC "features" EXPAND KEY TESTS ====================
+
+    @Test
+    void getAllClasses_WithExpandFeaturesGenericKey_ExpandsHopeAndClassFeatures() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        Feature hopeFeature = Feature.builder().id(1L).name("Rally").featureType(FeatureType.HOPE).expansion(expansion).costTags(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+        Feature classFeature = Feature.builder().id(2L).name("Strike").featureType(FeatureType.CLASS).expansion(expansion).costTags(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .hopeFeatures(Set.of(hopeFeature))
+                .classFeatures(Set.of(classFeature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "features");
+
+        // Assert
+        ClassResponse classResponse = result.getContent().get(0);
+        assertThat(classResponse.getHopeFeatures()).isNotNull().hasSize(1);
+        assertThat(classResponse.getHopeFeatures().get(0).getName()).isEqualTo("Rally");
+        assertThat(classResponse.getClassFeatures()).isNotNull().hasSize(1);
+        assertThat(classResponse.getClassFeatures().get(0).getName()).isEqualTo("Strike");
+    }
+
+    @Test
+    void getAllClasses_WithExpandFeaturesGenericKeyAndCostTags_IncludesFullCostTags() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).createdAt(LocalDateTime.now()).build();
+        CardCostTag costTag = CardCostTag.builder().id(1L).label("3 Hope").category(CostTagCategory.COST).createdAt(LocalDateTime.now()).build();
+        Feature hopeFeature = Feature.builder().id(1L).name("Rally").featureType(FeatureType.HOPE).expansion(expansion).costTags(Set.of(costTag)).createdAt(LocalDateTime.now()).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansion(expansion)
+                .startingClassItems("Sword, Shield")
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .hopeFeatures(Set.of(hopeFeature))
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+                .thenReturn(classPage);
+        when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
+
+        // Act
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "features,costTags");
+
+        // Assert
+        FeatureResponse feature = result.getContent().get(0).getHopeFeatures().get(0);
+        assertThat(feature.getCostTagIds()).containsExactly(1L);
+        assertThat(feature.getCostTags()).isNotNull().hasSize(1);
+        assertThat(feature.getCostTags().get(0).getLabel()).isEqualTo("3 Hope");
+    }
+
     // ==================== INLINE CREATION TESTS ====================
 
     @Test
