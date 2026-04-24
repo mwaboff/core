@@ -96,7 +96,7 @@ public class DevAuthController {
 
         String ipAddress = extractIpAddress(httpRequest);
         String deviceInfo = extractDeviceInfo(httpRequest);
-        AuthenticationService.LoginResult result = authenticationService.issueToken(user, deviceInfo, ipAddress);
+        AuthenticationService.LoginResult result = authenticationService.issueToken(user, "dev", deviceInfo, ipAddress);
 
         cookieUtil.setAuthCookie(httpResponse, result.getToken());
 

@@ -81,7 +81,7 @@ public class OAuth2LoginSuccessHandler extends SimpleUrlAuthenticationSuccessHan
         // Issue JWT session
         String ipAddress = extractIpAddress(request);
         String deviceInfo = extractDeviceInfo(request);
-        AuthenticationService.LoginResult result = authenticationService.issueToken(user, deviceInfo, ipAddress);
+        AuthenticationService.LoginResult result = authenticationService.issueToken(user, provider, deviceInfo, ipAddress);
 
         cookieUtil.setAuthCookie(response, result.getToken());
         log.info("OAuth login successful for user '{}' via {}", user.getUsername(), provider);

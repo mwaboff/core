@@ -78,7 +78,7 @@ class OAuth2LoginSuccessHandlerTest {
 
         AuthenticationService.LoginResult loginResult = mock(AuthenticationService.LoginResult.class);
         when(loginResult.getToken()).thenReturn("jwt-token");
-        when(authenticationService.issueToken(any(), any(), any())).thenReturn(loginResult);
+        when(authenticationService.issueToken(any(), any(), any(), any())).thenReturn(loginResult);
 
         // Act
         handler.onAuthenticationSuccess(request, response, authToken);
@@ -102,7 +102,7 @@ class OAuth2LoginSuccessHandlerTest {
 
         AuthenticationService.LoginResult loginResult = mock(AuthenticationService.LoginResult.class);
         when(loginResult.getToken()).thenReturn("jwt-token");
-        when(authenticationService.issueToken(any(), any(), any())).thenReturn(loginResult);
+        when(authenticationService.issueToken(any(), any(), any(), any())).thenReturn(loginResult);
 
         // Act
         handler.onAuthenticationSuccess(request, response, authToken);
@@ -124,7 +124,7 @@ class OAuth2LoginSuccessHandlerTest {
 
         AuthenticationService.LoginResult loginResult = mock(AuthenticationService.LoginResult.class);
         when(loginResult.getToken()).thenReturn("jwt-token");
-        when(authenticationService.issueToken(any(), any(), any())).thenReturn(loginResult);
+        when(authenticationService.issueToken(any(), any(), any(), any())).thenReturn(loginResult);
 
         // Act
         handler.onAuthenticationSuccess(request, response, authToken);
@@ -152,7 +152,7 @@ class OAuth2LoginSuccessHandlerTest {
         ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
         verify(redirectStrategy).sendRedirect(any(), any(), urlCaptor.capture());
         assertThat(urlCaptor.getValue()).isEqualTo(FRONTEND_BASE_URL + "/auth/callback?error=banned");
-        verify(authenticationService, never()).issueToken(any(), any(), any());
+        verify(authenticationService, never()).issueToken(any(), any(), any(), any());
     }
 
     @Test
@@ -172,7 +172,7 @@ class OAuth2LoginSuccessHandlerTest {
         ArgumentCaptor<String> urlCaptor = ArgumentCaptor.forClass(String.class);
         verify(redirectStrategy).sendRedirect(any(), any(), urlCaptor.capture());
         assertThat(urlCaptor.getValue()).isEqualTo(FRONTEND_BASE_URL + "/auth/callback?error=banned");
-        verify(authenticationService, never()).issueToken(any(), any(), any());
+        verify(authenticationService, never()).issueToken(any(), any(), any(), any());
     }
 
     @Test
@@ -188,12 +188,12 @@ class OAuth2LoginSuccessHandlerTest {
 
         AuthenticationService.LoginResult loginResult = mock(AuthenticationService.LoginResult.class);
         when(loginResult.getToken()).thenReturn("jwt-token");
-        when(authenticationService.issueToken(any(), any(), anyString())).thenReturn(loginResult);
+        when(authenticationService.issueToken(any(), any(), any(), anyString())).thenReturn(loginResult);
 
         // Act
         handler.onAuthenticationSuccess(request, response, authToken);
 
         // Assert - IP extracted from X-Forwarded-For
-        verify(authenticationService).issueToken(eq(user), any(), eq("1.2.3.4"));
+        verify(authenticationService).issueToken(eq(user), eq("google"), any(), eq("1.2.3.4"));
     }
 }

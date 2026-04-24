@@ -4,6 +4,7 @@ import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
+import com.aboff.core.service.LastSeenTracker;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -33,16 +34,19 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtTokenProvider jwtTokenProvider;
     private final UserRepository userRepository;
     private final ActiveTokenRepository activeTokenRepository;
+    private final LastSeenTracker lastSeenTracker;
     private final String cookieName;
 
     public JwtAuthenticationFilter(
             JwtTokenProvider jwtTokenProvider,
             UserRepository userRepository,
             ActiveTokenRepository activeTokenRepository,
+            LastSeenTracker lastSeenTracker,
             @Value("${jwt.cookie.name}") String cookieName) {
         this.jwtTokenProvider = jwtTokenProvider;
         this.userRepository = userRepository;
         this.activeTokenRepository = activeTokenRepository;
+        this.lastSeenTracker = lastSeenTracker;
         this.cookieName = cookieName;
     }
 
@@ -116,6 +120,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                             SecurityContextHolder.getContext().setAuthentication(authentication);
                             log.debug("Successfully authenticated user: {} for request: {}", user.getUsername(),
                                     requestPath);
+
+                            lastSeenTracker.recordSeen(user);
                         }
                     }
                 }

@@ -85,8 +85,8 @@ class AdminControllerIntegrationTest {
                 mockMvc.perform(post("/api/admin/users/{userId}/ban", moderatorUser.getId())
                                 .cookie(new Cookie("AUTH_TOKEN", adminToken)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.id").value(moderatorUser.getId()))
-                                .andExpect(jsonPath("$.username").value("moderator"));
+                                .andExpect(jsonPath("$.user.id").value(moderatorUser.getId()))
+                                .andExpect(jsonPath("$.user.username").value("moderator"));
 
                 // Verify user was banned
                 User banned = userRepository.findById(moderatorUser.getId()).orElseThrow();
@@ -99,7 +99,7 @@ class AdminControllerIntegrationTest {
                 mockMvc.perform(post("/api/admin/users/{userId}/ban", adminUser.getId())
                                 .cookie(new Cookie("AUTH_TOKEN", ownerToken)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.id").value(adminUser.getId()));
+                                .andExpect(jsonPath("$.user.id").value(adminUser.getId()));
 
                 // Verify user was banned
                 User banned = userRepository.findById(adminUser.getId()).orElseThrow();
@@ -179,7 +179,7 @@ class AdminControllerIntegrationTest {
                 mockMvc.perform(post("/api/admin/users/{userId}/unban", moderatorUser.getId())
                                 .cookie(new Cookie("AUTH_TOKEN", adminToken)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.id").value(moderatorUser.getId()));
+                                .andExpect(jsonPath("$.user.id").value(moderatorUser.getId()));
 
                 // Verify user was unbanned
                 User unbanned = userRepository.findById(moderatorUser.getId()).orElseThrow();
@@ -196,7 +196,7 @@ class AdminControllerIntegrationTest {
                 mockMvc.perform(post("/api/admin/users/{userId}/unban", adminUser.getId())
                                 .cookie(new Cookie("AUTH_TOKEN", ownerToken)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.id").value(adminUser.getId()));
+                                .andExpect(jsonPath("$.user.id").value(adminUser.getId()));
 
                 // Verify user was unbanned
                 User unbanned = userRepository.findById(adminUser.getId()).orElseThrow();
@@ -254,7 +254,7 @@ class AdminControllerIntegrationTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request)))
                                 .andExpect(status().isOk())
-                                .andExpect(jsonPath("$.id").value(regularUser.getId()));
+                                .andExpect(jsonPath("$.user.id").value(regularUser.getId()));
 
                 // Verify role was changed
                 User updated = userRepository.findById(regularUser.getId()).orElseThrow();

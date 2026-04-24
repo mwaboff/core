@@ -72,6 +72,16 @@ public class UserResponse {
     private LocalDateTime bannedAt;
 
     /**
+     * Human-readable reason for the ban, if one was recorded (privileged only).
+     */
+    private String banReason;
+
+    /**
+     * Timestamp of the most recent authenticated request (privileged only).
+     */
+    private LocalDateTime lastSeenAt;
+
+    /**
      * Whether the user has explicitly chosen their username.
      * {@code false} for first-time OAuth users who have not yet completed the
      * username selection flow.

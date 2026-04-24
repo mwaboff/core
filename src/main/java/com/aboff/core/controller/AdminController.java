@@ -1,16 +1,17 @@
 package com.aboff.core.controller;
 
-import com.aboff.core.exception.UserNotFoundException;
 import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.dto.request.BanUserRequest;
 import com.aboff.core.model.dto.request.ChangeRoleRequest;
-import com.aboff.core.model.dto.response.UserResponse;
-import com.aboff.core.model.entity.User;
+import com.aboff.core.model.dto.request.UpdateAdminUserRequest;
+import com.aboff.core.model.dto.response.AdminUserDetailResponse;
+import com.aboff.core.model.dto.response.AdminUserSummaryResponse;
+import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.SearchableEntityType;
-import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AdminUserService;
 import com.aboff.core.service.AuditLogger;
-import com.aboff.core.service.AuthenticationService;
-import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.service.SearchIndexService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -25,252 +26,274 @@ import java.util.Map;
 
 /**
  * REST controller for admin operations.
- * Handles role-based administrative tasks such as banning users,
- * changing user roles, and triggering search index rebuilds.
+ * <p>
+ * All mutation endpoints go through {@link AdminUserService} so the audit row
+ * and the state change share a single transaction. This controller is a thin
+ * HTTP adapter: request parsing, auth context, delegate.
+ * </p>
  */
 @RestController
 @RequestMapping("/api/admin")
 @Validated
 public class AdminController {
 
-        private final UserRepository userRepository;
-        private final RoleHierarchyService roleHierarchyService;
-        private final AuthenticationService authenticationService;
-        private final SearchIndexService searchIndexService;
-        private final AuditLogger auditLogger;
+    private final AdminUserService adminUserService;
+    private final SearchIndexService searchIndexService;
+    private final AuditLogger auditLogger;
 
-        /**
-         * Constructs a new AdminController with required dependencies.
-         *
-         * @param userRepository        the user repository
-         * @param roleHierarchyService  the role hierarchy service
-         * @param authenticationService the authentication service
-         * @param searchIndexService    the search index service
-         * @param auditLogger           the audit logger
-         */
-        public AdminController(
-                        UserRepository userRepository,
-                        RoleHierarchyService roleHierarchyService,
-                        AuthenticationService authenticationService,
-                        SearchIndexService searchIndexService,
-                        AuditLogger auditLogger) {
-                this.userRepository = userRepository;
-                this.roleHierarchyService = roleHierarchyService;
-                this.authenticationService = authenticationService;
-                this.searchIndexService = searchIndexService;
-                this.auditLogger = auditLogger;
+    /**
+     * Constructs a new {@code AdminController}.
+     *
+     * @param adminUserService   admin user service
+     * @param searchIndexService search index service
+     * @param auditLogger        SLF4J audit logger (kept in parallel with
+     *                           the persistent {@code admin_action_log})
+     */
+    public AdminController(
+            AdminUserService adminUserService,
+            SearchIndexService searchIndexService,
+            AuditLogger auditLogger) {
+        this.adminUserService = adminUserService;
+        this.searchIndexService = searchIndexService;
+        this.auditLogger = auditLogger;
+    }
+
+    // ==================== USER MANAGER ENDPOINTS ====================
+
+    /**
+     * Returns a paged summary of users visible to the admin UI.
+     *
+     * <p>GET /api/admin/users</p>
+     *
+     * @param isBanned optional banned-state filter
+     * @param role     optional role filter
+     * @param username optional case-insensitive substring match on username
+     * @param email    optional case-insensitive substring match on email
+     * @param page     zero-based page (default 0)
+     * @param size     page size (default 50, clamped to 100)
+     * @param sort     sort property; one of {@code id|createdAt|lastSeenAt|username}
+     * @param ascending direction flag (default false)
+     * @return paged summary
+     */
+    @GetMapping("/users")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
+    public PagedResponse<AdminUserSummaryResponse> listUsers(
+            @RequestParam(required = false) Boolean isBanned,
+            @RequestParam(required = false) Role role,
+            @RequestParam(required = false) String username,
+            @RequestParam(required = false) String email,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam(defaultValue = "id") String sort,
+            @RequestParam(defaultValue = "false") boolean ascending,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr())
+                .build();
+        auditLogger.requestReceived(ctx, "GET", "/api/admin/users");
+
+        PagedResponse<AdminUserSummaryResponse> result = adminUserService.listUsers(
+                isBanned, role, username, email, page, size, sort, ascending);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/admin/users", startTime);
+        return result;
+    }
+
+    /**
+     * Returns the admin detail view of a single user.
+     *
+     * <p>GET /api/admin/users/{userId}</p>
+     *
+     * @param userId the user id
+     * @param expand comma-separated expand list
+     * @return the detail response
+     */
+    @GetMapping("/users/{userId}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
+    public AdminUserDetailResponse getUserDetail(
+            @PathVariable Long userId,
+            @RequestParam(required = false) String expand,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr())
+                .withTargetUserId(userId)
+                .build();
+        auditLogger.requestReceived(ctx, "GET", "/api/admin/users/" + userId);
+
+        AdminUserDetailResponse result = adminUserService.getUserDetail(userId, expand);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/admin/users/" + userId, startTime);
+        return result;
+    }
+
+    /**
+     * Applies a partial update to a user's admin-editable fields.
+     *
+     * <p>PATCH /api/admin/users/{userId}</p>
+     *
+     * @param userId      the target user id
+     * @param request     partial update body
+     * @param currentUser the authenticated admin
+     * @return the refreshed detail response
+     */
+    @PatchMapping("/users/{userId}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
+    public AdminUserDetailResponse updateUser(
+            @PathVariable Long userId,
+            @Valid @RequestBody UpdateAdminUserRequest request,
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr())
+                .withTargetUserId(userId)
+                .build();
+        auditLogger.requestReceived(ctx, "PATCH", "/api/admin/users/" + userId);
+
+        AdminUserDetailResponse result = adminUserService.updateUser(
+                currentUser.getUser(), userId, request, httpRequest.getRemoteAddr());
+
+        auditLogger.requestCompleted(ctx, "PATCH", "/api/admin/users/" + userId, startTime);
+        return result;
+    }
+
+    // ==================== BAN / UNBAN ====================
+
+    /**
+     * Bans a user. Body is optional; if supplied, {@code reason} is stored on
+     * the user record and included in the audit entry.
+     *
+     * <p>POST /api/admin/users/{userId}/ban</p>
+     *
+     * @param userId      the target user id
+     * @param request     optional ban body
+     * @param currentUser the authenticated admin
+     * @return the refreshed detail response
+     */
+    @PostMapping("/users/{userId}/ban")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
+    public AdminUserDetailResponse banUser(
+            @PathVariable Long userId,
+            @Valid @RequestBody(required = false) BanUserRequest request,
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr())
+                .withTargetUserId(userId)
+                .build();
+        auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/ban");
+
+        AdminUserDetailResponse result = adminUserService.banUser(
+                currentUser.getUser(), userId, request, httpRequest.getRemoteAddr());
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/ban", startTime);
+        return result;
+    }
+
+    /**
+     * Unbans a user.
+     *
+     * <p>POST /api/admin/users/{userId}/unban</p>
+     */
+    @PostMapping("/users/{userId}/unban")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
+    public AdminUserDetailResponse unbanUser(
+            @PathVariable Long userId,
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr())
+                .withTargetUserId(userId)
+                .build();
+        auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/unban");
+
+        AdminUserDetailResponse result = adminUserService.unbanUser(
+                currentUser.getUser(), userId, httpRequest.getRemoteAddr());
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/unban", startTime);
+        return result;
+    }
+
+    /**
+     * Legacy role-change endpoint. Retained for backwards compatibility with
+     * existing callers; new work should use {@code PATCH /api/admin/users/{id}}
+     * with {@code role}. Will be removed once the frontend migrates.
+     *
+     * <p>POST /api/admin/users/{userId}/change-role</p>
+     */
+    @Deprecated
+    @PostMapping("/users/{userId}/change-role")
+    @PreAuthorize("hasRole('OWNER')")
+    @ResponseStatus(HttpStatus.OK)
+    public AdminUserDetailResponse changeUserRole(
+            @PathVariable Long userId,
+            @Valid @RequestBody ChangeRoleRequest request,
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr())
+                .withTargetUserId(userId)
+                .build();
+        auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/change-role");
+
+        AdminUserDetailResponse result = adminUserService.changeRole(
+                currentUser.getUser(), userId, request.getNewRole(), httpRequest.getRemoteAddr());
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/change-role", startTime);
+        return result;
+    }
+
+    // ==================== SEARCH REINDEX ====================
+
+    /**
+     * Rebuild the full-text search index.
+     *
+     * <p>POST /api/admin/search/reindex</p>
+     *
+     * @param type optional entity type to reindex; if omitted, all types are rebuilt
+     * @return a map containing the total number of entities indexed and the type processed
+     */
+    @PostMapping("/search/reindex")
+    @PreAuthorize("hasRole('OWNER')")
+    public Map<String, Object> reindexSearch(
+            @RequestParam(required = false) SearchableEntityType type,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr())
+                .build();
+        auditLogger.requestReceived(ctx, "POST", "/api/admin/search/reindex");
+
+        int indexed;
+        String scope;
+        if (type == null) {
+            indexed = searchIndexService.reindexAll();
+            scope = "ALL";
+        } else {
+            indexed = searchIndexService.reindexAll(type);
+            scope = type.name();
         }
 
-        /**
-         * Ban a user by setting their banned flag.
-         * Only users with a higher role can ban others.
-         * Accessible by OWNER, ADMIN, and MODERATOR roles.
-         * POST /api/admin/users/{userId}/ban
-         *
-         * @param userId      the ID of the user to ban
-         * @param currentUser the currently authenticated user
-         * @return the banned user's response
-         * @throws UserNotFoundException                                     if the
-         *                                                                   target user
-         *                                                                   is not
-         *                                                                   found
-         * @throws com.aboff.core.exception.InsufficientPermissionsException if the
-         *                                                                   current
-         *                                                                   user's role
-         *                                                                   is not
-         *                                                                   higher
-         *                                                                   than the
-         *                                                                   target
-         *                                                                   user's role
-         */
-        @PostMapping("/users/{userId}/ban")
-        @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
-        public UserResponse banUser(
-                        @PathVariable Long userId,
-                        @AuthenticationPrincipal CustomUserDetails currentUser,
-                        Authentication authentication,
-                        HttpServletRequest httpRequest) {
-
-                long startTime = System.nanoTime();
-                AuditContext ctx = AuditContext.forUser(authentication)
-                                .withIp(httpRequest.getRemoteAddr())
-                                .withTargetUserId(userId)
-                                .build();
-                auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/ban");
-
-                // Find the target user
-                User targetUser = userRepository.findById(userId)
-                                .orElseThrow(() -> new UserNotFoundException("User not found"));
-
-                // Validate that the current user can modify the target user
-                roleHierarchyService.canModifyUser(currentUser.getUser(), targetUser);
-
-                // Ban the user
-                targetUser.ban();
-                userRepository.save(targetUser);
-
-                // Invalidate all the user's tokens
-                authenticationService.invalidateAllUserTokens(userId);
-
-                auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/ban", startTime);
-                return mapToUserResponse(targetUser);
-        }
-
-        /**
-         * Unban a user by clearing their banned flag.
-         * Only users with a higher role can unban others.
-         * Accessible by OWNER, ADMIN, and MODERATOR roles.
-         * POST /api/admin/users/{userId}/unban
-         *
-         * @param userId      the ID of the user to unban
-         * @param currentUser the currently authenticated user
-         * @return the unbanned user's response
-         * @throws UserNotFoundException                                     if the
-         *                                                                   target user
-         *                                                                   is not
-         *                                                                   found
-         * @throws com.aboff.core.exception.InsufficientPermissionsException if the
-         *                                                                   current
-         *                                                                   user's role
-         *                                                                   is not
-         *                                                                   higher
-         *                                                                   than the
-         *                                                                   target
-         *                                                                   user's role
-         */
-        @PostMapping("/users/{userId}/unban")
-        @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'MODERATOR')")
-        public UserResponse unbanUser(
-                        @PathVariable Long userId,
-                        @AuthenticationPrincipal CustomUserDetails currentUser,
-                        Authentication authentication,
-                        HttpServletRequest httpRequest) {
-
-                long startTime = System.nanoTime();
-                AuditContext ctx = AuditContext.forUser(authentication)
-                                .withIp(httpRequest.getRemoteAddr())
-                                .withTargetUserId(userId)
-                                .build();
-                auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/unban");
-
-                // Find the target user
-                User targetUser = userRepository.findById(userId)
-                                .orElseThrow(() -> new UserNotFoundException("User not found"));
-
-                // Validate that the current user can modify the target user
-                roleHierarchyService.canModifyUser(currentUser.getUser(), targetUser);
-
-                // Unban the user
-                targetUser.unban();
-                userRepository.save(targetUser);
-
-                auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/unban", startTime);
-                return mapToUserResponse(targetUser);
-        }
-
-        /**
-         * Change a user's role.
-         * Only accessible by OWNER role.
-         * POST /api/admin/users/{userId}/change-role
-         *
-         * @param userId  the ID of the user whose role should be changed
-         * @param request the request containing the new role
-         * @return the updated user's response
-         * @throws UserNotFoundException if the target user is not found
-         */
-        @PostMapping("/users/{userId}/change-role")
-        @PreAuthorize("hasRole('OWNER')")
-        @ResponseStatus(HttpStatus.OK)
-        public UserResponse changeUserRole(
-                        @PathVariable Long userId,
-                        @Valid @RequestBody ChangeRoleRequest request,
-                        Authentication authentication,
-                        HttpServletRequest httpRequest) {
-
-                long startTime = System.nanoTime();
-                AuditContext ctx = AuditContext.forUser(authentication)
-                                .withIp(httpRequest.getRemoteAddr())
-                                .withTargetUserId(userId)
-                                .build();
-                auditLogger.requestReceived(ctx, "POST", "/api/admin/users/" + userId + "/change-role");
-
-                // Find the target user
-                User targetUser = userRepository.findById(userId)
-                                .orElseThrow(() -> new UserNotFoundException("User not found"));
-
-                // Update the role
-                targetUser.setRole(request.getNewRole());
-                userRepository.save(targetUser);
-
-                // Invalidate all user's tokens to force re-authentication with new role
-                authenticationService.invalidateAllUserTokens(userId);
-
-                auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/change-role", startTime);
-                return mapToUserResponse(targetUser);
-        }
-
-        /**
-         * Rebuild the full-text search index by clearing all entries and re-indexing every
-         * active entity from the source repositories.
-         *
-         * <p>If a {@code type} query parameter is provided, only that entity type is rebuilt;
-         * otherwise, every supported {@link SearchableEntityType} is rebuilt.
-         *
-         * <p>This is an expensive operation intended for admin-triggered recovery scenarios
-         * (e.g., after a bulk SQL data fix that bypassed JPA events, or to repair a corrupted
-         * index). Only accessible by the OWNER role.
-         *
-         * <p>POST /api/admin/search/reindex
-         * <br>POST /api/admin/search/reindex?type=WEAPON
-         *
-         * @param type optional entity type to reindex; if omitted, all types are rebuilt
-         * @return a map containing the total number of entities indexed and the type processed
-         */
-        @PostMapping("/search/reindex")
-        @PreAuthorize("hasRole('OWNER')")
-        public Map<String, Object> reindexSearch(
-                        @RequestParam(required = false) SearchableEntityType type,
-                        Authentication authentication,
-                        HttpServletRequest httpRequest) {
-
-                long startTime = System.nanoTime();
-                AuditContext ctx = AuditContext.forUser(authentication)
-                                .withIp(httpRequest.getRemoteAddr())
-                                .build();
-                auditLogger.requestReceived(ctx, "POST", "/api/admin/search/reindex");
-
-                int indexed;
-                String scope;
-                if (type == null) {
-                        indexed = searchIndexService.reindexAll();
-                        scope = "ALL";
-                } else {
-                        indexed = searchIndexService.reindexAll(type);
-                        scope = type.name();
-                }
-
-                auditLogger.requestCompleted(ctx, "POST", "/api/admin/search/reindex", startTime);
-                return Map.of(
-                                "scope", scope,
-                                "indexed", indexed);
-        }
-
-        /**
-         * Maps User entity to UserResponse DTO.
-         *
-         * @param user the user entity
-         * @return the user response DTO
-         */
-        private UserResponse mapToUserResponse(User user) {
-                return UserResponse.builder()
-                                .id(user.getId())
-                                .username(user.getUsername())
-                                .email(user.getEmail())
-                                .avatarUrl(user.getAvatarUrl())
-                                .timezone(user.getTimezone())
-                                .createdAt(user.getCreatedAt())
-                                .lastModifiedAt(user.getLastModifiedAt())
-                                .usernameChosen(user.getUsernameChosen())
-                                .build();
-        }
+        auditLogger.requestCompleted(ctx, "POST", "/api/admin/search/reindex", startTime);
+        return Map.of("scope", scope, "indexed", indexed);
+    }
 }
