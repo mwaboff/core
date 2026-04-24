@@ -34,6 +34,9 @@ class UserServiceTest {
         private UserRepository userRepository;
 
         @Mock
+        private com.aboff.core.repository.UsernameHistoryRepository usernameHistoryRepository;
+
+        @Mock
         private AuthenticationService authenticationService;
 
         @Mock
@@ -53,6 +56,28 @@ class UserServiceTest {
 
         @InjectMocks
         private UserService userService;
+
+        @org.junit.jupiter.api.Test
+        void chooseUsername_WritesUsernameHistoryRow() {
+                User user = User.builder()
+                                .id(42L)
+                                .username("temp-abc")
+                                .usernameChosen(false)
+                                .build();
+                when(userRepository.findById(42L)).thenReturn(java.util.Optional.of(user));
+                when(userRepository.existsByUsernameIgnoreCase("picked")).thenReturn(false);
+                when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+                userService.chooseUsername(42L, "picked", authentication);
+
+                org.mockito.ArgumentCaptor<com.aboff.core.model.entity.UsernameHistory> captor =
+                                org.mockito.ArgumentCaptor.forClass(com.aboff.core.model.entity.UsernameHistory.class);
+                verify(usernameHistoryRepository).save(captor.capture());
+                assertThat(captor.getValue().getUserId()).isEqualTo(42L);
+                assertThat(captor.getValue().getPreviousUsername()).isEqualTo("temp-abc");
+                assertThat(captor.getValue().getNewUsername()).isEqualTo("picked");
+                assertThat(captor.getValue().getChangedByUserId()).isEqualTo(42L);
+        }
 
         // ==================== GET CURRENT USER TESTS ====================
 

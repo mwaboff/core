@@ -66,6 +66,21 @@ public class User extends BaseEntity {
     private LocalDateTime bannedAt;
 
     /**
+     * Optional human-readable reason provided by an admin at ban time.
+     * Cleared when the user is unbanned.
+     */
+    @Column(name = "ban_reason", length = 500)
+    private String banReason;
+
+    /**
+     * Timestamp of the most recent authenticated request made by this user.
+     * Updated by the JWT filter on each authenticated request (throttled).
+     * Nullable for users who have never signed in since this column was added.
+     */
+    @Column(name = "last_seen_at")
+    private LocalDateTime lastSeenAt;
+
+    /**
      * Application-level role governing the user's permissions.
      */
     @Enumerated(EnumType.STRING)
@@ -119,16 +134,27 @@ public class User extends BaseEntity {
     }
 
     /**
-     * Bans the user by setting the banned_at timestamp.
+     * Bans the user with no reason recorded.
      */
     public void ban() {
-        this.bannedAt = LocalDateTime.now();
+        ban(null);
     }
 
     /**
-     * Unbans the user by clearing the banned_at timestamp.
+     * Bans the user, recording the provided reason.
+     *
+     * @param reason human-readable reason; may be {@code null}
+     */
+    public void ban(String reason) {
+        this.bannedAt = LocalDateTime.now();
+        this.banReason = reason;
+    }
+
+    /**
+     * Unbans the user by clearing the banned_at timestamp and reason.
      */
     public void unban() {
         this.bannedAt = null;
+        this.banReason = null;
     }
 }

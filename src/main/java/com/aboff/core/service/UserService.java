@@ -6,8 +6,10 @@ import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.request.UpdateUserRequest;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
+import com.aboff.core.model.entity.UsernameHistory;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.UserRepository;
+import com.aboff.core.repository.UsernameHistoryRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.util.CookieUtil;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,6 +29,7 @@ import java.time.LocalDateTime;
 public class UserService {
 
     private final UserRepository userRepository;
+    private final UsernameHistoryRepository usernameHistoryRepository;
     private final AuthenticationService authenticationService;
     private final RoleHierarchyService roleHierarchyService;
     private final CookieUtil cookieUtil;
@@ -35,19 +38,23 @@ public class UserService {
     /**
      * Constructs a new UserService with required dependencies.
      *
-     * @param userRepository        the user repository
-     * @param authenticationService the authentication service
-     * @param roleHierarchyService  the role hierarchy service
-     * @param cookieUtil            the cookie utility
-     * @param auditLogger           the audit logger
+     * @param userRepository            the user repository
+     * @param usernameHistoryRepository repository for persistent username-change
+     *                                  records
+     * @param authenticationService     the authentication service
+     * @param roleHierarchyService      the role hierarchy service
+     * @param cookieUtil                the cookie utility
+     * @param auditLogger               the audit logger
      */
     public UserService(
             UserRepository userRepository,
+            UsernameHistoryRepository usernameHistoryRepository,
             AuthenticationService authenticationService,
             RoleHierarchyService roleHierarchyService,
             CookieUtil cookieUtil,
             AuditLogger auditLogger) {
         this.userRepository = userRepository;
+        this.usernameHistoryRepository = usernameHistoryRepository;
         this.authenticationService = authenticationService;
         this.roleHierarchyService = roleHierarchyService;
         this.cookieUtil = cookieUtil;
@@ -172,9 +179,17 @@ public class UserService {
             throw new UserAlreadyExistsException("Username already taken");
         }
 
+        String previousUsername = user.getUsername();
         user.setUsername(username);
         user.setUsernameChosen(true);
         user = userRepository.save(user);
+
+        usernameHistoryRepository.save(UsernameHistory.builder()
+                .userId(user.getId())
+                .previousUsername(previousUsername)
+                .newUsername(username)
+                .changedByUserId(user.getId())
+                .build());
 
         AuditContext ctx = AuditContext.forUser(authentication).build();
         auditLogger.log(AuditAction.USER_USERNAME_CHOSEN, ctx,
@@ -264,7 +279,9 @@ public class UserService {
 
         if (privilegedInfo) {
             builder.deletedAt(user.getDeletedAt())
-                    .bannedAt(user.getBannedAt());
+                    .bannedAt(user.getBannedAt())
+                    .banReason(user.getBanReason())
+                    .lastSeenAt(user.getLastSeenAt());
         }
 
         return builder.build();

@@ -1,8 +1,10 @@
 package com.aboff.core.service;
 
 import com.aboff.core.model.entity.ActiveToken;
+import com.aboff.core.model.entity.LoginEvent;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.repository.ActiveTokenRepository;
+import com.aboff.core.repository.LoginEventRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,6 +38,9 @@ class AuthenticationServiceTest {
 
         @Mock
         private ActiveTokenRepository activeTokenRepository;
+
+        @Mock
+        private LoginEventRepository loginEventRepository;
 
         @Mock
         private JwtTokenProvider jwtTokenProvider;
@@ -73,7 +78,7 @@ class AuthenticationServiceTest {
 
                 // Act
                 AuthenticationService.LoginResult result = authenticationService.issueToken(
-                                testUser, "Mozilla/5.0", "127.0.0.1");
+                                testUser, "google", "Mozilla/5.0", "127.0.0.1");
 
                 // Assert
                 assertThat(result.getToken()).isEqualTo("jwt-token");
@@ -91,7 +96,7 @@ class AuthenticationServiceTest {
                 when(activeTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
 
                 // Act
-                authenticationService.issueToken(testUser, "device-info", "10.0.0.1");
+                authenticationService.issueToken(testUser, "dev", "device-info", "10.0.0.1");
 
                 // Assert - verify token was persisted with correct fields
                 ArgumentCaptor<ActiveToken> captor = ArgumentCaptor.forClass(ActiveToken.class);
@@ -102,6 +107,28 @@ class AuthenticationServiceTest {
                 assertThat(persisted.getDeviceInfo()).isEqualTo("device-info");
                 assertThat(persisted.getIpAddress()).isEqualTo("10.0.0.1");
                 assertThat(persisted.getExpiresAt()).isAfter(LocalDateTime.now());
+        }
+
+        @Test
+        void issueToken_WritesLoginEventWithProvider() {
+                // Arrange
+                when(jwtTokenProvider.generateToken(testUser)).thenReturn("jwt-token");
+                when(jwtTokenProvider.hashToken("jwt-token")).thenReturn("token-hash");
+                when(jwtTokenProvider.getExpirationMs()).thenReturn(3600000L);
+                when(activeTokenRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+                when(loginEventRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+                // Act
+                authenticationService.issueToken(testUser, "google", "ua-string", "10.0.0.2");
+
+                // Assert
+                ArgumentCaptor<LoginEvent> captor = ArgumentCaptor.forClass(LoginEvent.class);
+                verify(loginEventRepository).save(captor.capture());
+                LoginEvent persisted = captor.getValue();
+                assertThat(persisted.getUserId()).isEqualTo(1L);
+                assertThat(persisted.getProvider()).isEqualTo("google");
+                assertThat(persisted.getIpAddress()).isEqualTo("10.0.0.2");
+                assertThat(persisted.getDeviceInfo()).isEqualTo("ua-string");
         }
 
         // ==================== LOGOUT TESTS ====================

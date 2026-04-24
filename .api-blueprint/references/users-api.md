@@ -314,6 +314,9 @@ Response DTO for user profile endpoints. Uses `@JsonInclude(NON_NULL)` so null f
 | `lastModifiedAt` | `LocalDateTime` | No | Self + Privileged | Last profile update timestamp |
 | `deletedAt` | `LocalDateTime` | Yes | Privileged only | Soft-deletion timestamp |
 | `bannedAt` | `LocalDateTime` | Yes | Privileged only | Ban timestamp |
+| `banReason` | `String` | Yes | Privileged only | Admin-supplied ban reason, if any |
+| `lastSeenAt` | `LocalDateTime` | Yes | Privileged only | Most recent authenticated request; updated by the JWT filter with a 5-minute throttle |
+| `usernameChosen` | `Boolean` | Yes | All | True once the user has explicitly chosen their username |
 
 **Visibility levels:**
 - **All** — returned to any authenticated requester

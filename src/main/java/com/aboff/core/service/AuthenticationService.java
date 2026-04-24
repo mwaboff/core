@@ -3,9 +3,11 @@ package com.aboff.core.service;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.ActiveToken;
+import com.aboff.core.model.entity.LoginEvent;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.ActiveTokenRepository;
+import com.aboff.core.repository.LoginEventRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import lombok.Builder;
@@ -31,6 +33,7 @@ public class AuthenticationService {
 
     private final UserRepository userRepository;
     private final ActiveTokenRepository activeTokenRepository;
+    private final LoginEventRepository loginEventRepository;
     private final JwtTokenProvider jwtTokenProvider;
     private final AuditLogger auditLogger;
 
@@ -39,30 +42,36 @@ public class AuthenticationService {
      *
      * @param userRepository        the user repository
      * @param activeTokenRepository the active token repository
+     * @param loginEventRepository  repository for persistent login audit rows
      * @param jwtTokenProvider      the JWT token provider
      * @param auditLogger           the audit logger
      */
     public AuthenticationService(
             UserRepository userRepository,
             ActiveTokenRepository activeTokenRepository,
+            LoginEventRepository loginEventRepository,
             JwtTokenProvider jwtTokenProvider,
             AuditLogger auditLogger) {
         this.userRepository = userRepository;
         this.activeTokenRepository = activeTokenRepository;
+        this.loginEventRepository = loginEventRepository;
         this.jwtTokenProvider = jwtTokenProvider;
         this.auditLogger = auditLogger;
     }
 
     /**
-     * Issues a JWT for the given user and persists an {@link ActiveToken} record.
+     * Issues a JWT for the given user and persists an {@link ActiveToken}
+     * record plus a durable {@link LoginEvent} row.
      *
      * @param user       the authenticated user
+     * @param provider   the authentication provider identifier (e.g.
+     *                   {@code "google"}, {@code "dev"}); may be {@code null}
      * @param deviceInfo device info string (e.g. trimmed User-Agent)
      * @param ipAddress  the client's IP address
      * @return a {@link LoginResult} containing the user response and raw JWT
      */
     @Transactional
-    public LoginResult issueToken(User user, String deviceInfo, String ipAddress) {
+    public LoginResult issueToken(User user, String provider, String deviceInfo, String ipAddress) {
         String jwt = jwtTokenProvider.generateToken(user);
         String tokenHash = jwtTokenProvider.hashToken(jwt);
 
@@ -77,10 +86,19 @@ public class AuthenticationService {
 
         activeTokenRepository.save(activeToken);
 
+        LoginEvent loginEvent = LoginEvent.builder()
+                .userId(user.getId())
+                .provider(provider)
+                .ipAddress(ipAddress)
+                .deviceInfo(deviceInfo)
+                .build();
+        loginEventRepository.save(loginEvent);
+
         AuditContext ctx = AuditContext.forIp(ipAddress)
                 .build();
         auditLogger.log(AuditAction.USER_LOGIN, ctx,
-                String.format("user_id: %d, username: %s", user.getId(), user.getUsername()));
+                String.format("user_id: %d, username: %s, provider: %s",
+                        user.getId(), user.getUsername(), provider));
 
         return LoginResult.builder()
                 .userResponse(mapToUserResponse(user))
