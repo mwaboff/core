@@ -90,6 +90,8 @@ java -jar target/core-0.0.1-SNAPSHOT.jar
 ./mvnw spring-boot:run -Dmaven.test.skip=true
 
 # Run with dev profile (enables dev-login endpoint)
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+# or via env var:
 SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
 
@@ -160,6 +162,8 @@ For local development and testing, a mock login endpoint is available when the `
 
 **Start with dev profile:**
 ```bash
+./mvnw spring-boot:run -Dspring-boot.run.profiles=dev
+# or:
 SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
 ```
 

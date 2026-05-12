@@ -9,6 +9,7 @@ import com.aboff.core.model.dto.dh.request.InventoryLootRequest;
 import com.aboff.core.model.dto.dh.request.InventoryWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.response.*;
+import com.aboff.core.util.MarkdownSanitizerUtil;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
@@ -640,6 +641,55 @@ public class CharacterSheetService {
     }
 
     /**
+     * Retrieves the notes for a character sheet without loading the full entity.
+     * <p>
+     * Any authenticated user may call this endpoint; no ownership check is performed.
+     * Soft-deleted sheets return 404.
+     * </p>
+     *
+     * @param id   the character sheet ID
+     * @param auth the authentication context (required by the controller; not used for access checks)
+     * @return a slim response containing the sheet ID, current notes, and last-modified timestamp
+     * @throws EntityNotFoundException if the character sheet is not found or is soft-deleted
+     */
+    @Transactional(readOnly = true)
+    public CharacterSheetNotesResponse getNotes(Long id, Authentication auth) {
+        CharacterSheet sheet = characterSheetRepository.findActiveById(id)
+                .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
+        return CharacterSheetNotesResponse.builder()
+                .id(sheet.getId())
+                .notes(sheet.getNotes())
+                .lastModifiedAt(sheet.getLastModifiedAt())
+                .build();
+    }
+
+    /**
+     * Updates the notes field on a character sheet.
+     * <p>
+     * The caller must be the character sheet owner or have MODERATOR/ADMIN/OWNER role.
+     * The raw notes string is sanitized via {@link MarkdownSanitizerUtil#sanitize(String)}
+     * before being persisted to strip XSS vectors and dangerous URI schemes.
+     * An empty string is accepted and clears any existing notes.
+     * </p>
+     *
+     * @param id       the character sheet ID
+     * @param rawNotes the unsanitized notes content supplied by the client; must not be null
+     * @param auth     the authentication context used for ownership and role checks
+     * @return the full updated character sheet response
+     * @throws EntityNotFoundException          if the character sheet is not found or is soft-deleted
+     * @throws InsufficientPermissionsException if the caller is neither the owner nor a MODERATOR+
+     */
+    @Transactional
+    public CharacterSheetResponse updateNotes(Long id, String rawNotes, Authentication auth) {
+        CharacterSheet sheet = characterSheetRepository.findActiveById(id)
+                .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
+        validateAccess(sheet, auth, "update notes");
+        log.info("Updating notes for character sheet id={}", id);
+        sheet.setNotes(MarkdownSanitizerUtil.sanitize(rawNotes));
+        return toResponse(characterSheetRepository.save(sheet), Set.of());
+    }
+
+    /**
      * Validates that the current user has access to modify the character sheet.
      * <p>
      * Access is granted if the user is the character sheet owner OR has a
@@ -763,6 +813,7 @@ public class CharacterSheetService {
                 .id(sheet.getId())
                 .name(sheet.getName())
                 .pronouns(sheet.getPronouns())
+                .notes(sheet.getNotes())
                 .level(sheet.getLevel())
                 .proficiency(sheet.getProficiency())
                 .evasion(sheet.getEvasion())

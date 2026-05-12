@@ -4,6 +4,8 @@ import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.request.LevelUpRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetNotesRequest;
+import com.aboff.core.model.dto.dh.response.CharacterSheetNotesResponse;
 import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
 import com.aboff.core.model.dto.dh.response.LevelUpOptionsResponse;
 import com.aboff.core.model.dto.dh.response.LevelUpResponse;
@@ -160,6 +162,67 @@ public class CharacterSheetController {
         CharacterSheetResponse response = characterSheetService.updateCharacterSheet(id, request, authentication);
 
         auditLogger.requestCompleted(ctx, "PUT", "/api/dh/character-sheets/" + id, startTime);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Retrieves the notes for a character sheet.
+     * <p>
+     * Returns a slim response containing the character sheet ID, current notes content,
+     * and the last-modified timestamp. Any authenticated user may read notes for any
+     * character sheet that has not been soft-deleted, matching the access model of
+     * {@code getCharacterSheetById}.
+     * </p>
+     *
+     * @param id The character sheet ID
+     * @param authentication The authentication object containing the current user
+     * @param httpRequest The HTTP servlet request used for audit logging
+     * @return Character sheet notes response with 200 OK status
+     */
+    @GetMapping("/{id}/notes")
+    public ResponseEntity<CharacterSheetNotesResponse> getNotes(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "GET", "/api/dh/character-sheets/" + id + "/notes");
+
+        CharacterSheetNotesResponse response = characterSheetService.getNotes(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "GET", "/api/dh/character-sheets/" + id + "/notes", startTime);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Updates the notes for a character sheet.
+     * <p>
+     * Only the character sheet owner or users with MODERATOR/ADMIN/OWNER role can update notes.
+     * Notes are sanitized server-side to remove XSS vectors before persistence. An empty string
+     * is accepted and clears any existing notes.
+     * </p>
+     *
+     * @param id The character sheet ID to update
+     * @param request The notes update request containing the new notes content
+     * @param authentication The authentication object containing the current user
+     * @param httpRequest The HTTP servlet request used for audit logging
+     * @return Updated character sheet response with 200 OK status
+     */
+    @PatchMapping("/{id}/notes")
+    public ResponseEntity<CharacterSheetResponse> updateNotes(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateCharacterSheetNotesRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PATCH", "/api/dh/character-sheets/" + id + "/notes");
+
+        CharacterSheetResponse response = characterSheetService.updateNotes(id, request.getNotes(), authentication);
+
+        auditLogger.requestCompleted(ctx, "PATCH", "/api/dh/character-sheets/" + id + "/notes", startTime);
         return ResponseEntity.ok(response);
     }
 

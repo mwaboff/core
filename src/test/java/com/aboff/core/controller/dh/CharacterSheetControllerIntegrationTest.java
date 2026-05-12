@@ -784,6 +784,294 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    // ==================== GET NOTES TESTS ====================
+
+    @Test
+    void getNotes_AsOwner_Returns200WithNotes() throws Exception {
+        // Arrange
+        testSheet.setNotes("# Hero Notes\nMy notes here.");
+        characterSheetRepository.save(testSheet);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testSheet.getId()))
+                .andExpect(jsonPath("$.notes").exists())
+                .andExpect(jsonPath("$.lastModifiedAt").exists());
+    }
+
+    @Test
+    void getNotes_AsOtherUser_Returns200WithNotes() throws Exception {
+        // Arrange
+        testSheet.setNotes("Some notes.");
+        characterSheetRepository.save(testSheet);
+
+        // Act & Assert — non-owner authenticated user can read notes (same as GET by id)
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testSheet.getId()));
+    }
+
+    @Test
+    void getNotes_Unauthenticated_Returns401() throws Exception {
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId()))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void getNotes_NotFound_Returns404() throws Exception {
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", 99999L)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getNotes_SoftDeleted_Returns404() throws Exception {
+        // Arrange — soft-delete the sheet directly via the repository
+        testSheet.softDelete();
+        characterSheetRepository.save(testSheet);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getNotes_NeverSet_Returns200WithNullNotes() throws Exception {
+        // Arrange — testSheet was created without notes; notes field is null by default
+
+        // Act & Assert — notes field is omitted from JSON when null due to @JsonInclude(NON_NULL)
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(testSheet.getId()))
+                .andExpect(jsonPath("$.notes").doesNotExist());
+    }
+
+    // ==================== UPDATE NOTES TESTS ====================
+
+    @Test
+    void updateNotes_AsOwner_Returns200AndPersists() throws Exception {
+        // Arrange
+        String notesContent = "{\"notes\": \"My campaign notes\"}";
+
+        // Act — PATCH notes
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value("My campaign notes"));
+
+        // Assert persistence via GET
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value("My campaign notes"));
+    }
+
+    @Test
+    void updateNotes_AsModerator_Returns200() throws Exception {
+        // Arrange
+        String notesContent = "{\"notes\": \"Moderator notes\"}";
+
+        // Act & Assert — moderator may update another player's sheet notes
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value("Moderator notes"));
+    }
+
+    @Test
+    void updateNotes_AsOtherUser_Returns403() throws Exception {
+        // Arrange
+        String notesContent = "{\"notes\": \"Unauthorized notes\"}";
+
+        // Act & Assert — non-owner without elevated role is forbidden
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateNotes_Unauthenticated_Returns401() throws Exception {
+        String notesContent = "{\"notes\": \"Some notes\"}";
+
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void updateNotes_NotFound_Returns404() throws Exception {
+        String notesContent = "{\"notes\": \"Some notes\"}";
+
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", 99999L)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateNotes_SoftDeleted_Returns404() throws Exception {
+        // Arrange — soft-delete the sheet directly via the repository
+        testSheet.softDelete();
+        characterSheetRepository.save(testSheet);
+
+        String notesContent = "{\"notes\": \"Some notes\"}";
+
+        // Act & Assert
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateNotes_EmptyString_ClearsNotes_Returns200() throws Exception {
+        // Arrange — first set some notes
+        testSheet.setNotes("Initial notes");
+        characterSheetRepository.save(testSheet);
+
+        String notesContent = "{\"notes\": \"\"}";
+
+        // Act & Assert — empty string clears notes; empty string serializes (not omitted)
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value(""));
+    }
+
+    @Test
+    void updateNotes_NullNotes_Returns400() throws Exception {
+        // Arrange — @NotNull constraint on the notes field rejects null
+        String notesContent = "{\"notes\": null}";
+
+        // Act & Assert
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateNotes_MaxLengthExceeded_Returns400() throws Exception {
+        // Arrange — 10,001 characters exceeds the @Size(max = 10000) constraint
+        String longNotes = "a".repeat(10001);
+        String notesContent = "{\"notes\": \"" + longNotes + "\"}";
+
+        // Act & Assert
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateNotes_XssPayload_StrippedFromResponse() throws Exception {
+        // Arrange — <script> tag is stripped entirely; safe text is preserved
+        String notesContent = "{\"notes\": \"<script>alert(1)</script>safe\"}";
+
+        // Act & Assert
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<script>"))))
+                .andExpect(jsonPath("$.notes").value(org.hamcrest.Matchers.containsString("safe")));
+    }
+
+    @Test
+    void updateNotes_JavascriptUri_NeutralizedInResponse() throws Exception {
+        // Arrange — javascript: scheme in markdown link is rewritten to unsafe:
+        String notesContent = "{\"notes\": \"[x](javascript:alert(1))\"}";
+
+        // Act & Assert
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value(org.hamcrest.Matchers.containsString("unsafe:")))
+                .andExpect(jsonPath("$.notes").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("javascript:"))));
+    }
+
+    @Test
+    void updateNotes_ImgOnerror_Stripped() throws Exception {
+        // Arrange — <img> with onerror attribute is stripped; surrounding text is preserved
+        String notesContent = "{\"notes\": \"<img src=x onerror=alert(1)>caption\"}";
+
+        // Act & Assert
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("<img"))))
+                .andExpect(jsonPath("$.notes").value(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("onerror"))));
+    }
+
+    // ==================== CROSS-ENDPOINT NOTES TESTS ====================
+
+    @Test
+    void getCharacterSheetById_IncludesNotesAfterUpdate() throws Exception {
+        // Arrange — PATCH notes first
+        String notesContent = "{\"notes\": \"Notes for GET check\"}";
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk());
+
+        // Act — GET full character sheet; notes should be included
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value("Notes for GET check"));
+    }
+
+    @Test
+    void updateCharacterSheet_DoesNotTouchNotes() throws Exception {
+        // Arrange — set notes via PATCH first
+        String notesContent = "{\"notes\": \"x\"}";
+        mockMvc.perform(patch("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(notesContent)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk());
+
+        // Act — PUT a non-notes update (name only)
+        UpdateCharacterSheetRequest updateRequest = UpdateCharacterSheetRequest.builder()
+                .name("Aragorn II")
+                .build();
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk());
+
+        // Assert — notes remain unchanged
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").value("x"));
+    }
+
     // ==================== HELPER METHODS ====================
 
     private User createUserWithRole(String username, String email, Role role) {
