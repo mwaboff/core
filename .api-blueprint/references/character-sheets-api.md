@@ -707,6 +707,150 @@ curl -X DELETE -b "AUTH_TOKEN=<token>" \
 
 ---
 
+### Get Character Sheet Notes
+
+```
+GET /api/dh/character-sheets/{id}/notes
+```
+
+**Authorization:** Any authenticated user.
+
+Returns a slim response containing only the character sheet ID, current notes, and the last modified timestamp. Useful for fetching notes without loading the full character sheet.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description          |
+|-----------|------|----------|----------------------|
+| `id`      | long | Yes      | Character sheet ID   |
+
+**Response:** `200 OK` with `CharacterSheetNotesResponse`
+
+**Example Request:**
+
+```bash
+curl -b "AUTH_TOKEN=<token>" \
+  "http://localhost:8080/api/dh/character-sheets/1/notes"
+```
+
+**Example Response:**
+
+```json
+{
+  "id": 1,
+  "notes": "## Session 3 Notes\n\nAragorn secured the artifact from the Shadow King's vault. Must return to Rivendell before the next moon.",
+  "lastModifiedAt": "2026-03-13T15:30:00"
+}
+```
+
+**Error Status Codes:**
+
+| Status | Condition                               |
+|--------|-----------------------------------------|
+| `401`  | Missing or invalid authentication token |
+| `404`  | Character sheet not found or soft-deleted |
+
+---
+
+### Update Character Sheet Notes
+
+```
+PATCH /api/dh/character-sheets/{id}/notes
+```
+
+**Authorization:** Character sheet owner OR MODERATOR/ADMIN/OWNER role.
+
+Replaces the character sheet's notes field with the provided value. The server sanitizes the content before persisting:
+
+- **URI schemes:** Markdown links, images, autolinks, and reference definitions whose URL begins with `javascript:`, `data:`, `vbscript:`, or `file:` have the scheme rewritten to `unsafe:` (e.g. `[click](javascript:alert(1))` becomes `[click](unsafe:alert(1))`).
+- **Inline HTML allowlist:** All inline HTML is stripped except the following void/inline elements (with no attributes): `b`, `i`, `em`, `strong`, `u`, `s`, `del`, `ins`, `code`, `kbd`, `samp`, `var`, `mark`, `sub`, `sup`, `small`, `br`, `p`. Tags not in this list — including `<a>`, `<img>`, `<script>`, `<iframe>`, `<svg>`, `<math>`, `<div>`, `<table>`, and `<form>` — are stripped along with all attributes.
+- **Caveat:** Bare `<` characters outside backtick spans (e.g. `5 < 10`) may have the trailing text consumed by HTML parsing. Wrap comparisons and inline math in backticks (`` `5 < 10` ``) to avoid truncation.
+
+An empty string (`""`) is accepted and clears the notes. A `null` value is rejected with `400 Bad Request`.
+
+**Path Parameters:**
+
+| Parameter | Type | Required | Description          |
+|-----------|------|----------|----------------------|
+| `id`      | long | Yes      | Character sheet ID   |
+
+**Request Body:** `UpdateCharacterSheetNotesRequest` (JSON)
+
+**Response:** `200 OK` with `CharacterSheetResponse` (full character sheet, with sanitized `notes` field)
+
+**Example Requests:**
+
+Set notes:
+
+```bash
+curl -X PATCH -b "AUTH_TOKEN=<token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "notes": "## Session 3 Notes\n\nAragorn secured the artifact from the Shadow King'\''s vault."
+  }' \
+  "http://localhost:8080/api/dh/character-sheets/1/notes"
+```
+
+Clear notes (empty string):
+
+```bash
+curl -X PATCH -b "AUTH_TOKEN=<token>" \
+  -H "Content-Type: application/json" \
+  -d '{"notes": ""}' \
+  "http://localhost:8080/api/dh/character-sheets/1/notes"
+```
+
+XSS attempt — `<script>` tag stripped by server:
+
+```bash
+curl -X PATCH -b "AUTH_TOKEN=<token>" \
+  -H "Content-Type: application/json" \
+  -d '{"notes": "Safe text <script>alert(1)</script> more text"}' \
+  "http://localhost:8080/api/dh/character-sheets/1/notes"
+```
+
+Response `notes` field will contain: `"Safe text  more text"` (script tag removed).
+
+`javascript:` URI neutralized:
+
+```bash
+curl -X PATCH -b "AUTH_TOKEN=<token>" \
+  -H "Content-Type: application/json" \
+  -d '{"notes": "[click here](javascript:alert(1))"}' \
+  "http://localhost:8080/api/dh/character-sheets/1/notes"
+```
+
+Response `notes` field will contain: `"[click here](unsafe:alert(1))"` (scheme rewritten).
+
+Oversize payload (exceeds 10,000 chars) — rejected with `400 Bad Request`:
+
+```bash
+curl -X PATCH -b "AUTH_TOKEN=<token>" \
+  -H "Content-Type: application/json" \
+  -d '{"notes": "<string exceeding 10000 characters>"}' \
+  "http://localhost:8080/api/dh/character-sheets/1/notes"
+```
+
+Null value — rejected with `400 Bad Request`:
+
+```bash
+curl -X PATCH -b "AUTH_TOKEN=<token>" \
+  -H "Content-Type: application/json" \
+  -d '{"notes": null}' \
+  "http://localhost:8080/api/dh/character-sheets/1/notes"
+```
+
+**Error Status Codes:**
+
+| Status | Condition                                                         |
+|--------|-------------------------------------------------------------------|
+| `400`  | `notes` is null                                                   |
+| `400`  | `notes` exceeds 10,000 characters                                 |
+| `401`  | Missing or invalid authentication token                           |
+| `403`  | Not the character sheet owner and not MODERATOR+                  |
+| `404`  | Character sheet not found or soft-deleted                         |
+
+---
+
 ## Expansion Support
 
 The `expand` query parameter accepts a comma-separated list of relationship names. When a relationship is expanded, the full object is included in the response alongside the ID field (which is always present).
@@ -884,6 +1028,26 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `in
 
 **Domain cards** use `equippedDomainCardIds` and `vaultDomainCardIds` (same rules as create). Both must be provided together to update domain cards.
 
+**Notes field:** `UpdateCharacterSheetRequest` does NOT include a `notes` field. To create or update character notes, use the dedicated `PATCH /api/dh/character-sheets/{id}/notes` endpoint.
+
+### UpdateCharacterSheetNotesRequest
+
+Request body for `PATCH /api/dh/character-sheets/{id}/notes`.
+
+| Field   | Type   | Required | Validation                                         |
+|---------|--------|----------|----------------------------------------------------|
+| `notes` | string | Yes      | Not null (`@NotNull`). Empty string accepted (clears notes). Max 10,000 chars (`@Size(max=10000)`). |
+
+### CharacterSheetNotesResponse
+
+Returned by `GET /api/dh/character-sheets/{id}/notes`.
+
+| Field            | Type     | Always Present | Notes                                      |
+|------------------|----------|----------------|--------------------------------------------|
+| `id`             | long     | Yes            | Character sheet ID                         |
+| `notes`          | string   | No             | Current notes value. Omitted if null.      |
+| `lastModifiedAt` | datetime | Yes            | ISO 8601 format. Reflects the last time the character sheet was modified (any field, not only notes). |
+
 ### CharacterSheetResponse
 
 | Field                    | Type                      | Always Present | Notes                                      |
@@ -940,6 +1104,7 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `in
 | `inventoryItems`         | InventoryLootResponse[]   | Yes            | Always included. Nested `loot` expanded with `?expand=inventoryItems`     |
 | `experienceIds`          | long[]                    | Yes            | --                                         |
 | `experiences`            | ExperienceResponse[]      | No             | Only with `?expand=experiences`            |
+| `notes`                  | string                    | No             | Free-text markdown notes about the character. Server sanitizes embedded HTML and neutralizes dangerous URI schemes. Omitted if null. Max 10,000 chars. |
 | `createdAt`              | datetime                  | Yes            | ISO 8601 format                            |
 | `lastModifiedAt`         | datetime                  | Yes            | ISO 8601 format                            |
 | `deletedAt`              | datetime                  | No             | Omitted if null (not soft-deleted)         |

@@ -2771,4 +2771,271 @@ class CharacterSheetServiceTest {
         assertThat(result.getClassId()).isNull();
         assertThat(result.getClassName()).isNull();
     }
+
+    // ==================== GET NOTES TESTS ====================
+
+    @Test
+    void getNotes_ReturnsNotesAndTimestamp() {
+        // Arrange
+        LocalDateTime modified = LocalDateTime.of(2026, 5, 11, 10, 0, 0);
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .notes("Some campaign notes")
+                .owner(owner)
+                .build();
+        sheet.setLastModifiedAt(modified);
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetNotesResponse result = characterSheetService.getNotes(1L, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getNotes()).isEqualTo("Some campaign notes");
+        assertThat(result.getLastModifiedAt()).isEqualTo(modified);
+    }
+
+    @Test
+    void getNotes_NotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        when(characterSheetRepository.findActiveById(99L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.getNotes(99L, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("CharacterSheet not found with id: 99");
+    }
+
+    @Test
+    void getNotes_SoftDeleted_ThrowsEntityNotFoundException() {
+        // Arrange — findActiveById returns empty for soft-deleted sheets
+        when(characterSheetRepository.findActiveById(5L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.getNotes(5L, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("CharacterSheet not found with id: 5");
+    }
+
+    // ==================== UPDATE NOTES TESTS ====================
+
+    @Test
+    void updateNotes_AsOwner_SavesSanitizedNotes() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        characterSheetService.updateNotes(1L, "My notes", authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getNotes()).isEqualTo("My notes");
+    }
+
+    @Test
+    void updateNotes_AsModerator_SavesSanitizedNotes() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        User moderator = User.builder().id(2L).username("moderator1").role(Role.MODERATOR).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        characterSheetService.updateNotes(1L, "Moderator notes", authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getNotes()).isEqualTo("Moderator notes");
+    }
+
+    @Test
+    void updateNotes_AsOtherUser_ThrowsInsufficientPermissionsException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        User otherUser = User.builder().id(2L).username("player2").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(otherUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.updateNotes(1L, "Hacked notes", authentication))
+                .isInstanceOf(InsufficientPermissionsException.class)
+                .hasMessageContaining("You do not have permission to update notes this character sheet");
+
+        verify(characterSheetRepository, never()).save(any(CharacterSheet.class));
+    }
+
+    @Test
+    void updateNotes_NotFound_ThrowsEntityNotFoundException() {
+        // Arrange
+        when(characterSheetRepository.findActiveById(99L)).thenReturn(Optional.empty());
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.updateNotes(99L, "Notes", authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("CharacterSheet not found with id: 99");
+
+        verify(characterSheetRepository, never()).save(any(CharacterSheet.class));
+    }
+
+    @Test
+    void updateNotes_EmptyString_ClearsNotes() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .notes("Old notes")
+                .owner(owner)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        characterSheetService.updateNotes(1L, "", authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getNotes()).isEqualTo("");
+    }
+
+    @Test
+    void updateNotes_XssPayload_Stripped() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        characterSheetService.updateNotes(1L, "<script>x</script>hello", authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getNotes()).doesNotContain("<script>");
+        assertThat(captor.getValue().getNotes()).contains("hello");
+    }
+
+    @Test
+    void updateNotes_JavascriptUri_Neutralized() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            saved.setCommunityCards(new HashSet<>());
+            saved.setAncestryCards(new HashSet<>());
+            saved.setSubclassCards(new HashSet<>());
+            saved.setCharacterSheetDomainCards(new HashSet<>());
+            saved.setCharacterSheetWeapons(new HashSet<>());
+            saved.setCharacterSheetArmors(new HashSet<>());
+            saved.setCharacterSheetLoot(new HashSet<>());
+            saved.setExperiences(new HashSet<>());
+            return saved;
+        });
+
+        // Act
+        characterSheetService.updateNotes(1L, "[x](javascript:alert(1))", authentication);
+
+        // Assert
+        ArgumentCaptor<CharacterSheet> captor = ArgumentCaptor.forClass(CharacterSheet.class);
+        verify(characterSheetRepository).save(captor.capture());
+        assertThat(captor.getValue().getNotes()).doesNotContain("javascript:");
+        assertThat(captor.getValue().getNotes()).contains("unsafe:");
+    }
 }

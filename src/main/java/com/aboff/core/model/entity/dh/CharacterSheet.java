@@ -63,6 +63,14 @@ public class CharacterSheet extends BaseEntity {
     private String pronouns;
 
     /**
+     * Free-text notes for the character sheet.
+     * Allows players to record miscellaneous information, backstory details,
+     * session notes, or any other narrative content relevant to their character.
+     */
+    @Column(columnDefinition = "TEXT")
+    private String notes;
+
+    /**
      * The character's current level (1-10).
      * Level represents overall character power and experience, unlocking new
      * abilities and improving existing ones. Characters start at level 1 and

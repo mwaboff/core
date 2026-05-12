@@ -52,6 +52,11 @@ public class CharacterSheetResponse {
     private String pronouns;
 
     /**
+     * Free-text notes for the character sheet
+     */
+    private String notes;
+
+    /**
      * The character's current level (1-10)
      */
     private Integer level;
