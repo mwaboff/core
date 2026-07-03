@@ -2,8 +2,10 @@ package com.aboff.core.config;
 
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.dh.AncestryCard;
+import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.Loot;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
@@ -224,6 +226,75 @@ class SearchFieldMappingTest {
 
         // Assert
         assertThat(data.getDamageType()).isNull();
+    }
+
+    @Test
+    void buildSearchIndexData_Weapon_IsAlwaysPublic() {
+        // Arrange — custom (non-official) weapons must remain globally visible in search,
+        // since items have no per-item privacy concept.
+        Weapon weapon = Weapon.builder()
+                .name("Custom Dagger")
+                .tier(1)
+                .isOfficial(false)
+                .isPrimary(true)
+                .trait(Trait.FINESSE)
+                .range(Range.MELEE)
+                .burden(Burden.ONE_HANDED)
+                .build();
+        weapon.setId(8L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(weapon, SearchableEntityType.WEAPON);
+
+        // Assert
+        assertThat(data.getIsPublic()).isTrue();
+    }
+
+    // ==================== ARMOR TESTS ====================
+
+    @Test
+    void buildSearchIndexData_Armor_IsAlwaysPublic() {
+        // Arrange — custom (non-official) armor must remain globally visible in search,
+        // since items have no per-item privacy concept.
+        Armor armor = Armor.builder()
+                .name("Custom Chainmail")
+                .tier(1)
+                .isOfficial(false)
+                .baseMajorThreshold(6)
+                .baseSevereThreshold(12)
+                .baseScore(2)
+                .build();
+        armor.setId(1L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(armor, SearchableEntityType.ARMOR);
+
+        // Assert
+        assertThat(data.getIsPublic()).isTrue();
+    }
+
+    // ==================== LOOT TESTS ====================
+
+    @Test
+    void buildSearchIndexData_Loot_IsAlwaysPublic() {
+        // Arrange — custom (non-official) loot must remain globally visible in search,
+        // since items have no per-item privacy concept.
+        Loot loot = Loot.builder()
+                .name("Custom Potion")
+                .tier(1)
+                .isOfficial(false)
+                .isConsumable(true)
+                .build();
+        loot.setId(1L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(loot, SearchableEntityType.LOOT);
+
+        // Assert
+        assertThat(data.getIsPublic()).isTrue();
     }
 
     // ==================== DOMAIN TESTS ====================

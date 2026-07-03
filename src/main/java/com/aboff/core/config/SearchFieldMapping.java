@@ -253,7 +253,7 @@ public class SearchFieldMapping {
     /**
      * Builds search index data for a {@link Weapon} entity.
      * Weight A: name. Weight C: features text.
-     * Filter: expansionId, isOfficial, tier, createdByUserId, trait, range, burden, isPrimary, damageType.
+     * Filter: expansionId, isOfficial, isPublic, tier, createdByUserId, trait, range, burden, isPrimary, damageType.
      *
      * @param weapon the weapon entity
      * @return populated search index data
@@ -271,6 +271,7 @@ public class SearchFieldMapping {
                 .featureText(extractFeatureText(weapon.getFeatures()))
                 .expansionId(expansionId(weapon.getExpansion()))
                 .isOfficial(weapon.getIsOfficial())
+                .isPublic(true)
                 .tier(weapon.getTier())
                 .createdByUserId(userId(weapon.getCreatedBy()))
                 .trait(enumName(weapon.getTrait()))
@@ -284,7 +285,7 @@ public class SearchFieldMapping {
     /**
      * Builds search index data for an {@link Armor} entity.
      * Weight A: name. Weight C: features text.
-     * Filter: expansionId, isOfficial, tier, createdByUserId.
+     * Filter: expansionId, isOfficial, isPublic, tier, createdByUserId.
      *
      * @param armor the armor entity
      * @return populated search index data
@@ -298,6 +299,7 @@ public class SearchFieldMapping {
                 .featureText(extractFeatureText(armor.getFeatures()))
                 .expansionId(expansionId(armor.getExpansion()))
                 .isOfficial(armor.getIsOfficial())
+                .isPublic(true)
                 .tier(armor.getTier())
                 .createdByUserId(userId(armor.getCreatedBy()))
                 .build();
@@ -306,7 +308,7 @@ public class SearchFieldMapping {
     /**
      * Builds search index data for a {@link Loot} entity.
      * Weight A: name. Weight B: description. Weight C: features text.
-     * Filter: expansionId, isOfficial, tier, createdByUserId, isConsumable.
+     * Filter: expansionId, isOfficial, isPublic, tier, createdByUserId, isConsumable.
      *
      * @param loot the loot entity
      * @return populated search index data
@@ -321,6 +323,7 @@ public class SearchFieldMapping {
                 .featureText(extractFeatureText(loot.getFeatures()))
                 .expansionId(expansionId(loot.getExpansion()))
                 .isOfficial(loot.getIsOfficial())
+                .isPublic(true)
                 .tier(loot.getTier())
                 .createdByUserId(userId(loot.getCreatedBy()))
                 .isConsumable(loot.getIsConsumable())
