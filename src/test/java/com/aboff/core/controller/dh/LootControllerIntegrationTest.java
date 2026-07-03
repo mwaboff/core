@@ -71,20 +71,30 @@ class LootControllerIntegrationTest {
 
     private User adminUser;
     private User regularUser;
+    private User moderatorUser;
+    private User otherUser;
     private String adminToken;
     private String userToken;
+    private String moderatorToken;
+    private String otherUserToken;
     private Expansion testExpansion;
 
     @BeforeEach
     void setUp() {
         adminUser = createUserWithRole("admin", "admin@example.com", Role.ADMIN);
         regularUser = createUserWithRole("user", "user@example.com", Role.USER);
+        moderatorUser = createUserWithRole("moderator", "moderator@example.com", Role.MODERATOR);
+        otherUser = createUserWithRole("otheruser", "otheruser@example.com", Role.USER);
 
         adminToken = jwtTokenProvider.generateToken(adminUser);
         userToken = jwtTokenProvider.generateToken(regularUser);
+        moderatorToken = jwtTokenProvider.generateToken(moderatorUser);
+        otherUserToken = jwtTokenProvider.generateToken(otherUser);
 
         storeTokenInDatabase(adminUser.getId(), adminToken);
         storeTokenInDatabase(regularUser.getId(), userToken);
+        storeTokenInDatabase(moderatorUser.getId(), moderatorToken);
+        storeTokenInDatabase(otherUser.getId(), otherUserToken);
 
         testExpansion = createExpansion("Core Rulebook", true);
     }
@@ -208,8 +218,8 @@ class LootControllerIntegrationTest {
     }
 
     @Test
-    void createLoot_AsUser_Returns403() throws Exception {
-        // Arrange
+    void createLoot_AsUser_Returns201WithCustomOwnership() throws Exception {
+        // Arrange - user attempts to mark the loot official, which must be silently coerced to false
         CreateLootRequest request = CreateLootRequest.builder()
                 .name("Health Potion")
                 .expansionId(testExpansion.getId())
@@ -224,9 +234,86 @@ class LootControllerIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", userToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(false))
+                .andExpect(jsonPath("$.creatorId").value(regularUser.getId()));
 
-        assertThat(lootRepository.findAll()).isEmpty();
+        assertThat(lootRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void createLoot_AsAdminWithIsOfficialTrue_ReturnsOfficialWithNullCreator() throws Exception {
+        // Arrange
+        CreateLootRequest request = CreateLootRequest.builder()
+                .name("Health Potion")
+                .expansionId(testExpansion.getId())
+                .tier(1)
+                .isOfficial(true)
+                .isConsumable(true)
+                .description("Restores health when consumed")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/loot")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(true))
+                .andExpect(jsonPath("$.creatorId").doesNotExist());
+    }
+
+    @Test
+    void createLoot_AsUserAtCap_Returns429() throws Exception {
+        // Arrange - pre-populate the user's custom loot count at the cap
+        List<Loot> existingLoot = new java.util.ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            existingLoot.add(Loot.builder()
+                    .name("Custom Loot " + i)
+                    .expansion(testExpansion)
+                    .tier(1)
+                    .isOfficial(false)
+                    .createdBy(regularUser)
+                    .isConsumable(false)
+                    .description("Custom item " + i)
+                    .build());
+        }
+        lootRepository.saveAll(existingLoot);
+
+        CreateLootRequest request = CreateLootRequest.builder()
+                .name("One Too Many")
+                .expansionId(testExpansion.getId())
+                .tier(1)
+                .isOfficial(false)
+                .isConsumable(true)
+                .description("Restores health")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/loot")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Custom Items"));
+    }
+
+    @Test
+    void getAllLoot_FilterByIsOfficialFalse_ReturnsOnlyCustomLoot() throws Exception {
+        // Arrange
+        createLoot("Official Potion", testExpansion, true, "Restores health");
+        Loot customLoot = createLoot("Custom Potion", testExpansion, false, "A custom item");
+        customLoot.setCreatedBy(regularUser);
+        lootRepository.save(customLoot);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/loot")
+                        .param("isOfficial", "false")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Custom Potion"));
     }
 
     // ==================== CREATE LOOT BULK TESTS ====================
@@ -310,7 +397,89 @@ class LootControllerIntegrationTest {
     }
 
     @Test
-    void updateLoot_AsUser_Returns403() throws Exception {
+    void updateLoot_OwnCustomLootAsCreator_Returns200() throws Exception {
+        // Arrange
+        Loot loot = createCustomLoot("Custom Potion", testExpansion, regularUser, "A custom item");
+        UpdateLootRequest request = UpdateLootRequest.builder()
+                .name("Stronger Custom Potion")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/loot/{id}", loot.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Stronger Custom Potion"));
+    }
+
+    @Test
+    void updateLoot_OtherUsersCustomLoot_Returns403() throws Exception {
+        // Arrange
+        Loot loot = createCustomLoot("Custom Potion", testExpansion, regularUser, "A custom item");
+        UpdateLootRequest request = UpdateLootRequest.builder()
+                .name("Hacked Potion")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/loot/{id}", loot.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", otherUserToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateLoot_OfficialLootAsUser_Returns403() throws Exception {
+        // Arrange
+        Loot loot = createLoot("Health Potion", testExpansion, true, "Restores health");
+        UpdateLootRequest request = UpdateLootRequest.builder()
+                .name("Hacked Health Potion")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/loot/{id}", loot.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateLoot_OfficialLootAsModerator_Returns403() throws Exception {
+        // Arrange
+        Loot loot = createLoot("Health Potion", testExpansion, true, "Restores health");
+        UpdateLootRequest request = UpdateLootRequest.builder()
+                .name("Hacked Health Potion")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/loot/{id}", loot.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateLoot_OtherUsersCustomLootAsModerator_Returns200() throws Exception {
+        // Arrange
+        Loot loot = createCustomLoot("Custom Potion", testExpansion, regularUser, "A custom item");
+        UpdateLootRequest request = UpdateLootRequest.builder()
+                .name("Moderated Potion")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/loot/{id}", loot.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Moderated Potion"));
+    }
+
+    @Test
+    void updateLoot_OfficialLootAsAdmin_Returns200() throws Exception {
         // Arrange
         Loot loot = createLoot("Health Potion", testExpansion, true, "Restores health");
         UpdateLootRequest request = UpdateLootRequest.builder()
@@ -324,10 +493,28 @@ class LootControllerIntegrationTest {
 
         // Act & Assert
         mockMvc.perform(put("/api/dh/loot/{id}", loot.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Greater Health Potion"));
+    }
+
+    @Test
+    void updateLoot_AsUserSettingIsOfficialTrueOnOwnLoot_StaysCustom() throws Exception {
+        // Arrange
+        Loot loot = createCustomLoot("Custom Potion", testExpansion, regularUser, "A custom item");
+        UpdateLootRequest request = UpdateLootRequest.builder()
+                .isOfficial(true)
+                .build();
+
+        // Act & Assert - update succeeds but isOfficial is silently ignored for non-admins
+        mockMvc.perform(put("/api/dh/loot/{id}", loot.getId())
                         .cookie(new Cookie("AUTH_TOKEN", userToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(false));
     }
 
     @Test
@@ -579,6 +766,22 @@ class LootControllerIntegrationTest {
                 .tier(tier)
                 .isOfficial(isOfficial)
                 .isConsumable(isConsumable)
+                .description(description)
+                .build();
+        return lootRepository.save(loot);
+    }
+
+    /**
+     * Creates a non-official loot item owned by the given user, for permission matrix tests.
+     */
+    private Loot createCustomLoot(String name, Expansion expansion, User createdBy, String description) {
+        Loot loot = Loot.builder()
+                .name(name)
+                .expansion(expansion)
+                .tier(1)
+                .isOfficial(false)
+                .createdBy(createdBy)
+                .isConsumable(false)
                 .description(description)
                 .build();
         return lootRepository.save(loot);

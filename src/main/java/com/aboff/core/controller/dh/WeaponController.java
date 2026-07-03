@@ -26,9 +26,16 @@ import java.util.List;
  * REST controller for managing Weapon resources.
  * Provides endpoints for CRUD operations on Daggerheart weapons.
  * <p>
- * GET endpoints are accessible to all authenticated users.
- * POST/PUT/DELETE endpoints require ADMIN or OWNER role.
+ * Access control:
  * </p>
+ * <ul>
+ *   <li>GET endpoints: All authenticated users</li>
+ *   <li>POST (single): All authenticated users</li>
+ *   <li>POST (bulk): ADMIN/OWNER only</li>
+ *   <li>PUT: Permission check in service (creator OR moderator+ for non-official,
+ *       ADMIN+ only for official)</li>
+ *   <li>DELETE/restore: ADMIN/OWNER only</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/dh/weapons")
@@ -105,14 +112,13 @@ public class WeaponController {
 
     /**
      * Creates a new weapon.
-     * Requires ADMIN or OWNER role.
+     * Any authenticated user may create a custom weapon; only ADMIN+ may mark it official.
      *
      * @param request The creation request containing weapon details
      * @param authentication The authentication of the current user
      * @return WeaponResponse containing the created weapon
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<WeaponResponse> createWeapon(
             @Valid @RequestBody CreateWeaponRequest request,
             Authentication authentication,
@@ -157,7 +163,8 @@ public class WeaponController {
 
     /**
      * Updates an existing weapon.
-     * Requires ADMIN or OWNER role.
+     * Permission is enforced in the service layer: the creator or a MODERATOR+ may
+     * modify a custom weapon; only ADMIN+ may modify an official weapon.
      *
      * @param id The weapon ID to update
      * @param request The update request containing new weapon details
@@ -165,7 +172,6 @@ public class WeaponController {
      * @return WeaponResponse containing the updated weapon
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<WeaponResponse> updateWeapon(
             @PathVariable Long id,
             @Valid @RequestBody UpdateWeaponRequest request,

@@ -1,5 +1,7 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.exception.TooManyCustomItemsException;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateArmorRequest;
 import com.aboff.core.model.dto.dh.request.UpdateArmorRequest;
@@ -7,14 +9,18 @@ import com.aboff.core.model.dto.dh.response.ArmorResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -36,16 +42,29 @@ import java.util.stream.Collectors;
 
 /**
  * Service for managing Armor entities.
- * Handles business logic for CRUD operations, pagination, soft deletion, and relationship expansion.
+ * <p>
+ * Handles business logic for CRUD operations, pagination, soft deletion,
+ * relationship expansion, and permission validation.
+ * </p>
+ * <p>
+ * Permission model:
+ * </p>
+ * <ul>
+ *   <li>Official armors: Only ADMIN+ can modify</li>
+ *   <li>Non-official armors: Creator OR MODERATOR+ can modify</li>
+ * </ul>
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class ArmorService {
 
+    private static final int MAX_CUSTOM_ITEMS_PER_USER = 200;
+
     private final ArmorRepository armorRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
+    private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -121,15 +140,26 @@ public class ArmorService {
      */
     @Transactional
     public ArmorResponse createArmor(CreateArmorRequest request, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User creator = userDetails.getUser();
+
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
+
+        boolean isPrivileged = roleHierarchyService.hasRoleOrHigher(creator, Role.ADMIN);
+        boolean isOfficial = isPrivileged && Boolean.TRUE.equals(request.getIsOfficial());
+
+        if (!isOfficial && armorRepository.countByCreatedByIdAndDeletedAtIsNull(creator.getId()) >= MAX_CUSTOM_ITEMS_PER_USER) {
+            throw new TooManyCustomItemsException("You have reached the maximum of " + MAX_CUSTOM_ITEMS_PER_USER + " custom armor");
+        }
 
         Armor armor = Armor.builder()
                 .name(request.getName())
                 .expansion(expansion)
                 .tier(request.getTier())
-                .isOfficial(request.getIsOfficial())
+                .isOfficial(isOfficial)
+                .createdBy(isOfficial ? null : creator)
                 .baseMajorThreshold(request.getBaseMajorThreshold())
                 .baseSevereThreshold(request.getBaseSevereThreshold())
                 .baseScore(request.getBaseScore())
@@ -150,7 +180,8 @@ public class ArmorService {
         Armor savedArmor = armorRepository.save(armor);
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedArmor, EntityChangeEvent.ChangeType.CREATED));
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
-                "\"" + savedArmor.getName() + "\" (armor_id: " + savedArmor.getId() + ")");
+                "\"" + savedArmor.getName() + "\" (armor_id: " + savedArmor.getId() + ", isOfficial: " + isOfficial
+                        + ", createdBy: " + creator.getId() + ")");
 
         return toResponse(savedArmor, Set.of());
     }
@@ -220,6 +251,11 @@ public class ArmorService {
         Armor armor = armorRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Armor not found with id: " + id));
 
+        validateModifyPermission(armor, authentication);
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User caller = userDetails.getUser();
+
         if (request.getName() != null && !request.getName().isBlank()) {
             armor.setName(request.getName());
         }
@@ -232,7 +268,7 @@ public class ArmorService {
         if (request.getTier() != null) {
             armor.setTier(request.getTier());
         }
-        if (request.getIsOfficial() != null) {
+        if (request.getIsOfficial() != null && roleHierarchyService.hasRoleOrHigher(caller, Role.ADMIN)) {
             armor.setIsOfficial(request.getIsOfficial());
         }
         if (request.getBaseMajorThreshold() != null) {
@@ -262,7 +298,8 @@ public class ArmorService {
         Armor updatedArmor = armorRepository.save(armor);
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedArmor, EntityChangeEvent.ChangeType.UPDATED));
         auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
-                "armor_id: " + updatedArmor.getId());
+                "armor_id: " + updatedArmor.getId() + ", isOfficial: " + updatedArmor.getIsOfficial()
+                        + ", updatedBy: " + caller.getId());
 
         return toResponse(updatedArmor, Set.of());
     }
@@ -314,6 +351,35 @@ public class ArmorService {
     }
 
     /**
+     * Validates that the authenticated user has permission to modify the armor.
+     * <ul>
+     *   <li>Official armors: Only ADMIN+ can modify</li>
+     *   <li>Non-official armors: Creator OR MODERATOR+ can modify</li>
+     * </ul>
+     *
+     * @param armor The armor being modified
+     * @param authentication Authentication context
+     * @throws InsufficientPermissionsException if user lacks permission
+     */
+    private void validateModifyPermission(Armor armor, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+
+        if (Boolean.TRUE.equals(armor.getIsOfficial())) {
+            if (!roleHierarchyService.hasRoleOrHigher(user, Role.ADMIN)) {
+                throw new InsufficientPermissionsException("Only admins can modify official armor");
+            }
+        } else {
+            boolean isCreator = armor.getCreatedBy() != null && armor.getCreatedBy().getId().equals(user.getId());
+            boolean isModeratorPlus = roleHierarchyService.hasRoleOrHigher(user, Role.MODERATOR);
+
+            if (!isCreator && !isModeratorPlus) {
+                throw new InsufficientPermissionsException("You do not have permission to modify this armor");
+            }
+        }
+    }
+
+    /**
      * Converts an Armor entity to ArmorResponse DTO.
      *
      * @param armor The armor entity
@@ -330,6 +396,7 @@ public class ArmorService {
                 .baseMajorThreshold(armor.getBaseMajorThreshold())
                 .baseSevereThreshold(armor.getBaseSevereThreshold())
                 .baseScore(armor.getBaseScore())
+                .creatorId(armor.getCreatedBy() != null ? armor.getCreatedBy().getId() : null)
                 .createdAt(armor.getCreatedAt())
                 .lastModifiedAt(armor.getLastModifiedAt())
                 .deletedAt(armor.getDeletedAt());

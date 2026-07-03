@@ -1,5 +1,7 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.exception.TooManyCustomItemsException;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
@@ -8,6 +10,7 @@ import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Weapon;
@@ -15,10 +18,13 @@ import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.Range;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -40,16 +46,29 @@ import java.util.stream.Collectors;
 
 /**
  * Service for managing Weapon entities.
- * Handles business logic for CRUD operations, pagination, soft deletion, and relationship expansion.
+ * <p>
+ * Handles business logic for CRUD operations, pagination, soft deletion,
+ * relationship expansion, and permission validation.
+ * </p>
+ * <p>
+ * Permission model:
+ * </p>
+ * <ul>
+ *   <li>Official weapons: Only ADMIN+ can modify</li>
+ *   <li>Non-official weapons: Creator OR MODERATOR+ can modify</li>
+ * </ul>
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class WeaponService {
 
+    private static final int MAX_CUSTOM_ITEMS_PER_USER = 200;
+
     private final WeaponRepository weaponRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
+    private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -135,15 +154,26 @@ public class WeaponService {
      */
     @Transactional
     public WeaponResponse createWeapon(CreateWeaponRequest request, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User creator = userDetails.getUser();
+
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
+
+        boolean isPrivileged = roleHierarchyService.hasRoleOrHigher(creator, Role.ADMIN);
+        boolean isOfficial = isPrivileged && Boolean.TRUE.equals(request.getIsOfficial());
+
+        if (!isOfficial && weaponRepository.countByCreatedByIdAndDeletedAtIsNull(creator.getId()) >= MAX_CUSTOM_ITEMS_PER_USER) {
+            throw new TooManyCustomItemsException("You have reached the maximum of " + MAX_CUSTOM_ITEMS_PER_USER + " custom weapons");
+        }
 
         Weapon weapon = Weapon.builder()
                 .name(request.getName())
                 .expansion(expansion)
                 .tier(request.getTier())
-                .isOfficial(request.getIsOfficial())
+                .isOfficial(isOfficial)
+                .createdBy(isOfficial ? null : creator)
                 .isPrimary(request.getIsPrimary())
                 .trait(request.getTrait())
                 .range(request.getRange())
@@ -166,7 +196,8 @@ public class WeaponService {
         Weapon savedWeapon = weaponRepository.save(weapon);
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedWeapon, EntityChangeEvent.ChangeType.CREATED));
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
-                "\"" + savedWeapon.getName() + "\" (weapon_id: " + savedWeapon.getId() + ")");
+                "\"" + savedWeapon.getName() + "\" (weapon_id: " + savedWeapon.getId() + ", isOfficial: " + isOfficial
+                        + ", createdBy: " + creator.getId() + ")");
 
         return toResponse(savedWeapon, Set.of());
     }
@@ -238,6 +269,11 @@ public class WeaponService {
         Weapon weapon = weaponRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + id));
 
+        validateModifyPermission(weapon, authentication);
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User caller = userDetails.getUser();
+
         if (request.getName() != null && !request.getName().isBlank()) {
             weapon.setName(request.getName());
         }
@@ -250,7 +286,7 @@ public class WeaponService {
         if (request.getTier() != null) {
             weapon.setTier(request.getTier());
         }
-        if (request.getIsOfficial() != null) {
+        if (request.getIsOfficial() != null && roleHierarchyService.hasRoleOrHigher(caller, Role.ADMIN)) {
             weapon.setIsOfficial(request.getIsOfficial());
         }
         if (request.getIsPrimary() != null) {
@@ -284,7 +320,8 @@ public class WeaponService {
         Weapon updatedWeapon = weaponRepository.save(weapon);
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedWeapon, EntityChangeEvent.ChangeType.UPDATED));
         auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
-                "weapon_id: " + updatedWeapon.getId());
+                "weapon_id: " + updatedWeapon.getId() + ", isOfficial: " + updatedWeapon.getIsOfficial()
+                        + ", updatedBy: " + caller.getId());
 
         return toResponse(updatedWeapon, Set.of());
     }
@@ -336,6 +373,35 @@ public class WeaponService {
     }
 
     /**
+     * Validates that the authenticated user has permission to modify the weapon.
+     * <ul>
+     *   <li>Official weapons: Only ADMIN+ can modify</li>
+     *   <li>Non-official weapons: Creator OR MODERATOR+ can modify</li>
+     * </ul>
+     *
+     * @param weapon The weapon being modified
+     * @param authentication Authentication context
+     * @throws InsufficientPermissionsException if user lacks permission
+     */
+    private void validateModifyPermission(Weapon weapon, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+
+        if (Boolean.TRUE.equals(weapon.getIsOfficial())) {
+            if (!roleHierarchyService.hasRoleOrHigher(user, Role.ADMIN)) {
+                throw new InsufficientPermissionsException("Only admins can modify official weapons");
+            }
+        } else {
+            boolean isCreator = weapon.getCreatedBy() != null && weapon.getCreatedBy().getId().equals(user.getId());
+            boolean isModeratorPlus = roleHierarchyService.hasRoleOrHigher(user, Role.MODERATOR);
+
+            if (!isCreator && !isModeratorPlus) {
+                throw new InsufficientPermissionsException("You do not have permission to modify this weapon");
+            }
+        }
+    }
+
+    /**
      * Converts a DamageRollRequest to a DamageRoll embeddable.
      *
      * @param request The damage roll request
@@ -383,6 +449,7 @@ public class WeaponService {
                 .trait(weapon.getTrait())
                 .range(weapon.getRange())
                 .burden(weapon.getBurden())
+                .creatorId(weapon.getCreatedBy() != null ? weapon.getCreatedBy().getId() : null)
                 .createdAt(weapon.getCreatedAt())
                 .lastModifiedAt(weapon.getLastModifiedAt())
                 .deletedAt(weapon.getDeletedAt());

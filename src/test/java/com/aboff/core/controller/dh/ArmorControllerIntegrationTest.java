@@ -65,20 +65,30 @@ class ArmorControllerIntegrationTest {
 
     private User adminUser;
     private User regularUser;
+    private User moderatorUser;
+    private User otherUser;
     private String adminToken;
     private String userToken;
+    private String moderatorToken;
+    private String otherUserToken;
     private Expansion testExpansion;
 
     @BeforeEach
     void setUp() {
         adminUser = createUserWithRole("admin", "admin@example.com", Role.ADMIN);
         regularUser = createUserWithRole("user", "user@example.com", Role.USER);
+        moderatorUser = createUserWithRole("moderator", "moderator@example.com", Role.MODERATOR);
+        otherUser = createUserWithRole("otheruser", "otheruser@example.com", Role.USER);
 
         adminToken = jwtTokenProvider.generateToken(adminUser);
         userToken = jwtTokenProvider.generateToken(regularUser);
+        moderatorToken = jwtTokenProvider.generateToken(moderatorUser);
+        otherUserToken = jwtTokenProvider.generateToken(otherUser);
 
         storeTokenInDatabase(adminUser.getId(), adminToken);
         storeTokenInDatabase(regularUser.getId(), userToken);
+        storeTokenInDatabase(moderatorUser.getId(), moderatorToken);
+        storeTokenInDatabase(otherUser.getId(), otherUserToken);
 
         testExpansion = createExpansion("Core Rulebook", true);
     }
@@ -192,8 +202,8 @@ class ArmorControllerIntegrationTest {
     }
 
     @Test
-    void createArmor_AsUser_Returns403() throws Exception {
-        // Arrange
+    void createArmor_AsUser_Returns201WithCustomOwnership() throws Exception {
+        // Arrange - user attempts to mark the armor official, which must be silently coerced to false
         CreateArmorRequest request = CreateArmorRequest.builder()
                 .name("Leather Armor")
                 .expansionId(testExpansion.getId())
@@ -209,9 +219,89 @@ class ArmorControllerIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", userToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(false))
+                .andExpect(jsonPath("$.creatorId").value(regularUser.getId()));
 
-        assertThat(armorRepository.findAll()).isEmpty();
+        assertThat(armorRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void createArmor_AsAdminWithIsOfficialTrue_ReturnsOfficialWithNullCreator() throws Exception {
+        // Arrange
+        CreateArmorRequest request = CreateArmorRequest.builder()
+                .name("Leather Armor")
+                .expansionId(testExpansion.getId())
+                .tier(1)
+                .isOfficial(true)
+                .baseMajorThreshold(5)
+                .baseSevereThreshold(10)
+                .baseScore(1)
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/armors")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(true))
+                .andExpect(jsonPath("$.creatorId").doesNotExist());
+    }
+
+    @Test
+    void createArmor_AsUserAtCap_Returns429() throws Exception {
+        // Arrange - pre-populate the user's custom armor count at the cap
+        List<Armor> existingArmors = new java.util.ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            existingArmors.add(Armor.builder()
+                    .name("Custom Armor " + i)
+                    .expansion(testExpansion)
+                    .tier(1)
+                    .isOfficial(false)
+                    .createdBy(regularUser)
+                    .baseMajorThreshold(5)
+                    .baseSevereThreshold(10)
+                    .baseScore(1)
+                    .build());
+        }
+        armorRepository.saveAll(existingArmors);
+
+        CreateArmorRequest request = CreateArmorRequest.builder()
+                .name("One Too Many")
+                .expansionId(testExpansion.getId())
+                .tier(1)
+                .isOfficial(false)
+                .baseMajorThreshold(5)
+                .baseSevereThreshold(10)
+                .baseScore(1)
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/armors")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Custom Items"));
+    }
+
+    @Test
+    void getAllArmors_FilterByIsOfficialFalse_ReturnsOnlyCustomArmors() throws Exception {
+        // Arrange
+        createArmor("Official Leather Armor", testExpansion, true, 5, 10, 1);
+        Armor customArmor = createArmor("Custom Chainmail", testExpansion, false, 6, 12, 2);
+        customArmor.setCreatedBy(regularUser);
+        armorRepository.save(customArmor);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/armors")
+                        .param("isOfficial", "false")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Custom Chainmail"));
     }
 
     // ==================== CREATE ARMORS BULK TESTS ====================
@@ -303,7 +393,89 @@ class ArmorControllerIntegrationTest {
     }
 
     @Test
-    void updateArmor_AsUser_Returns403() throws Exception {
+    void updateArmor_OwnCustomArmorAsCreator_Returns200() throws Exception {
+        // Arrange
+        Armor armor = createCustomArmor("Custom Chainmail", testExpansion, regularUser, 6, 12, 2);
+        UpdateArmorRequest request = UpdateArmorRequest.builder()
+                .name("Reinforced Chainmail")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/armors/{id}", armor.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Reinforced Chainmail"));
+    }
+
+    @Test
+    void updateArmor_OtherUsersCustomArmor_Returns403() throws Exception {
+        // Arrange
+        Armor armor = createCustomArmor("Custom Chainmail", testExpansion, regularUser, 6, 12, 2);
+        UpdateArmorRequest request = UpdateArmorRequest.builder()
+                .name("Hacked Chainmail")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/armors/{id}", armor.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", otherUserToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateArmor_OfficialArmorAsUser_Returns403() throws Exception {
+        // Arrange
+        Armor armor = createArmor("Leather Armor", testExpansion, true, 5, 10, 1);
+        UpdateArmorRequest request = UpdateArmorRequest.builder()
+                .name("Hacked Leather Armor")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/armors/{id}", armor.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateArmor_OfficialArmorAsModerator_Returns403() throws Exception {
+        // Arrange
+        Armor armor = createArmor("Leather Armor", testExpansion, true, 5, 10, 1);
+        UpdateArmorRequest request = UpdateArmorRequest.builder()
+                .name("Hacked Leather Armor")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/armors/{id}", armor.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateArmor_OtherUsersCustomArmorAsModerator_Returns200() throws Exception {
+        // Arrange
+        Armor armor = createCustomArmor("Custom Chainmail", testExpansion, regularUser, 6, 12, 2);
+        UpdateArmorRequest request = UpdateArmorRequest.builder()
+                .name("Moderated Chainmail")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/armors/{id}", armor.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Moderated Chainmail"));
+    }
+
+    @Test
+    void updateArmor_OfficialArmorAsAdmin_Returns200() throws Exception {
         // Arrange
         Armor armor = createArmor("Leather Armor", testExpansion, true, 5, 10, 1);
         UpdateArmorRequest request = UpdateArmorRequest.builder()
@@ -318,10 +490,28 @@ class ArmorControllerIntegrationTest {
 
         // Act & Assert
         mockMvc.perform(put("/api/dh/armors/{id}", armor.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Reinforced Leather Armor"));
+    }
+
+    @Test
+    void updateArmor_AsUserSettingIsOfficialTrueOnOwnArmor_StaysCustom() throws Exception {
+        // Arrange
+        Armor armor = createCustomArmor("Custom Chainmail", testExpansion, regularUser, 6, 12, 2);
+        UpdateArmorRequest request = UpdateArmorRequest.builder()
+                .isOfficial(true)
+                .build();
+
+        // Act & Assert - update succeeds but isOfficial is silently ignored for non-admins
+        mockMvc.perform(put("/api/dh/armors/{id}", armor.getId())
                         .cookie(new Cookie("AUTH_TOKEN", userToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(false));
     }
 
     @Test
@@ -466,6 +656,24 @@ class ArmorControllerIntegrationTest {
                 .expansion(expansion)
                 .tier(tier)
                 .isOfficial(isOfficial)
+                .baseMajorThreshold(baseMajorThreshold)
+                .baseSevereThreshold(baseSevereThreshold)
+                .baseScore(baseScore)
+                .build();
+        return armorRepository.save(armor);
+    }
+
+    /**
+     * Creates a non-official armor owned by the given user, for permission matrix tests.
+     */
+    private Armor createCustomArmor(String name, Expansion expansion, User createdBy,
+                                     Integer baseMajorThreshold, Integer baseSevereThreshold, Integer baseScore) {
+        Armor armor = Armor.builder()
+                .name(name)
+                .expansion(expansion)
+                .tier(1)
+                .isOfficial(false)
+                .createdBy(createdBy)
                 .baseMajorThreshold(baseMajorThreshold)
                 .baseSevereThreshold(baseSevereThreshold)
                 .baseScore(baseScore)

@@ -75,6 +75,11 @@ public class ArmorResponse {
     private Integer baseScore;
 
     /**
+     * ID of the user who created this armor (always included; null for official armors).
+     */
+    private Long creatorId;
+
+    /**
      * IDs of the features associated with this armor (null if none).
      */
     private List<Long> featureIds;

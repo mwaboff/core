@@ -71,4 +71,13 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
      */
     @Query("SELECT a FROM Armor a WHERE a.id IN :ids AND a.deletedAt IS NULL")
     List<Armor> findAllByIdInAndDeletedAtIsNull(@Param("ids") List<Long> ids);
+
+    /**
+     * Counts non-deleted armors created by the given user.
+     * Used to enforce the per-user custom item creation cap.
+     *
+     * @param userId The creator's user ID
+     * @return Count of non-deleted armors created by the user
+     */
+    long countByCreatedByIdAndDeletedAtIsNull(Long userId);
 }

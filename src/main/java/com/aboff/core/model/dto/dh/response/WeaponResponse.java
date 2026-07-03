@@ -85,6 +85,11 @@ public class WeaponResponse {
     private Burden burden;
 
     /**
+     * ID of the user who created this weapon (always included; null for official weapons).
+     */
+    private Long creatorId;
+
+    /**
      * The damage roll information for this weapon.
      */
     private DamageRollResponse damage;

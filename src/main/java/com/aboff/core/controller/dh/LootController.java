@@ -22,9 +22,16 @@ import java.util.List;
  * REST controller for managing Loot resources.
  * Provides endpoints for CRUD operations on Daggerheart loot items.
  * <p>
- * GET endpoints are accessible to all authenticated users.
- * POST/PUT/DELETE endpoints require ADMIN or OWNER role.
+ * Access control:
  * </p>
+ * <ul>
+ *   <li>GET endpoints: All authenticated users</li>
+ *   <li>POST (single): All authenticated users</li>
+ *   <li>POST (bulk): ADMIN/OWNER only</li>
+ *   <li>PUT: Permission check in service (creator OR moderator+ for non-official,
+ *       ADMIN+ only for official)</li>
+ *   <li>DELETE/restore: ADMIN/OWNER only</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/dh/loot")
@@ -91,14 +98,13 @@ public class LootController {
 
     /**
      * Creates a new loot item.
-     * Requires ADMIN or OWNER role.
+     * Any authenticated user may create a custom loot item; only ADMIN+ may mark it official.
      *
      * @param request The creation request containing loot details
      * @param authentication The authentication of the current user
      * @return LootResponse containing the created loot
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<LootResponse> createLoot(
             @Valid @RequestBody CreateLootRequest request,
             Authentication authentication,
@@ -143,7 +149,8 @@ public class LootController {
 
     /**
      * Updates an existing loot item.
-     * Requires ADMIN or OWNER role.
+     * Permission is enforced in the service layer: the creator or a MODERATOR+ may
+     * modify a custom loot item; only ADMIN+ may modify an official loot item.
      *
      * @param id The loot ID to update
      * @param request The update request containing new loot details
@@ -151,7 +158,6 @@ public class LootController {
      * @return LootResponse containing the updated loot
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<LootResponse> updateLoot(
             @PathVariable Long id,
             @Valid @RequestBody UpdateLootRequest request,

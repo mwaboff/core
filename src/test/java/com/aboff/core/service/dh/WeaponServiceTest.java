@@ -8,6 +8,7 @@ import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
@@ -16,17 +17,23 @@ import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.*;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
+import com.aboff.core.security.CustomUserDetails;
 import jakarta.persistence.EntityNotFoundException;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.service.RoleHierarchyService;
 import org.springframework.context.ApplicationEventPublisher;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -44,6 +51,7 @@ import static org.mockito.Mockito.*;
  * Tests all CRUD operations, pagination, soft deletion, restore functionality, expand parameter, and bulk operations.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class WeaponServiceTest {
 
     @Mock
@@ -56,6 +64,12 @@ class WeaponServiceTest {
     private FeatureService featureService;
 
     @Mock
+    private RoleHierarchyService roleHierarchyService;
+
+    @Mock
+    private Authentication authentication;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -63,6 +77,22 @@ class WeaponServiceTest {
 
     @InjectMocks
     private WeaponService weaponService;
+
+    private User adminUser;
+
+    @BeforeEach
+    void setUp() {
+        adminUser = User.builder()
+                .id(1L)
+                .username("admin")
+                .email("admin@test.com")
+                .role(Role.ADMIN)
+                .build();
+
+        when(authentication.getPrincipal()).thenReturn(new CustomUserDetails(adminUser));
+        when(roleHierarchyService.hasRoleOrHigher(eq(adminUser), any(Role.class))).thenReturn(true);
+        when(weaponRepository.countByCreatedByIdAndDeletedAtIsNull(anyLong())).thenReturn(0L);
+    }
 
     // ==================== GET ALL WEAPONS TESTS ====================
 
@@ -330,7 +360,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenReturn(savedWeapon);
 
         // Act
-        WeaponResponse result = weaponService.createWeapon(request, null);
+        WeaponResponse result = weaponService.createWeapon(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -359,7 +389,7 @@ class WeaponServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> weaponService.createWeapon(request, null))
+        assertThatThrownBy(() -> weaponService.createWeapon(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -396,7 +426,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenReturn(savedWeapon);
 
         // Act
-        WeaponResponse result = weaponService.createWeapon(request, null);
+        WeaponResponse result = weaponService.createWeapon(request, authentication);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -488,7 +518,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        WeaponResponse result = weaponService.updateWeapon(1L, request, null);
+        WeaponResponse result = weaponService.updateWeapon(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -520,7 +550,7 @@ class WeaponServiceTest {
         when(weaponRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> weaponService.updateWeapon(999L, request, null))
+        assertThatThrownBy(() -> weaponService.updateWeapon(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Weapon not found with id: 999");
 
@@ -654,7 +684,7 @@ class WeaponServiceTest {
         when(weaponRepository.save(any(Weapon.class))).thenReturn(savedWeapon);
 
         // Act
-        WeaponResponse result = weaponService.createWeapon(request, null);
+        WeaponResponse result = weaponService.createWeapon(request, authentication);
 
         // Assert
         assertThat(result.getDamage()).isNotNull();

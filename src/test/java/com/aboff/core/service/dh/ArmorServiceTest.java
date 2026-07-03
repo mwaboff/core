@@ -7,25 +7,33 @@ import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.service.RoleHierarchyService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -43,6 +51,7 @@ import static org.mockito.Mockito.*;
  * Tests all CRUD operations, pagination, soft deletion, restore functionality, expand parameter, and bulk operations.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class ArmorServiceTest {
 
     @Mock
@@ -55,6 +64,12 @@ class ArmorServiceTest {
     private FeatureService featureService;
 
     @Mock
+    private RoleHierarchyService roleHierarchyService;
+
+    @Mock
+    private Authentication authentication;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -62,6 +77,22 @@ class ArmorServiceTest {
 
     @InjectMocks
     private ArmorService armorService;
+
+    private User adminUser;
+
+    @BeforeEach
+    void setUp() {
+        adminUser = User.builder()
+                .id(1L)
+                .username("admin")
+                .email("admin@test.com")
+                .role(Role.ADMIN)
+                .build();
+
+        when(authentication.getPrincipal()).thenReturn(new CustomUserDetails(adminUser));
+        when(roleHierarchyService.hasRoleOrHigher(eq(adminUser), any(Role.class))).thenReturn(true);
+        when(armorRepository.countByCreatedByIdAndDeletedAtIsNull(anyLong())).thenReturn(0L);
+    }
 
     // ==================== GET ALL ARMORS TESTS ====================
 
@@ -235,7 +266,7 @@ class ArmorServiceTest {
         when(armorRepository.save(any(Armor.class))).thenReturn(savedArmor);
 
         // Act
-        ArmorResponse result = armorService.createArmor(request, null);
+        ArmorResponse result = armorService.createArmor(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -259,7 +290,7 @@ class ArmorServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> armorService.createArmor(request, null))
+        assertThatThrownBy(() -> armorService.createArmor(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -291,7 +322,7 @@ class ArmorServiceTest {
         when(armorRepository.save(any(Armor.class))).thenReturn(savedArmor);
 
         // Act
-        ArmorResponse result = armorService.createArmor(request, null);
+        ArmorResponse result = armorService.createArmor(request, authentication);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -365,7 +396,7 @@ class ArmorServiceTest {
         when(armorRepository.save(any(Armor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        ArmorResponse result = armorService.updateArmor(1L, request, null);
+        ArmorResponse result = armorService.updateArmor(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -391,7 +422,7 @@ class ArmorServiceTest {
         when(armorRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> armorService.updateArmor(999L, request, null))
+        assertThatThrownBy(() -> armorService.updateArmor(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Armor not found with id: 999");
 

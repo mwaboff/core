@@ -22,9 +22,16 @@ import java.util.List;
  * REST controller for managing Armor resources.
  * Provides endpoints for CRUD operations on Daggerheart armor.
  * <p>
- * GET endpoints are accessible to all authenticated users.
- * POST/PUT/DELETE endpoints require ADMIN or OWNER role.
+ * Access control:
  * </p>
+ * <ul>
+ *   <li>GET endpoints: All authenticated users</li>
+ *   <li>POST (single): All authenticated users</li>
+ *   <li>POST (bulk): ADMIN/OWNER only</li>
+ *   <li>PUT: Permission check in service (creator OR moderator+ for non-official,
+ *       ADMIN+ only for official)</li>
+ *   <li>DELETE/restore: ADMIN/OWNER only</li>
+ * </ul>
  */
 @RestController
 @RequestMapping("/api/dh/armors")
@@ -89,14 +96,13 @@ public class ArmorController {
 
     /**
      * Creates a new armor.
-     * Requires ADMIN or OWNER role.
+     * Any authenticated user may create a custom armor; only ADMIN+ may mark it official.
      *
      * @param request The creation request containing armor details
      * @param authentication The authentication of the current user
      * @return ArmorResponse containing the created armor
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<ArmorResponse> createArmor(
             @Valid @RequestBody CreateArmorRequest request,
             Authentication authentication,
@@ -141,7 +147,8 @@ public class ArmorController {
 
     /**
      * Updates an existing armor.
-     * Requires ADMIN or OWNER role.
+     * Permission is enforced in the service layer: the creator or a MODERATOR+ may
+     * modify a custom armor; only ADMIN+ may modify an official armor.
      *
      * @param id The armor ID to update
      * @param request The update request containing new armor details
@@ -149,7 +156,6 @@ public class ArmorController {
      * @return ArmorResponse containing the updated armor
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
     public ResponseEntity<ArmorResponse> updateArmor(
             @PathVariable Long id,
             @Valid @RequestBody UpdateArmorRequest request,

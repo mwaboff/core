@@ -1,18 +1,24 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.exception.TooManyCustomItemsException;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateLootRequest;
 import com.aboff.core.model.dto.dh.request.UpdateLootRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.LootResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
 import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.LootRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.service.RoleHierarchyService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -35,16 +41,29 @@ import java.util.stream.Collectors;
 
 /**
  * Service for managing Loot entities.
- * Handles business logic for CRUD operations, pagination, soft deletion, and relationship expansion.
+ * <p>
+ * Handles business logic for CRUD operations, pagination, soft deletion,
+ * relationship expansion, and permission validation.
+ * </p>
+ * <p>
+ * Permission model:
+ * </p>
+ * <ul>
+ *   <li>Official loot: Only ADMIN+ can modify</li>
+ *   <li>Non-official loot: Creator OR MODERATOR+ can modify</li>
+ * </ul>
  */
 @Service
 @RequiredArgsConstructor
 @Slf4j
 public class LootService {
 
+    private static final int MAX_CUSTOM_ITEMS_PER_USER = 200;
+
     private final LootRepository lootRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
+    private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -122,15 +141,26 @@ public class LootService {
      */
     @Transactional
     public LootResponse createLoot(CreateLootRequest request, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User creator = userDetails.getUser();
+
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
+
+        boolean isPrivileged = roleHierarchyService.hasRoleOrHigher(creator, Role.ADMIN);
+        boolean isOfficial = isPrivileged && Boolean.TRUE.equals(request.getIsOfficial());
+
+        if (!isOfficial && lootRepository.countByCreatedByIdAndDeletedAtIsNull(creator.getId()) >= MAX_CUSTOM_ITEMS_PER_USER) {
+            throw new TooManyCustomItemsException("You have reached the maximum of " + MAX_CUSTOM_ITEMS_PER_USER + " custom loot");
+        }
 
         Loot loot = Loot.builder()
                 .name(request.getName())
                 .expansion(expansion)
                 .tier(request.getTier())
-                .isOfficial(request.getIsOfficial())
+                .isOfficial(isOfficial)
+                .createdBy(isOfficial ? null : creator)
                 .isConsumable(request.getIsConsumable())
                 .description(request.getDescription())
                 .build();
@@ -150,7 +180,8 @@ public class LootService {
         Loot savedLoot = lootRepository.save(loot);
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedLoot, EntityChangeEvent.ChangeType.CREATED));
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
-                "\"" + savedLoot.getName() + "\" (loot_id: " + savedLoot.getId() + ")");
+                "\"" + savedLoot.getName() + "\" (loot_id: " + savedLoot.getId() + ", isOfficial: " + isOfficial
+                        + ", createdBy: " + creator.getId() + ")");
 
         return toResponse(savedLoot, Set.of());
     }
@@ -219,6 +250,11 @@ public class LootService {
         Loot loot = lootRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Loot not found with id: " + id));
 
+        validateModifyPermission(loot, authentication);
+
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User caller = userDetails.getUser();
+
         if (request.getName() != null && !request.getName().isBlank()) {
             loot.setName(request.getName());
         }
@@ -231,7 +267,7 @@ public class LootService {
         if (request.getTier() != null) {
             loot.setTier(request.getTier());
         }
-        if (request.getIsOfficial() != null) {
+        if (request.getIsOfficial() != null && roleHierarchyService.hasRoleOrHigher(caller, Role.ADMIN)) {
             loot.setIsOfficial(request.getIsOfficial());
         }
         if (request.getIsConsumable() != null) {
@@ -258,7 +294,8 @@ public class LootService {
         Loot updatedLoot = lootRepository.save(loot);
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedLoot, EntityChangeEvent.ChangeType.UPDATED));
         auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
-                "loot_id: " + updatedLoot.getId());
+                "loot_id: " + updatedLoot.getId() + ", isOfficial: " + updatedLoot.getIsOfficial()
+                        + ", updatedBy: " + caller.getId());
 
         return toResponse(updatedLoot, Set.of());
     }
@@ -310,6 +347,35 @@ public class LootService {
     }
 
     /**
+     * Validates that the authenticated user has permission to modify the loot.
+     * <ul>
+     *   <li>Official loot: Only ADMIN+ can modify</li>
+     *   <li>Non-official loot: Creator OR MODERATOR+ can modify</li>
+     * </ul>
+     *
+     * @param loot The loot being modified
+     * @param authentication Authentication context
+     * @throws InsufficientPermissionsException if user lacks permission
+     */
+    private void validateModifyPermission(Loot loot, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+
+        if (Boolean.TRUE.equals(loot.getIsOfficial())) {
+            if (!roleHierarchyService.hasRoleOrHigher(user, Role.ADMIN)) {
+                throw new InsufficientPermissionsException("Only admins can modify official loot");
+            }
+        } else {
+            boolean isCreator = loot.getCreatedBy() != null && loot.getCreatedBy().getId().equals(user.getId());
+            boolean isModeratorPlus = roleHierarchyService.hasRoleOrHigher(user, Role.MODERATOR);
+
+            if (!isCreator && !isModeratorPlus) {
+                throw new InsufficientPermissionsException("You do not have permission to modify this loot");
+            }
+        }
+    }
+
+    /**
      * Converts a Loot entity to LootResponse DTO.
      *
      * @param loot The loot entity
@@ -325,6 +391,7 @@ public class LootService {
                 .isOfficial(loot.getIsOfficial())
                 .isConsumable(loot.getIsConsumable())
                 .description(loot.getDescription())
+                .creatorId(loot.getCreatedBy() != null ? loot.getCreatedBy().getId() : null)
                 .createdAt(loot.getCreatedAt())
                 .lastModifiedAt(loot.getLastModifiedAt())
                 .deletedAt(loot.getDeletedAt());

@@ -160,6 +160,28 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Handles TooManyCustomItemsException.
+     * Returns 429 Too Many Requests.
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
+    @ExceptionHandler(TooManyCustomItemsException.class)
+    public ResponseEntity<ErrorResponse> handleTooManyCustomItems(
+            TooManyCustomItemsException ex,
+            HttpServletRequest request) {
+        ErrorResponse error = ErrorResponse.builder()
+                .status(HttpStatus.TOO_MANY_REQUESTS.value())
+                .error("Too Many Custom Items")
+                .message(ex.getMessage())
+                .path(request.getRequestURI())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(error);
+    }
+
+    /**
      * Handles AccessDeniedException from Spring Security.
      * Returns 403 Forbidden.
      *

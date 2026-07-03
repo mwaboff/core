@@ -71,20 +71,30 @@ class WeaponControllerIntegrationTest {
 
     private User adminUser;
     private User regularUser;
+    private User moderatorUser;
+    private User otherUser;
     private String adminToken;
     private String userToken;
+    private String moderatorToken;
+    private String otherUserToken;
     private Expansion testExpansion;
 
     @BeforeEach
     void setUp() {
         adminUser = createUserWithRole("admin", "admin@example.com", Role.ADMIN);
         regularUser = createUserWithRole("user", "user@example.com", Role.USER);
+        moderatorUser = createUserWithRole("moderator", "moderator@example.com", Role.MODERATOR);
+        otherUser = createUserWithRole("otheruser", "otheruser@example.com", Role.USER);
 
         adminToken = jwtTokenProvider.generateToken(adminUser);
         userToken = jwtTokenProvider.generateToken(regularUser);
+        moderatorToken = jwtTokenProvider.generateToken(moderatorUser);
+        otherUserToken = jwtTokenProvider.generateToken(otherUser);
 
         storeTokenInDatabase(adminUser.getId(), adminToken);
         storeTokenInDatabase(regularUser.getId(), userToken);
+        storeTokenInDatabase(moderatorUser.getId(), moderatorToken);
+        storeTokenInDatabase(otherUser.getId(), otherUserToken);
 
         testExpansion = createExpansion("Core Rulebook", true);
     }
@@ -291,8 +301,8 @@ class WeaponControllerIntegrationTest {
     }
 
     @Test
-    void createWeapon_AsUser_Returns403() throws Exception {
-        // Arrange
+    void createWeapon_AsUser_Returns201WithCustomOwnership() throws Exception {
+        // Arrange - user attempts to mark the weapon official, which must be silently coerced to false
         CreateWeaponRequest request = CreateWeaponRequest.builder()
                 .name("Longsword")
                 .expansionId(testExpansion.getId())
@@ -313,9 +323,106 @@ class WeaponControllerIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", userToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(false))
+                .andExpect(jsonPath("$.creatorId").value(regularUser.getId()));
 
-        assertThat(weaponRepository.findAll()).isEmpty();
+        assertThat(weaponRepository.findAll()).hasSize(1);
+    }
+
+    @Test
+    void createWeapon_AsAdminWithIsOfficialTrue_ReturnsOfficialWithNullCreator() throws Exception {
+        // Arrange
+        CreateWeaponRequest request = CreateWeaponRequest.builder()
+                .name("Longsword")
+                .expansionId(testExpansion.getId())
+                .tier(1)
+                .isOfficial(true)
+                .isPrimary(true)
+                .trait(Trait.STRENGTH)
+                .range(Range.MELEE)
+                .burden(Burden.ONE_HANDED)
+                .damage(CreateWeaponRequest.DamageRollRequest.builder()
+                        .diceType(DiceType.D10)
+                        .damageType(DamageType.PHYSICAL)
+                        .build())
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/weapons")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(true))
+                .andExpect(jsonPath("$.creatorId").doesNotExist());
+    }
+
+    @Test
+    void createWeapon_AsUserAtCap_Returns429() throws Exception {
+        // Arrange - pre-populate the user's custom weapon count at the cap
+        List<Weapon> existingWeapons = new java.util.ArrayList<>();
+        for (int i = 0; i < 200; i++) {
+            existingWeapons.add(Weapon.builder()
+                    .name("Custom Weapon " + i)
+                    .expansion(testExpansion)
+                    .tier(1)
+                    .isOfficial(false)
+                    .createdBy(regularUser)
+                    .isPrimary(true)
+                    .trait(Trait.STRENGTH)
+                    .range(Range.MELEE)
+                    .burden(Burden.ONE_HANDED)
+                    .damage(DamageRoll.builder()
+                            .diceCount(2)
+                            .diceType(DiceType.D10)
+                            .modifier(3)
+                            .damageType(DamageType.PHYSICAL)
+                            .build())
+                    .build());
+        }
+        weaponRepository.saveAll(existingWeapons);
+
+        CreateWeaponRequest request = CreateWeaponRequest.builder()
+                .name("One Too Many")
+                .expansionId(testExpansion.getId())
+                .tier(1)
+                .isOfficial(false)
+                .isPrimary(true)
+                .trait(Trait.STRENGTH)
+                .range(Range.MELEE)
+                .burden(Burden.ONE_HANDED)
+                .damage(CreateWeaponRequest.DamageRollRequest.builder()
+                        .diceType(DiceType.D10)
+                        .damageType(DamageType.PHYSICAL)
+                        .build())
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/weapons")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.status").value(429))
+                .andExpect(jsonPath("$.error").value("Too Many Custom Items"));
+    }
+
+    @Test
+    void getAllWeapons_FilterByIsOfficialFalse_ReturnsOnlyCustomWeapons() throws Exception {
+        // Arrange
+        createWeapon("Official Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED);
+        Weapon customWeapon = createWeapon("Custom Dagger", testExpansion, false, true, Trait.FINESSE, Range.MELEE, Burden.ONE_HANDED);
+        customWeapon.setCreatedBy(regularUser);
+        weaponRepository.save(customWeapon);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("isOfficial", "false")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Custom Dagger"));
     }
 
     // ==================== CREATE WEAPONS BULK TESTS ====================
@@ -428,22 +535,44 @@ class WeaponControllerIntegrationTest {
     }
 
     @Test
-    void updateWeapon_AsUser_Returns403() throws Exception {
+    void updateWeapon_OwnCustomWeaponAsCreator_Returns200() throws Exception {
+        // Arrange
+        Weapon weapon = createCustomWeapon("Custom Dagger", testExpansion, regularUser, Trait.FINESSE, Range.MELEE, Burden.ONE_HANDED);
+        UpdateWeaponRequest request = UpdateWeaponRequest.builder()
+                .name("Sharper Dagger")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/weapons/{id}", weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Sharper Dagger"));
+    }
+
+    @Test
+    void updateWeapon_OtherUsersCustomWeapon_Returns403() throws Exception {
+        // Arrange
+        Weapon weapon = createCustomWeapon("Custom Dagger", testExpansion, regularUser, Trait.FINESSE, Range.MELEE, Burden.ONE_HANDED);
+        UpdateWeaponRequest request = UpdateWeaponRequest.builder()
+                .name("Hacked Dagger")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/weapons/{id}", weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", otherUserToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateWeapon_OfficialWeaponAsUser_Returns403() throws Exception {
         // Arrange
         Weapon weapon = createWeapon("Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED);
         UpdateWeaponRequest request = UpdateWeaponRequest.builder()
-                .name("Greater Longsword")
-                .expansionId(testExpansion.getId())
-                .tier(2)
-                .isOfficial(true)
-                .isPrimary(true)
-                .trait(Trait.STRENGTH)
-                .range(Range.MELEE)
-                .burden(Burden.ONE_HANDED)
-                .damage(UpdateWeaponRequest.DamageRollRequest.builder()
-                        .diceType(DiceType.D10)
-                        .damageType(DamageType.PHYSICAL)
-                        .build())
+                .name("Hacked Longsword")
                 .build();
 
         // Act & Assert
@@ -452,6 +581,73 @@ class WeaponControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateWeapon_OfficialWeaponAsModerator_Returns403() throws Exception {
+        // Arrange
+        Weapon weapon = createWeapon("Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED);
+        UpdateWeaponRequest request = UpdateWeaponRequest.builder()
+                .name("Hacked Longsword")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/weapons/{id}", weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void updateWeapon_OtherUsersCustomWeaponAsModerator_Returns200() throws Exception {
+        // Arrange
+        Weapon weapon = createCustomWeapon("Custom Dagger", testExpansion, regularUser, Trait.FINESSE, Range.MELEE, Burden.ONE_HANDED);
+        UpdateWeaponRequest request = UpdateWeaponRequest.builder()
+                .name("Moderated Dagger")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/weapons/{id}", weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Moderated Dagger"));
+    }
+
+    @Test
+    void updateWeapon_OfficialWeaponAsAdmin_Returns200() throws Exception {
+        // Arrange
+        Weapon weapon = createWeapon("Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED);
+        UpdateWeaponRequest request = UpdateWeaponRequest.builder()
+                .name("Greater Longsword")
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/weapons/{id}", weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Greater Longsword"));
+    }
+
+    @Test
+    void updateWeapon_AsUserSettingIsOfficialTrueOnOwnWeapon_StaysCustom() throws Exception {
+        // Arrange
+        Weapon weapon = createCustomWeapon("Custom Dagger", testExpansion, regularUser, Trait.FINESSE, Range.MELEE, Burden.ONE_HANDED);
+        UpdateWeaponRequest request = UpdateWeaponRequest.builder()
+                .isOfficial(true)
+                .build();
+
+        // Act & Assert - update succeeds but isOfficial is silently ignored for non-admins
+        mockMvc.perform(put("/api/dh/weapons/{id}", weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(false));
     }
 
     @Test
@@ -777,6 +973,31 @@ class WeaponControllerIntegrationTest {
                 .tier(tier)
                 .isOfficial(isOfficial)
                 .isPrimary(isPrimary)
+                .trait(trait)
+                .range(range)
+                .burden(burden)
+                .damage(DamageRoll.builder()
+                        .diceCount(2)
+                        .diceType(DiceType.D10)
+                        .modifier(3)
+                        .damageType(DamageType.PHYSICAL)
+                        .build())
+                .build();
+        return weaponRepository.save(weapon);
+    }
+
+    /**
+     * Creates a non-official weapon owned by the given user, for permission matrix tests.
+     */
+    private Weapon createCustomWeapon(String name, Expansion expansion, User createdBy,
+                                       Trait trait, Range range, Burden burden) {
+        Weapon weapon = Weapon.builder()
+                .name(name)
+                .expansion(expansion)
+                .tier(1)
+                .isOfficial(false)
+                .createdBy(createdBy)
+                .isPrimary(true)
                 .trait(trait)
                 .range(range)
                 .burden(burden)

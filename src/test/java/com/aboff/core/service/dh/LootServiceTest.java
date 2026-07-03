@@ -5,23 +5,31 @@ import com.aboff.core.model.dto.dh.request.UpdateLootRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.LootResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.LootRepository;
+import com.aboff.core.security.CustomUserDetails;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.service.RoleHierarchyService;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -39,6 +47,7 @@ import static org.mockito.Mockito.*;
  * Tests all CRUD operations, pagination, soft deletion, restore functionality, expand parameter, and bulk operations.
  */
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 class LootServiceTest {
 
     @Mock
@@ -51,6 +60,12 @@ class LootServiceTest {
     private FeatureService featureService;
 
     @Mock
+    private RoleHierarchyService roleHierarchyService;
+
+    @Mock
+    private Authentication authentication;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -58,6 +73,22 @@ class LootServiceTest {
 
     @InjectMocks
     private LootService lootService;
+
+    private User adminUser;
+
+    @BeforeEach
+    void setUp() {
+        adminUser = User.builder()
+                .id(1L)
+                .username("admin")
+                .email("admin@test.com")
+                .role(Role.ADMIN)
+                .build();
+
+        when(authentication.getPrincipal()).thenReturn(new CustomUserDetails(adminUser));
+        when(roleHierarchyService.hasRoleOrHigher(eq(adminUser), any(Role.class))).thenReturn(true);
+        when(lootRepository.countByCreatedByIdAndDeletedAtIsNull(anyLong())).thenReturn(0L);
+    }
 
     // ==================== GET ALL LOOT TESTS ====================
 
@@ -216,7 +247,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
 
         // Act
-        LootResponse result = lootService.createLoot(request, null);
+        LootResponse result = lootService.createLoot(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -237,7 +268,7 @@ class LootServiceTest {
         when(expansionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> lootService.createLoot(request, null))
+        assertThatThrownBy(() -> lootService.createLoot(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Expansion not found with id: 999");
 
@@ -268,7 +299,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
 
         // Act
-        LootResponse result = lootService.createLoot(request, null);
+        LootResponse result = lootService.createLoot(request, authentication);
 
         // Assert
         assertThat(result.getOriginalLootId()).isEqualTo(1L);
@@ -338,7 +369,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        LootResponse result = lootService.updateLoot(1L, request, null);
+        LootResponse result = lootService.updateLoot(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -360,7 +391,7 @@ class LootServiceTest {
         when(lootRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> lootService.updateLoot(999L, request, null))
+        assertThatThrownBy(() -> lootService.updateLoot(999L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Loot not found with id: 999");
 
@@ -495,7 +526,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
 
         // Act
-        LootResponse result = lootService.createLoot(request, null);
+        LootResponse result = lootService.createLoot(request, authentication);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -526,7 +557,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenReturn(savedLoot);
 
         // Act
-        LootResponse result = lootService.createLoot(request, null);
+        LootResponse result = lootService.createLoot(request, authentication);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(2L);
@@ -560,7 +591,7 @@ class LootServiceTest {
         });
 
         // Act
-        LootResponse result = lootService.updateLoot(1L, request, null);
+        LootResponse result = lootService.updateLoot(1L, request, authentication);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -588,7 +619,7 @@ class LootServiceTest {
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        lootService.updateLoot(1L, request, null);
+        lootService.updateLoot(1L, request, authentication);
 
         // Assert
         verify(featureService, never()).resolveFeatures(any(), any());

@@ -70,6 +70,11 @@ public class LootResponse {
     private String description;
 
     /**
+     * ID of the user who created this loot item (always included; null for official loot).
+     */
+    private Long creatorId;
+
+    /**
      * IDs of features granted by this loot (always included when present).
      */
     private List<Long> featureIds;

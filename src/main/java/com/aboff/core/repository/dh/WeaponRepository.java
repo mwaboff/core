@@ -105,4 +105,13 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
      */
     @Query("SELECT w FROM Weapon w WHERE w.id IN :ids AND w.deletedAt IS NULL")
     List<Weapon> findAllByIdInAndDeletedAtIsNull(@Param("ids") List<Long> ids);
+
+    /**
+     * Counts non-deleted weapons created by the given user.
+     * Used to enforce the per-user custom item creation cap.
+     *
+     * @param userId The creator's user ID
+     * @return Count of non-deleted weapons created by the user
+     */
+    long countByCreatedByIdAndDeletedAtIsNull(Long userId);
 }

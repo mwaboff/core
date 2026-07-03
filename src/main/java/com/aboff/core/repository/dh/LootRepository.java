@@ -77,4 +77,13 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
      */
     @Query("SELECT l FROM Loot l WHERE l.id IN :ids AND l.deletedAt IS NULL")
     List<Loot> findAllByIdInAndDeletedAtIsNull(@Param("ids") List<Long> ids);
+
+    /**
+     * Counts non-deleted loot items created by the given user.
+     * Used to enforce the per-user custom item creation cap.
+     *
+     * @param userId The creator's user ID
+     * @return Count of non-deleted loot items created by the user
+     */
+    long countByCreatedByIdAndDeletedAtIsNull(Long userId);
 }
