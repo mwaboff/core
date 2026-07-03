@@ -146,6 +146,23 @@ class ArmorControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].expansion.name").value("Core Rulebook"));
     }
 
+    @Test
+    void getAllArmors_FilterByCreatorId_ReturnsOnlyThatCreatorsArmors() throws Exception {
+        // Arrange
+        createArmor("Official Plate Mail", testExpansion, true, 8, 16, 3);
+        createCustomArmor("Regular User's Chainmail", testExpansion, regularUser, 6, 12, 2);
+        createCustomArmor("Other User's Chainmail", testExpansion, otherUser, 6, 12, 2);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/armors")
+                        .param("creatorId", String.valueOf(regularUser.getId()))
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Regular User's Chainmail"))
+                .andExpect(jsonPath("$.content[0].creatorId").value(regularUser.getId()));
+    }
+
     // ==================== GET ARMOR BY ID TESTS ====================
 
     @Test

@@ -59,6 +59,7 @@ public class WeaponController {
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param tier Optional filter for weapon tier (1–4)
      * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
+     * @param creatorId Optional filter for the creator's user ID
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,feature,originalWeapon")
      * @return Paginated response containing weapons
      */
@@ -75,10 +76,11 @@ public class WeaponController {
             @RequestParam(required = false) Boolean isPrimary,
             @RequestParam(required = false) Integer tier,
             @RequestParam(required = false) DamageType damageType,
+            @RequestParam(required = false) Long creatorId,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<WeaponResponse> response = weaponService.getAllWeapons(
-                page, size, includeDeleted, expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, expand);
+                page, size, includeDeleted, expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, creatorId, expand);
 
         return ResponseEntity.ok(response);
     }

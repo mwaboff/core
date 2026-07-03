@@ -32,6 +32,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
+     * @param creatorId Optional filter for the creator's user ID
      * @param pageable Pagination information
      * @return Page of non-deleted weapons matching the criteria
      */
@@ -43,7 +44,8 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
            "AND (:burden IS NULL OR w.burden = :burden) " +
            "AND (:isPrimary IS NULL OR w.isPrimary = :isPrimary) " +
            "AND (:tier IS NULL OR w.tier = :tier) " +
-           "AND (:damageType IS NULL OR w.damage.damageType = :damageType)")
+           "AND (:damageType IS NULL OR w.damage.damageType = :damageType) " +
+           "AND (:creatorId IS NULL OR w.createdBy.id = :creatorId)")
     Page<Weapon> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
@@ -53,6 +55,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
             @Param("isPrimary") Boolean isPrimary,
             @Param("tier") Integer tier,
             @Param("damageType") DamageType damageType,
+            @Param("creatorId") Long creatorId,
             Pageable pageable);
 
     /**
@@ -65,6 +68,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
+     * @param creatorId Optional filter for the creator's user ID
      * @param pageable Pagination information
      * @return Page of all weapons matching the criteria
      */
@@ -76,7 +80,8 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
            "AND (:burden IS NULL OR w.burden = :burden) " +
            "AND (:isPrimary IS NULL OR w.isPrimary = :isPrimary) " +
            "AND (:tier IS NULL OR w.tier = :tier) " +
-           "AND (:damageType IS NULL OR w.damage.damageType = :damageType)")
+           "AND (:damageType IS NULL OR w.damage.damageType = :damageType) " +
+           "AND (:creatorId IS NULL OR w.createdBy.id = :creatorId)")
     Page<Weapon> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
@@ -86,6 +91,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
             @Param("isPrimary") Boolean isPrimary,
             @Param("tier") Integer tier,
             @Param("damageType") DamageType damageType,
+            @Param("creatorId") Long creatorId,
             Pageable pageable);
 
     /**

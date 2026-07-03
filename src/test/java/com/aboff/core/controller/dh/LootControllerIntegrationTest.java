@@ -167,6 +167,23 @@ class LootControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].expansion.name").value("Core Rulebook"));
     }
 
+    @Test
+    void getAllLoot_FilterByCreatorId_ReturnsOnlyThatCreatorsLoot() throws Exception {
+        // Arrange
+        createLoot("Official Potion", testExpansion, true, "Restores health");
+        createCustomLoot("Regular User's Potion", testExpansion, regularUser, "A custom item");
+        createCustomLoot("Other User's Potion", testExpansion, otherUser, "A custom item");
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/loot")
+                        .param("creatorId", String.valueOf(regularUser.getId()))
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Regular User's Potion"))
+                .andExpect(jsonPath("$.content[0].creatorId").value(regularUser.getId()));
+    }
+
     // ==================== GET LOOT BY ID TESTS ====================
 
     @Test

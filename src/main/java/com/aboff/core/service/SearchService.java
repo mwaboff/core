@@ -108,6 +108,7 @@ public class SearchService {
      * @param range              optional range filter
      * @param burden             optional burden filter
      * @param isConsumable       optional consumable flag filter
+     * @param creatorId          optional filter restricting results to content created by this user
      * @param expand             comma-separated list of expansion keys; {@code "entity"} or
      *                           {@code "all"} triggers full entity hydration
      * @param page               zero-based page index
@@ -132,6 +133,7 @@ public class SearchService {
             String range,
             String burden,
             Boolean isConsumable,
+            Long creatorId,
             String expand,
             int page,
             int size,
@@ -171,6 +173,7 @@ public class SearchService {
                 range,
                 burden,
                 isConsumable,
+                creatorId,
                 user.getId(),
                 isPrivileged,
                 PageRequest.of(page, size));

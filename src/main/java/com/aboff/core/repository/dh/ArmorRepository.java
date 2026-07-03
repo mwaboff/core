@@ -23,17 +23,20 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param creatorId Optional filter for the creator's user ID
      * @param pageable Pagination information
      * @return Page of non-deleted armors matching the criteria
      */
     @Query("SELECT a FROM Armor a WHERE a.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR a.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
-           "AND (:tier IS NULL OR a.tier = :tier)")
+           "AND (:tier IS NULL OR a.tier = :tier) " +
+           "AND (:creatorId IS NULL OR a.createdBy.id = :creatorId)")
     Page<Armor> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
+            @Param("creatorId") Long creatorId,
             Pageable pageable);
 
     /**
@@ -41,17 +44,20 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param creatorId Optional filter for the creator's user ID
      * @param pageable Pagination information
      * @return Page of all armors matching the criteria
      */
     @Query("SELECT a FROM Armor a WHERE " +
            "(:expansionId IS NULL OR a.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
-           "AND (:tier IS NULL OR a.tier = :tier)")
+           "AND (:tier IS NULL OR a.tier = :tier) " +
+           "AND (:creatorId IS NULL OR a.createdBy.id = :creatorId)")
     Page<Armor> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
+            @Param("creatorId") Long creatorId,
             Pageable pageable);
 
     /**

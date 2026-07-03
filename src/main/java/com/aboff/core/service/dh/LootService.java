@@ -77,6 +77,7 @@ public class LootService {
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for loot tier (1–4)
      * @param isConsumable Optional filter for consumable status
+     * @param creatorId Optional filter for the creator's user ID
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing loot items
      */
@@ -89,6 +90,7 @@ public class LootService {
             Boolean isOfficial,
             Integer tier,
             Boolean isConsumable,
+            Long creatorId,
             String expand) {
 
         size = Math.min(size, 100);
@@ -96,9 +98,9 @@ public class LootService {
         Page<Loot> lootPage;
 
         if (includeDeleted) {
-            lootPage = lootRepository.findAllWithFilters(expansionId, isOfficial, tier, isConsumable, pageable);
+            lootPage = lootRepository.findAllWithFilters(expansionId, isOfficial, tier, isConsumable, creatorId, pageable);
         } else {
-            lootPage = lootRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, tier, isConsumable, pageable);
+            lootPage = lootRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, tier, isConsumable, creatorId, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);

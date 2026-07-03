@@ -77,6 +77,7 @@ public class ArmorService {
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for armor tier (1–4)
+     * @param creatorId Optional filter for the creator's user ID
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing armors
      */
@@ -88,6 +89,7 @@ public class ArmorService {
             Long expansionId,
             Boolean isOfficial,
             Integer tier,
+            Long creatorId,
             String expand) {
 
         size = Math.min(size, 100);
@@ -95,9 +97,9 @@ public class ArmorService {
         Page<Armor> armorPage;
 
         if (includeDeleted) {
-            armorPage = armorRepository.findAllWithFilters(expansionId, isOfficial, tier, pageable);
+            armorPage = armorRepository.findAllWithFilters(expansionId, isOfficial, tier, creatorId, pageable);
         } else {
-            armorPage = armorRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, tier, pageable);
+            armorPage = armorRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, tier, creatorId, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);

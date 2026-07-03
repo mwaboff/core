@@ -86,6 +86,7 @@ public class WeaponService {
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param tier Optional filter for weapon tier (1–4)
      * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
+     * @param creatorId Optional filter for the creator's user ID
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing weapons
      */
@@ -102,6 +103,7 @@ public class WeaponService {
             Boolean isPrimary,
             Integer tier,
             DamageType damageType,
+            Long creatorId,
             String expand) {
 
         size = Math.min(size, 100);
@@ -109,9 +111,9 @@ public class WeaponService {
         Page<Weapon> weaponPage;
 
         if (includeDeleted) {
-            weaponPage = weaponRepository.findAllWithFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
+            weaponPage = weaponRepository.findAllWithFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, creatorId, pageable);
         } else {
-            weaponPage = weaponRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
+            weaponPage = weaponRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, creatorId, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);

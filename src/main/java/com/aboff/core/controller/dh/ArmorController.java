@@ -50,6 +50,7 @@ public class ArmorController {
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for armor tier (1–4)
+     * @param creatorId Optional filter for the creator's user ID
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,feature,originalArmor")
      * @return Paginated response containing armors
      */
@@ -61,10 +62,11 @@ public class ArmorController {
             @RequestParam(required = false) Long expansionId,
             @RequestParam(required = false) Boolean isOfficial,
             @RequestParam(required = false) Integer tier,
+            @RequestParam(required = false) Long creatorId,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<ArmorResponse> response = armorService.getAllArmors(
-                page, size, includeDeleted, expansionId, isOfficial, tier, expand);
+                page, size, includeDeleted, expansionId, isOfficial, tier, creatorId, expand);
 
         return ResponseEntity.ok(response);
     }

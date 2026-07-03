@@ -51,6 +51,7 @@ public class LootController {
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for loot tier (1–4)
      * @param isConsumable Optional filter for consumable status
+     * @param creatorId Optional filter for the creator's user ID
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,originalLoot")
      * @return Paginated response containing loot items
      */
@@ -63,10 +64,11 @@ public class LootController {
             @RequestParam(required = false) Boolean isOfficial,
             @RequestParam(required = false) Integer tier,
             @RequestParam(required = false) Boolean isConsumable,
+            @RequestParam(required = false) Long creatorId,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<LootResponse> response = lootService.getAllLoot(
-                page, size, includeDeleted, expansionId, isOfficial, tier, isConsumable, expand);
+                page, size, includeDeleted, expansionId, isOfficial, tier, isConsumable, creatorId, expand);
 
         return ResponseEntity.ok(response);
     }

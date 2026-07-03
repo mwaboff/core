@@ -78,6 +78,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
      * @param range            optional range filter; {@code null} disables
      * @param burden           optional burden filter; {@code null} disables
      * @param isConsumable     optional consumable flag filter; {@code null} disables
+     * @param creatorId        optional filter restricting results to content created by this user; {@code null} disables
      * @param userId           the ID of the requesting user, used for access control
      * @param isPrivileged     {@code true} if the requesting user is MODERATOR or above,
      *                         bypassing ownership-based access restrictions
@@ -111,6 +112,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
               AND (CAST(:range AS text) IS NULL OR si.range = :range)
               AND (CAST(:burden AS text) IS NULL OR si.burden = :burden)
               AND (CAST(:isConsumable AS boolean) IS NULL OR si.is_consumable = :isConsumable)
+              AND (CAST(:creatorId AS bigint) IS NULL OR si.created_by_user_id = :creatorId)
             ORDER BY relevance_score DESC
             """,
         countQuery = """
@@ -138,6 +140,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
               AND (CAST(:range AS text) IS NULL OR si.range = :range)
               AND (CAST(:burden AS text) IS NULL OR si.burden = :burden)
               AND (CAST(:isConsumable AS boolean) IS NULL OR si.is_consumable = :isConsumable)
+              AND (CAST(:creatorId AS bigint) IS NULL OR si.created_by_user_id = :creatorId)
             """,
         nativeQuery = true
     )
@@ -157,6 +160,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
             @Param("range") String range,
             @Param("burden") String burden,
             @Param("isConsumable") Boolean isConsumable,
+            @Param("creatorId") Long creatorId,
             @Param("userId") Long userId,
             @Param("isPrivileged") boolean isPrivileged,
             Pageable pageable

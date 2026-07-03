@@ -68,6 +68,7 @@ public class SearchController {
      * @param range              optional range filter (e.g., "MELEE", "RANGED")
      * @param burden             optional burden filter (e.g., "ONE_HANDED", "TWO_HANDED")
      * @param isConsumable       optional filter to restrict to consumable or non-consumable items
+     * @param creatorId          optional filter restricting results to content created by this user
      * @param expand             comma-separated list of expansion keys; pass {@code "entity"} or
      *                           {@code "all"} to include full entity response DTOs in results
      * @param page               zero-based page index (default {@code 0})
@@ -91,6 +92,7 @@ public class SearchController {
             @RequestParam(required = false) String range,
             @RequestParam(required = false) String burden,
             @RequestParam(required = false) Boolean isConsumable,
+            @RequestParam(required = false) Long creatorId,
             @RequestParam(required = false) String expand,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -102,7 +104,7 @@ public class SearchController {
         SearchResponse response = searchService.search(
                 q, types, tier, expansionId, isOfficial,
                 cardType, featureType, adversaryType, domainCardType, associatedDomainId,
-                trait, range, burden, isConsumable, expand, page, size, user);
+                trait, range, burden, isConsumable, creatorId, expand, page, size, user);
 
         return ResponseEntity.ok(response);
     }

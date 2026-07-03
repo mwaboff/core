@@ -240,6 +240,23 @@ class WeaponControllerIntegrationTest {
                 .andExpect(jsonPath("$.content[0].expansion.name").value("Core Rulebook"));
     }
 
+    @Test
+    void getAllWeapons_FilterByCreatorId_ReturnsOnlyThatCreatorsWeapons() throws Exception {
+        // Arrange
+        createWeapon("Official Longsword", testExpansion, true, true, Trait.STRENGTH, Range.MELEE, Burden.ONE_HANDED);
+        createCustomWeapon("Regular User's Dagger", testExpansion, regularUser, Trait.FINESSE, Range.MELEE, Burden.ONE_HANDED);
+        createCustomWeapon("Other User's Dagger", testExpansion, otherUser, Trait.FINESSE, Range.MELEE, Burden.ONE_HANDED);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("creatorId", String.valueOf(regularUser.getId()))
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Regular User's Dagger"))
+                .andExpect(jsonPath("$.content[0].creatorId").value(regularUser.getId()));
+    }
+
     // ==================== GET WEAPON BY ID TESTS ====================
 
     @Test

@@ -23,6 +23,8 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param isConsumable Optional filter for consumable status
+     * @param creatorId Optional filter for the creator's user ID
      * @param pageable Pagination information
      * @return Page of non-deleted loot matching the criteria
      */
@@ -30,12 +32,14 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
            "AND (:expansionId IS NULL OR l.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial) " +
            "AND (:tier IS NULL OR l.tier = :tier) " +
-           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable)")
+           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable) " +
+           "AND (:creatorId IS NULL OR l.createdBy.id = :creatorId)")
     Page<Loot> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
             @Param("isConsumable") Boolean isConsumable,
+            @Param("creatorId") Long creatorId,
             Pageable pageable);
 
     /**
@@ -45,6 +49,7 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for tier
      * @param isConsumable Optional filter for consumable status
+     * @param creatorId Optional filter for the creator's user ID
      * @param pageable Pagination information
      * @return Page of all loot matching the criteria
      */
@@ -52,12 +57,14 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
            "(:expansionId IS NULL OR l.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial) " +
            "AND (:tier IS NULL OR l.tier = :tier) " +
-           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable)")
+           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable) " +
+           "AND (:creatorId IS NULL OR l.createdBy.id = :creatorId)")
     Page<Loot> findAllWithFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
             @Param("isConsumable") Boolean isConsumable,
+            @Param("creatorId") Long creatorId,
             Pageable pageable);
 
     /**

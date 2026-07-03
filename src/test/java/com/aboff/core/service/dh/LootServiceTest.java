@@ -101,11 +101,11 @@ class LootServiceTest {
         Loot loot2 = createTestLoot(2L, "Rope", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot1, loot2));
-        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, null, null, null, null);
+        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, null, null, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -123,16 +123,16 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, 1L, null, null, null, null);
+        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, 1L, null, null, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(lootRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(lootRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -143,11 +143,11 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(true), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(true), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, true, null, null, null);
+        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, true, null, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -158,17 +158,14 @@ class LootServiceTest {
     void getAllLoot_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Loot> lootPage = new PageImpl<>(List.of());
-        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        lootService.getAllLoot(0, 500, false, null, null, null, null, null);
+        lootService.getAllLoot(0, 500, false, null, null, null, null, null, null);
 
         // Assert
-        verify(lootRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(), isNull(), isNull(),
-                argThat(pageable -> pageable.getPageSize() == 100)
-        );
+        verify(lootRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
@@ -179,11 +176,11 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
-        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, null, null, null, "expansion");
+        PagedResponse<LootResponse> result = lootService.getAllLoot(0, 20, false, null, null, null, null, null, "expansion");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);

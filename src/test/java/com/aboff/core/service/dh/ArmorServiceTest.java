@@ -106,11 +106,11 @@ class ArmorServiceTest {
         armor2.setBaseScore(3);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor1, armor2));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, null);
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -128,33 +128,30 @@ class ArmorServiceTest {
         Armor armor = createTestArmor(1L, "Leather Armor", expansion);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, 1L, null, null, null);
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, 1L, null, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(armorRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), any(Pageable.class));
+        verify(armorRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
     void getAllArmors_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Armor> armorPage = new PageImpl<>(List.of());
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        armorService.getAllArmors(0, 500, false, null, null, null, null);
+        armorService.getAllArmors(0, 500, false, null, null, null, null, null);
 
         // Assert
-        verify(armorRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(), isNull(),
-                argThat(pageable -> pageable.getPageSize() == 100)
-        );
+        verify(armorRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
@@ -167,7 +164,7 @@ class ArmorServiceTest {
         armor.setFeatures(Set.of(feature));
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -198,7 +195,7 @@ class ArmorServiceTest {
         });
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, "expansion,features");
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, null, "expansion,features");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
