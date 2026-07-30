@@ -299,11 +299,15 @@ public class FeatureService {
     }
 
     /**
-     * Finds an existing feature by name+expansion+type (case-insensitive) or creates a new one.
-     * When no match is found, a new feature is created with the provided details including
-     * any cost tags resolved via {@link CardCostTagService#resolveCostTags}.
+     * Finds an existing feature by name+expansion+type+description (case-insensitive on name,
+     * exact/case-sensitive on description) or creates a new one. Description is part of the
+     * find-or-create key so that features which share a name but carry different rules text —
+     * e.g. the core rulebook's per-tier "Barrier"/"Paired"/"Protective" weapon features — are
+     * differentiated into distinct rows instead of being silently collapsed onto whichever one
+     * was imported first. When no match is found, a new feature is created with the provided
+     * details including any cost tags resolved via {@link CardCostTagService#resolveCostTags}.
      *
-     * @param input The feature input containing name, type, expansion, and optional cost tags
+     * @param input The feature input containing name, type, expansion, description, and optional cost tags
      * @return The existing or newly created Feature entity
      * @throws EntityNotFoundException if the expansion referenced by the input does not exist
      */
@@ -312,8 +316,8 @@ public class FeatureService {
         // Only attempt to find an existing feature if a name is provided
         if (input.getName() != null && !input.getName().isBlank()) {
             return featureRepository
-                    .findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDeletedAtIsNull(
-                            input.getName(), input.getExpansionId(), input.getFeatureType())
+                    .findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                            input.getName(), input.getExpansionId(), input.getFeatureType(), input.getDescription())
                     .map(existing -> {
                         log.debug("Found existing feature with name '{}' (id: {})", input.getName(), existing.getId());
                         return existing;
