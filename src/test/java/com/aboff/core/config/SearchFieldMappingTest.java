@@ -3,7 +3,9 @@ package com.aboff.core.config;
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.dh.AncestryCard;
 import com.aboff.core.model.entity.dh.Domain;
+import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
@@ -459,6 +461,119 @@ class SearchFieldMappingTest {
         // Act
         SearchFieldMapping.SearchIndexData data =
                 searchFieldMapping.buildSearchIndexData(weapon, SearchableEntityType.WEAPON);
+
+        // Assert
+        assertThat(data.getFeatureText()).isNull();
+    }
+
+    // ==================== TRANSFORMATION_CARD TESTS ====================
+
+    @Test
+    void buildSearchIndexData_TransformationCard_SetsEntityTypeToTransformationCard() {
+        // Arrange
+        Expansion expansion = Expansion.builder().name("Hope & Fear").isPublished(true).build();
+        expansion.setId(5L);
+
+        TransformationCard card = TransformationCard.builder()
+                .name("Feral Transformation")
+                .description("Becomes a beast")
+                .expansion(expansion)
+                .build();
+        card.setId(1L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.TRANSFORMATION_CARD);
+
+        // Assert
+        assertThat(data.getEntityType()).isEqualTo("TRANSFORMATION_CARD");
+    }
+
+    @Test
+    void buildSearchIndexData_TransformationCard_MapsNameAndDescriptionText() {
+        // Arrange
+        Expansion expansion = Expansion.builder().name("Hope & Fear").isPublished(true).build();
+        expansion.setId(5L);
+
+        TransformationCard card = TransformationCard.builder()
+                .name("Feral Transformation")
+                .description("Becomes a beast")
+                .expansion(expansion)
+                .build();
+        card.setId(1L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.TRANSFORMATION_CARD);
+
+        // Assert
+        assertThat(data.getNameText()).isEqualTo("Feral Transformation");
+        assertThat(data.getDescriptionText()).isEqualTo("Becomes a beast");
+    }
+
+    @Test
+    void buildSearchIndexData_TransformationCard_MapsExpansionIdFilterColumn() {
+        // Arrange
+        Expansion expansion = Expansion.builder().name("Hope & Fear").isPublished(true).build();
+        expansion.setId(5L);
+
+        TransformationCard card = TransformationCard.builder()
+                .name("Feral Transformation")
+                .expansion(expansion)
+                .build();
+        card.setId(1L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.TRANSFORMATION_CARD);
+
+        // Assert
+        assertThat(data.getExpansionId()).isEqualTo(5L);
+    }
+
+    @Test
+    void buildSearchIndexData_TransformationCard_WithFeatures_MapsFeatureText() {
+        // Arrange
+        Feature feature = Feature.builder()
+                .name("Bestial Fury")
+                .description("Gain a bonus while transformed")
+                .featureType(FeatureType.OTHER)
+                .build();
+        feature.setId(40L);
+
+        Expansion expansion = Expansion.builder().name("Hope & Fear").isPublished(true).build();
+        expansion.setId(5L);
+
+        TransformationCard card = TransformationCard.builder()
+                .name("Feral Transformation")
+                .expansion(expansion)
+                .features(Set.of(feature))
+                .build();
+        card.setId(1L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.TRANSFORMATION_CARD);
+
+        // Assert
+        assertThat(data.getFeatureText()).contains("Bestial Fury");
+    }
+
+    @Test
+    void buildSearchIndexData_TransformationCard_WithNoFeatures_FeatureTextIsNull() {
+        // Arrange
+        Expansion expansion = Expansion.builder().name("Hope & Fear").isPublished(true).build();
+        expansion.setId(5L);
+
+        TransformationCard card = TransformationCard.builder()
+                .name("Feral Transformation")
+                .expansion(expansion)
+                .build();
+        card.setId(1L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.TRANSFORMATION_CARD);
 
         // Assert
         assertThat(data.getFeatureText()).isNull();
