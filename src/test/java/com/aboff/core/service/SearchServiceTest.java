@@ -8,24 +8,7 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
-import com.aboff.core.service.dh.AdversaryService;
-import com.aboff.core.service.dh.AncestryCardService;
-import com.aboff.core.service.dh.ArmorService;
-import com.aboff.core.service.dh.BeastformService;
-import com.aboff.core.service.dh.CardCostTagService;
-import com.aboff.core.service.dh.ClassService;
-import com.aboff.core.service.dh.CommunityCardService;
-import com.aboff.core.service.dh.ConditionService;
-import com.aboff.core.service.dh.DomainCardService;
-import com.aboff.core.service.dh.DomainService;
-import com.aboff.core.service.dh.EncounterService;
-import com.aboff.core.service.dh.ExpansionService;
-import com.aboff.core.service.dh.FeatureService;
-import com.aboff.core.service.dh.LootService;
-import com.aboff.core.service.dh.QuestionService;
-import com.aboff.core.service.dh.SubclassCardService;
-import com.aboff.core.service.dh.SubclassPathService;
-import com.aboff.core.service.dh.WeaponService;
+import com.aboff.core.service.search.SearchTypeRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -36,6 +19,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
 
 import java.util.Collections;
 import java.util.List;
@@ -55,7 +39,9 @@ import static org.mockito.Mockito.when;
  * Unit tests for {@link SearchService}.
  *
  * <p>All dependencies are mocked via Mockito so that tests remain fast and isolated from
- * the database and external services.
+ * the database and external services. Per-type entity resolution now delegates entirely to
+ * {@link SearchTypeRegistry#resolveEntity}, so tests that used to stub/verify individual
+ * game-content services (e.g. {@code WeaponService}) instead stub/verify the registry mock.
  */
 @ExtendWith(MockitoExtension.class)
 class SearchServiceTest {
@@ -65,41 +51,7 @@ class SearchServiceTest {
     @Mock
     private RoleHierarchyService roleHierarchyService;
     @Mock
-    private AdversaryService adversaryService;
-    @Mock
-    private AncestryCardService ancestryCardService;
-    @Mock
-    private ArmorService armorService;
-    @Mock
-    private BeastformService beastformService;
-    @Mock
-    private CardCostTagService cardCostTagService;
-    @Mock
-    private ClassService classService;
-    @Mock
-    private CommunityCardService communityCardService;
-    @Mock
-    private ConditionService conditionService;
-    @Mock
-    private DomainCardService domainCardService;
-    @Mock
-    private DomainService domainService;
-    @Mock
-    private EncounterService encounterService;
-    @Mock
-    private ExpansionService expansionService;
-    @Mock
-    private FeatureService featureService;
-    @Mock
-    private LootService lootService;
-    @Mock
-    private QuestionService questionService;
-    @Mock
-    private SubclassCardService subclassCardService;
-    @Mock
-    private SubclassPathService subclassPathService;
-    @Mock
-    private WeaponService weaponService;
+    private SearchTypeRegistry searchTypeRegistry;
 
     @InjectMocks
     private SearchService searchService;
@@ -440,14 +392,15 @@ class SearchServiceTest {
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
-        when(weaponService.getWeaponById(eq(42L), anyString())).thenReturn(WeaponResponse.builder().build());
+        when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.WEAPON), eq(42L), anyString(), any()))
+                .thenReturn(WeaponResponse.builder().build());
 
         // Act
         searchService.search("longsword", null, null, null, null, null, null, null, null, null,
                 null, null, null, null, "entity", 0, 20, user);
 
         // Assert
-        verify(weaponService).getWeaponById(eq(42L), eq("entity"));
+        verify(searchTypeRegistry).resolveEntity(eq(SearchableEntityType.WEAPON), eq(42L), eq("entity"), any());
     }
 
     @Test
@@ -466,8 +419,8 @@ class SearchServiceTest {
         searchService.search("longsword", null, null, null, null, null, null, null, null, null,
                 null, null, null, null, null, 0, 20, user);
 
-        // Assert — weaponService should never be called without expand
-        org.mockito.Mockito.verifyNoInteractions(weaponService);
+        // Assert — resolution should never be attempted without expand
+        org.mockito.Mockito.verifyNoInteractions(searchTypeRegistry);
     }
 
     @Test
@@ -487,7 +440,7 @@ class SearchServiceTest {
                 null, null, null, null, "other", 0, 20, user);
 
         // Assert
-        org.mockito.Mockito.verifyNoInteractions(weaponService);
+        org.mockito.Mockito.verifyNoInteractions(searchTypeRegistry);
     }
 
     @Test
@@ -501,20 +454,22 @@ class SearchServiceTest {
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
-        when(weaponService.getWeaponById(eq(42L), anyString())).thenReturn(WeaponResponse.builder().build());
+        when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.WEAPON), eq(42L), anyString(), any()))
+                .thenReturn(WeaponResponse.builder().build());
 
         // Act
         searchService.search("longsword", null, null, null, null, null, null, null, null, null,
                 null, null, null, null, "all", 0, 20, user);
 
         // Assert
-        verify(weaponService).getWeaponById(eq(42L), eq("all"));
+        verify(searchTypeRegistry).resolveEntity(eq(SearchableEntityType.WEAPON), eq(42L), eq("all"), any());
     }
 
     @Test
     void search_WithExpandEntityKeyword_ResolvesBeastformEntity() {
-        // Arrange — proves the BEASTFORM fix: resolveEntity() no longer hardcodes null,
-        // it now delegates to BeastformService like every other type.
+        // Arrange — proves the BEASTFORM fix continues to hold: resolveEntity() no longer
+        // hardcodes null, it now delegates to SearchTypeRegistry (backed in production by
+        // BeastformSearchRegistration) like every other type.
         User user = userWithRole(Role.USER);
         Object[] row = buildRow("BEASTFORM", 7L, "Wolf", 0.9);
         when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
@@ -523,7 +478,7 @@ class SearchServiceTest {
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
-        when(beastformService.getBeastformById(eq(7L), anyString()))
+        when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.BEASTFORM), eq(7L), anyString(), any()))
                 .thenReturn(BeastformResponse.builder().id(7L).name("Wolf").build());
 
         // Act
@@ -531,7 +486,7 @@ class SearchServiceTest {
                 null, null, null, null, "entity", 0, 20, user);
 
         // Assert — a real BeastformResponse comes back, not null
-        verify(beastformService).getBeastformById(eq(7L), eq("entity"));
+        verify(searchTypeRegistry).resolveEntity(eq(SearchableEntityType.BEASTFORM), eq(7L), eq("entity"), any());
         assertThat(response.getResults()).hasSize(1);
         assertThat(response.getResults().get(0).getExpandedEntity()).isNotNull();
         assertThat(response.getResults().get(0).getExpandedEntity()).isInstanceOf(BeastformResponse.class);
@@ -549,7 +504,7 @@ class SearchServiceTest {
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
-        when(conditionService.getConditionById(eq(9L), anyString()))
+        when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.CONDITION), eq(9L), anyString(), any()))
                 .thenReturn(ConditionResponse.builder().id(9L).name("Restrained").build());
 
         // Act
@@ -557,9 +512,33 @@ class SearchServiceTest {
                 null, null, null, null, "entity", 0, 20, user);
 
         // Assert — a real ConditionResponse comes back, not null
-        verify(conditionService).getConditionById(eq(9L), eq("entity"));
+        verify(searchTypeRegistry).resolveEntity(eq(SearchableEntityType.CONDITION), eq(9L), eq("entity"), any());
         assertThat(response.getResults()).hasSize(1);
         assertThat(response.getResults().get(0).getExpandedEntity()).isInstanceOf(ConditionResponse.class);
+    }
+
+    @Test
+    void search_WhenRegistryThrowsEntityNotFound_ResolvesToNullExpandedEntity() {
+        // Arrange — resolveEntity() must catch EntityNotFoundException from the registry so one
+        // missing entity does not abort the whole search response.
+        User user = userWithRole(Role.USER);
+        Object[] row = buildRow("WEAPON", 42L, "Longsword", 0.9);
+        when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
+        when(searchIndexRepository.search(
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
+                .thenReturn(singleRowPage(row));
+        when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.WEAPON), eq(42L), anyString(), any(Authentication.class)))
+                .thenThrow(new jakarta.persistence.EntityNotFoundException("gone"));
+
+        // Act
+        SearchResponse response = searchService.search("longsword", null, null, null, null, null, null, null, null, null,
+                null, null, null, null, "entity", 0, 20, user);
+
+        // Assert
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getExpandedEntity()).isNull();
     }
 
     // ==================== VALID SEARCH TEST ====================

@@ -6,27 +6,7 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
 import com.aboff.core.security.CustomUserDetails;
-import com.aboff.core.service.dh.AdversaryService;
-import com.aboff.core.service.dh.AncestryCardService;
-import com.aboff.core.service.dh.ArmorService;
-import com.aboff.core.service.dh.BeastformService;
-import com.aboff.core.service.dh.CardCostTagService;
-import com.aboff.core.service.dh.ClassService;
-import com.aboff.core.service.dh.CommunityCardService;
-import com.aboff.core.service.dh.ConditionService;
-import com.aboff.core.service.dh.DomainCardService;
-import com.aboff.core.service.dh.DomainService;
-import com.aboff.core.service.dh.EncounterService;
-import com.aboff.core.service.dh.EnvironmentService;
-import com.aboff.core.service.dh.ExpansionService;
-import com.aboff.core.service.dh.FeatureService;
-import com.aboff.core.service.dh.LootService;
-import com.aboff.core.service.dh.MartialStanceService;
-import com.aboff.core.service.dh.QuestionService;
-import com.aboff.core.service.dh.SubclassCardService;
-import com.aboff.core.service.dh.SubclassPathService;
-import com.aboff.core.service.dh.TransformationCardService;
-import com.aboff.core.service.dh.WeaponService;
+import com.aboff.core.service.search.SearchTypeRegistry;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -69,29 +49,7 @@ public class SearchService {
 
     private final SearchIndexRepository searchIndexRepository;
     private final RoleHierarchyService roleHierarchyService;
-
-    // Game-content services for optional entity expansion
-    private final AdversaryService adversaryService;
-    private final AncestryCardService ancestryCardService;
-    private final ArmorService armorService;
-    private final BeastformService beastformService;
-    private final CardCostTagService cardCostTagService;
-    private final ClassService classService;
-    private final CommunityCardService communityCardService;
-    private final ConditionService conditionService;
-    private final DomainCardService domainCardService;
-    private final DomainService domainService;
-    private final EncounterService encounterService;
-    private final EnvironmentService environmentService;
-    private final ExpansionService expansionService;
-    private final FeatureService featureService;
-    private final LootService lootService;
-    private final MartialStanceService martialStanceService;
-    private final QuestionService questionService;
-    private final SubclassCardService subclassCardService;
-    private final SubclassPathService subclassPathService;
-    private final TransformationCardService transformationCardService;
-    private final WeaponService weaponService;
+    private final SearchTypeRegistry searchTypeRegistry;
 
     /**
      * Performs a paginated full-text search across all indexed game content.
@@ -250,8 +208,8 @@ public class SearchService {
     }
 
     /**
-     * Resolves the full entity response DTO for the given type and ID by delegating to the
-     * appropriate game-content service.
+     * Resolves the full entity response DTO for the given type and ID by delegating to
+     * {@link SearchTypeRegistry}, which routes to the appropriate game-content service.
      *
      * <p>Resolution failures (entity not found, access denied) are caught and logged so that
      * a single unavailable entity does not prevent other results from being returned.
@@ -264,29 +222,7 @@ public class SearchService {
      */
     private Object resolveEntity(SearchableEntityType type, Long id, String expand, Authentication auth) {
         try {
-            return switch (type) {
-                case WEAPON -> weaponService.getWeaponById(id, expand);
-                case ARMOR -> armorService.getArmorById(id, expand);
-                case LOOT -> lootService.getLootById(id, expand);
-                case DOMAIN -> domainService.getDomainById(id, expand);
-                case CLASS -> classService.getClassById(id, expand);
-                case FEATURE -> featureService.getFeatureById(id, expand);
-                case ANCESTRY_CARD -> ancestryCardService.getAncestryCardById(id, expand);
-                case COMMUNITY_CARD -> communityCardService.getCommunityCardById(id, expand);
-                case SUBCLASS_CARD -> subclassCardService.getSubclassCardById(id, expand);
-                case DOMAIN_CARD -> domainCardService.getDomainCardById(id, expand);
-                case SUBCLASS_PATH -> subclassPathService.getSubclassPathById(id, expand);
-                case QUESTION -> questionService.getQuestionById(id, expand);
-                case EXPANSION -> expansionService.getExpansionById(id);
-                case CARD_COST_TAG -> cardCostTagService.getCostTagById(id);
-                case TRANSFORMATION_CARD -> transformationCardService.getTransformationCardById(id, expand);
-                case MARTIAL_STANCE -> martialStanceService.getMartialStanceById(id, expand);
-                case CONDITION -> conditionService.getConditionById(id, expand);
-                case ADVERSARY -> adversaryService.getAdversaryById(id, expand, auth);
-                case ENCOUNTER -> encounterService.getEncounterById(id, expand, auth);
-                case ENVIRONMENT -> environmentService.getEnvironmentById(id, expand, auth);
-                case BEASTFORM -> beastformService.getBeastformById(id, expand);
-            };
+            return searchTypeRegistry.resolveEntity(type, id, expand, auth);
         } catch (EntityNotFoundException e) {
             log.warn("Entity not found during search expansion: type={}, id={}", type, id);
             return null;
@@ -301,9 +237,9 @@ public class SearchService {
      * Constructs a Spring Security {@link Authentication} token backed by a
      * {@link CustomUserDetails} for the given user.
      *
-     * <p>This token is used when delegating to services (e.g., {@link AdversaryService},
-     * {@link EncounterService}) that require an {@link Authentication} parameter for
-     * ownership and access-control validation.
+     * <p>This token is used when delegating (via {@link SearchTypeRegistry#resolveEntity}) to
+     * services that require an {@link Authentication} parameter for ownership and access-control
+     * validation (e.g. adversaries, encounters, environments).
      *
      * @param user the authenticated user
      * @return a pre-authenticated token containing the user's details and authorities

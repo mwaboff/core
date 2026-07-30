@@ -12,6 +12,7 @@ import com.aboff.core.repository.SearchIndexRepository;
 import com.aboff.core.repository.dh.BeastformRepository;
 import com.aboff.core.repository.dh.ConditionRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
+import com.aboff.core.service.search.SearchTypeRegistry;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -34,8 +35,10 @@ import static org.mockito.Mockito.when;
 /**
  * Unit tests for {@link SearchIndexService}.
  *
- * <p>Mocks {@link SearchIndexRepository} and {@link SearchFieldMapping} to verify
- * indexing, removal, and soft-deletion behavior in isolation.
+ * <p>Mocks {@link SearchIndexRepository}, {@link SearchFieldMapping}, and {@link SearchTypeRegistry}
+ * to verify indexing, removal, soft-deletion, and reindex behavior in isolation. {@code resolveRepository}
+ * now delegates entirely to {@link SearchTypeRegistry#repositoryFor}, so per-type repository lookups are
+ * stubbed on the registry mock rather than on individually mocked repository beans.
  */
 @ExtendWith(MockitoExtension.class)
 class SearchIndexServiceTest {
@@ -45,6 +48,9 @@ class SearchIndexServiceTest {
 
     @Mock
     private SearchFieldMapping searchFieldMapping;
+
+    @Mock
+    private SearchTypeRegistry searchTypeRegistry;
 
     @Mock
     private WeaponRepository weaponRepository;
@@ -233,6 +239,7 @@ class SearchIndexServiceTest {
         deleted.setName("Broken Dagger");
         deleted.setDeletedAt(LocalDateTime.now());
 
+        org.mockito.Mockito.doReturn(weaponRepository).when(searchTypeRegistry).repositoryFor(SearchableEntityType.WEAPON);
         when(weaponRepository.findAll()).thenReturn(List.of(active1, active2, deleted));
         when(searchFieldMapping.buildSearchIndexData(any(Weapon.class), eq(SearchableEntityType.WEAPON)))
                 .thenAnswer(inv -> {
@@ -268,6 +275,7 @@ class SearchIndexServiceTest {
         deleted.setName("Retired Form");
         deleted.setDeletedAt(LocalDateTime.now());
 
+        org.mockito.Mockito.doReturn(beastformRepository).when(searchTypeRegistry).repositoryFor(SearchableEntityType.BEASTFORM);
         when(beastformRepository.findAll()).thenReturn(List.of(active1, active2, deleted));
         when(searchFieldMapping.buildSearchIndexData(any(Beastform.class), eq(SearchableEntityType.BEASTFORM)))
                 .thenAnswer(inv -> {
@@ -278,8 +286,8 @@ class SearchIndexServiceTest {
         // Act
         int indexed = searchIndexService.reindexAll(SearchableEntityType.BEASTFORM);
 
-        // Assert — the fix wires BeastformRepository into resolveRepository(), so reindex
-        // now clears then fully repopulates the index instead of leaving it empty.
+        // Assert — BeastformRepository is wired into the registry, so reindex clears then
+        // fully repopulates the index instead of leaving it empty. See BeastformSearchRegistration.
         assertThat(indexed).isEqualTo(2);
         verify(searchIndexRepository).deleteAllByEntityType("BEASTFORM");
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
@@ -304,6 +312,7 @@ class SearchIndexServiceTest {
         deleted.setName("Retired Condition");
         deleted.setDeletedAt(LocalDateTime.now());
 
+        org.mockito.Mockito.doReturn(conditionRepository).when(searchTypeRegistry).repositoryFor(SearchableEntityType.CONDITION);
         when(conditionRepository.findAll()).thenReturn(List.of(active1, active2, deleted));
         when(searchFieldMapping.buildSearchIndexData(any(Condition.class), eq(SearchableEntityType.CONDITION)))
                 .thenAnswer(inv -> {
@@ -320,6 +329,27 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
                 eq("CONDITION"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
+        );
+    }
+
+    @Test
+    void reindexAll_WhenRegistryReturnsNoRepository_ClearsButDoesNotRepopulate() {
+        // Arrange — defensive test: resolveRepository() delegates to
+        // SearchTypeRegistry#repositoryFor, which is guaranteed non-null in production by the
+        // registry's own startup validation. This test exercises the defensive null-check that
+        // remains in reindexAll() in case that guarantee is ever bypassed (e.g. a test double).
+        when(searchTypeRegistry.repositoryFor(SearchableEntityType.WEAPON)).thenReturn(null);
+
+        // Act
+        int indexed = searchIndexService.reindexAll(SearchableEntityType.WEAPON);
+
+        // Assert
+        assertThat(indexed).isEqualTo(0);
+        verify(searchIndexRepository).deleteAllByEntityType("WEAPON");
+        verify(searchIndexRepository, never()).upsertSearchIndex(
+                anyString(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
 }
