@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import com.aboff.core.model.enums.FeatureTiming;
 import com.aboff.core.model.enums.FeatureType;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Size;
@@ -33,6 +34,12 @@ public class UpdateFeatureRequest {
      * Type/category of the feature
      */
     private FeatureType featureType;
+
+    /**
+     * Timing tag for the feature (e.g. Action, Reaction). Optional; omit for features
+     * with no timing.
+     */
+    private FeatureTiming timing;
 
     /**
      * ID of the expansion this feature belongs to

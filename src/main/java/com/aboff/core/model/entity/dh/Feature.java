@@ -2,6 +2,7 @@ package com.aboff.core.model.entity.dh;
 
 import com.aboff.core.model.annotation.SearchIndexed;
 import com.aboff.core.model.entity.BaseEntity;
+import com.aboff.core.model.enums.FeatureTiming;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.SearchableEntityType;
 import jakarta.persistence.*;
@@ -20,7 +21,7 @@ import java.util.Set;
  * <p>
  * Features are special abilities, traits, or bonuses that can be granted by
  * cards, classes, or other game elements. They are categorized by type
- * (HOPE, ANCESTRY, CLASS, COMMUNITY, DOMAIN, OTHER).
+ * (see {@link FeatureType}).
  * </p>
  */
 @Entity
@@ -51,6 +52,14 @@ public class Feature extends BaseEntity {
     @Enumerated(EnumType.STRING)
     @Column(name = "feature_type", nullable = false, length = 20)
     private FeatureType featureType;
+
+    /**
+     * The timing tag for this feature (e.g. Action, Reaction), as printed as part of
+     * the feature heading in the source material. Null when the feature has no timing.
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "timing", length = 20)
+    private FeatureTiming timing;
 
     /**
      * The expansion this feature belongs to.
