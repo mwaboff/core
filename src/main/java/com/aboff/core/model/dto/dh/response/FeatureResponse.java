@@ -44,7 +44,7 @@ public class FeatureResponse {
     private String description;
 
     /**
-     * Type/category of the feature (HOPE, ANCESTRY, CLASS, COMMUNITY, DOMAIN, OTHER)
+     * Type/category of the feature (see {@link FeatureType})
      */
     private FeatureType featureType;
 

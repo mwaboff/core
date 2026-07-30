@@ -21,7 +21,7 @@ import java.util.Set;
  * <p>
  * Features are special abilities, traits, or bonuses that can be granted by
  * cards, classes, or other game elements. They are categorized by type
- * (HOPE, ANCESTRY, CLASS, COMMUNITY, DOMAIN, OTHER).
+ * (see {@link FeatureType}).
  * </p>
  */
 @Entity
