@@ -223,6 +223,17 @@ public class Adversary extends BaseEntity {
     private Adversary originalAdversary;
 
     /**
+     * The adversary this one transforms into on a trigger, for adversaries that come
+     * in evolution pairs (e.g. a boss that evolves into a stronger form mid-encounter).
+     * Null for adversaries with no evolution. Bulk import creates adversaries in
+     * arbitrary order, so this is typically set via a later update once both
+     * adversaries in the pair exist, rather than at creation time.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "evolves_into_adversary_id")
+    private Adversary evolvesIntoAdversary;
+
+    /**
      * The expansion this adversary belongs to.
      * Groups adversaries by game content releases and supplements.
      */

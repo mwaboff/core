@@ -202,6 +202,13 @@ public class AdversaryService {
             adversary.setOriginalAdversary(original);
         }
 
+        if (request.getEvolvesIntoAdversaryId() != null) {
+            Adversary evolvesInto = adversaryRepository.findByIdAndDeletedAtIsNull(request.getEvolvesIntoAdversaryId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Evolves-into adversary not found with id: " + request.getEvolvesIntoAdversaryId()));
+            adversary.setEvolvesIntoAdversary(evolvesInto);
+        }
+
         if (request.getExperienceIds() != null && !request.getExperienceIds().isEmpty()) {
             Set<Experience> experiences = new HashSet<>(
                     experienceRepository.findAllById(request.getExperienceIds()));
@@ -311,6 +318,12 @@ public class AdversaryService {
         }
         if (request.getIsPublic() != null) {
             adversary.setIsPublic(request.getIsPublic());
+        }
+        if (request.getEvolvesIntoAdversaryId() != null) {
+            Adversary evolvesInto = adversaryRepository.findByIdAndDeletedAtIsNull(request.getEvolvesIntoAdversaryId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Evolves-into adversary not found with id: " + request.getEvolvesIntoAdversaryId()));
+            adversary.setEvolvesIntoAdversary(evolvesInto);
         }
 
         // Validate thresholds after updates
@@ -605,6 +618,11 @@ public class AdversaryService {
             builder.originalAdversaryId(adversary.getOriginalAdversary().getId());
         }
 
+        // Evolves-into adversary ID
+        if (adversary.getEvolvesIntoAdversary() != null) {
+            builder.evolvesIntoAdversaryId(adversary.getEvolvesIntoAdversary().getId());
+        }
+
         // Experience IDs (always included)
         if (adversary.getExperiences() != null && !adversary.getExperiences().isEmpty()) {
             builder.experienceIds(adversary.getExperiences().stream()
@@ -643,6 +661,10 @@ public class AdversaryService {
 
         if (ExpandUtil.shouldExpand(expand, "originalAdversary") && adversary.getOriginalAdversary() != null) {
             builder.originalAdversary(toResponse(adversary.getOriginalAdversary(), Set.of()));
+        }
+
+        if (ExpandUtil.shouldExpand(expand, "evolvesIntoAdversary") && adversary.getEvolvesIntoAdversary() != null) {
+            builder.evolvesIntoAdversary(toResponse(adversary.getEvolvesIntoAdversary(), Set.of()));
         }
 
         if (ExpandUtil.shouldExpand(expand, "experiences") && adversary.getExperiences() != null) {

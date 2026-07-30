@@ -124,6 +124,13 @@ public class UpdateAdversaryRequest {
     private Boolean isPublic;
 
     /**
+     * ID of the adversary this one evolves into, for evolution pairs. Since bulk
+     * import creates adversaries in arbitrary order, this is typically set here,
+     * after both adversaries in the pair already exist, rather than at creation time.
+     */
+    private Long evolvesIntoAdversaryId;
+
+    /**
      * IDs of experiences to associate with this adversary.
      * Replaces existing experiences when provided.
      */

@@ -25,6 +25,7 @@ import java.util.Set;
  *   <li>With ?expand=expansion: includes full expansion object</li>
  *   <li>With ?expand=creator: includes creator user object</li>
  *   <li>With ?expand=originalAdversary: includes full original adversary object</li>
+ *   <li>With ?expand=evolvesIntoAdversary: includes full evolves-into adversary object</li>
  *   <li>With ?expand=experiences: includes full experience objects</li>
  *   <li>With ?expand=features: includes full feature objects</li>
  *   <li>Multiple expansions can be comma-separated</li>
@@ -151,6 +152,16 @@ public class AdversaryResponse {
      * Full original adversary object (included only when ?expand=originalAdversary is specified).
      */
     private AdversaryResponse originalAdversary;
+
+    /**
+     * ID of the adversary this one evolves into, for evolution pairs (null if none).
+     */
+    private Long evolvesIntoAdversaryId;
+
+    /**
+     * Full evolves-into adversary object (included only when ?expand=evolvesIntoAdversary is specified).
+     */
+    private AdversaryResponse evolvesIntoAdversary;
 
     /**
      * ID of the user who created this adversary (always included).
