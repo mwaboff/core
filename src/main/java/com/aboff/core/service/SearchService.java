@@ -20,6 +20,7 @@ import com.aboff.core.service.dh.EnvironmentService;
 import com.aboff.core.service.dh.ExpansionService;
 import com.aboff.core.service.dh.FeatureService;
 import com.aboff.core.service.dh.LootService;
+import com.aboff.core.service.dh.MartialStanceService;
 import com.aboff.core.service.dh.QuestionService;
 import com.aboff.core.service.dh.SubclassCardService;
 import com.aboff.core.service.dh.SubclassPathService;
@@ -83,6 +84,7 @@ public class SearchService {
     private final ExpansionService expansionService;
     private final FeatureService featureService;
     private final LootService lootService;
+    private final MartialStanceService martialStanceService;
     private final QuestionService questionService;
     private final SubclassCardService subclassCardService;
     private final SubclassPathService subclassPathService;
@@ -276,6 +278,7 @@ public class SearchService {
                 case EXPANSION -> expansionService.getExpansionById(id);
                 case CARD_COST_TAG -> cardCostTagService.getCostTagById(id);
                 case TRANSFORMATION_CARD -> transformationCardService.getTransformationCardById(id, expand);
+                case MARTIAL_STANCE -> martialStanceService.getMartialStanceById(id, expand);
                 case ADVERSARY -> adversaryService.getAdversaryById(id, expand, auth);
                 case ENCOUNTER -> encounterService.getEncounterById(id, expand, auth);
                 case ENVIRONMENT -> environmentService.getEnvironmentById(id, expand, auth);

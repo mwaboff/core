@@ -15,6 +15,7 @@ import com.aboff.core.model.entity.dh.Environment;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
+import com.aboff.core.model.entity.dh.MartialStance;
 import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.entity.dh.SubclassPath;
@@ -93,6 +94,7 @@ public class SearchFieldMapping {
             case CARD_COST_TAG -> buildForCardCostTag((CardCostTag) entity);
             case TRANSFORMATION_CARD -> buildForTransformationCard((TransformationCard) entity);
             case ENVIRONMENT -> buildForEnvironment((Environment) entity);
+            case MARTIAL_STANCE -> buildForMartialStance((MartialStance) entity);
         };
 
         if (data.getName() == null) {
@@ -350,6 +352,29 @@ public class SearchFieldMapping {
                 .tier(loot.getTier())
                 .createdByUserId(userId(loot.getCreatedBy()))
                 .isConsumable(loot.getIsConsumable())
+                .build();
+    }
+
+    /**
+     * Builds search index data for a {@link MartialStance} entity.
+     * Weight A: name. Weight B: description. Weight C: features text.
+     * Filter: expansionId, isOfficial, tier, createdByUserId.
+     *
+     * @param martialStance the martial stance entity
+     * @return populated search index data
+     */
+    private SearchIndexData buildForMartialStance(MartialStance martialStance) {
+        return SearchIndexData.builder()
+                .entityType(SearchableEntityType.MARTIAL_STANCE.name())
+                .entityId(martialStance.getId())
+                .name(martialStance.getName())
+                .nameText(martialStance.getName())
+                .descriptionText(martialStance.getDescription())
+                .featureText(extractFeatureText(martialStance.getFeatures()))
+                .expansionId(expansionId(martialStance.getExpansion()))
+                .isOfficial(martialStance.getIsOfficial())
+                .tier(martialStance.getTier())
+                .createdByUserId(userId(martialStance.getCreatedBy()))
                 .build();
     }
 
