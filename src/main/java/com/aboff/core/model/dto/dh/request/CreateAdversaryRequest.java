@@ -130,6 +130,13 @@ public class CreateAdversaryRequest {
     private Long originalAdversaryId;
 
     /**
+     * Optional ID of the adversary this one evolves into, for evolution pairs.
+     * Since bulk import creates adversaries in arbitrary order, the target adversary
+     * may not exist yet at creation time; in that case, set this later via update.
+     */
+    private Long evolvesIntoAdversaryId;
+
+    /**
      * IDs of experiences to associate with this adversary.
      */
     private Set<Long> experienceIds;
