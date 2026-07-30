@@ -132,6 +132,7 @@ public class FeatureService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .featureType(request.getFeatureType())
+                .timing(request.getTiming())
                 .expansion(expansion)
                 .build();
 
@@ -178,6 +179,9 @@ public class FeatureService {
         }
         if (request.getFeatureType() != null) {
             feature.setFeatureType(request.getFeatureType());
+        }
+        if (request.getTiming() != null) {
+            feature.setTiming(request.getTiming());
         }
         if (request.getExpansionId() != null) {
             Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -270,6 +274,7 @@ public class FeatureService {
                             .name(request.getName())
                             .description(request.getDescription())
                             .featureType(request.getFeatureType())
+                            .timing(request.getTiming())
                             .expansion(expansion)
                             .build();
 
@@ -345,6 +350,7 @@ public class FeatureService {
                 .name(input.getName())
                 .description(input.getDescription())
                 .featureType(input.getFeatureType())
+                .timing(input.getTiming())
                 .expansion(expansion)
                 .build();
         Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(
@@ -433,6 +439,7 @@ public class FeatureService {
                 .name(feature.getName())
                 .description(feature.getDescription())
                 .featureType(feature.getFeatureType())
+                .timing(feature.getTiming())
                 .expansionId(feature.getExpansion().getId())
                 .createdAt(feature.getCreatedAt())
                 .lastModifiedAt(feature.getLastModifiedAt())

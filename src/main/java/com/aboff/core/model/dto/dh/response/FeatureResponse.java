@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.response;
 
+import com.aboff.core.model.enums.FeatureTiming;
 import com.aboff.core.model.enums.FeatureType;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.AllArgsConstructor;
@@ -46,6 +47,11 @@ public class FeatureResponse {
      * Type/category of the feature (HOPE, ANCESTRY, CLASS, COMMUNITY, DOMAIN, OTHER)
      */
     private FeatureType featureType;
+
+    /**
+     * Timing tag for the feature (e.g. Action, Reaction). Null when the feature has no timing.
+     */
+    private FeatureTiming timing;
 
     /**
      * ID of the expansion this feature belongs to (always included)
