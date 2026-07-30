@@ -85,4 +85,32 @@ public interface FeatureRepository extends JpaRepository<Feature, Long> {
             @Param("name") String name,
             @Param("expansionId") Long expansionId,
             @Param("featureType") FeatureType featureType);
+
+    /**
+     * Finds a non-deleted feature by name (case-insensitive), expansion, feature type, and
+     * description (case-sensitive, exact). This is the find-or-create key used to avoid
+     * conflating rules text that happens to share a name — e.g. the core rulebook prints four
+     * distinct per-tier texts each for the weapon features "Barrier", "Paired", and "Protective".
+     * <p>
+     * The description comparison is null-safe: a {@code null} incoming description only matches
+     * an existing row whose description is also {@code null}. It never matches (or is matched
+     * by) a non-null description, and vice versa.
+     *
+     * @param name The feature name to match case-insensitively
+     * @param expansionId The expansion ID to match
+     * @param featureType The feature type to match
+     * @param description The description to match exactly (case-sensitive); may be null
+     * @return Optional containing the matching feature if found and not deleted
+     */
+    @Query("SELECT f FROM Feature f WHERE LOWER(f.name) = LOWER(:name) " +
+           "AND f.expansion.id = :expansionId " +
+           "AND f.featureType = :featureType " +
+           "AND ((:description IS NULL AND f.description IS NULL) " +
+           "     OR (:description IS NOT NULL AND f.description = :description)) " +
+           "AND f.deletedAt IS NULL")
+    Optional<Feature> findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+            @Param("name") String name,
+            @Param("expansionId") Long expansionId,
+            @Param("featureType") FeatureType featureType,
+            @Param("description") String description);
 }
