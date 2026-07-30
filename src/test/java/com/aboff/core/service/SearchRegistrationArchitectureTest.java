@@ -1,5 +1,6 @@
 package com.aboff.core.service;
 
+import com.aboff.core.model.annotation.SearchIndexed;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.service.search.SearchTypeRegistration;
 import com.aboff.core.service.search.SearchTypeRegistry;
@@ -10,11 +11,14 @@ import org.springframework.context.annotation.ClassPathScanningCandidateComponen
 import org.springframework.core.type.classreading.MetadataReader;
 import org.springframework.core.type.classreading.MetadataReaderFactory;
 import org.springframework.core.type.classreading.SimpleMetadataReaderFactory;
+import org.springframework.core.type.filter.AnnotationTypeFilter;
 import org.springframework.core.type.filter.AssignableTypeFilter;
 
 import java.lang.reflect.Constructor;
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -32,8 +36,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *
  * <p>Both switches have been replaced by {@link SearchTypeRegistry}, a derived registry built
  * from one {@link SearchTypeRegistration} Spring bean per {@link SearchableEntityType} (see the
- * {@code com.aboff.core.service.search.registration} package). This test now verifies two
- * properties, both stronger than the switch-based test it replaces:
+ * {@code com.aboff.core.service.search.registration} package). This test now verifies three
+ * properties:
  *
  * <ul>
  *   <li><b>Every production registration is wired to something real</b> — {@link #everyProductionRegistrationResolvesARepositoryAndAnEntity()}
@@ -51,11 +55,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
  *       validation runs in its constructor, this failure mode now surfaces at Spring
  *       {@code ApplicationContext} startup, not only when {@code ./mvnw verify} happens to be
  *       run.</li>
+ *   <li><b>The registry does not, and structurally cannot, see the one step upstream of it that
+ *       is still genuinely unchecked</b> — whether an entity class actually carries the
+ *       {@link SearchIndexed} annotation the checklist in {@code core/CLAUDE.md} calls for.
+ *       Every {@link SearchTypeRegistration} bean and every {@link SearchableEntityType} constant
+ *       can be perfectly wired while a single entity class is missing its annotation entirely;
+ *       nothing in {@link SearchTypeRegistry} would notice, because it never looks at entity
+ *       classes at all. {@link #everySearchableEntityTypeHasExactlyOneAnnotatedEntityClass()}
+ *       closes that gap directly by scanning {@code com.aboff.core.model.entity} for
+ *       {@code @SearchIndexed} usages and cross-checking the result against
+ *       {@link SearchableEntityType#values()} in both directions.</li>
  * </ul>
  */
 class SearchRegistrationArchitectureTest {
 
     private static final String REGISTRATION_PACKAGE = "com.aboff.core.service.search.registration";
+    private static final String ENTITY_PACKAGE = "com.aboff.core.model.entity";
 
     @Test
     void everyProductionRegistrationResolvesARepositoryAndAnEntity() throws Exception {
@@ -127,6 +142,59 @@ class SearchRegistrationArchitectureTest {
         assertThatThrownBy(() -> new SearchTypeRegistry(registrations))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("WEAPON");
+    }
+
+    @Test
+    void everySearchableEntityTypeHasExactlyOneAnnotatedEntityClass() {
+        // Arrange — this is deliberately independent of SearchTypeRegistry: it scans entity
+        // classes directly rather than asking the registry anything, because the registry has no
+        // way to know whether an entity was ever annotated in the first place. A registration
+        // bean and an enum constant can both exist and be perfectly wired while the entity itself
+        // silently never gets indexed because @SearchIndexed was never added -- that omission
+        // produces no compile error and no registry startup failure, only a permanently absent
+        // search result for that entity.
+        ClassPathScanningCandidateComponentProvider scanner =
+                new ClassPathScanningCandidateComponentProvider(false);
+        scanner.addIncludeFilter(new AnnotationTypeFilter(SearchIndexed.class));
+        MetadataReaderFactory metadataReaderFactory = new SimpleMetadataReaderFactory();
+
+        Map<SearchableEntityType, List<String>> entityClassesByType = new EnumMap<>(SearchableEntityType.class);
+        for (SearchableEntityType type : SearchableEntityType.values()) {
+            entityClassesByType.put(type, new ArrayList<>());
+        }
+
+        try {
+            for (var candidate : scanner.findCandidateComponents(ENTITY_PACKAGE)) {
+                MetadataReader metadataReader = metadataReaderFactory.getMetadataReader(candidate.getBeanClassName());
+                Class<?> entityClass = Class.forName(metadataReader.getClassMetadata().getClassName());
+                SearchIndexed annotation = entityClass.getAnnotation(SearchIndexed.class);
+                entityClassesByType.get(annotation.type()).add(entityClass.getSimpleName());
+            }
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to scan " + ENTITY_PACKAGE + " for @SearchIndexed entities", e);
+        }
+
+        List<String> unannotated = new ArrayList<>();
+        List<String> duplicated = new ArrayList<>();
+        for (Map.Entry<SearchableEntityType, List<String>> entry : entityClassesByType.entrySet()) {
+            List<String> classes = entry.getValue();
+            if (classes.isEmpty()) {
+                unannotated.add(entry.getKey() + ": no entity class under " + ENTITY_PACKAGE
+                        + " is annotated with @SearchIndexed(type = " + entry.getKey() + "). This entity type "
+                        + "will never be indexed -- SearchIndexService#indexEntity() logs a warning and returns "
+                        + "without indexing whenever the annotation is missing, regardless of how well "
+                        + "SearchTypeRegistry is wired, because the registry never inspects entity classes.");
+            } else if (classes.size() > 1) {
+                duplicated.add(entry.getKey() + ": claimed by multiple entity classes " + classes);
+            }
+        }
+
+        assertThat(unannotated)
+                .as("Every SearchableEntityType constant must have exactly one @SearchIndexed entity class")
+                .isEmpty();
+        assertThat(duplicated)
+                .as("No SearchableEntityType constant should be claimed by more than one entity class")
+                .isEmpty();
     }
 
     /**
