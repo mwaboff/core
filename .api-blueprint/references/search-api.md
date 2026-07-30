@@ -79,7 +79,7 @@ Not all filters apply to every entity type. Irrelevant filters are silently igno
 | `ARMOR` | Armor items |
 | `LOOT` | Loot and miscellaneous items |
 | `ADVERSARY` | Adversaries (NPCs and enemies) |
-| `BEASTFORM` | Beastform transformations (expansion is not supported; `expandedEntity` is always `null`) |
+| `BEASTFORM` | Beastform transformations |
 | `ENCOUNTER` | Pre-built encounters |
 | `EXPANSION` | Content expansions / source books |
 | `SUBCLASS_PATH` | Subclass progression paths |
@@ -193,8 +193,6 @@ depends on the matched entity type (e.g., `WeaponResponse` for `WEAPON`).
   Natural language input (e.g., `flame sword`) works without special syntax.
 - The `size` parameter is clamped to a maximum of `100`. Requests with `size > 100` will
   receive at most 100 results per page.
-- Entity expansion (`expand=entity`) is not supported for `BEASTFORM`; the `expandedEntity`
-  field will be `null` for beastform results even when expansion is requested.
 - Expansion failures (entity not found, access denied) are silently skipped per result so
   that a single unavailable entity does not abort the search response.
 - Access control is enforced at the search index level. Non-privileged users only receive

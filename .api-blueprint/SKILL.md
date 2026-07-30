@@ -186,6 +186,7 @@ Full documentation: `references/encounters-api.md`
 | Expansions | `/api/dh/expansions` | 6 | `references/expansions-api.md` |
 | Questions | `/api/dh/questions` | 7 | `references/questions-api.md` |
 | Card Cost Tags | `/api/dh/cost-tags` | 6 | `references/card-cost-tags-api.md` |
+| Beastforms | `/api/dh/beastforms` | 7 | `references/beastforms-api.md` |
 
 ---
 
@@ -241,6 +242,7 @@ Includes 16 enums (Role, Trait, CardType, DomainCardType, SubclassLevel, Feature
 | `references/expansions-api.md` | Expansion CRUD — 6 endpoints |
 | `references/questions-api.md` | Character question CRUD — 7 endpoints |
 | `references/card-cost-tags-api.md` | Card cost tag CRUD — 6 endpoints |
+| `references/beastforms-api.md` | Beastform CRUD with damage rolls and bulk import — 7 endpoints |
 | `references/search-api.md` | Full-text search across all game content — 1 endpoint |
 | `references/shared-models.md` | All shared DTOs, entities, 16 enums |
 

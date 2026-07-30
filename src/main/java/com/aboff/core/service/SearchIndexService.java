@@ -9,6 +9,7 @@ import com.aboff.core.repository.SearchIndexRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.AncestryCardRepository;
 import com.aboff.core.repository.dh.ArmorRepository;
+import com.aboff.core.repository.dh.BeastformRepository;
 import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.CommunityCardRepository;
@@ -50,8 +51,6 @@ public class SearchIndexService {
     private final SearchFieldMapping searchFieldMapping;
 
     // Repositories for re-indexing — one per searchable entity type.
-    // Beastform has no repository or service in the codebase and is populated only
-    // by the initial migration, so it is intentionally omitted from reindex support.
     private final DomainRepository domainRepository;
     private final ClassRepository classRepository;
     private final FeatureRepository featureRepository;
@@ -63,6 +62,7 @@ public class SearchIndexService {
     private final ArmorRepository armorRepository;
     private final LootRepository lootRepository;
     private final AdversaryRepository adversaryRepository;
+    private final BeastformRepository beastformRepository;
     private final EncounterRepository encounterRepository;
     private final ExpansionRepository expansionRepository;
     private final SubclassPathRepository subclassPathRepository;
@@ -196,10 +196,6 @@ public class SearchIndexService {
      * entries and re-indexing every non-soft-deleted row from the source repository.
      *
      * <p>Soft-deleted entities (as determined by {@link BaseEntity#isDeleted()}) are skipped.
-     * Note: the {@link SearchableEntityType#BEASTFORM} type is not supported because the
-     * codebase has no dedicated Beastform repository — beastforms are populated only by the
-     * initial search index migration. Calling this method with {@code BEASTFORM} logs a
-     * warning and returns without modifying the index.
      *
      * @param type the {@link SearchableEntityType} whose index should be rebuilt
      * @return the number of entities re-indexed
@@ -277,11 +273,8 @@ public class SearchIndexService {
     /**
      * Resolves the source repository for a given {@link SearchableEntityType}.
      *
-     * <p>Returns {@code null} for {@link SearchableEntityType#BEASTFORM} since no
-     * repository exists for that entity in the codebase.
-     *
      * @param type the searchable entity type
-     * @return the corresponding {@link JpaRepository}, or {@code null} if none exists
+     * @return the corresponding {@link JpaRepository}
      */
     private JpaRepository<? extends BaseEntity, Long> resolveRepository(SearchableEntityType type) {
         return switch (type) {
@@ -296,12 +289,12 @@ public class SearchIndexService {
             case ARMOR -> armorRepository;
             case LOOT -> lootRepository;
             case ADVERSARY -> adversaryRepository;
+            case BEASTFORM -> beastformRepository;
             case ENCOUNTER -> encounterRepository;
             case EXPANSION -> expansionRepository;
             case SUBCLASS_PATH -> subclassPathRepository;
             case QUESTION -> questionRepository;
             case CARD_COST_TAG -> cardCostTagRepository;
-            case BEASTFORM -> null;
         };
     }
 }
