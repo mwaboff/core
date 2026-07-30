@@ -31,7 +31,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
      * @param range Optional filter for weapon range
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
-     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
+     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC, PHYSICAL_AND_MAGIC)
      * @param pageable Pagination information
      * @return Page of non-deleted weapons matching the criteria
      */
@@ -64,7 +64,7 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
      * @param range Optional filter for weapon range
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
-     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
+     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC, PHYSICAL_AND_MAGIC)
      * @param pageable Pagination information
      * @return Page of all weapons matching the criteria
      */

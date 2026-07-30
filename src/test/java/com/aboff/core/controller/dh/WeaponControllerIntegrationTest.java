@@ -291,6 +291,46 @@ class WeaponControllerIntegrationTest {
     }
 
     @Test
+    void createWeapon_PhysicalAndMagicDamageType_RoundTripsCreateThenGet() throws Exception {
+        // Arrange - Shadowblade-style dual damage type weapon (Otherworldly: physical or magic, per attack)
+        CreateWeaponRequest request = CreateWeaponRequest.builder()
+                .name("Shadowblade")
+                .expansionId(testExpansion.getId())
+                .tier(1)
+                .isOfficial(true)
+                .isPrimary(true)
+                .trait(Trait.PRESENCE)
+                .range(Range.MELEE)
+                .burden(Burden.ONE_HANDED)
+                .damage(CreateWeaponRequest.DamageRollRequest.builder()
+                        .diceType(DiceType.D8)
+                        .damageType(DamageType.PHYSICAL_AND_MAGIC)
+                        .build())
+                .build();
+
+        // Act - create
+        String createResponse = mockMvc.perform(post("/api/dh/weapons")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.name").value("Shadowblade"))
+                .andExpect(jsonPath("$.damage.damageType").value("PHYSICAL_AND_MAGIC"))
+                .andExpect(jsonPath("$.damage.notation").value("d8 phy/mag"))
+                .andReturn().getResponse().getContentAsString();
+
+        Long createdId = objectMapper.readTree(createResponse).get("id").asLong();
+
+        // Assert - get round-trips the same dual damage type
+        mockMvc.perform(get("/api/dh/weapons/{id}", createdId)
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Shadowblade"))
+                .andExpect(jsonPath("$.damage.damageType").value("PHYSICAL_AND_MAGIC"))
+                .andExpect(jsonPath("$.damage.notation").value("d8 phy/mag"));
+    }
+
+    @Test
     void createWeapon_AsUser_Returns403() throws Exception {
         // Arrange
         CreateWeaponRequest request = CreateWeaponRequest.builder()

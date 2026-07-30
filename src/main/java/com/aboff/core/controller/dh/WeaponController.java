@@ -51,7 +51,7 @@ public class WeaponController {
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param tier Optional filter for weapon tier (1–4)
-     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC)
+     * @param damageType Optional filter for damage type (PHYSICAL, MAGIC, PHYSICAL_AND_MAGIC)
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,feature,originalWeapon")
      * @return Paginated response containing weapons
      */
