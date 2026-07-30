@@ -20,6 +20,7 @@ import com.aboff.core.repository.dh.EnvironmentRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.repository.dh.LootRepository;
+import com.aboff.core.repository.dh.MartialStanceRepository;
 import com.aboff.core.repository.dh.QuestionRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
 import com.aboff.core.repository.dh.SubclassPathRepository;
@@ -72,6 +73,7 @@ public class SearchIndexService {
     private final CardCostTagRepository cardCostTagRepository;
     private final TransformationCardRepository transformationCardRepository;
     private final EnvironmentRepository environmentRepository;
+    private final MartialStanceRepository martialStanceRepository;
 
     /**
      * Indexes (or re-indexes) a single entity by upserting its search index row.
@@ -301,6 +303,7 @@ public class SearchIndexService {
             case CARD_COST_TAG -> cardCostTagRepository;
             case TRANSFORMATION_CARD -> transformationCardRepository;
             case ENVIRONMENT -> environmentRepository;
+            case MARTIAL_STANCE -> martialStanceRepository;
         };
     }
 }

@@ -27,6 +27,7 @@ package com.aboff.core.model.enums;
  *   <li>{@link #CARD_COST_TAG} - Tags that describe card costs</li>
  *   <li>{@link #TRANSFORMATION_CARD} - Transformation cards (a standalone entity, not a DomainCard)</li>
  *   <li>{@link #ENVIRONMENT} - GM-facing scene stat blocks (never selected by a player)</li>
+ *   <li>{@link #MARTIAL_STANCE} - Martial stances (Hope & Fear's modal "Stance Fighter" combat states)</li>
  * </ul>
  */
 public enum SearchableEntityType {
@@ -48,5 +49,6 @@ public enum SearchableEntityType {
     QUESTION,
     CARD_COST_TAG,
     TRANSFORMATION_CARD,
-    ENVIRONMENT
+    ENVIRONMENT,
+    MARTIAL_STANCE
 }
