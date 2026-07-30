@@ -173,6 +173,7 @@ Full documentation: `references/encounters-api.md`
 | Feature Modifiers | `/api/dh/feature-modifiers` | 5 | `references/feature-modifiers-api.md` |
 | Companions | `/api/dh/companions` | 5 | `references/companions-api.md` |
 | Experiences | `/api/dh/experiences` | 5 | `references/experiences-api.md` |
+| Character Sheet Conditions | `/api/dh/character-sheet-conditions` | 5 | `references/character-sheet-conditions-api.md` |
 
 ---
 
@@ -187,6 +188,7 @@ Full documentation: `references/encounters-api.md`
 | Questions | `/api/dh/questions` | 7 | `references/questions-api.md` |
 | Card Cost Tags | `/api/dh/cost-tags` | 6 | `references/card-cost-tags-api.md` |
 | Beastforms | `/api/dh/beastforms` | 7 | `references/beastforms-api.md` |
+| Conditions | `/api/dh/conditions` | 7 | `references/conditions-api.md` |
 
 ---
 
@@ -199,7 +201,7 @@ Authentication: Authenticated
 |--------|------|-------------|
 | GET | /api/search | Full-text search across all indexed game content |
 
-Supports 17 searchable entity types. Optional filter parameters narrow results by type, tier,
+Supports 18 searchable entity types. Optional filter parameters narrow results by type, tier,
 expansion, card type, adversary role, trait, range, burden, and more. Results are ranked by
 relevance score. Pass `?expand=entity` to include full entity DTOs in each result.
 
@@ -236,6 +238,7 @@ Includes 16 enums (Role, Trait, CardType, DomainCardType, SubclassLevel, Feature
 | `references/feature-modifiers-api.md` | Feature modifier CRUD — 5 endpoints |
 | `references/companions-api.md` | Companion CRUD — 5 endpoints |
 | `references/experiences-api.md` | Experience CRUD — 5 endpoints |
+| `references/character-sheet-conditions-api.md` | Per-character condition instance CRUD with magnitude — 5 endpoints |
 | `references/classes-api.md` | Daggerheart class CRUD — 7 endpoints |
 | `references/domains-api.md` | Daggerheart domain CRUD — 7 endpoints |
 | `references/subclass-paths-api.md` | Subclass path CRUD — 7 endpoints |
@@ -243,6 +246,7 @@ Includes 16 enums (Role, Trait, CardType, DomainCardType, SubclassLevel, Feature
 | `references/questions-api.md` | Character question CRUD — 7 endpoints |
 | `references/card-cost-tags-api.md` | Card cost tag CRUD — 6 endpoints |
 | `references/beastforms-api.md` | Beastform CRUD with damage rolls and bulk import — 7 endpoints |
+| `references/conditions-api.md` | Condition catalogue CRUD (Restrained, Vulnerable, Drained, Hexed, Chained, Ignited) — 7 endpoints |
 | `references/search-api.md` | Full-text search across all game content — 1 endpoint |
 | `references/shared-models.md` | All shared DTOs, entities, 16 enums |
 

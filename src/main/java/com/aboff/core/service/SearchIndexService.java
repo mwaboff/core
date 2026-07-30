@@ -13,6 +13,7 @@ import com.aboff.core.repository.dh.BeastformRepository;
 import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.CommunityCardRepository;
+import com.aboff.core.repository.dh.ConditionRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
@@ -74,6 +75,7 @@ public class SearchIndexService {
     private final TransformationCardRepository transformationCardRepository;
     private final EnvironmentRepository environmentRepository;
     private final MartialStanceRepository martialStanceRepository;
+    private final ConditionRepository conditionRepository;
 
     /**
      * Indexes (or re-indexes) a single entity by upserting its search index row.
@@ -304,6 +306,7 @@ public class SearchIndexService {
             case TRANSFORMATION_CARD -> transformationCardRepository;
             case ENVIRONMENT -> environmentRepository;
             case MARTIAL_STANCE -> martialStanceRepository;
+            case CONDITION -> conditionRepository;
         };
     }
 }

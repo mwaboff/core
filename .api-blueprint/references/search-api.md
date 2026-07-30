@@ -85,6 +85,7 @@ Not all filters apply to every entity type. Irrelevant filters are silently igno
 | `SUBCLASS_PATH` | Subclass progression paths |
 | `QUESTION` | Character creation questions |
 | `CARD_COST_TAG` | Tags that describe card costs |
+| `CONDITION` | Named rules effects (e.g., Restrained, Vulnerable, Ignited) |
 
 ### Response Schemas
 

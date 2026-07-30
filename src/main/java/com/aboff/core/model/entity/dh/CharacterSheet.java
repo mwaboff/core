@@ -422,6 +422,17 @@ public class CharacterSheet extends BaseEntity {
     @Builder.Default
     private Set<Experience> experiences = new HashSet<>();
 
+    // ========== Conditions ==========
+
+    /**
+     * Condition instances currently affecting this character.
+     * Each instance references a catalogue {@link Condition} and may carry its own
+     * magnitude (stack count or intensity) — see {@link CharacterSheetCondition}.
+     */
+    @OneToMany(mappedBy = "characterSheet", fetch = FetchType.LAZY, cascade = CascadeType.ALL, orphanRemoval = true)
+    @Builder.Default
+    private Set<CharacterSheetCondition> characterSheetConditions = new HashSet<>();
+
     // ========== Companions ==========
 
     /**

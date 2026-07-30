@@ -7,6 +7,7 @@ import com.aboff.core.model.entity.dh.Beastform;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.CommunityCard;
+import com.aboff.core.model.entity.dh.Condition;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.DomainCard;
@@ -95,6 +96,7 @@ public class SearchFieldMapping {
             case TRANSFORMATION_CARD -> buildForTransformationCard((TransformationCard) entity);
             case ENVIRONMENT -> buildForEnvironment((Environment) entity);
             case MARTIAL_STANCE -> buildForMartialStance((MartialStance) entity);
+            case CONDITION -> buildForCondition((Condition) entity);
         };
 
         if (data.getName() == null) {
@@ -553,6 +555,25 @@ public class SearchFieldMapping {
                 .isPublic(environment.getIsPublic())
                 .tier(environment.getTier())
                 .createdByUserId(userId(environment.getCreatedBy()))
+                .build();
+    }
+
+    /**
+     * Builds search index data for a {@link Condition} entity.
+     * Weight A: name. Weight B: description. Filter: expansionId, isOfficial.
+     *
+     * @param condition the condition entity
+     * @return populated search index data
+     */
+    private SearchIndexData buildForCondition(Condition condition) {
+        return SearchIndexData.builder()
+                .entityType(SearchableEntityType.CONDITION.name())
+                .entityId(condition.getId())
+                .name(condition.getName())
+                .nameText(condition.getName())
+                .descriptionText(condition.getDescription())
+                .expansionId(expansionId(condition.getExpansion()))
+                .isOfficial(condition.getIsOfficial())
                 .build();
     }
 

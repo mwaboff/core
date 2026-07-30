@@ -28,6 +28,7 @@ package com.aboff.core.model.enums;
  *   <li>{@link #TRANSFORMATION_CARD} - Transformation cards (a standalone entity, not a DomainCard)</li>
  *   <li>{@link #ENVIRONMENT} - GM-facing scene stat blocks (never selected by a player)</li>
  *   <li>{@link #MARTIAL_STANCE} - Martial stances (Hope & Fear's modal "Stance Fighter" combat states)</li>
+ *   <li>{@link #CONDITION} - Named rules effects (e.g., Restrained, Vulnerable)</li>
  * </ul>
  */
 public enum SearchableEntityType {
@@ -50,5 +51,6 @@ public enum SearchableEntityType {
     CARD_COST_TAG,
     TRANSFORMATION_CARD,
     ENVIRONMENT,
-    MARTIAL_STANCE
+    MARTIAL_STANCE,
+    CONDITION
 }

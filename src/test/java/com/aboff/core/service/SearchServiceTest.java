@@ -1,6 +1,7 @@
 package com.aboff.core.service;
 
 import com.aboff.core.model.dto.dh.response.BeastformResponse;
+import com.aboff.core.model.dto.dh.response.ConditionResponse;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.SearchResponse;
 import com.aboff.core.model.entity.User;
@@ -14,6 +15,7 @@ import com.aboff.core.service.dh.BeastformService;
 import com.aboff.core.service.dh.CardCostTagService;
 import com.aboff.core.service.dh.ClassService;
 import com.aboff.core.service.dh.CommunityCardService;
+import com.aboff.core.service.dh.ConditionService;
 import com.aboff.core.service.dh.DomainCardService;
 import com.aboff.core.service.dh.DomainService;
 import com.aboff.core.service.dh.EncounterService;
@@ -76,6 +78,8 @@ class SearchServiceTest {
     private ClassService classService;
     @Mock
     private CommunityCardService communityCardService;
+    @Mock
+    private ConditionService conditionService;
     @Mock
     private DomainCardService domainCardService;
     @Mock
@@ -531,6 +535,31 @@ class SearchServiceTest {
         assertThat(response.getResults()).hasSize(1);
         assertThat(response.getResults().get(0).getExpandedEntity()).isNotNull();
         assertThat(response.getResults().get(0).getExpandedEntity()).isInstanceOf(BeastformResponse.class);
+    }
+
+    @Test
+    void search_WithExpandEntityKeyword_ResolvesConditionEntity() {
+        // Arrange — proves a created Condition is findable and expandable via search,
+        // exactly like every other registered type.
+        User user = userWithRole(Role.USER);
+        Object[] row = buildRow("CONDITION", 9L, "Restrained", 0.9);
+        when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
+        when(searchIndexRepository.search(
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
+                .thenReturn(singleRowPage(row));
+        when(conditionService.getConditionById(eq(9L), anyString()))
+                .thenReturn(ConditionResponse.builder().id(9L).name("Restrained").build());
+
+        // Act
+        SearchResponse response = searchService.search("restrained", null, null, null, null, null, null, null, null, null,
+                null, null, null, null, "entity", 0, 20, user);
+
+        // Assert — a real ConditionResponse comes back, not null
+        verify(conditionService).getConditionById(eq(9L), eq("entity"));
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getExpandedEntity()).isInstanceOf(ConditionResponse.class);
     }
 
     // ==================== VALID SEARCH TEST ====================

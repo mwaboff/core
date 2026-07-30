@@ -5,10 +5,12 @@ import com.aboff.core.model.annotation.SearchIndexed;
 import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.entity.SearchIndex;
 import com.aboff.core.model.entity.dh.Beastform;
+import com.aboff.core.model.entity.dh.Condition;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
 import com.aboff.core.repository.dh.BeastformRepository;
+import com.aboff.core.repository.dh.ConditionRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +51,9 @@ class SearchIndexServiceTest {
 
     @Mock
     private BeastformRepository beastformRepository;
+
+    @Mock
+    private ConditionRepository conditionRepository;
 
     @InjectMocks
     private SearchIndexService searchIndexService;
@@ -279,6 +284,41 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository).deleteAllByEntityType("BEASTFORM");
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
                 eq("BEASTFORM"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
+        );
+    }
+
+    @Test
+    void reindexAll_ForConditionType_ClearsThenIndexesActiveEntities() {
+        // Arrange — two active conditions and one soft-deleted
+        Condition active1 = new Condition();
+        active1.setId(1L);
+        active1.setName("Restrained");
+
+        Condition active2 = new Condition();
+        active2.setId(2L);
+        active2.setName("Vulnerable");
+
+        Condition deleted = new Condition();
+        deleted.setId(3L);
+        deleted.setName("Retired Condition");
+        deleted.setDeletedAt(LocalDateTime.now());
+
+        when(conditionRepository.findAll()).thenReturn(List.of(active1, active2, deleted));
+        when(searchFieldMapping.buildSearchIndexData(any(Condition.class), eq(SearchableEntityType.CONDITION)))
+                .thenAnswer(inv -> {
+                    Condition c = inv.getArgument(0);
+                    return buildMinimalData(SearchableEntityType.CONDITION, c.getId());
+                });
+
+        // Act
+        int indexed = searchIndexService.reindexAll(SearchableEntityType.CONDITION);
+
+        // Assert
+        assertThat(indexed).isEqualTo(2);
+        verify(searchIndexRepository).deleteAllByEntityType("CONDITION");
+        verify(searchIndexRepository, times(2)).upsertSearchIndex(
+                eq("CONDITION"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
