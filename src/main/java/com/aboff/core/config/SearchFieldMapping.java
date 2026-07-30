@@ -11,6 +11,7 @@ import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Encounter;
+import com.aboff.core.model.entity.dh.Environment;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
@@ -91,6 +92,7 @@ public class SearchFieldMapping {
             case QUESTION -> buildForQuestion((Question) entity);
             case CARD_COST_TAG -> buildForCardCostTag((CardCostTag) entity);
             case TRANSFORMATION_CARD -> buildForTransformationCard((TransformationCard) entity);
+            case ENVIRONMENT -> buildForEnvironment((Environment) entity);
         };
 
         if (data.getName() == null) {
@@ -498,6 +500,34 @@ public class SearchFieldMapping {
                 .name(tag.getLabel())
                 .nameText(tag.getLabel())
                 .costTagCategory(enumName(tag.getCategory()))
+                .build();
+    }
+
+    /**
+     * Builds search index data for an {@link Environment} entity.
+     * Weight A: name. Weight B: description + impulses + potentialAdversaries.
+     * Weight C: feature names/descriptions. Filter: expansionId, isOfficial, isPublic,
+     * tier, createdByUserId.
+     *
+     * @param environment the environment entity
+     * @return populated search index data
+     */
+    private SearchIndexData buildForEnvironment(Environment environment) {
+        return SearchIndexData.builder()
+                .entityType(SearchableEntityType.ENVIRONMENT.name())
+                .entityId(environment.getId())
+                .name(environment.getName())
+                .nameText(environment.getName())
+                .descriptionText(joinNonNull(
+                        environment.getDescription(),
+                        environment.getImpulses(),
+                        environment.getPotentialAdversaries()))
+                .featureText(extractFeatureText(environment.getFeatures()))
+                .expansionId(expansionId(environment.getExpansion()))
+                .isOfficial(environment.getIsOfficial())
+                .isPublic(environment.getIsPublic())
+                .tier(environment.getTier())
+                .createdByUserId(userId(environment.getCreatedBy()))
                 .build();
     }
 

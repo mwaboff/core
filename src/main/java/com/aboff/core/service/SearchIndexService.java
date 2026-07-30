@@ -16,6 +16,7 @@ import com.aboff.core.repository.dh.CommunityCardRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
+import com.aboff.core.repository.dh.EnvironmentRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.repository.dh.LootRepository;
@@ -70,6 +71,7 @@ public class SearchIndexService {
     private final QuestionRepository questionRepository;
     private final CardCostTagRepository cardCostTagRepository;
     private final TransformationCardRepository transformationCardRepository;
+    private final EnvironmentRepository environmentRepository;
 
     /**
      * Indexes (or re-indexes) a single entity by upserting its search index row.
@@ -298,6 +300,7 @@ public class SearchIndexService {
             case QUESTION -> questionRepository;
             case CARD_COST_TAG -> cardCostTagRepository;
             case TRANSFORMATION_CARD -> transformationCardRepository;
+            case ENVIRONMENT -> environmentRepository;
         };
     }
 }

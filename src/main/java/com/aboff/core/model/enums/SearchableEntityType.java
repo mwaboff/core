@@ -26,6 +26,7 @@ package com.aboff.core.model.enums;
  *   <li>{@link #QUESTION} - Character creation questions</li>
  *   <li>{@link #CARD_COST_TAG} - Tags that describe card costs</li>
  *   <li>{@link #TRANSFORMATION_CARD} - Transformation cards (a standalone entity, not a DomainCard)</li>
+ *   <li>{@link #ENVIRONMENT} - GM-facing scene stat blocks (never selected by a player)</li>
  * </ul>
  */
 public enum SearchableEntityType {
@@ -46,5 +47,6 @@ public enum SearchableEntityType {
     SUBCLASS_PATH,
     QUESTION,
     CARD_COST_TAG,
-    TRANSFORMATION_CARD
+    TRANSFORMATION_CARD,
+    ENVIRONMENT
 }

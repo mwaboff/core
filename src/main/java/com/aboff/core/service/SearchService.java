@@ -16,6 +16,7 @@ import com.aboff.core.service.dh.CommunityCardService;
 import com.aboff.core.service.dh.DomainCardService;
 import com.aboff.core.service.dh.DomainService;
 import com.aboff.core.service.dh.EncounterService;
+import com.aboff.core.service.dh.EnvironmentService;
 import com.aboff.core.service.dh.ExpansionService;
 import com.aboff.core.service.dh.FeatureService;
 import com.aboff.core.service.dh.LootService;
@@ -78,6 +79,7 @@ public class SearchService {
     private final DomainCardService domainCardService;
     private final DomainService domainService;
     private final EncounterService encounterService;
+    private final EnvironmentService environmentService;
     private final ExpansionService expansionService;
     private final FeatureService featureService;
     private final LootService lootService;
@@ -276,6 +278,7 @@ public class SearchService {
                 case TRANSFORMATION_CARD -> transformationCardService.getTransformationCardById(id, expand);
                 case ADVERSARY -> adversaryService.getAdversaryById(id, expand, auth);
                 case ENCOUNTER -> encounterService.getEncounterById(id, expand, auth);
+                case ENVIRONMENT -> environmentService.getEnvironmentById(id, expand, auth);
                 case BEASTFORM -> beastformService.getBeastformById(id, expand);
             };
         } catch (EntityNotFoundException e) {
