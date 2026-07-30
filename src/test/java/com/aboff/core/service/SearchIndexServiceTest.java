@@ -4,9 +4,11 @@ import com.aboff.core.config.SearchFieldMapping;
 import com.aboff.core.model.annotation.SearchIndexed;
 import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.entity.SearchIndex;
+import com.aboff.core.model.entity.dh.Beastform;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
+import com.aboff.core.repository.dh.BeastformRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -44,6 +46,9 @@ class SearchIndexServiceTest {
 
     @Mock
     private WeaponRepository weaponRepository;
+
+    @Mock
+    private BeastformRepository beastformRepository;
 
     @InjectMocks
     private SearchIndexService searchIndexService;
@@ -243,19 +248,38 @@ class SearchIndexServiceTest {
     }
 
     @Test
-    void reindexAll_ForBeastformType_ClearsButDoesNotRepopulate() {
-        // Arrange — Beastform has no repository, so reindex can only clear
+    void reindexAll_ForBeastformType_ClearsThenIndexesActiveEntities() {
+        // Arrange — two active beastforms and one soft-deleted
+        Beastform active1 = new Beastform();
+        active1.setId(1L);
+        active1.setName("Wolf");
+
+        Beastform active2 = new Beastform();
+        active2.setId(2L);
+        active2.setName("Bear");
+
+        Beastform deleted = new Beastform();
+        deleted.setId(3L);
+        deleted.setName("Retired Form");
+        deleted.setDeletedAt(LocalDateTime.now());
+
+        when(beastformRepository.findAll()).thenReturn(List.of(active1, active2, deleted));
+        when(searchFieldMapping.buildSearchIndexData(any(Beastform.class), eq(SearchableEntityType.BEASTFORM)))
+                .thenAnswer(inv -> {
+                    Beastform b = inv.getArgument(0);
+                    return buildMinimalData(SearchableEntityType.BEASTFORM, b.getId());
+                });
 
         // Act
         int indexed = searchIndexService.reindexAll(SearchableEntityType.BEASTFORM);
 
-        // Assert
-        assertThat(indexed).isZero();
+        // Assert — the fix wires BeastformRepository into resolveRepository(), so reindex
+        // now clears then fully repopulates the index instead of leaving it empty.
+        assertThat(indexed).isEqualTo(2);
         verify(searchIndexRepository).deleteAllByEntityType("BEASTFORM");
-        verify(searchIndexRepository, never()).upsertSearchIndex(
-                anyString(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any()
+        verify(searchIndexRepository, times(2)).upsertSearchIndex(
+                eq("BEASTFORM"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
 }

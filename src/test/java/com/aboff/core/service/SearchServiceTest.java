@@ -1,5 +1,6 @@
 package com.aboff.core.service;
 
+import com.aboff.core.model.dto.dh.response.BeastformResponse;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.SearchResponse;
 import com.aboff.core.model.entity.User;
@@ -9,6 +10,7 @@ import com.aboff.core.repository.SearchIndexRepository;
 import com.aboff.core.service.dh.AdversaryService;
 import com.aboff.core.service.dh.AncestryCardService;
 import com.aboff.core.service.dh.ArmorService;
+import com.aboff.core.service.dh.BeastformService;
 import com.aboff.core.service.dh.CardCostTagService;
 import com.aboff.core.service.dh.ClassService;
 import com.aboff.core.service.dh.CommunityCardService;
@@ -66,6 +68,8 @@ class SearchServiceTest {
     private AncestryCardService ancestryCardService;
     @Mock
     private ArmorService armorService;
+    @Mock
+    private BeastformService beastformService;
     @Mock
     private CardCostTagService cardCostTagService;
     @Mock
@@ -501,6 +505,32 @@ class SearchServiceTest {
 
         // Assert
         verify(weaponService).getWeaponById(eq(42L), eq("all"));
+    }
+
+    @Test
+    void search_WithExpandEntityKeyword_ResolvesBeastformEntity() {
+        // Arrange — proves the BEASTFORM fix: resolveEntity() no longer hardcodes null,
+        // it now delegates to BeastformService like every other type.
+        User user = userWithRole(Role.USER);
+        Object[] row = buildRow("BEASTFORM", 7L, "Wolf", 0.9);
+        when(roleHierarchyService.isPrivilegedRole(Role.USER)).thenReturn(false);
+        when(searchIndexRepository.search(
+                anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull(), anyLong(), anyBoolean(), any(Pageable.class)))
+                .thenReturn(singleRowPage(row));
+        when(beastformService.getBeastformById(eq(7L), anyString()))
+                .thenReturn(BeastformResponse.builder().id(7L).name("Wolf").build());
+
+        // Act
+        SearchResponse response = searchService.search("wolf", null, null, null, null, null, null, null, null, null,
+                null, null, null, null, "entity", 0, 20, user);
+
+        // Assert — a real BeastformResponse comes back, not null
+        verify(beastformService).getBeastformById(eq(7L), eq("entity"));
+        assertThat(response.getResults()).hasSize(1);
+        assertThat(response.getResults().get(0).getExpandedEntity()).isNotNull();
+        assertThat(response.getResults().get(0).getExpandedEntity()).isInstanceOf(BeastformResponse.class);
     }
 
     // ==================== VALID SEARCH TEST ====================

@@ -9,6 +9,7 @@ import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.dh.AdversaryService;
 import com.aboff.core.service.dh.AncestryCardService;
 import com.aboff.core.service.dh.ArmorService;
+import com.aboff.core.service.dh.BeastformService;
 import com.aboff.core.service.dh.CardCostTagService;
 import com.aboff.core.service.dh.ClassService;
 import com.aboff.core.service.dh.CommunityCardService;
@@ -69,6 +70,7 @@ public class SearchService {
     private final AdversaryService adversaryService;
     private final AncestryCardService ancestryCardService;
     private final ArmorService armorService;
+    private final BeastformService beastformService;
     private final CardCostTagService cardCostTagService;
     private final ClassService classService;
     private final CommunityCardService communityCardService;
@@ -271,11 +273,7 @@ public class SearchService {
                 case CARD_COST_TAG -> cardCostTagService.getCostTagById(id);
                 case ADVERSARY -> adversaryService.getAdversaryById(id, expand, auth);
                 case ENCOUNTER -> encounterService.getEncounterById(id, expand, auth);
-                case BEASTFORM -> {
-                    // BeastformService does not expose a public getById returning a response DTO.
-                    log.debug("Entity expansion not supported for BEASTFORM; returning null");
-                    yield null;
-                }
+                case BEASTFORM -> beastformService.getBeastformById(id, expand);
             };
         } catch (EntityNotFoundException e) {
             log.warn("Entity not found during search expansion: type={}, id={}", type, id);
