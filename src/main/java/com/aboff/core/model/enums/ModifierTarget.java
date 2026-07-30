@@ -29,6 +29,7 @@ public enum ModifierTarget {
     DAMAGE_ROLL("Modifies the character's damage roll result"),
     PRIMARY_DAMAGE_ROLL("Modifies the character's primary damage roll result"),
     ARMOR_SCORE("Modifies the character's armor score"),
+    PROFICIENCY("Modifies the character's Proficiency value"),
     BONUS_DOMAIN_CARD_SELECTIONS("Grants additional domain card selections (declarative; consumed by client-side pickers at level-up or character creation)"),
     BONUS_EXPERIENCE_MODIFIER("Grants a one-time +N bonus to a player-chosen existing experience (declarative; consumed by client-side pickers at level-up or character creation)");
 
