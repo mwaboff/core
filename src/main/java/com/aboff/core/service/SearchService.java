@@ -13,6 +13,7 @@ import com.aboff.core.service.dh.BeastformService;
 import com.aboff.core.service.dh.CardCostTagService;
 import com.aboff.core.service.dh.ClassService;
 import com.aboff.core.service.dh.CommunityCardService;
+import com.aboff.core.service.dh.ConditionService;
 import com.aboff.core.service.dh.DomainCardService;
 import com.aboff.core.service.dh.DomainService;
 import com.aboff.core.service.dh.EncounterService;
@@ -77,6 +78,7 @@ public class SearchService {
     private final CardCostTagService cardCostTagService;
     private final ClassService classService;
     private final CommunityCardService communityCardService;
+    private final ConditionService conditionService;
     private final DomainCardService domainCardService;
     private final DomainService domainService;
     private final EncounterService encounterService;
@@ -279,6 +281,7 @@ public class SearchService {
                 case CARD_COST_TAG -> cardCostTagService.getCostTagById(id);
                 case TRANSFORMATION_CARD -> transformationCardService.getTransformationCardById(id, expand);
                 case MARTIAL_STANCE -> martialStanceService.getMartialStanceById(id, expand);
+                case CONDITION -> conditionService.getConditionById(id, expand);
                 case ADVERSARY -> adversaryService.getAdversaryById(id, expand, auth);
                 case ENCOUNTER -> encounterService.getEncounterById(id, expand, auth);
                 case ENVIRONMENT -> environmentService.getEnvironmentById(id, expand, auth);
