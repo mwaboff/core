@@ -19,5 +19,11 @@ public enum FeatureType {
     /** Other feature type. */
     OTHER,
     /** Subclass feature type. */
-    SUBCLASS
+    SUBCLASS,
+    /** Transformation feature type. */
+    TRANSFORMATION,
+    /** Environment feature type. */
+    ENVIRONMENT,
+    /** Campaign frame feature type. */
+    CAMPAIGN_FRAME
 }

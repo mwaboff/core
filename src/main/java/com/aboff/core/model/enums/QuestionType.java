@@ -12,5 +12,15 @@ public enum QuestionType {
     /**
      * Connection question type.
      */
-    CONNECTION
+    CONNECTION,
+
+    /**
+     * Transformation question type.
+     */
+    TRANSFORMATION,
+
+    /**
+     * Session zero question type.
+     */
+    SESSION_ZERO
 }
