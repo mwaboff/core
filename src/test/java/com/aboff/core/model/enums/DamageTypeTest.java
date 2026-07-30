@@ -19,6 +19,11 @@ class DamageTypeTest {
         assertThat(DamageType.MAGIC.getCode()).isEqualTo("mag");
     }
 
+    @Test
+    void getCode_PhysicalAndMagic_ReturnsPhySlashMag() {
+        assertThat(DamageType.PHYSICAL_AND_MAGIC.getCode()).isEqualTo("phy/mag");
+    }
+
     // ==================== FROM CODE TESTS ====================
 
     @Test
@@ -49,6 +54,16 @@ class DamageTypeTest {
     @Test
     void fromCode_WithWhitespace_TrimsAndReturnsCorrectType() {
         assertThat(DamageType.fromCode("  mag  ")).isEqualTo(DamageType.MAGIC);
+    }
+
+    @Test
+    void fromCode_PhySlashMag_ReturnsPhysicalAndMagic() {
+        assertThat(DamageType.fromCode("phy/mag")).isEqualTo(DamageType.PHYSICAL_AND_MAGIC);
+    }
+
+    @Test
+    void fromCode_UppercasePhySlashMag_ReturnsPhysicalAndMagic() {
+        assertThat(DamageType.fromCode("PHY/MAG")).isEqualTo(DamageType.PHYSICAL_AND_MAGIC);
     }
 
     // ==================== ERROR CASES ====================

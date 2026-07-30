@@ -14,7 +14,21 @@ public enum DamageType {
     /**
      * Magic damage type, typically from spells and magical abilities.
      */
-    MAGIC("mag");
+    MAGIC("mag"),
+
+    /**
+     * Dual damage type where the wielder elects, per attack, whether the damage dealt is
+     * physical or magic — <strong>not</strong> both simultaneously.
+     *
+     * <p>This is the "Otherworldly" mechanic (e.g. the Shadowblade weapon, Hope &amp; Fear p.44):
+     * "On a successful attack, you can deal physical or magic damage." The choice is made at the
+     * time of the attack; a single hit never deals combined or double damage.
+     *
+     * <p>Despite the constant name implying "and," rendering or display logic must present this
+     * as an either/or choice (e.g. "Physical or Magic"), never as combined damage or two separate
+     * damage numbers.
+     */
+    PHYSICAL_AND_MAGIC("phy/mag");
 
     private final String code;
 

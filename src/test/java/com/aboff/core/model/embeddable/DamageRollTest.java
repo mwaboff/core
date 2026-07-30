@@ -61,6 +61,16 @@ class DamageRollTest {
         assertThat(result.getDamageType()).isEqualTo(DamageType.PHYSICAL);
     }
 
+    @Test
+    void parse_PhysicalAndMagic_ParsesCorrectly() {
+        DamageRoll result = DamageRoll.parse("d8 phy/mag");
+
+        assertThat(result.getDiceCount()).isNull();
+        assertThat(result.getDiceType()).isEqualTo(DiceType.D8);
+        assertThat(result.getModifier()).isNull();
+        assertThat(result.getDamageType()).isEqualTo(DamageType.PHYSICAL_AND_MAGIC);
+    }
+
     // ==================== PARSE ALL DICE TYPES ====================
 
     @Test
@@ -349,6 +359,14 @@ class DamageRollTest {
     @Test
     void roundTrip_AllComponents_PreservesValues() {
         String original = "3d8+5 mag";
+        DamageRoll parsed = DamageRoll.parse(original);
+
+        assertThat(parsed.toNotation()).isEqualTo(original);
+    }
+
+    @Test
+    void roundTrip_PhysicalAndMagic_PreservesValues() {
+        String original = "d8 phy/mag";
         DamageRoll parsed = DamageRoll.parse(original);
 
         assertThat(parsed.toNotation()).isEqualTo(original);

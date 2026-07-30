@@ -42,9 +42,13 @@ public class DamageRoll {
     /**
      * Pattern for parsing damage notation.
      * Groups: 1=diceCount (optional), 2=diceType, 3=modifier with sign (optional), 4=damageType
+     *
+     * <p>{@code phy/mag} denotes the dual physical-or-magic damage type (see
+     * {@link DamageType#PHYSICAL_AND_MAGIC}), where the wielder elects one or the other per
+     * attack — it is not a combined damage roll.
      */
     private static final Pattern DAMAGE_PATTERN = Pattern.compile(
-            "^(\\d+)?d(\\d+)([+-]\\d+)?\\s+(phy|mag)$",
+            "^(\\d+)?d(\\d+)([+-]\\d+)?\\s+(phy/mag|phy|mag)$",
             Pattern.CASE_INSENSITIVE
     );
 
