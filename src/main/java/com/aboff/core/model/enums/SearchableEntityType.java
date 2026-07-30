@@ -25,6 +25,7 @@ package com.aboff.core.model.enums;
  *   <li>{@link #SUBCLASS_PATH} - Subclass progression paths</li>
  *   <li>{@link #QUESTION} - Character creation questions</li>
  *   <li>{@link #CARD_COST_TAG} - Tags that describe card costs</li>
+ *   <li>{@link #TRANSFORMATION_CARD} - Transformation cards (a standalone entity, not a DomainCard)</li>
  * </ul>
  */
 public enum SearchableEntityType {
@@ -44,5 +45,6 @@ public enum SearchableEntityType {
     EXPANSION,
     SUBCLASS_PATH,
     QUESTION,
-    CARD_COST_TAG
+    CARD_COST_TAG,
+    TRANSFORMATION_CARD
 }

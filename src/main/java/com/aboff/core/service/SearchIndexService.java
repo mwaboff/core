@@ -22,6 +22,7 @@ import com.aboff.core.repository.dh.LootRepository;
 import com.aboff.core.repository.dh.QuestionRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
 import com.aboff.core.repository.dh.SubclassPathRepository;
+import com.aboff.core.repository.dh.TransformationCardRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -68,6 +69,7 @@ public class SearchIndexService {
     private final SubclassPathRepository subclassPathRepository;
     private final QuestionRepository questionRepository;
     private final CardCostTagRepository cardCostTagRepository;
+    private final TransformationCardRepository transformationCardRepository;
 
     /**
      * Indexes (or re-indexes) a single entity by upserting its search index row.
@@ -295,6 +297,7 @@ public class SearchIndexService {
             case SUBCLASS_PATH -> subclassPathRepository;
             case QUESTION -> questionRepository;
             case CARD_COST_TAG -> cardCostTagRepository;
+            case TRANSFORMATION_CARD -> transformationCardRepository;
         };
     }
 }

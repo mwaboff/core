@@ -17,6 +17,7 @@ import com.aboff.core.model.entity.dh.Loot;
 import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.entity.dh.SubclassPath;
+import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.SearchableEntityType;
 import lombok.Builder;
@@ -89,6 +90,7 @@ public class SearchFieldMapping {
             case SUBCLASS_PATH -> buildForSubclassPath((SubclassPath) entity);
             case QUESTION -> buildForQuestion((Question) entity);
             case CARD_COST_TAG -> buildForCardCostTag((CardCostTag) entity);
+            case TRANSFORMATION_CARD -> buildForTransformationCard((TransformationCard) entity);
         };
 
         if (data.getName() == null) {
@@ -137,6 +139,28 @@ public class SearchFieldMapping {
                 .nameText(cls.getName())
                 .descriptionText(joinNonNull(cls.getDescription(), cls.getStartingClassItems()))
                 .expansionId(expansionId(cls.getExpansion()))
+                .build();
+    }
+
+    /**
+     * Builds search index data for a {@link TransformationCard} entity.
+     * Weight A: name. Weight B: description. Weight C: features text. Filter: expansionId.
+     * <p>
+     * TransformationCard is a standalone entity (not a {@code DomainCard} row), so it gets its
+     * own arm here rather than reusing {@link #buildForDomainCard(DomainCard)}.
+     *
+     * @param card the transformation card entity
+     * @return populated search index data
+     */
+    private SearchIndexData buildForTransformationCard(TransformationCard card) {
+        return SearchIndexData.builder()
+                .entityType(SearchableEntityType.TRANSFORMATION_CARD.name())
+                .entityId(card.getId())
+                .name(card.getName())
+                .nameText(card.getName())
+                .descriptionText(card.getDescription())
+                .featureText(extractFeatureText(card.getFeatures()))
+                .expansionId(expansionId(card.getExpansion()))
                 .build();
     }
 
