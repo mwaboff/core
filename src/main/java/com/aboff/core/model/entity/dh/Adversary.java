@@ -96,24 +96,29 @@ public class Adversary extends BaseEntity {
      * The difficulty rating of this adversary.
      * Higher values indicate more challenging opponents. Used by GMs to
      * balance encounters and determine appropriate challenges for the party.
+     * Null for "framework" stat blocks that describe a multi-form adversary in
+     * general (e.g. Forlorne Lykona, Hope &amp; Fear p.143) -- only the form-specific
+     * blocks carry a difficulty.
      */
-    @Column(name = "difficulty", nullable = false)
+    @Column(name = "difficulty")
     private Integer difficulty;
 
     /**
      * The damage threshold for suffering a major injury.
      * When this adversary takes damage at or above this threshold (but below severe),
      * they sustain a major wound with mechanical consequences.
+     * Null for "framework" stat blocks; see {@link #difficulty}.
      */
-    @Column(name = "major_threshold", nullable = false)
+    @Column(name = "major_threshold")
     private Integer majorThreshold;
 
     /**
      * The damage threshold for suffering a severe injury.
      * When damage at or above this threshold is taken, the adversary sustains
-     * a severe wound. Must be greater than or equal to majorThreshold.
+     * a severe wound. Must be greater than or equal to majorThreshold, when both
+     * are present. Null for "framework" stat blocks; see {@link #difficulty}.
      */
-    @Column(name = "severe_threshold", nullable = false)
+    @Column(name = "severe_threshold")
     private Integer severeThreshold;
 
     // ========== Resources ==========

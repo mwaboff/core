@@ -59,20 +59,25 @@ public class CreateAdversaryRequest {
     private String motivesAndTactics;
 
     /**
-     * Difficulty rating of the adversary.
+     * Difficulty rating of the adversary. Optional: "framework" stat blocks for
+     * multi-form adversaries (e.g. Forlorne Lykona, Hope &amp; Fear p.143) omit
+     * difficulty entirely -- only the form-specific blocks carry one.
      */
-    @NotNull(message = "Difficulty is required")
     @Min(value = 1, message = "Difficulty must be at least 1")
     private Integer difficulty;
 
     /**
-     * Damage threshold for major injuries. If omitted, defaults to 0.
+     * Damage threshold for major injuries. Optional -- "framework" stat blocks for
+     * multi-form adversaries omit thresholds entirely. If omitted while
+     * {@link #severeThreshold} is provided, remains null.
      */
     @Min(value = 0, message = "Major threshold cannot be negative")
     private Integer majorThreshold;
 
     /**
-     * Damage threshold for severe injuries. If omitted, defaults to 0.
+     * Damage threshold for severe injuries. Optional -- "framework" stat blocks for
+     * multi-form adversaries omit thresholds entirely. If omitted, defaults to
+     * {@link #majorThreshold} (which may itself be null).
      */
     @Min(value = 0, message = "Severe threshold cannot be negative")
     private Integer severeThreshold;
