@@ -29,6 +29,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -592,6 +593,111 @@ class AdversaryServiceTest {
                 .hasMessage("Severe threshold must be greater than or equal to major threshold");
 
         verify(adversaryRepository, never()).save(any());
+    }
+
+    @Test
+    void createAdversary_OmittedThresholds_PersistsNullNotZero() {
+        // Arrange -- a "framework" stat block (e.g. Forlorne Lykona, Hope & Fear
+        // p.143) has no Difficulty or Thresholds at all. createAdversary must not
+        // silently coerce the omitted majorThreshold/severeThreshold to 0.
+        setupAuthenticationWith(regularUserDetails);
+
+        CreateAdversaryRequest request = CreateAdversaryRequest.builder()
+                .name("Forlorne Lykona (Framework)")
+                .tier(2)
+                .adversaryType(AdversaryType.STANDARD)
+                .description("Framework description")
+                .motivesAndTactics("Framework motives and tactics")
+                .expansionId(1L)
+                .isPublic(false)
+                .build();
+        // difficulty, majorThreshold, severeThreshold intentionally omitted
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        adversaryService.createAdversary(request, authentication);
+
+        // Assert
+        ArgumentCaptor<Adversary> captor = ArgumentCaptor.forClass(Adversary.class);
+        verify(adversaryRepository).save(captor.capture());
+        Adversary persisted = captor.getValue();
+
+        assertThat(persisted.getDifficulty()).isNull();
+        assertThat(persisted.getMajorThreshold()).isNull();
+        assertThat(persisted.getSevereThreshold()).isNull();
+    }
+
+    @Test
+    void createAdversariesBulk_OmittedThresholds_PersistsNullForEachRequest() {
+        // Arrange -- bulk import is the mechanism the rulebook's adversaries
+        // (including framework blocks) actually land through, so it's covered
+        // here as its own test rather than assumed safe by association.
+        // createAdversariesBulk is currently a plain
+        // requests.stream().map(request -> createAdversary(request, auth)) with
+        // no additional defaulting of its own, so this exercises the exact same
+        // null-preserving logic asserted in createAdversary_OmittedThresholds_
+        // PersistsNullNotZero above -- both are intentionally covered so a
+        // future change to the bulk method's delegation can't silently
+        // reintroduce a second defaulting site without failing a test.
+        setupAuthenticationWith(regularUserDetails);
+
+        CreateAdversaryRequest request = CreateAdversaryRequest.builder()
+                .name("Forlorne Lykona (Framework)")
+                .tier(2)
+                .adversaryType(AdversaryType.STANDARD)
+                .expansionId(1L)
+                .isPublic(false)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        adversaryService.createAdversariesBulk(List.of(request), authentication);
+
+        // Assert
+        ArgumentCaptor<Adversary> captor = ArgumentCaptor.forClass(Adversary.class);
+        verify(adversaryRepository).save(captor.capture());
+        Adversary persisted = captor.getValue();
+
+        assertThat(persisted.getMajorThreshold()).isNull();
+        assertThat(persisted.getSevereThreshold()).isNull();
+    }
+
+    @Test
+    void createAdversary_MajorThresholdOnlyGiven_DefaultsSevereToMajor() {
+        // Arrange -- distinct from the two tests above: this is the *intended*
+        // convenience default that survives the fix (severeThreshold falls back
+        // to majorThreshold when only major is given), as opposed to the
+        // removed 0-default when both are omitted. Documents that the two
+        // behaviors are not the same thing.
+        setupAuthenticationWith(regularUserDetails);
+
+        CreateAdversaryRequest request = CreateAdversaryRequest.builder()
+                .name("Test Adversary")
+                .tier(1)
+                .adversaryType(AdversaryType.STANDARD)
+                .expansionId(1L)
+                .isPublic(false)
+                .majorThreshold(7)
+                .build();
+        // severeThreshold intentionally omitted; difficulty also omitted
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        adversaryService.createAdversary(request, authentication);
+
+        // Assert
+        ArgumentCaptor<Adversary> captor = ArgumentCaptor.forClass(Adversary.class);
+        verify(adversaryRepository).save(captor.capture());
+        Adversary persisted = captor.getValue();
+
+        assertThat(persisted.getMajorThreshold()).isEqualTo(7);
+        assertThat(persisted.getSevereThreshold()).isEqualTo(7);
     }
 
     @Test
