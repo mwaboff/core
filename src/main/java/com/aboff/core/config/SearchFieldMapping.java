@@ -22,6 +22,7 @@ import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.entity.dh.Weapon;
+import com.aboff.core.model.enums.CardType;
 import com.aboff.core.model.enums.SearchableEntityType;
 import lombok.Builder;
 import lombok.Data;
@@ -192,7 +193,14 @@ public class SearchFieldMapping {
     /**
      * Builds search index data for an {@link AncestryCard} entity.
      * Weight A: name. Weight B: description. Weight C: features text.
-     * Filter: expansionId, isOfficial, isMixed.
+     * Filter: expansionId, isOfficial, isMixed, cardType.
+     *
+     * <p>{@code cardType} is hardcoded to {@link CardType#ANCESTRY} rather than read from
+     * {@code card.getCardType()} because {@link com.aboff.core.model.entity.dh.Card#cardType}
+     * is a read-only JPA discriminator mirror ({@code insertable = false, updatable = false}).
+     * Hibernate does not populate that field back onto the in-memory entity after insert, so on
+     * a freshly built card — the exact case this indexer runs against, since indexing happens
+     * {@code BEFORE_COMMIT} on the same instance passed to {@code save()} — it would still be null.
      *
      * @param card the ancestry card entity
      * @return populated search index data
@@ -208,13 +216,17 @@ public class SearchFieldMapping {
                 .expansionId(expansionId(card.getExpansion()))
                 .isOfficial(card.getIsOfficial())
                 .isMixed(card.getIsMixed())
+                .cardType(CardType.ANCESTRY.name())
                 .build();
     }
 
     /**
      * Builds search index data for a {@link CommunityCard} entity.
      * Weight A: name. Weight B: description. Weight C: features text.
-     * Filter: expansionId.
+     * Filter: expansionId, cardType.
+     *
+     * <p>See {@link #buildForAncestryCard(AncestryCard)} for why {@code cardType} is hardcoded
+     * rather than read from the entity's own (discriminator-backed) {@code cardType} field.
      *
      * @param card the community card entity
      * @return populated search index data
@@ -228,13 +240,17 @@ public class SearchFieldMapping {
                 .descriptionText(card.getDescription())
                 .featureText(extractFeatureText(card.getFeatures()))
                 .expansionId(expansionId(card.getExpansion()))
+                .cardType(CardType.COMMUNITY.name())
                 .build();
     }
 
     /**
      * Builds search index data for a {@link SubclassCard} entity.
      * Weight A: name. Weight B: description. Weight C: features text.
-     * Filter: expansionId, isOfficial, subclassLevel.
+     * Filter: expansionId, isOfficial, subclassLevel, cardType.
+     *
+     * <p>See {@link #buildForAncestryCard(AncestryCard)} for why {@code cardType} is hardcoded
+     * rather than read from the entity's own (discriminator-backed) {@code cardType} field.
      *
      * @param card the subclass card entity
      * @return populated search index data
@@ -250,13 +266,19 @@ public class SearchFieldMapping {
                 .expansionId(expansionId(card.getExpansion()))
                 .isOfficial(card.getIsOfficial())
                 .subclassLevel(enumName(card.getLevel()))
+                .cardType(CardType.SUBCLASS.name())
                 .build();
     }
 
     /**
      * Builds search index data for a {@link DomainCard} entity.
      * Weight A: name. Weight B: description. Weight C: features text.
-     * Filter: expansionId, isOfficial, domainCardType, associatedDomainId.
+     * Filter: expansionId, isOfficial, domainCardType, associatedDomainId, cardType.
+     *
+     * <p>See {@link #buildForAncestryCard(AncestryCard)} for why {@code cardType} is hardcoded
+     * rather than read from the entity's own (discriminator-backed) {@code cardType} field.
+     * Note this is distinct from {@code domainCardType}, which comes from {@link DomainCard#getType()},
+     * a genuine writable column rather than a discriminator mirror, so it is safe to read directly.
      *
      * @param card the domain card entity
      * @return populated search index data
@@ -277,6 +299,7 @@ public class SearchFieldMapping {
                 .isOfficial(card.getIsOfficial())
                 .domainCardType(enumName(card.getType()))
                 .associatedDomainId(associatedDomainId)
+                .cardType(CardType.DOMAIN.name())
                 .build();
     }
 

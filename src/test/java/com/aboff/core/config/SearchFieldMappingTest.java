@@ -2,17 +2,23 @@ package com.aboff.core.config;
 
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.dh.AncestryCard;
+import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Domain;
+import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.SubclassCard;
+import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.DiceType;
+import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.SearchableEntityType;
+import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -403,6 +409,165 @@ class SearchFieldMappingTest {
         assertThat(data.getIsMixed()).isTrue();
     }
 
+    @Test
+    void buildSearchIndexData_AncestryCard_MapsCardTypeFilterColumn() {
+        // Arrange — regression test: cardType must not be null (it was never populated
+        // by buildSearchIndexData, silently breaking the cardType search filter)
+        AncestryCard card = AncestryCard.builder()
+                .name("Elf")
+                .isOfficial(true)
+                .isMixed(false)
+                .build();
+        card.setId(26L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.ANCESTRY_CARD);
+
+        // Assert
+        assertThat(data.getCardType()).isEqualTo("ANCESTRY");
+    }
+
+    // ==================== COMMUNITY CARD TESTS ====================
+
+    @Test
+    void buildSearchIndexData_CommunityCard_SetsEntityTypeToCommunityCard() {
+        // Arrange
+        CommunityCard card = CommunityCard.builder()
+                .name("Highborne")
+                .description("Raised among wealth and privilege.")
+                .isOfficial(true)
+                .build();
+        card.setId(40L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.COMMUNITY_CARD);
+
+        // Assert
+        assertThat(data.getEntityType()).isEqualTo("COMMUNITY_CARD");
+    }
+
+    @Test
+    void buildSearchIndexData_CommunityCard_MapsCardTypeFilterColumn() {
+        // Arrange — regression test: cardType must not be null
+        CommunityCard card = CommunityCard.builder()
+                .name("Wanderborne")
+                .isOfficial(true)
+                .build();
+        card.setId(41L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.COMMUNITY_CARD);
+
+        // Assert
+        assertThat(data.getCardType()).isEqualTo("COMMUNITY");
+    }
+
+    // ==================== SUBCLASS CARD TESTS ====================
+
+    @Test
+    void buildSearchIndexData_SubclassCard_SetsEntityTypeToSubclassCard() {
+        // Arrange
+        SubclassCard card = SubclassCard.builder()
+                .name("Stalwart")
+                .description("A defensive fighting style.")
+                .isOfficial(true)
+                .level(SubclassLevel.FOUNDATION)
+                .build();
+        card.setId(50L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.SUBCLASS_CARD);
+
+        // Assert
+        assertThat(data.getEntityType()).isEqualTo("SUBCLASS_CARD");
+    }
+
+    @Test
+    void buildSearchIndexData_SubclassCard_MapsCardTypeFilterColumn() {
+        // Arrange — regression test: cardType must not be null
+        SubclassCard card = SubclassCard.builder()
+                .name("Vengeance")
+                .isOfficial(true)
+                .level(SubclassLevel.SPECIALIZATION)
+                .build();
+        card.setId(51L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.SUBCLASS_CARD);
+
+        // Assert
+        assertThat(data.getCardType()).isEqualTo("SUBCLASS");
+    }
+
+    // ==================== DOMAIN CARD TESTS ====================
+
+    @Test
+    void buildSearchIndexData_DomainCard_SetsEntityTypeToDomainCard() {
+        // Arrange
+        DomainCard card = DomainCard.builder()
+                .name("Whirlwind")
+                .description("A flurry of blows.")
+                .isOfficial(true)
+                .level(1)
+                .recallCost(0)
+                .type(DomainCardType.ABILITY)
+                .build();
+        card.setId(60L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.DOMAIN_CARD);
+
+        // Assert
+        assertThat(data.getEntityType()).isEqualTo("DOMAIN_CARD");
+    }
+
+    @Test
+    void buildSearchIndexData_DomainCard_MapsCardTypeFilterColumn() {
+        // Arrange — regression test: cardType must not be null
+        DomainCard card = DomainCard.builder()
+                .name("Rune Ward")
+                .isOfficial(true)
+                .level(2)
+                .recallCost(1)
+                .type(DomainCardType.SPELL)
+                .build();
+        card.setId(61L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.DOMAIN_CARD);
+
+        // Assert
+        assertThat(data.getCardType()).isEqualTo("DOMAIN");
+    }
+
+    @Test
+    void buildSearchIndexData_DomainCard_MapsDomainCardTypeFilterColumnIndependentlyOfCardType() {
+        // Arrange — domainCardType (the card's own SPELL/ABILITY/etc. value) and cardType
+        // (the DOMAIN discriminator) are distinct filter columns and must both be populated
+        DomainCard card = DomainCard.builder()
+                .name("Rune Ward")
+                .isOfficial(true)
+                .level(2)
+                .recallCost(1)
+                .type(DomainCardType.SPELL)
+                .build();
+        card.setId(62L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.DOMAIN_CARD);
+
+        // Assert
+        assertThat(data.getDomainCardType()).isEqualTo("SPELL");
+    }
+
     // ==================== NULL NAME GUARD TESTS ====================
 
     @Test
@@ -577,5 +742,26 @@ class SearchFieldMappingTest {
 
         // Assert
         assertThat(data.getFeatureText()).isNull();
+    }
+
+    @Test
+    void buildSearchIndexData_TransformationCard_CardTypeIsNull() {
+        // Arrange — TransformationCard is not a Card subtype (no CardType applies to it),
+        // so unlike the four Card-derived entity types, its cardType filter column must stay null
+        Expansion expansion = Expansion.builder().name("Hope & Fear").isPublished(true).build();
+        expansion.setId(5L);
+
+        TransformationCard card = TransformationCard.builder()
+                .name("Feral Transformation")
+                .expansion(expansion)
+                .build();
+        card.setId(1L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.TRANSFORMATION_CARD);
+
+        // Assert
+        assertThat(data.getCardType()).isNull();
     }
 }
