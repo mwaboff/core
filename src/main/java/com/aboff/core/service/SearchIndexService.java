@@ -6,27 +6,7 @@ import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.entity.SearchIndex;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
-import com.aboff.core.repository.dh.AdversaryRepository;
-import com.aboff.core.repository.dh.AncestryCardRepository;
-import com.aboff.core.repository.dh.ArmorRepository;
-import com.aboff.core.repository.dh.BeastformRepository;
-import com.aboff.core.repository.dh.CardCostTagRepository;
-import com.aboff.core.repository.dh.ClassRepository;
-import com.aboff.core.repository.dh.CommunityCardRepository;
-import com.aboff.core.repository.dh.ConditionRepository;
-import com.aboff.core.repository.dh.DomainCardRepository;
-import com.aboff.core.repository.dh.DomainRepository;
-import com.aboff.core.repository.dh.EncounterRepository;
-import com.aboff.core.repository.dh.EnvironmentRepository;
-import com.aboff.core.repository.dh.ExpansionRepository;
-import com.aboff.core.repository.dh.FeatureRepository;
-import com.aboff.core.repository.dh.LootRepository;
-import com.aboff.core.repository.dh.MartialStanceRepository;
-import com.aboff.core.repository.dh.QuestionRepository;
-import com.aboff.core.repository.dh.SubclassCardRepository;
-import com.aboff.core.repository.dh.SubclassPathRepository;
-import com.aboff.core.repository.dh.TransformationCardRepository;
-import com.aboff.core.repository.dh.WeaponRepository;
+import com.aboff.core.service.search.SearchTypeRegistry;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -53,29 +33,7 @@ public class SearchIndexService {
 
     private final SearchIndexRepository searchIndexRepository;
     private final SearchFieldMapping searchFieldMapping;
-
-    // Repositories for re-indexing — one per searchable entity type.
-    private final DomainRepository domainRepository;
-    private final ClassRepository classRepository;
-    private final FeatureRepository featureRepository;
-    private final AncestryCardRepository ancestryCardRepository;
-    private final CommunityCardRepository communityCardRepository;
-    private final SubclassCardRepository subclassCardRepository;
-    private final DomainCardRepository domainCardRepository;
-    private final WeaponRepository weaponRepository;
-    private final ArmorRepository armorRepository;
-    private final LootRepository lootRepository;
-    private final AdversaryRepository adversaryRepository;
-    private final BeastformRepository beastformRepository;
-    private final EncounterRepository encounterRepository;
-    private final ExpansionRepository expansionRepository;
-    private final SubclassPathRepository subclassPathRepository;
-    private final QuestionRepository questionRepository;
-    private final CardCostTagRepository cardCostTagRepository;
-    private final TransformationCardRepository transformationCardRepository;
-    private final EnvironmentRepository environmentRepository;
-    private final MartialStanceRepository martialStanceRepository;
-    private final ConditionRepository conditionRepository;
+    private final SearchTypeRegistry searchTypeRegistry;
 
     /**
      * Indexes (or re-indexes) a single entity by upserting its search index row.
@@ -281,32 +239,15 @@ public class SearchIndexService {
     /**
      * Resolves the source repository for a given {@link SearchableEntityType}.
      *
+     * <p>Delegates to {@link SearchTypeRegistry}, which is validated at application startup to
+     * hold exactly one registration per {@link SearchableEntityType} constant — see
+     * {@link com.aboff.core.service.search.SearchTypeRegistration} for why this used to be a
+     * hand-maintained switch and why that was dangerous.
+     *
      * @param type the searchable entity type
-     * @return the corresponding {@link JpaRepository}
+     * @return the corresponding {@link JpaRepository}; never {@code null}
      */
     private JpaRepository<? extends BaseEntity, Long> resolveRepository(SearchableEntityType type) {
-        return switch (type) {
-            case DOMAIN -> domainRepository;
-            case CLASS -> classRepository;
-            case FEATURE -> featureRepository;
-            case ANCESTRY_CARD -> ancestryCardRepository;
-            case COMMUNITY_CARD -> communityCardRepository;
-            case SUBCLASS_CARD -> subclassCardRepository;
-            case DOMAIN_CARD -> domainCardRepository;
-            case WEAPON -> weaponRepository;
-            case ARMOR -> armorRepository;
-            case LOOT -> lootRepository;
-            case ADVERSARY -> adversaryRepository;
-            case BEASTFORM -> beastformRepository;
-            case ENCOUNTER -> encounterRepository;
-            case EXPANSION -> expansionRepository;
-            case SUBCLASS_PATH -> subclassPathRepository;
-            case QUESTION -> questionRepository;
-            case CARD_COST_TAG -> cardCostTagRepository;
-            case TRANSFORMATION_CARD -> transformationCardRepository;
-            case ENVIRONMENT -> environmentRepository;
-            case MARTIAL_STANCE -> martialStanceRepository;
-            case CONDITION -> conditionRepository;
-        };
+        return searchTypeRegistry.repositoryFor(type);
     }
 }
