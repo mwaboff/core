@@ -41,6 +41,7 @@ public class ClassController {
      * @param size Number of items per page (default: 20, max: 100)
      * @param includeDeleted Whether to include soft-deleted classes (default: false, ADMIN+ only)
      * @param expansionId Optional filter for expansion ID
+     * @param isOfficial Optional filter for official status
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,associatedDomains")
      * @return Paginated response containing classes
      */
@@ -50,10 +51,11 @@ public class ClassController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(required = false) Long expansionId,
+            @RequestParam(required = false) Boolean isOfficial,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<ClassResponse> response = classService.getAllClasses(
-                page, size, includeDeleted, expansionId, expand);
+                page, size, includeDeleted, expansionId, isOfficial, expand);
 
         return ResponseEntity.ok(response);
     }

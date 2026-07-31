@@ -480,6 +480,7 @@ class SubclassCardControllerIntegrationTest {
                 .expansion(expansion)
                 .startingEvasion(10)
                 .startingHitPoints(20)
+                .isOfficial(true)
                 .build();
         return classRepository.save(clazz);
     }

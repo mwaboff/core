@@ -26,6 +26,9 @@ public class CreateClassRequest {
 
     private String description;
 
+    /** Whether this class is from official game content. Defaults to true when omitted. */
+    private Boolean isOfficial;
+
     @NotNull(message = "Expansion ID is required")
     private Long expansionId;
 

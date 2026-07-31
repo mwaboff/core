@@ -44,6 +44,11 @@ public class DomainResponse {
     private String description;
 
     /**
+     * Whether this domain is from official game content
+     */
+    private Boolean isOfficial;
+
+    /**
      * ID of the expansion this domain belongs to (always included)
      */
     private Long expansionId;

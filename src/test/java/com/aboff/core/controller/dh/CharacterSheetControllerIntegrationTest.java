@@ -1210,6 +1210,7 @@ class CharacterSheetControllerIntegrationTest {
         Domain domain = Domain.builder()
                 .name("Test Domain " + name)
                 .expansion(expansion)
+                .isOfficial(true)
                 .build();
         domain = domainRepository.save(domain);
 

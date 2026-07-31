@@ -49,6 +49,13 @@ public class Domain extends BaseEntity {
     private String description;
 
     /**
+     * Indicates whether this domain is from official game content.
+     * Defaults to true at creation time, applied by the service layer.
+     */
+    @Column(name = "is_official", nullable = false)
+    private Boolean isOfficial;
+
+    /**
      * The expansion this domain belongs to.
      */
     @ManyToOne(fetch = FetchType.LAZY)

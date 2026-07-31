@@ -32,6 +32,11 @@ public class UpdateDomainRequest {
     private String description;
 
     /**
+     * Whether this domain is from official game content
+     */
+    private Boolean isOfficial;
+
+    /**
      * ID of the expansion this domain belongs to
      */
     private Long expansionId;

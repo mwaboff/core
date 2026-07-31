@@ -743,6 +743,7 @@ Returned by all adversary endpoints. Fields with `@JsonInclude(NON_NULL)` are om
 | `experienceIds`     | Set\<long\>                | No       | --                               | Existing experience IDs to link              |
 | `featureIds`        | Set\<long\>                | No       | --                               | Existing feature IDs to link                 |
 | `features`          | List\<FeatureInput\>       | No       | Valid nested objects             | Inline features to find-or-create, merged with featureIds |
+| `isOfficial`        | boolean                    | No       | Default: false                   | Official game content. Silently coerced to false for non-MODERATOR callers |
 | `isPublic`          | boolean                    | No       | Default: false                   | Public visibility                            |
 
 ### DamageRollRequest (nested in Create/UpdateAdversaryRequest)
@@ -776,6 +777,7 @@ All fields are optional for partial updates. Providing `experienceIds`, `feature
 | `weaponName`        | string                     | No       | Max 200 chars                    | Weapon/attack name                           |
 | `attackRange`       | Range                      | No       | Valid enum value                 | Attack range                                 |
 | `damage`            | DamageRollRequest          | No       | Valid nested object              | Damage roll details                          |
+| `isOfficial`        | boolean                    | No       | --                               | Official game content. Silently coerced to false for non-MODERATOR callers |
 | `isPublic`          | boolean                    | No       | --                               | Public visibility                            |
 | `experienceIds`     | Set\<long\>                | No       | --                               | Replaces existing experience associations    |
 | `featureIds`        | Set\<long\>                | No       | --                               | Replaces existing feature associations       |

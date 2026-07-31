@@ -153,6 +153,12 @@ public class CreateAdversaryRequest {
     private List<FeatureInput> features;
 
     /**
+     * Whether this adversary is from official game content.
+     */
+    @Builder.Default
+    private Boolean isOfficial = false;
+
+    /**
      * Whether this adversary is publicly visible to other users.
      */
     @Builder.Default

@@ -118,9 +118,9 @@ class LevelUpControllerIntegrationTest {
         testExpansion = expansionRepository.save(Expansion.builder()
                 .name("Core Rules").isPublished(true).build());
         testDomain = domainRepository.save(Domain.builder()
-                .name("Arcana").expansion(testExpansion).build());
+                .name("Arcana").expansion(testExpansion).isOfficial(true).build());
         testClass = classRepository.save(Class.builder()
-                .name("Wizard").expansion(testExpansion).startingEvasion(8).startingHitPoints(6).build());
+                .name("Wizard").expansion(testExpansion).startingEvasion(8).startingHitPoints(6).isOfficial(true).build());
         testPath = subclassPathRepository.save(SubclassPath.builder()
                 .name("Pyromancer").associatedClass(testClass).expansion(testExpansion)
                 .associatedDomains(Set.of(testDomain)).build());

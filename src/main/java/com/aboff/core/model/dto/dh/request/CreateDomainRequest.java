@@ -35,6 +35,11 @@ public class CreateDomainRequest {
     private String description;
 
     /**
+     * Whether this domain is from official game content. Defaults to true when omitted
+     */
+    private Boolean isOfficial;
+
+    /**
      * ID of the expansion this domain belongs to
      */
     @NotNull(message = "Expansion ID is required")

@@ -1,5 +1,6 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.model.dto.dh.request.CreateSubclassPathRequest;
 import com.aboff.core.model.dto.dh.request.SubclassPathInput;
 import com.aboff.core.model.dto.dh.request.UpdateSubclassPathRequest;
@@ -19,6 +20,7 @@ import com.aboff.core.service.AuditLogger;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -642,6 +644,95 @@ class SubclassPathServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getName()).isEqualTo("Warden of Renewal");
         verify(subclassPathRepository).save(any(SubclassPath.class));
+    }
+
+    @Test
+    void findOrCreate_NewPath_PublishesCreatedEvent() {
+        // Arrange — regression test: paths created implicitly from an inlined subclassPath on a
+        // subclass-card upload published no event, so they never reached search_index
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+
+        SubclassPath savedPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull("Warden of Renewal", 1L))
+                .thenReturn(Optional.empty());
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(subclassPathRepository.save(any(SubclassPath.class))).thenReturn(savedPath);
+
+        // Act
+        subclassPathService.findOrCreate("Warden of Renewal", 1L, 1L, null, null);
+
+        // Assert
+        ArgumentCaptor<EntityChangeEvent> captor = ArgumentCaptor.forClass(EntityChangeEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().getChangeType()).isEqualTo(EntityChangeEvent.ChangeType.CREATED);
+        assertThat(captor.getValue().getEntity()).isSameAs(savedPath);
+    }
+
+    @Test
+    void findOrCreate_ExistingPathBackfilled_PublishesUpdatedEvent() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+        Domain domain = Domain.builder().id(1L).name("Sage").expansion(expansion).build();
+
+        SubclassPath existingPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .associatedDomains(new HashSet<>())
+                .spellcastingTrait(Trait.INSTINCT)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull("Warden of Renewal", 1L))
+                .thenReturn(Optional.of(existingPath));
+        when(domainRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(domain));
+        when(subclassPathRepository.save(any(SubclassPath.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        subclassPathService.findOrCreate("Warden of Renewal", 1L, 1L, List.of(1L), null);
+
+        // Assert
+        ArgumentCaptor<EntityChangeEvent> captor = ArgumentCaptor.forClass(EntityChangeEvent.class);
+        verify(eventPublisher).publishEvent(captor.capture());
+        assertThat(captor.getValue().getChangeType()).isEqualTo(EntityChangeEvent.ChangeType.UPDATED);
+        assertThat(captor.getValue().getEntity()).isSameAs(existingPath);
+    }
+
+    @Test
+    void findOrCreate_ExistingPathUnchanged_PublishesNoEvent() {
+        // Arrange — returning an untouched existing path is not a write, so it must not reindex
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+
+        SubclassPath existingPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .associatedDomains(Set.of(Domain.builder().id(1L).name("Sage").expansion(expansion).build()))
+                .spellcastingTrait(Trait.INSTINCT)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(subclassPathRepository.findByNameIgnoreCaseAndAssociatedClassIdAndDeletedAtIsNull("Warden of Renewal", 1L))
+                .thenReturn(Optional.of(existingPath));
+
+        // Act
+        subclassPathService.findOrCreate("Warden of Renewal", 1L, 1L, null, null);
+
+        // Assert
+        verify(eventPublisher, never()).publishEvent(any(EntityChangeEvent.class));
     }
 
     @Test

@@ -119,6 +119,11 @@ public class UpdateAdversaryRequest {
     private DamageRollRequest damage;
 
     /**
+     * Whether this adversary is from official game content.
+     */
+    private Boolean isOfficial;
+
+    /**
      * Whether this adversary is publicly visible to other users.
      */
     private Boolean isPublic;

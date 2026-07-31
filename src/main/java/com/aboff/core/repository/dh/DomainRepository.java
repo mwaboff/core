@@ -27,28 +27,34 @@ public interface DomainRepository extends JpaRepository<Domain, Long> {
     Page<Domain> findByDeletedAtIsNull(Pageable pageable);
 
     /**
-     * Finds all non-deleted domains with optional expansion filter.
+     * Finds all non-deleted domains with optional filters.
      *
      * @param expansionId Optional filter for expansion ID
+     * @param isOfficial Optional filter for official status
      * @param pageable Pagination information
      * @return Page of non-deleted domains matching the criteria
      */
     @Query("SELECT d FROM Domain d WHERE d.deletedAt IS NULL " +
-           "AND (:expansionId IS NULL OR d.expansion.id = :expansionId)")
-    Page<Domain> findByDeletedAtIsNullAndExpansion(
+           "AND (:expansionId IS NULL OR d.expansion.id = :expansionId) " +
+           "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial)")
+    Page<Domain> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
+            @Param("isOfficial") Boolean isOfficial,
             Pageable pageable);
 
     /**
-     * Finds all domains with optional expansion filter, including soft-deleted ones.
+     * Finds all domains with optional filters, including soft-deleted ones.
      *
      * @param expansionId Optional filter for expansion ID
+     * @param isOfficial Optional filter for official status
      * @param pageable Pagination information
      * @return Page of all domains matching the criteria
      */
-    @Query("SELECT d FROM Domain d WHERE :expansionId IS NULL OR d.expansion.id = :expansionId")
-    Page<Domain> findAllWithExpansion(
+    @Query("SELECT d FROM Domain d WHERE (:expansionId IS NULL OR d.expansion.id = :expansionId) " +
+           "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial)")
+    Page<Domain> findAllWithFilters(
             @Param("expansionId") Long expansionId,
+            @Param("isOfficial") Boolean isOfficial,
             Pageable pageable);
 
     /**

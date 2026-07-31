@@ -4,6 +4,7 @@ import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.dh.AncestryCard;
 import com.aboff.core.model.entity.dh.Beastform;
 import com.aboff.core.model.entity.dh.CommunityCard;
+import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Expansion;
@@ -332,6 +333,83 @@ class SearchFieldMappingTest {
         assertThat(data.getDescriptionText()).isEqualTo("The domain of healing and protection.");
     }
 
+    @Test
+    void buildSearchIndexData_Domain_MapsIsOfficialFilterColumn() {
+        // Arrange — regression test: domains had no isOfficial at all, leaving
+        // search_index.is_official NULL, which made every domain vanish from any
+        // search filtered to official content
+        Domain domain = Domain.builder()
+                .name("Dread")
+                .isOfficial(true)
+                .build();
+        domain.setId(13L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(domain, SearchableEntityType.DOMAIN);
+
+        // Assert
+        assertThat(data.getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Domain_MapsNonOfficialIsOfficialFilterColumn() {
+        // Arrange
+        Domain domain = Domain.builder()
+                .name("Homebrew Domain")
+                .isOfficial(false)
+                .build();
+        domain.setId(14L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(domain, SearchableEntityType.DOMAIN);
+
+        // Assert
+        assertThat(data.getIsOfficial()).isFalse();
+    }
+
+    // ==================== CLASS TESTS ====================
+
+    @Test
+    void buildSearchIndexData_Class_MapsIsOfficialFilterColumn() {
+        // Arrange — regression test: same gap as domains, see above
+        Class clazz = Class.builder()
+                .name("Warlock")
+                .description("A wielder of borrowed power.")
+                .isOfficial(true)
+                .startingEvasion(10)
+                .startingHitPoints(6)
+                .build();
+        clazz.setId(10L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(clazz, SearchableEntityType.CLASS);
+
+        // Assert
+        assertThat(data.getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Class_MapsNonOfficialIsOfficialFilterColumn() {
+        // Arrange
+        Class clazz = Class.builder()
+                .name("Homebrew Class")
+                .isOfficial(false)
+                .startingEvasion(9)
+                .startingHitPoints(5)
+                .build();
+        clazz.setId(11L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(clazz, SearchableEntityType.CLASS);
+
+        // Assert
+        assertThat(data.getIsOfficial()).isFalse();
+    }
+
     // ==================== ANCESTRY CARD TESTS ====================
 
     @Test
@@ -508,6 +586,42 @@ class SearchFieldMappingTest {
 
         // Assert
         assertThat(data.getCardType()).isEqualTo("COMMUNITY");
+    }
+
+    @Test
+    void buildSearchIndexData_CommunityCard_MapsIsOfficialFilterColumn() {
+        // Arrange — regression test: isOfficial was never populated for community cards,
+        // leaving search_index.is_official NULL and hiding every official community card
+        // from searches that filter on isOfficial
+        CommunityCard card = CommunityCard.builder()
+                .name("Loreborne")
+                .isOfficial(true)
+                .build();
+        card.setId(42L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.COMMUNITY_CARD);
+
+        // Assert
+        assertThat(data.getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_CommunityCard_MapsNonOfficialIsOfficialFilterColumn() {
+        // Arrange
+        CommunityCard card = CommunityCard.builder()
+                .name("Homebrew Community")
+                .isOfficial(false)
+                .build();
+        card.setId(43L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.COMMUNITY_CARD);
+
+        // Assert
+        assertThat(data.getIsOfficial()).isFalse();
     }
 
     // ==================== SUBCLASS CARD TESTS ====================

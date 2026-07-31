@@ -23,6 +23,7 @@ Retrieve a paginated list of domains.
 | `size` | `int` | `20` | Items per page (max: 100) |
 | `includeDeleted` | `boolean` | `false` | Include soft-deleted domains (ADMIN+ only) |
 | `expansionId` | `Long` | — | Filter by expansion ID |
+| `isOfficial` | `Boolean` | — | Filter by official status |
 | `expand` | `String` | — | Comma-separated list of relationships to expand |
 
 #### Expand Options
@@ -168,6 +169,7 @@ Create a new domain.
 | `name` | `String` | Yes | Max 100 chars; not blank | Domain name |
 | `iconUrl` | `String` | No | Max 500 chars | URL to domain icon |
 | `description` | `String` | No | — | Domain description |
+| `isOfficial` | `Boolean` | No | Defaults to `true` when omitted | Whether this is official game content |
 | `expansionId` | `Long` | Yes | Must reference existing expansion | Expansion this domain belongs to |
 
 ```json
@@ -268,6 +270,7 @@ Update an existing domain.
 | `name` | `String` | Yes | Max 100 chars; not blank | Domain name |
 | `iconUrl` | `String` | No | Max 500 chars | URL to domain icon |
 | `description` | `String` | No | — | Domain description |
+| `isOfficial` | `Boolean` | No | Omit to leave unchanged | Whether this is official game content |
 | `expansionId` | `Long` | Yes | Must reference existing expansion | Expansion this domain belongs to |
 
 ```json

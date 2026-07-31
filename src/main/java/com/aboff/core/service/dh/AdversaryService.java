@@ -187,7 +187,7 @@ public class AdversaryService {
                 .attackRange(request.getAttackRange())
                 .expansion(expansion)
                 .createdBy(creator)
-                .isOfficial(false)
+                .isOfficial(resolveIsOfficial(creator, request.getIsOfficial()))
                 .isPublic(request.getIsPublic() != null ? request.getIsPublic() : false)
                 .build();
 
@@ -267,6 +267,9 @@ public class AdversaryService {
 
         validateModifyPermission(adversary, auth);
 
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        User user = userDetails.getUser();
+
         // Partial updates - only update non-null fields
         if (request.getName() != null) {
             adversary.setName(request.getName());
@@ -315,6 +318,9 @@ public class AdversaryService {
         }
         if (request.getDamage() != null) {
             adversary.setDamage(toDamageRoll(request.getDamage()));
+        }
+        if (request.getIsOfficial() != null) {
+            adversary.setIsOfficial(resolveIsOfficial(user, request.getIsOfficial()));
         }
         if (request.getIsPublic() != null) {
             adversary.setIsPublic(request.getIsPublic());
@@ -457,6 +463,30 @@ public class AdversaryService {
                 "adversary_id: " + id + " → copy_id: " + savedCopy.getId());
 
         return toResponse(savedCopy, Set.of());
+    }
+
+    /**
+     * Resolves the official flag a create or update request may actually apply.
+     * <p>
+     * Unlike weapons, armor, and loot, adversaries are authored as homebrew by ordinary users
+     * through unrestricted create and update endpoints, so only MODERATOR+ may mark content
+     * official. A requested official flag from anyone else is silently coerced to false rather
+     * than rejected, which keeps existing clients working and avoids a new error path.
+     * </p>
+     *
+     * @param user The user performing the create or update
+     * @param requestedIsOfficial The requested official flag, may be null
+     * @return true only when the user is MODERATOR+ and explicitly requested official status
+     */
+    private boolean resolveIsOfficial(User user, Boolean requestedIsOfficial) {
+        boolean canMarkOfficial = roleHierarchyService.hasRoleOrHigher(user, Role.MODERATOR);
+
+        if (!canMarkOfficial && Boolean.TRUE.equals(requestedIsOfficial)) {
+            log.warn("User id={} with role={} requested official status; coercing isOfficial to false",
+                    user.getId(), user.getRole());
+        }
+
+        return canMarkOfficial && Boolean.TRUE.equals(requestedIsOfficial);
     }
 
     /**

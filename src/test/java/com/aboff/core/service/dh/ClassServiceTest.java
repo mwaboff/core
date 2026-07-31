@@ -111,11 +111,11 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(class1, class2));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null);
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -142,16 +142,16 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(eq(1L), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, 1L, null);
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, 1L, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(classRepository).findByDeletedAtIsNullAndExpansion(eq(1L), any(Pageable.class));
+        verify(classRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -171,30 +171,31 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findAllWithExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findAllWithFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, true, null, null);
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, true, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeletedAt()).isNotNull();
-        verify(classRepository).findAllWithExpansion(isNull(), any(Pageable.class));
+        verify(classRepository).findAllWithFilters(isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
     void getAllClasses_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Class> classPage = new PageImpl<>(List.of());
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
 
         // Act
-        classService.getAllClasses(0, 500, false, null, null);
+        classService.getAllClasses(0, 500, false, null, null, null);
 
         // Assert
-        verify(classRepository).findByDeletedAtIsNullAndExpansion(
+        verify(classRepository).findByDeletedAtIsNullAndFilters(
+                isNull(),
                 isNull(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
@@ -222,12 +223,12 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "expansion,associatedDomains,hopeFeatures");
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "expansion,associatedDomains,hopeFeatures");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -337,6 +338,55 @@ class ClassServiceTest {
     }
 
     @Test
+    void createClass_OmittedIsOfficial_DefaultsToTrue() {
+        // Arrange — these entities have no @DynamicInsert, so Hibernate always names
+        // is_official in the INSERT and the database DEFAULT never applies to new rows.
+        // The default has to come from the service.
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansionId(1L)
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.createClass(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void createClass_ExplicitIsOfficialFalse_PersistsFalse() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Homebrew Class")
+                .description("Not official content")
+                .isOfficial(false)
+                .expansionId(1L)
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.createClass(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
     void createClass_ExpansionNotFound_ThrowsEntityNotFoundException() {
         // Arrange
         CreateClassRequest request = CreateClassRequest.builder()
@@ -405,6 +455,65 @@ class ClassServiceTest {
     }
 
     // ==================== UPDATE CLASS TESTS ====================
+
+    @Test
+    void updateClass_IsOfficialFalse_MarksClassNonOfficial() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class existingClass = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .isOfficial(true)
+                .expansion(expansion)
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateClassRequest request = UpdateClassRequest.builder()
+                .isOfficial(false)
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingClass));
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.updateClass(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
+    void updateClass_NullIsOfficial_LeavesOfficialFlagUnchanged() {
+        // Arrange — partial-update convention: an omitted isOfficial must not
+        // silently un-officialize catalog content
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class existingClass = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .isOfficial(true)
+                .expansion(expansion)
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateClassRequest request = UpdateClassRequest.builder()
+                .name("Warrior Revised")
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingClass));
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.updateClass(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
+    }
 
     @Test
     void updateClass_ValidRequest_UpdatesAndReturnsClass() {
@@ -607,12 +716,12 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "hopeFeatures,costTags");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -643,12 +752,12 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "classFeatures,costTags");
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "classFeatures,costTags");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -679,12 +788,12 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "classFeatures");
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "classFeatures");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -713,12 +822,12 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "hopeFeatures,costTags");
 
         // Assert
         FeatureResponse hopeFeature = result.getContent().get(0).getHopeFeatures().get(0);
@@ -746,12 +855,12 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "hopeFeatures,costTags");
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "hopeFeatures,costTags");
 
         // Assert
         FeatureResponse hopeFeature = result.getContent().get(0).getHopeFeatures().get(0);
@@ -782,12 +891,12 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "features");
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "features");
 
         // Assert
         ClassResponse classResponse = result.getContent().get(0);
@@ -817,12 +926,12 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
         // Act
-        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, "features,costTags");
+        PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "features,costTags");
 
         // Assert
         FeatureResponse feature = result.getContent().get(0).getHopeFeatures().get(0);
