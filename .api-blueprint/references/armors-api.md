@@ -656,7 +656,7 @@ When using `?expand=`, the following nested objects may appear in responses.
 ### FeatureType
 
 ```
-HOPE, ANCESTRY, CLASS, COMMUNITY, DOMAIN, ITEM, OTHER, SUBCLASS
+HOPE, ANCESTRY, CLASS, COMMUNITY, DOMAIN, ITEM, OTHER, SUBCLASS, TRANSFORMATION, ENVIRONMENT, CAMPAIGN_FRAME, BEASTFORM, MARTIAL_STANCE, ADVERSARY
 ```
 
 ### ModifierTarget

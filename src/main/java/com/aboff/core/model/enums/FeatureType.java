@@ -25,5 +25,11 @@ public enum FeatureType {
     /** Environment feature type. */
     ENVIRONMENT,
     /** Campaign frame feature type. */
-    CAMPAIGN_FRAME
+    CAMPAIGN_FRAME,
+    /** Beastform feature type. */
+    BEASTFORM,
+    /** Martial stance feature type. */
+    MARTIAL_STANCE,
+    /** Adversary feature type. */
+    ADVERSARY
 }
