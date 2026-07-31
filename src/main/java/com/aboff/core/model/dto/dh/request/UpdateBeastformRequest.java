@@ -40,6 +40,16 @@ public class UpdateBeastformRequest {
     private String advantages;
 
     /**
+     * Modifier applied to Evasion while in this beastform.
+     */
+    private Integer evasion;
+
+    /**
+     * The beastform's tier (1-4).
+     */
+    private Integer tier;
+
+    /**
      * Modifier applied to AGILITY trait while in this beastform.
      */
     private Integer agilityModifier;

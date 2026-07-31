@@ -12,6 +12,7 @@ import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.EnvironmentRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -26,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -59,6 +61,9 @@ class EnvironmentControllerIntegrationTest {
 
     @Autowired
     private ExpansionRepository expansionRepository;
+
+    @Autowired
+    private FeatureRepository featureRepository;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -300,6 +305,97 @@ class EnvironmentControllerIntegrationTest {
                 .andExpect(jsonPath("$[1].difficultySpecial").value("Special (see \"Relative Strength\")"));
 
         assertThat(environmentRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void createEnvironmentsBulk_RealisticUploadPayload_PersistsFeaturesAndDefaults() throws Exception {
+        // Arrange - the literal payload shape for two of the 19 real records in
+        // core-import/intermediate/11-environments.json (p244, Tier 1 Event/Traversal), the
+        // actual parsed-and-resolved content about to be uploaded to production. "Ambushers" is
+        // one of the two core-book environments (with "Ambushed") whose printed Difficulty is
+        // the non-numeric "Special (see \"Relative Strength\")" sentinel rather than a number --
+        // the XOR case this test exists to cover -- and it carries the real "Relative Strength -
+        // Passive" feature the rules text cross-references, plus a second real feature.
+        // "Cliffside Ascent" is the real numeric-difficulty (12) neighbor, included so both arms
+        // of the difficulty/difficultySpecial XOR go through the real bulk-upload path together
+        // with its real 3-feature set, the way the actual upload will send them.
+        //
+        // "isPublic" is deliberately omitted from both entries even though the real resolved
+        // payload sets it explicitly, to additionally prove EnvironmentService's
+        // request.getIsPublic() != null ? ... : false coalescing fires on genuine Jackson
+        // deserialization (not just via the builder's @Builder.Default) for a payload variant
+        // that leaves it out.
+        String bulkRequest = """
+            [
+                {
+                    "name": "Ambushers",
+                    "tier": 1,
+                    "environmentType": "EVENT",
+                    "description": "An ambush is set by the PCs to catch unsuspecting adversaries off-guard.",
+                    "impulses": "Escape, group up, protect the most vulnerable",
+                    "difficultySpecial": "Special (see \\"Relative Strength\\")",
+                    "potentialAdversaries": "Any",
+                    "expansionId": %d,
+                    "isOfficial": true,
+                    "features": [
+                        { "name": "Relative Strength - Passive", "description": "The Difficulty of this environment equals that of the adversary with the highest Difficulty.\\n\\nWhich adversary is the least prepared? Which one is the most?", "featureType": "ENVIRONMENT", "expansionId": %d },
+                        { "name": "Where Did They Come From? - Reaction", "description": "When a PC starts the ambush on unsuspecting adversaries, you lose 2 Fear and the first attack roll a PC makes has advantage.\\n\\nWhat are the adversaries in the middle of doing when the ambush starts? How does this impact their approach to the fight?", "featureType": "ENVIRONMENT", "expansionId": %d }
+                    ]
+                },
+                {
+                    "name": "Cliffside Ascent",
+                    "tier": 1,
+                    "environmentType": "TRAVERSAL",
+                    "description": "A steep, rocky cliffside tall enough to make traversal dangerous.",
+                    "impulses": "Cast the unready down to a rocky doom, draw people in with promise of what lies at the top",
+                    "difficulty": 12,
+                    "potentialAdversaries": "Construct, Deeproot Defender, Giant Scorpion, Glass Snake",
+                    "expansionId": %d,
+                    "isOfficial": true,
+                    "features": [
+                        { "name": "The Climb - Passive", "description": "Climbing up the cliffside uses a Progress Countdown (12).", "featureType": "ENVIRONMENT", "expansionId": %d },
+                        { "name": "Pitons Left Behind - Passive", "description": "Previous climbers left behind large metal rods that climbers can use to aid their ascent.", "featureType": "ENVIRONMENT", "expansionId": %d },
+                        { "name": "Fall - Action", "description": "Spend a Fear to have a PC's handhold fail, plummeting them toward the ground.", "featureType": "ENVIRONMENT", "expansionId": %d }
+                    ]
+                }
+            ]
+            """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId(),
+                    testExpansion.getId(), testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/environments/bulk")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bulkRequest))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].name").value("Ambushers"))
+                .andExpect(jsonPath("$[0].difficultySpecial").value("Special (see \"Relative Strength\")"))
+                .andExpect(jsonPath("$[0].difficulty").doesNotExist())
+                .andExpect(jsonPath("$[0].isPublic").value(false))
+                .andExpect(jsonPath("$[0].featureIds").isArray())
+                .andExpect(jsonPath("$[0].featureIds.length()").value(2))
+                .andExpect(jsonPath("$[1].name").value("Cliffside Ascent"))
+                .andExpect(jsonPath("$[1].difficulty").value(12))
+                .andExpect(jsonPath("$[1].difficultySpecial").doesNotExist())
+                .andExpect(jsonPath("$[1].isPublic").value(false))
+                .andExpect(jsonPath("$[1].featureIds").isArray())
+                .andExpect(jsonPath("$[1].featureIds.length()").value(3));
+
+        List<Environment> saved = environmentRepository.findAll();
+        assertThat(saved).hasSize(2);
+        assertThat(featureRepository.findAll()).hasSize(5);
+        Environment ambushers = saved.stream().filter(e -> e.getName().equals("Ambushers")).findFirst().orElseThrow();
+        assertThat(ambushers.getDifficulty()).isNull();
+        assertThat(ambushers.getDifficultySpecial()).isEqualTo("Special (see \"Relative Strength\")");
+        assertThat(ambushers.getFeatures()).extracting(f -> f.getName())
+                .containsExactlyInAnyOrder("Relative Strength - Passive", "Where Did They Come From? - Reaction");
+
+        Environment cliffside = saved.stream().filter(e -> e.getName().equals("Cliffside Ascent")).findFirst().orElseThrow();
+        assertThat(cliffside.getDifficulty()).isEqualTo(12);
+        assertThat(cliffside.getDifficultySpecial()).isNull();
+        assertThat(cliffside.getFeatures()).extracting(f -> f.getName())
+                .containsExactlyInAnyOrder("The Climb - Passive", "Pitons Left Behind - Passive", "Fall - Action");
     }
 
     @Test

@@ -203,6 +203,8 @@ class BeastformServiceTest {
                 .name("Wolf")
                 .expansionId(1L)
                 .isOfficial(true)
+                .evasion(2)
+                .tier(1)
                 .attackRange(Range.MELEE)
                 .attackTrait(Trait.AGILITY)
                 .damage(CreateBeastformRequest.DamageRollRequest.builder()
@@ -224,7 +226,37 @@ class BeastformServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Wolf");
-        verify(beastformRepository).save(any(Beastform.class));
+        assertThat(result.getEvasion()).isEqualTo(2);
+        assertThat(result.getTier()).isEqualTo(1);
+        verify(beastformRepository).save(argThat(b -> b.getEvasion() == 2 && b.getTier() == 1));
+    }
+
+    @Test
+    void createBeastform_EvasionNull_StaysNull() {
+        // Arrange
+        CreateBeastformRequest request = CreateBeastformRequest.builder()
+                .name("Wolf")
+                .expansionId(1L)
+                .isOfficial(true)
+                .evasion(null)
+                .tier(1)
+                .attackRange(Range.MELEE)
+                .attackTrait(Trait.AGILITY)
+                .damage(CreateBeastformRequest.DamageRollRequest.builder()
+                        .diceType(DiceType.D6)
+                        .damageType(DamageType.PHYSICAL)
+                        .build())
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(beastformRepository.save(any(Beastform.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        beastformService.createBeastform(request, authentication);
+
+        // Assert: no null-coalescing -- a request with evasion omitted/null persists as
+        // null, not a manufactured 0 (see Beastform.evasion for the rationale).
+        verify(beastformRepository).save(argThat(b -> b.getEvasion() == null));
     }
 
     @Test
@@ -374,6 +406,8 @@ class BeastformServiceTest {
 
         UpdateBeastformRequest request = UpdateBeastformRequest.builder()
                 .name("Updated Name")
+                .evasion(3)
+                .tier(2)
                 .attackRange(Range.CLOSE)
                 .attackTrait(Trait.STRENGTH)
                 .damage(UpdateBeastformRequest.DamageRollRequest.builder()
@@ -392,9 +426,31 @@ class BeastformServiceTest {
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
+        assertThat(result.getEvasion()).isEqualTo(3);
+        assertThat(result.getTier()).isEqualTo(2);
         assertThat(result.getAttackRange()).isEqualTo(Range.CLOSE);
         assertThat(result.getAttackTrait()).isEqualTo(Trait.STRENGTH);
         verify(beastformRepository).save(any(Beastform.class));
+    }
+
+    @Test
+    void updateBeastform_NullEvasionAndTier_LeavesExistingValuesUnchanged() {
+        // Arrange
+        Beastform existingBeastform = createTestBeastform(1L, "Wolf", expansion);
+
+        UpdateBeastformRequest request = UpdateBeastformRequest.builder()
+                .name("Renamed Wolf")
+                .build();
+
+        when(beastformRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingBeastform));
+        when(beastformRepository.save(any(Beastform.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        BeastformResponse result = beastformService.updateBeastform(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getEvasion()).isEqualTo(2);
+        assertThat(result.getTier()).isEqualTo(1);
     }
 
     @Test
@@ -494,6 +550,8 @@ class BeastformServiceTest {
                 .createdBy(creator)
                 .isOfficial(true)
                 .isPublic(false)
+                .evasion(2)
+                .tier(1)
                 .attackRange(Range.MELEE)
                 .attackTrait(Trait.AGILITY)
                 .damage(DamageRoll.builder()

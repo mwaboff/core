@@ -146,15 +146,20 @@ public class BeastformService {
                 .name(request.getName())
                 .example(request.getExample())
                 .advantages(request.getAdvantages())
-                .agilityModifier(request.getAgilityModifier() != null ? request.getAgilityModifier() : 0)
-                .strengthModifier(request.getStrengthModifier() != null ? request.getStrengthModifier() : 0)
-                .finesseModifier(request.getFinesseModifier() != null ? request.getFinesseModifier() : 0)
-                .instinctModifier(request.getInstinctModifier() != null ? request.getInstinctModifier() : 0)
-                .presenceModifier(request.getPresenceModifier() != null ? request.getPresenceModifier() : 0)
-                .knowledgeModifier(request.getKnowledgeModifier() != null ? request.getKnowledgeModifier() : 0)
+                // evasion and the six trait modifiers are passed through as-is (no
+                // null-coalescing to 0): an omitted field must persist as NULL, not a
+                // manufactured zero -- see Beastform.agilityModifier for the full rationale.
+                .evasion(request.getEvasion())
+                .tier(request.getTier())
+                .agilityModifier(request.getAgilityModifier())
+                .strengthModifier(request.getStrengthModifier())
+                .finesseModifier(request.getFinesseModifier())
+                .instinctModifier(request.getInstinctModifier())
+                .presenceModifier(request.getPresenceModifier())
+                .knowledgeModifier(request.getKnowledgeModifier())
                 .attackRange(request.getAttackRange())
                 .attackTrait(request.getAttackTrait())
-                .damage(toDamageRoll(request.getDamage()))
+                .damage(request.getDamage() != null ? toDamageRoll(request.getDamage()) : null)
                 .expansion(expansion)
                 .createdBy(creator)
                 .isOfficial(request.getIsOfficial())
@@ -222,6 +227,12 @@ public class BeastformService {
         }
         if (request.getAdvantages() != null) {
             beastform.setAdvantages(request.getAdvantages());
+        }
+        if (request.getEvasion() != null) {
+            beastform.setEvasion(request.getEvasion());
+        }
+        if (request.getTier() != null) {
+            beastform.setTier(request.getTier());
         }
         if (request.getAgilityModifier() != null) {
             beastform.setAgilityModifier(request.getAgilityModifier());
@@ -374,6 +385,8 @@ public class BeastformService {
                 .name(beastform.getName())
                 .example(beastform.getExample())
                 .advantages(beastform.getAdvantages())
+                .evasion(beastform.getEvasion())
+                .tier(beastform.getTier())
                 .agilityModifier(beastform.getAgilityModifier())
                 .strengthModifier(beastform.getStrengthModifier())
                 .finesseModifier(beastform.getFinesseModifier())

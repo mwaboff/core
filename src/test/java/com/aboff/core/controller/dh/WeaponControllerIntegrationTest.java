@@ -406,6 +406,64 @@ class WeaponControllerIntegrationTest {
     }
 
     @Test
+    void createWeaponsBulk_WithRawJsonRealisticPayload_Returns201() throws Exception {
+        // Arrange - raw JSON string (not builder+serialize) matching the real bulk-import
+        // payload shape in hope_and_fear-import/json/07-weapons.json: a nested "features" array
+        // (find-or-create by name) and a flat-die damage roll with diceCount/modifier genuinely
+        // absent, as real weapons like "Broadsword" (d8, no count/modifier) actually send.
+        // Builder-based tests elsewhere in this file always serialize a fully-populated DTO, so
+        // they can't catch a Jackson deserialization regression on an omitted/null field the way
+        // a real client's JSON can; this test exercises that real path for the /bulk endpoint.
+        String bulkRequest = """
+            [
+                {
+                    "name": "Katana",
+                    "expansionId": %d,
+                    "tier": 1,
+                    "isOfficial": true,
+                    "isPrimary": true,
+                    "trait": "AGILITY",
+                    "range": "MELEE",
+                    "burden": "TWO_HANDED",
+                    "damage": { "diceType": "D10", "modifier": 3, "damageType": "PHYSICAL" },
+                    "features": [
+                        { "name": "Quick", "description": "When you make an attack, you can mark a Stress to target another creature within range.", "featureType": "ITEM", "expansionId": %d }
+                    ]
+                },
+                {
+                    "name": "Broadsword",
+                    "expansionId": %d,
+                    "tier": 1,
+                    "isOfficial": true,
+                    "isPrimary": true,
+                    "trait": "AGILITY",
+                    "range": "MELEE",
+                    "burden": "ONE_HANDED",
+                    "damage": { "diceType": "D8", "damageType": "PHYSICAL" }
+                }
+            ]
+            """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/weapons/bulk")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bulkRequest))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].name").value("Katana"))
+                .andExpect(jsonPath("$[0].featureIds").isArray())
+                .andExpect(jsonPath("$[0].featureIds.length()").value(1))
+                .andExpect(jsonPath("$[0].damage.diceCount").value((Object) null))
+                .andExpect(jsonPath("$[1].name").value("Broadsword"))
+                .andExpect(jsonPath("$[1].damage.diceCount").value((Object) null))
+                .andExpect(jsonPath("$[1].damage.modifier").value((Object) null));
+
+        assertThat(weaponRepository.findAll()).hasSize(2);
+        assertThat(featureRepository.findAll()).hasSize(1);
+    }
+
+    @Test
     void createWeaponsBulk_AsUser_Returns403() throws Exception {
         // Arrange
         CreateWeaponRequest request = CreateWeaponRequest.builder()

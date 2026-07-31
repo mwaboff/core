@@ -71,80 +71,116 @@ public class Beastform extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String advantages;
 
+    /**
+     * Modifier applied to Evasion while in this beastform.
+     * Printed on most beastform cards (e.g. "Evasion +2"), but the two "Evolved" meta-cards
+     * (Legendary Beast, Mythic Beast) print no stat line at all -- their mechanical effects are
+     * prose in the feature text, applied manually by the player. NULL means "this card prints
+     * no Evasion value"; it is intentionally not defaulted to 0, since a printed "Evasion +0"
+     * and "no Evasion line printed" are different statements and a defaulted column cannot
+     * distinguish them (see the six trait modifiers below for the fuller rationale).
+     */
+    @Column(name = "evasion")
+    private Integer evasion;
+
+    /**
+     * The beastform's tier (1-4), matching the tier grouping printed on the rulebook cards.
+     * Determines which forms a Druid can access as they level up. Required with no default,
+     * following the same convention as {@code Weapon}/{@code Armor}/{@code Loot}/{@code Adversary}.
+     */
+    @Column(name = "tier", nullable = false)
+    private Integer tier;
+
     // ========== Trait Modifiers ==========
 
     /**
      * Modifier applied to AGILITY trait while in this beastform.
-     * Can be positive (bonus), negative (penalty), or zero (no change).
+     * Can be positive (bonus), negative (penalty), or {@code null}.
+     * <p>
+     * {@code null} means the card prints no Agility bonus line at all (e.g. the two "Evolved"
+     * meta-cards, which apply their trait bonus to whichever base form was already chosen and
+     * describe it in prose rather than a per-trait column). This is intentionally distinct
+     * from an explicit {@code 0}: a {@code NOT NULL DEFAULT 0} column would silently turn
+     * "not specified in the source data" into "the beastform grants +0", which is the same
+     * defect shape that left a large fraction of the loot catalog mis-tiered in prod after an
+     * earlier import omitted {@code tier} into a defaulted column. Callers that want an
+     * on-the-record zero for an untouched trait must send it explicitly.
      */
-    @Column(name = "agility_modifier", nullable = false)
-    @Builder.Default
-    private Integer agilityModifier = 0;
+    @Column(name = "agility_modifier")
+    private Integer agilityModifier;
 
     /**
-     * Modifier applied to STRENGTH trait while in this beastform.
+     * Modifier applied to STRENGTH trait while in this beastform. See {@link #agilityModifier}
+     * for the {@code null}-vs-zero rationale.
      */
-    @Column(name = "strength_modifier", nullable = false)
-    @Builder.Default
-    private Integer strengthModifier = 0;
+    @Column(name = "strength_modifier")
+    private Integer strengthModifier;
 
     /**
-     * Modifier applied to FINESSE trait while in this beastform.
+     * Modifier applied to FINESSE trait while in this beastform. See {@link #agilityModifier}
+     * for the {@code null}-vs-zero rationale.
      */
-    @Column(name = "finesse_modifier", nullable = false)
-    @Builder.Default
-    private Integer finesseModifier = 0;
+    @Column(name = "finesse_modifier")
+    private Integer finesseModifier;
 
     /**
-     * Modifier applied to INSTINCT trait while in this beastform.
+     * Modifier applied to INSTINCT trait while in this beastform. See {@link #agilityModifier}
+     * for the {@code null}-vs-zero rationale.
      */
-    @Column(name = "instinct_modifier", nullable = false)
-    @Builder.Default
-    private Integer instinctModifier = 0;
+    @Column(name = "instinct_modifier")
+    private Integer instinctModifier;
 
     /**
-     * Modifier applied to PRESENCE trait while in this beastform.
+     * Modifier applied to PRESENCE trait while in this beastform. See {@link #agilityModifier}
+     * for the {@code null}-vs-zero rationale.
      */
-    @Column(name = "presence_modifier", nullable = false)
-    @Builder.Default
-    private Integer presenceModifier = 0;
+    @Column(name = "presence_modifier")
+    private Integer presenceModifier;
 
     /**
-     * Modifier applied to KNOWLEDGE trait while in this beastform.
+     * Modifier applied to KNOWLEDGE trait while in this beastform. See {@link #agilityModifier}
+     * for the {@code null}-vs-zero rationale.
      */
-    @Column(name = "knowledge_modifier", nullable = false)
-    @Builder.Default
-    private Integer knowledgeModifier = 0;
+    @Column(name = "knowledge_modifier")
+    private Integer knowledgeModifier;
 
     // ========== Combat Information ==========
 
     /**
      * The effective range of attacks in this beastform.
      * Determines the distance at which the beastform can effectively engage targets.
+     * Nullable: the two "Evolved" cards (Legendary Beast T3, Mythic Beast T4) print no
+     * attack range at all -- they upgrade an earlier pick's combat stats via prose rather
+     * than defining their own.
      */
     @Enumerated(EnumType.STRING)
-    @Column(name = "attack_range", nullable = false, length = 20)
+    @Column(name = "attack_range", length = 20)
     private Range attackRange;
 
     /**
      * The trait used for attack rolls in this beastform.
      * Determines which character attribute contributes to attack rolls.
+     * Nullable for the same "Evolved" cards as {@link #attackRange}.
      */
     @Enumerated(EnumType.STRING)
-    @Column(name = "attack_trait", nullable = false, length = 20)
+    @Column(name = "attack_trait", length = 20)
     private Trait attackTrait;
 
     /**
      * The damage roll for attacks made in this beastform.
      * Embedded component containing dice count, dice type, modifier, and damage type.
      * Maps to multiple database columns (damage_dice_count, damage_dice_type, etc.).
+     * Nullable (dice type and damage type overridden to allow NULL below) for the same
+     * "Evolved" cards as {@link #attackRange} -- the {@link DamageRoll} embeddable itself
+     * declares {@code diceType}/{@code damageType} NOT NULL by default for other entities
+     * (e.g. {@code Weapon}), so those two columns are overridden here specifically.
      */
     @Embedded
     @AttributeOverrides({
         @AttributeOverride(name = "diceCount", column = @Column(name = "damage_dice_count")),
-        @AttributeOverride(name = "diceType", column = @Column(name = "damage_dice_type", length = 10)),
+        @AttributeOverride(name = "diceType", column = @Column(name = "damage_dice_type", length = 10, nullable = true)),
         @AttributeOverride(name = "modifier", column = @Column(name = "damage_modifier")),
-        @AttributeOverride(name = "damageType", column = @Column(name = "damage_type", length = 10))
+        @AttributeOverride(name = "damageType", column = @Column(name = "damage_type", length = 10, nullable = true))
     })
     private DamageRoll damage;
 
