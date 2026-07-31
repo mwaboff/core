@@ -53,6 +53,7 @@ public class DomainService {
      * @param size Number of items per page
      * @param includeDeleted Whether to include soft-deleted domains
      * @param expansionId Optional filter for expansion ID
+     * @param isOfficial Optional filter for official status
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing domains
      */
@@ -62,6 +63,7 @@ public class DomainService {
             int size,
             boolean includeDeleted,
             Long expansionId,
+            Boolean isOfficial,
             String expand) {
 
         // Limit page size to 100
@@ -72,10 +74,10 @@ public class DomainService {
 
         if (includeDeleted) {
             // Include deleted items (admin only)
-            domainPage = domainRepository.findAllWithExpansion(expansionId, pageable);
+            domainPage = domainRepository.findAllWithFilters(expansionId, isOfficial, pageable);
         } else {
             // Exclude deleted items (default)
-            domainPage = domainRepository.findByDeletedAtIsNullAndExpansion(expansionId, pageable);
+            domainPage = domainRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -126,6 +128,7 @@ public class DomainService {
                 .name(request.getName())
                 .iconUrl(request.getIconUrl())
                 .description(request.getDescription())
+                .isOfficial(request.getIsOfficial() != null ? request.getIsOfficial() : true)
                 .expansion(expansion)
                 .build();
 
@@ -157,6 +160,7 @@ public class DomainService {
                             .name(request.getName())
                             .iconUrl(request.getIconUrl())
                             .description(request.getDescription())
+                            .isOfficial(request.getIsOfficial() != null ? request.getIsOfficial() : true)
                             .expansion(expansion)
                             .build();
                 })
@@ -195,6 +199,9 @@ public class DomainService {
         }
         if (request.getDescription() != null) {
             domain.setDescription(request.getDescription());
+        }
+        if (request.getIsOfficial() != null) {
+            domain.setIsOfficial(request.getIsOfficial());
         }
         if (request.getExpansionId() != null) {
             Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -273,6 +280,7 @@ public class DomainService {
                 .name(domain.getName())
                 .iconUrl(domain.getIconUrl())
                 .description(domain.getDescription())
+                .isOfficial(domain.getIsOfficial())
                 .expansionId(domain.getExpansion().getId())
                 .createdAt(domain.getCreatedAt())
                 .lastModifiedAt(domain.getLastModifiedAt())

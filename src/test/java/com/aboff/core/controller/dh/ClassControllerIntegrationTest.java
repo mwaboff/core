@@ -144,6 +144,108 @@ class ClassControllerIntegrationTest {
     }
 
     @Test
+    void getAllClasses_FilterByIsOfficialTrue_ReturnsOnlyOfficial() throws Exception {
+        // Arrange
+        createClass("Official Class", "Desc 1", testExpansion, true);
+        createClass("Homebrew Class", "Desc 2", testExpansion, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/classes")
+                        .param("isOfficial", "true")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Official Class"))
+                .andExpect(jsonPath("$.content[0].isOfficial").value(true));
+    }
+
+    @Test
+    void getAllClasses_FilterByIsOfficialFalse_ReturnsOnlyNonOfficial() throws Exception {
+        // Arrange
+        createClass("Official Class", "Desc 1", testExpansion, true);
+        createClass("Homebrew Class", "Desc 2", testExpansion, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/classes")
+                        .param("isOfficial", "false")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Homebrew Class"))
+                .andExpect(jsonPath("$.content[0].isOfficial").value(false));
+    }
+
+    @Test
+    void getAllClasses_WithoutIsOfficialFilter_ReturnsBoth() throws Exception {
+        // Arrange
+        createClass("Official Class", "Desc 1", testExpansion, true);
+        createClass("Homebrew Class", "Desc 2", testExpansion, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/classes")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void createClass_WithRawJsonIsOfficialFalse_PersistsNonOfficial() throws Exception {
+        // Arrange - raw JSON string rather than builder+serialize: a builder-based fixture
+        // cannot catch a missing isOfficial field on CreateClassRequest, because the builder
+        // would simply not compile. Only a real client's JSON exercises the Jackson path
+        // where an unmapped property is silently dropped.
+        String requestJson = """
+            {
+                "name": "Homebrew Class",
+                "description": "Not official content",
+                "isOfficial": false,
+                "expansionId": %d,
+                "startingEvasion": 10,
+                "startingHitPoints": 6
+            }
+            """.formatted(testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/classes")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(false));
+
+        assertThat(classRepository.findAll())
+                .singleElement()
+                .satisfies(clazz -> assertThat(clazz.getIsOfficial()).isFalse());
+    }
+
+    @Test
+    void createClass_WithRawJsonOmittingIsOfficial_DefaultsToTrue() throws Exception {
+        // Arrange - existing clients do not send isOfficial and must keep getting official content
+        String requestJson = """
+            {
+                "name": "Warlock",
+                "description": "A wielder of borrowed power",
+                "expansionId": %d,
+                "startingEvasion": 10,
+                "startingHitPoints": 6
+            }
+            """.formatted(testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/classes")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(true));
+
+        assertThat(classRepository.findAll())
+                .singleElement()
+                .satisfies(clazz -> assertThat(clazz.getIsOfficial()).isTrue());
+    }
+
+    @Test
     void getAllClasses_WithExpand_IncludesExpansion() throws Exception {
         // Arrange
         createClass("Warrior", "Warrior description", testExpansion);
@@ -629,12 +731,20 @@ class ClassControllerIntegrationTest {
     }
 
     private Class createClass(String name, String description, Expansion expansion) {
+        return createClass(name, description, expansion, true);
+    }
+
+    /**
+     * Creates a test class in the database with an explicit official status.
+     */
+    private Class createClass(String name, String description, Expansion expansion, Boolean isOfficial) {
         Class clazz = Class.builder()
                 .name(name)
                 .description(description)
                 .expansion(expansion)
                 .startingEvasion(10)
                 .startingHitPoints(20)
+                .isOfficial(isOfficial)
                 .build();
         return classRepository.save(clazz);
     }

@@ -167,6 +167,119 @@ class DomainControllerIntegrationTest {
     }
 
     /**
+     * Tests filtering by official status narrows the result set.
+     */
+    @Test
+    void getAllDomains_FilterByIsOfficialTrue_ReturnsOnlyOfficial() throws Exception {
+        // Arrange
+        createDomain("Official Domain", "Desc 1", testExpansion, true);
+        createDomain("Homebrew Domain", "Desc 2", testExpansion, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/domains")
+                        .param("isOfficial", "true")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Official Domain"))
+                .andExpect(jsonPath("$.content[0].isOfficial").value(true));
+    }
+
+    /**
+     * Tests filtering by non-official status narrows the result set.
+     */
+    @Test
+    void getAllDomains_FilterByIsOfficialFalse_ReturnsOnlyNonOfficial() throws Exception {
+        // Arrange
+        createDomain("Official Domain", "Desc 1", testExpansion, true);
+        createDomain("Homebrew Domain", "Desc 2", testExpansion, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/domains")
+                        .param("isOfficial", "false")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Homebrew Domain"))
+                .andExpect(jsonPath("$.content[0].isOfficial").value(false));
+    }
+
+    /**
+     * Tests omitting the official filter returns both official and non-official domains.
+     */
+    @Test
+    void getAllDomains_WithoutIsOfficialFilter_ReturnsBoth() throws Exception {
+        // Arrange
+        createDomain("Official Domain", "Desc 1", testExpansion, true);
+        createDomain("Homebrew Domain", "Desc 2", testExpansion, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/domains")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    /**
+     * Tests that a raw JSON create payload is deserialized into the isOfficial field.
+     */
+    @Test
+    void createDomain_WithRawJsonIsOfficialFalse_PersistsNonOfficial() throws Exception {
+        // Arrange - raw JSON string rather than builder+serialize: a builder-based fixture
+        // cannot catch a missing isOfficial field on CreateDomainRequest, because the builder
+        // would simply not compile. Only a real client's JSON exercises the Jackson path
+        // where an unmapped property is silently dropped.
+        String requestJson = """
+            {
+                "name": "Homebrew Domain",
+                "description": "Not official content",
+                "isOfficial": false,
+                "expansionId": %d
+            }
+            """.formatted(testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/domains")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(false));
+
+        assertThat(domainRepository.findAll())
+                .singleElement()
+                .satisfies(domain -> assertThat(domain.getIsOfficial()).isFalse());
+    }
+
+    /**
+     * Tests that omitting isOfficial from a raw JSON create payload defaults it to true.
+     */
+    @Test
+    void createDomain_WithRawJsonOmittingIsOfficial_DefaultsToTrue() throws Exception {
+        // Arrange - existing clients do not send isOfficial and must keep getting official content
+        String requestJson = """
+            {
+                "name": "Dread",
+                "description": "The domain of fear",
+                "expansionId": %d
+            }
+            """.formatted(testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/domains")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(true));
+
+        assertThat(domainRepository.findAll())
+                .singleElement()
+                .satisfies(domain -> assertThat(domain.getIsOfficial()).isTrue());
+    }
+
+    /**
      * Tests expand parameter includes expansion details.
      */
     @Test
@@ -599,13 +712,21 @@ class DomainControllerIntegrationTest {
     }
 
     /**
-     * Creates a test domain in the database.
+     * Creates an official test domain in the database.
      */
     private Domain createDomain(String name, String description, Expansion expansion) {
+        return createDomain(name, description, expansion, true);
+    }
+
+    /**
+     * Creates a test domain in the database with an explicit official status.
+     */
+    private Domain createDomain(String name, String description, Expansion expansion, Boolean isOfficial) {
         Domain domain = Domain.builder()
                 .name(name)
                 .description(description)
                 .expansion(expansion)
+                .isOfficial(isOfficial)
                 .build();
         return domainRepository.save(domain);
     }

@@ -21,6 +21,7 @@ Retrieve a paginated list of classes.
 | `size` | `int` | `20` | Items per page (max: 100) |
 | `includeDeleted` | `boolean` | `false` | Include soft-deleted classes (ADMIN+ only) |
 | `expansionId` | `Long` | — | Filter by expansion ID |
+| `isOfficial` | `Boolean` | — | Filter by official status |
 | `expand` | `String` | — | Comma-separated list of relationships to expand |
 
 #### Expand Options
@@ -155,6 +156,7 @@ Create a new class.
 |---|---|---|---|---|
 | `name` | `String` | Yes | Max 100 chars; not blank | Class name |
 | `description` | `String` | No | — | Class description |
+| `isOfficial` | `Boolean` | No | Defaults to `true` when omitted | Whether this is official game content |
 | `expansionId` | `Long` | Yes | Must reference existing expansion | Expansion this class belongs to |
 | `startingClassItems` | `String` | No | — | Description of starting class items |
 | `startingEvasion` | `Integer` | Yes | Must be positive | Starting evasion score |
@@ -351,6 +353,7 @@ Update an existing class.
 |---|---|---|---|---|
 | `name` | `String` | Yes | Max 100 chars; not blank | Class name |
 | `description` | `String` | No | — | Class description |
+| `isOfficial` | `Boolean` | No | Omit to leave unchanged | Whether this is official game content |
 | `expansionId` | `Long` | Yes | Must reference existing expansion | Expansion this class belongs to |
 | `startingClassItems` | `String` | No | — | Description of starting class items |
 | `startingEvasion` | `Integer` | Yes | Must be positive | Starting evasion score |

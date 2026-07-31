@@ -608,6 +608,136 @@ class AdversaryControllerIntegrationTest {
     }
 
     @Test
+    void createAdversariesBulk_WithRawJsonIsOfficial_PersistsOfficialFlag() throws Exception {
+        // Arrange - raw JSON string (not builder+serialize) matching the real bulk-import
+        // payload shape in hope_and_fear-import/json/10-adversaries.json. The first entry sends
+        // "isOfficial": true (official content import); the second omits it entirely.
+        // Builder-based tests can't catch a missing isOfficial field on CreateAdversaryRequest,
+        // because the builder simply wouldn't compile - only a real client's JSON exercises the
+        // Jackson deserialization path where an unmapped property is silently dropped.
+        String bulkRequest = """
+            [
+                {
+                    "name": "Bugboar",
+                    "tier": 1,
+                    "adversaryType": "BRUISER",
+                    "difficulty": 13,
+                    "majorThreshold": 8,
+                    "severeThreshold": 15,
+                    "isOfficial": true,
+                    "expansionId": %d
+                },
+                {
+                    "name": "Atototl",
+                    "tier": 1,
+                    "adversaryType": "STANDARD",
+                    "difficulty": 12,
+                    "majorThreshold": 8,
+                    "severeThreshold": 12,
+                    "expansionId": %d
+                }
+            ]
+            """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/adversaries/bulk")
+                        .cookie(new Cookie("AUTH_TOKEN", ownerToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bulkRequest))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$[0].name").value("Bugboar"))
+                .andExpect(jsonPath("$[0].isOfficial").value(true))
+                // isOfficial is deliberately omitted from Atototl's JSON above, so this asserts
+                // AdversaryService's null-coalescing default fires on the real deserialization path
+                .andExpect(jsonPath("$[1].name").value("Atototl"))
+                .andExpect(jsonPath("$[1].isOfficial").value(false));
+
+        assertThat(adversaryRepository.findAll())
+                .filteredOn(adversary -> "Bugboar".equals(adversary.getName()))
+                .singleElement()
+                .satisfies(adversary -> assertThat(adversary.getIsOfficial()).isTrue());
+    }
+
+    @Test
+    void updateAdversary_WithRawJsonIsOfficial_PersistsOfficialFlag() throws Exception {
+        // Arrange - raw JSON for the same reason as the bulk create test above: only real client
+        // JSON proves UpdateAdversaryRequest actually maps the isOfficial property.
+        Adversary adversary = createAdversary("Goblin", testExpansion, false, true, ownerUser, AdversaryType.MINION, 1);
+        String requestJson = """
+            {
+                "isOfficial": true
+            }
+            """;
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/adversaries/{id}", adversary.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", ownerToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(true));
+
+        assertThat(adversaryRepository.findById(adversary.getId()))
+                .get()
+                .satisfies(updated -> assertThat(updated.getIsOfficial()).isTrue());
+    }
+
+    @Test
+    void createAdversary_AsUserRequestingIsOfficial_PersistsNonOfficial() throws Exception {
+        // Arrange - security regression test: single create has no role gate, so an ordinary
+        // homebrew author must not be able to mint content that presents as official app-wide
+        String requestJson = """
+            {
+                "name": "Fake Official Goblin",
+                "tier": 1,
+                "adversaryType": "MINION",
+                "difficulty": 5,
+                "majorThreshold": 3,
+                "severeThreshold": 6,
+                "isOfficial": true,
+                "expansionId": %d
+            }
+            """.formatted(testExpansion.getId());
+
+        // Act & Assert - the request succeeds, but the official flag is silently coerced to false
+        mockMvc.perform(post("/api/dh/adversaries")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.isOfficial").value(false));
+
+        assertThat(adversaryRepository.findAll())
+                .singleElement()
+                .satisfies(adversary -> assertThat(adversary.getIsOfficial()).isFalse());
+    }
+
+    @Test
+    void updateAdversary_AsCreatorRequestingIsOfficial_PersistsNonOfficial() throws Exception {
+        // Arrange - security regression test: owning an adversary must not let a non-moderator
+        // escalate it to official content
+        Adversary adversary = createAdversary("Homebrew Goblin", testExpansion, false, false, regularUser,
+                AdversaryType.MINION, 1);
+        String requestJson = """
+            {
+                "isOfficial": true
+            }
+            """;
+
+        // Act & Assert
+        mockMvc.perform(put("/api/dh/adversaries/{id}", adversary.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(false));
+
+        assertThat(adversaryRepository.findById(adversary.getId()))
+                .get()
+                .satisfies(updated -> assertThat(updated.getIsOfficial()).isFalse());
+    }
+
+    @Test
     void createAdversariesBulk_AsUser_Returns403() throws Exception {
         // Arrange
         String bulkRequest = """

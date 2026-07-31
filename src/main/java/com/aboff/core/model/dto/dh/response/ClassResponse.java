@@ -22,6 +22,7 @@ public class ClassResponse {
     private Long id;
     private String name;
     private String description;
+    private Boolean isOfficial;
     private Long expansionId;
     private ExpansionResponse expansion;
     private String startingClassItems;

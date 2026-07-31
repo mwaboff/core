@@ -41,6 +41,7 @@ public class DomainController {
      * @param size Number of items per page (default: 20, max: 100)
      * @param includeDeleted Whether to include soft-deleted domains (default: false, ADMIN+ only)
      * @param expansionId Optional filter for expansion ID
+     * @param isOfficial Optional filter for official status
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion")
      * @return Paginated response containing domains
      */
@@ -50,10 +51,11 @@ public class DomainController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(required = false) Long expansionId,
+            @RequestParam(required = false) Boolean isOfficial,
             @RequestParam(required = false) String expand) {
 
         PagedResponse<DomainResponse> response = domainService.getAllDomains(
-                page, size, includeDeleted, expansionId, expand);
+                page, size, includeDeleted, expansionId, isOfficial, expand);
 
         return ResponseEntity.ok(response);
     }

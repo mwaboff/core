@@ -19,28 +19,34 @@ import java.util.Optional;
 public interface ClassRepository extends JpaRepository<Class, Long> {
 
     /**
-     * Finds all non-deleted classes with optional expansion filter.
+     * Finds all non-deleted classes with optional filters.
      *
      * @param expansionId Optional filter for expansion ID
+     * @param isOfficial Optional filter for official status
      * @param pageable Pagination information
      * @return Page of non-deleted classes matching the criteria
      */
     @Query("SELECT c FROM Class c WHERE c.deletedAt IS NULL " +
-           "AND (:expansionId IS NULL OR c.expansion.id = :expansionId)")
-    Page<Class> findByDeletedAtIsNullAndExpansion(
+           "AND (:expansionId IS NULL OR c.expansion.id = :expansionId) " +
+           "AND (:isOfficial IS NULL OR c.isOfficial = :isOfficial)")
+    Page<Class> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
+            @Param("isOfficial") Boolean isOfficial,
             Pageable pageable);
 
     /**
-     * Finds all classes with optional expansion filter, including soft-deleted ones.
+     * Finds all classes with optional filters, including soft-deleted ones.
      *
      * @param expansionId Optional filter for expansion ID
+     * @param isOfficial Optional filter for official status
      * @param pageable Pagination information
      * @return Page of all classes matching the criteria
      */
-    @Query("SELECT c FROM Class c WHERE :expansionId IS NULL OR c.expansion.id = :expansionId")
-    Page<Class> findAllWithExpansion(
+    @Query("SELECT c FROM Class c WHERE (:expansionId IS NULL OR c.expansion.id = :expansionId) " +
+           "AND (:isOfficial IS NULL OR c.isOfficial = :isOfficial)")
+    Page<Class> findAllWithFilters(
             @Param("expansionId") Long expansionId,
+            @Param("isOfficial") Boolean isOfficial,
             Pageable pageable);
 
     /**

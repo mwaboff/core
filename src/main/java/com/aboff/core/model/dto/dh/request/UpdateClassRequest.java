@@ -23,6 +23,9 @@ public class UpdateClassRequest {
 
     private String description;
 
+    /** Whether this class is from official game content. */
+    private Boolean isOfficial;
+
     private Long expansionId;
 
     private String startingClassItems;

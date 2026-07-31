@@ -115,7 +115,7 @@ public class SearchFieldMapping {
 
     /**
      * Builds search index data for a {@link Domain} entity.
-     * Weight A: name. Weight B: description. Filter: expansionId.
+     * Weight A: name. Weight B: description. Filter: expansionId, isOfficial.
      *
      * @param domain the domain entity
      * @return populated search index data
@@ -128,12 +128,13 @@ public class SearchFieldMapping {
                 .nameText(domain.getName())
                 .descriptionText(domain.getDescription())
                 .expansionId(expansionId(domain.getExpansion()))
+                .isOfficial(domain.getIsOfficial())
                 .build();
     }
 
     /**
      * Builds search index data for a {@link Class} entity.
-     * Weight A: name. Weight B: description + startingClassItems. Filter: expansionId.
+     * Weight A: name. Weight B: description + startingClassItems. Filter: expansionId, isOfficial.
      *
      * @param cls the class entity
      * @return populated search index data
@@ -146,6 +147,7 @@ public class SearchFieldMapping {
                 .nameText(cls.getName())
                 .descriptionText(joinNonNull(cls.getDescription(), cls.getStartingClassItems()))
                 .expansionId(expansionId(cls.getExpansion()))
+                .isOfficial(cls.getIsOfficial())
                 .build();
     }
 
@@ -223,7 +225,7 @@ public class SearchFieldMapping {
     /**
      * Builds search index data for a {@link CommunityCard} entity.
      * Weight A: name. Weight B: description. Weight C: features text.
-     * Filter: expansionId, cardType.
+     * Filter: expansionId, isOfficial, cardType.
      *
      * <p>See {@link #buildForAncestryCard(AncestryCard)} for why {@code cardType} is hardcoded
      * rather than read from the entity's own (discriminator-backed) {@code cardType} field.
@@ -240,6 +242,7 @@ public class SearchFieldMapping {
                 .descriptionText(card.getDescription())
                 .featureText(extractFeatureText(card.getFeatures()))
                 .expansionId(expansionId(card.getExpansion()))
+                .isOfficial(card.getIsOfficial())
                 .cardType(CardType.COMMUNITY.name())
                 .build();
     }

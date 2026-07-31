@@ -72,7 +72,7 @@ class TransformationCardLoadoutCapRegressionTest {
         expansion = expansionRepository.save(
                 Expansion.builder().name("Hope & Fear").isPublished(true).build());
         domain = domainRepository.save(
-                Domain.builder().name("Blade").expansion(expansion).build());
+                Domain.builder().name("Blade").expansion(expansion).isOfficial(true).build());
 
         User owner = userRepository.save(User.builder()
                 .username("loadout-tester")

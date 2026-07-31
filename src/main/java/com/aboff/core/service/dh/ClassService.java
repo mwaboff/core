@@ -62,6 +62,7 @@ public class ClassService {
      * @param size Number of items per page
      * @param includeDeleted Whether to include soft-deleted classes
      * @param expansionId Optional filter for expansion ID
+     * @param isOfficial Optional filter for official status
      * @param expand Comma-separated list of relationships to expand
      * @return Paginated response containing classes
      */
@@ -71,6 +72,7 @@ public class ClassService {
             int size,
             boolean includeDeleted,
             Long expansionId,
+            Boolean isOfficial,
             String expand) {
 
         size = Math.min(size, 100);
@@ -78,9 +80,9 @@ public class ClassService {
         Page<Class> classPage;
 
         if (includeDeleted) {
-            classPage = classRepository.findAllWithExpansion(expansionId, pageable);
+            classPage = classRepository.findAllWithFilters(expansionId, isOfficial, pageable);
         } else {
-            classPage = classRepository.findByDeletedAtIsNullAndExpansion(expansionId, pageable);
+            classPage = classRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -176,6 +178,9 @@ public class ClassService {
         }
         if (request.getDescription() != null) {
             clazz.setDescription(request.getDescription());
+        }
+        if (request.getIsOfficial() != null) {
+            clazz.setIsOfficial(request.getIsOfficial());
         }
         if (request.getExpansionId() != null) {
             Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -303,6 +308,7 @@ public class ClassService {
         Class clazz = Class.builder()
                 .name(request.getName())
                 .description(request.getDescription())
+                .isOfficial(request.getIsOfficial() != null ? request.getIsOfficial() : true)
                 .expansion(expansion)
                 .startingClassItems(request.getStartingClassItems())
                 .startingEvasion(request.getStartingEvasion())
@@ -358,6 +364,7 @@ public class ClassService {
                 .id(clazz.getId())
                 .name(clazz.getName())
                 .description(clazz.getDescription())
+                .isOfficial(clazz.getIsOfficial())
                 .expansionId(clazz.getExpansion().getId())
                 .startingClassItems(clazz.getStartingClassItems())
                 .startingEvasion(clazz.getStartingEvasion())

@@ -85,11 +85,11 @@ class DomainServiceTest {
                 .build();
 
         Page<Domain> domainPage = new PageImpl<>(List.of(domain1, domain2));
-        when(domainRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
-        PagedResponse<DomainResponse> result = domainService.getAllDomains(0, 20, false, null, null);
+        PagedResponse<DomainResponse> result = domainService.getAllDomains(0, 20, false, null, null, null);
 
         // Assert
         assertThat(result).isNotNull();
@@ -120,16 +120,16 @@ class DomainServiceTest {
                 .build();
 
         Page<Domain> domainPage = new PageImpl<>(List.of(domain));
-        when(domainRepository.findByDeletedAtIsNullAndExpansion(eq(1L), any(Pageable.class)))
+        when(domainRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
-        PagedResponse<DomainResponse> result = domainService.getAllDomains(0, 20, false, 1L, null);
+        PagedResponse<DomainResponse> result = domainService.getAllDomains(0, 20, false, 1L, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(domainRepository).findByDeletedAtIsNullAndExpansion(eq(1L), any(Pageable.class));
+        verify(domainRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -151,30 +151,31 @@ class DomainServiceTest {
                 .build();
 
         Page<Domain> domainPage = new PageImpl<>(List.of(domain));
-        when(domainRepository.findAllWithExpansion(isNull(), any(Pageable.class)))
+        when(domainRepository.findAllWithFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
-        PagedResponse<DomainResponse> result = domainService.getAllDomains(0, 20, true, null, null);
+        PagedResponse<DomainResponse> result = domainService.getAllDomains(0, 20, true, null, null, null);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeletedAt()).isNotNull();
-        verify(domainRepository).findAllWithExpansion(isNull(), any(Pageable.class));
+        verify(domainRepository).findAllWithFilters(isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
     void getAllDomains_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Domain> domainPage = new PageImpl<>(List.of());
-        when(domainRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
-        domainService.getAllDomains(0, 500, false, null, null);
+        domainService.getAllDomains(0, 500, false, null, null, null);
 
         // Assert
-        verify(domainRepository).findByDeletedAtIsNullAndExpansion(
+        verify(domainRepository).findByDeletedAtIsNullAndFilters(
+                isNull(),
                 isNull(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
@@ -200,11 +201,11 @@ class DomainServiceTest {
                 .build();
 
         Page<Domain> domainPage = new PageImpl<>(List.of(domain));
-        when(domainRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
-        PagedResponse<DomainResponse> result = domainService.getAllDomains(0, 20, false, null, "expansion");
+        PagedResponse<DomainResponse> result = domainService.getAllDomains(0, 20, false, null, null, "expansion");
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -339,6 +340,63 @@ class DomainServiceTest {
     }
 
     @Test
+    void createDomain_OmittedIsOfficial_DefaultsToTrue() {
+        // Arrange — these entities have no @DynamicInsert, so Hibernate always names
+        // is_official in the INSERT and the database DEFAULT never applies to new rows.
+        // The default has to come from the service.
+        Expansion expansion = Expansion.builder()
+                .id(1L)
+                .name("Core Rulebook")
+                .isPublished(true)
+                .build();
+
+        CreateDomainRequest request = CreateDomainRequest.builder()
+                .name("Arcana")
+                .description("Magic and spells")
+                .expansionId(1L)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(expansion));
+        when(domainRepository.save(any(Domain.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        DomainResponse result = domainService.createDomain(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void createDomain_ExplicitIsOfficialFalse_PersistsFalse() {
+        // Arrange
+        Expansion expansion = Expansion.builder()
+                .id(1L)
+                .name("Core Rulebook")
+                .isPublished(true)
+                .build();
+
+        CreateDomainRequest request = CreateDomainRequest.builder()
+                .name("Homebrew Domain")
+                .description("Not official content")
+                .isOfficial(false)
+                .expansionId(1L)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(expansion));
+        when(domainRepository.save(any(Domain.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        DomainResponse result = domainService.createDomain(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
     void createDomain_ExpansionNotFound_ThrowsEntityNotFoundException() {
         // Arrange
         CreateDomainRequest request = CreateDomainRequest.builder()
@@ -464,6 +522,73 @@ class DomainServiceTest {
                         domain.getIconUrl().equals("https://icon.url/updated") &&
                         domain.getDescription().equals("Updated description")
         ));
+    }
+
+    @Test
+    void updateDomain_IsOfficialFalse_MarksDomainNonOfficial() {
+        // Arrange
+        Expansion expansion = Expansion.builder()
+                .id(1L)
+                .name("Core Rulebook")
+                .isPublished(true)
+                .build();
+
+        Domain existingDomain = Domain.builder()
+                .id(1L)
+                .name("Arcana")
+                .isOfficial(true)
+                .expansion(expansion)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateDomainRequest request = UpdateDomainRequest.builder()
+                .isOfficial(false)
+                .build();
+
+        when(domainRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(existingDomain));
+        when(domainRepository.save(any(Domain.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        DomainResponse result = domainService.updateDomain(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
+    void updateDomain_NullIsOfficial_LeavesOfficialFlagUnchanged() {
+        // Arrange — partial-update convention: an omitted isOfficial must not
+        // silently un-officialize catalog content
+        Expansion expansion = Expansion.builder()
+                .id(1L)
+                .name("Core Rulebook")
+                .isPublished(true)
+                .build();
+
+        Domain existingDomain = Domain.builder()
+                .id(1L)
+                .name("Arcana")
+                .isOfficial(true)
+                .expansion(expansion)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateDomainRequest request = UpdateDomainRequest.builder()
+                .name("Arcana Revised")
+                .build();
+
+        when(domainRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(existingDomain));
+        when(domainRepository.save(any(Domain.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        DomainResponse result = domainService.updateDomain(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
     }
 
     @Test

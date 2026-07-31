@@ -508,6 +508,7 @@ class DomainCardControllerIntegrationTest {
                 .name(name)
                 .description(description)
                 .expansion(expansion)
+                .isOfficial(true)
                 .build();
         return domainRepository.save(domain);
     }

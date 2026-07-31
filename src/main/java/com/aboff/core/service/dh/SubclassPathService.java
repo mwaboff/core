@@ -336,7 +336,10 @@ public class SubclassPathService {
                     if (updated) {
                         log.debug("Updated existing subclass path with id: {} with missing attributes",
                                 existingPath.getId());
-                        return subclassPathRepository.save(existingPath);
+                        SubclassPath updatedPath = subclassPathRepository.save(existingPath);
+                        eventPublisher.publishEvent(
+                                new EntityChangeEvent(this, updatedPath, EntityChangeEvent.ChangeType.UPDATED));
+                        return updatedPath;
                     }
 
                     return existingPath;
@@ -366,6 +369,8 @@ public class SubclassPathService {
                     }
 
                     SubclassPath savedPath = subclassPathRepository.save(newPath);
+                    eventPublisher.publishEvent(
+                            new EntityChangeEvent(this, savedPath, EntityChangeEvent.ChangeType.CREATED));
                     log.debug("Created new subclass path with id: {}", savedPath.getId());
                     return savedPath;
                 });

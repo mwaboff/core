@@ -561,6 +561,83 @@ class AdversaryServiceTest {
     }
 
     @Test
+    void createAdversary_AsModeratorWithIsOfficialTrue_CreatesOfficialAdversary() {
+        // Arrange -- official content is created through this path by the bulk content import
+        setupAuthenticationWith(moderatorUserDetails);
+
+        CreateAdversaryRequest request = createTestAdversaryRequest();
+        request.setIsOfficial(true);
+
+        when(roleHierarchyService.hasRoleOrHigher(moderatorUser, Role.MODERATOR)).thenReturn(true);
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AdversaryResponse result = adversaryService.createAdversary(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void createAdversary_AsModeratorWithIsOfficialFalse_CreatesNonOfficialAdversary() {
+        // Arrange
+        setupAuthenticationWith(moderatorUserDetails);
+
+        CreateAdversaryRequest request = createTestAdversaryRequest();
+        request.setIsOfficial(false);
+
+        when(roleHierarchyService.hasRoleOrHigher(moderatorUser, Role.MODERATOR)).thenReturn(true);
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AdversaryResponse result = adversaryService.createAdversary(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
+    void createAdversary_AsNonModeratorWithIsOfficialTrue_CoercesIsOfficialToFalse() {
+        // Arrange -- security regression test: adversary create is open to any authenticated user,
+        // so a homebrew author must not be able to mint content that presents as official
+        setupAuthenticationWith(regularUserDetails);
+
+        CreateAdversaryRequest request = createTestAdversaryRequest();
+        request.setIsOfficial(true);
+
+        when(roleHierarchyService.hasRoleOrHigher(regularUser, Role.MODERATOR)).thenReturn(false);
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AdversaryResponse result = adversaryService.createAdversary(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
+    void createAdversary_NullIsOfficial_DefaultsToFalse() {
+        // Arrange -- even a moderator gets false when the field is omitted
+        setupAuthenticationWith(moderatorUserDetails);
+
+        CreateAdversaryRequest request = createTestAdversaryRequest();
+        request.setIsOfficial(null);
+
+        when(roleHierarchyService.hasRoleOrHigher(moderatorUser, Role.MODERATOR)).thenReturn(true);
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AdversaryResponse result = adversaryService.createAdversary(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
     void createAdversary_ExpansionNotFound_ThrowsEntityNotFoundException() {
         // Arrange
         setupAuthenticationWith(regularUserDetails);
@@ -1101,6 +1178,99 @@ class AdversaryServiceTest {
     }
 
     @Test
+    void updateAdversary_AsModeratorWithIsOfficialTrue_MarksAdversaryOfficial() {
+        // Arrange -- a moderator promotes a non-official adversary to official content
+        setupAuthenticationWith(moderatorUserDetails);
+
+        Adversary existingAdversary = createTestAdversary(1L, "Goblin", expansion, regularUser);
+        existingAdversary.setIsOfficial(false);
+
+        UpdateAdversaryRequest request = UpdateAdversaryRequest.builder()
+                .isOfficial(true)
+                .build();
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingAdversary));
+        when(roleHierarchyService.hasRoleOrHigher(moderatorUser, Role.MODERATOR)).thenReturn(true);
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AdversaryResponse result = adversaryService.updateAdversary(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void updateAdversary_AsPrivilegedUserWithIsOfficialFalse_MarksAdversaryNonOfficial() {
+        // Arrange -- demoting official content requires OWNER, since modifying an official
+        // adversary is already restricted to owners
+        setupAuthenticationWith(ownerUserDetails);
+
+        Adversary existingAdversary = createTestAdversary(1L, "Official Goblin", expansion, ownerUser);
+        existingAdversary.setIsOfficial(true);
+
+        UpdateAdversaryRequest request = UpdateAdversaryRequest.builder()
+                .isOfficial(false)
+                .build();
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingAdversary));
+        when(roleHierarchyService.hasRoleOrHigher(ownerUser, Role.MODERATOR)).thenReturn(true);
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AdversaryResponse result = adversaryService.updateAdversary(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
+    void updateAdversary_AsNonModeratorWithIsOfficialTrue_CoercesIsOfficialToFalse() {
+        // Arrange -- security regression test: a user may edit their own homebrew adversary,
+        // but must not be able to escalate it to official content
+        setupAuthenticationWith(regularUserDetails);
+
+        Adversary existingAdversary = createTestAdversary(1L, "Homebrew Goblin", expansion, regularUser);
+        existingAdversary.setIsOfficial(false);
+
+        UpdateAdversaryRequest request = UpdateAdversaryRequest.builder()
+                .isOfficial(true)
+                .build();
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingAdversary));
+        when(roleHierarchyService.hasRoleOrHigher(regularUser, Role.MODERATOR)).thenReturn(false);
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AdversaryResponse result = adversaryService.updateAdversary(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
+    void updateAdversary_NullIsOfficial_LeavesOfficialFlagUnchanged() {
+        // Arrange -- partial update convention: an omitted isOfficial must not un-officialize content
+        setupAuthenticationWith(ownerUserDetails);
+
+        Adversary existingAdversary = createTestAdversary(1L, "Official Goblin", expansion, ownerUser);
+        existingAdversary.setIsOfficial(true);
+
+        UpdateAdversaryRequest request = UpdateAdversaryRequest.builder()
+                .name("Updated Official Goblin")
+                .build();
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingAdversary));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        AdversaryResponse result = adversaryService.updateAdversary(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
+    }
+
+    @Test
     void updateAdversary_WithExperiences_UpdatesExperiences() {
         // Arrange
         setupAuthenticationWith(regularUserDetails);
@@ -1322,6 +1492,29 @@ class AdversaryServiceTest {
         assertThat(result.getIsOfficial()).isFalse();
         assertThat(result.getIsPublic()).isFalse();
         assertThat(result.getCreatorId()).isEqualTo(regularUser.getId());
+    }
+
+    @Test
+    void copyAdversary_OfficialOriginal_PersistsCopyAsNonOfficial() {
+        // Arrange -- a user's copy of official content must never itself be official,
+        // even though isOfficial is now settable on create and update
+        setupAuthenticationWith(regularUserDetails);
+
+        Adversary original = createTestAdversary(1L, "Official Goblin", expansion, ownerUser);
+        original.setIsOfficial(true);
+        original.setIsPublic(true);
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(original));
+        when(adversaryRepository.save(any(Adversary.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        adversaryService.copyAdversary(1L, authentication);
+
+        // Assert
+        ArgumentCaptor<Adversary> captor = ArgumentCaptor.forClass(Adversary.class);
+        verify(adversaryRepository).save(captor.capture());
+        assertThat(captor.getValue().getIsOfficial()).isFalse();
+        assertThat(captor.getValue().getIsPublic()).isFalse();
     }
 
     @Test

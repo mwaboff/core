@@ -614,6 +614,7 @@ class SubclassPathControllerIntegrationTest {
                 .expansion(expansion)
                 .startingEvasion(9)
                 .startingHitPoints(16)
+                .isOfficial(true)
                 .build();
         return classRepository.save(clazz);
     }
@@ -638,6 +639,7 @@ class SubclassPathControllerIntegrationTest {
         Domain domain = Domain.builder()
                 .name(name)
                 .expansion(expansion)
+                .isOfficial(true)
                 .build();
         return domainRepository.save(domain);
     }
