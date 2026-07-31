@@ -3,6 +3,8 @@ package com.aboff.core.service.dh;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCampaignFearRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCampaignGmNotesRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
 import com.aboff.core.model.dto.dh.response.CampaignCharacterSummaryResponse;
 import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
@@ -24,6 +26,7 @@ import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.util.ExpandUtil;
+import com.aboff.core.util.MarkdownSanitizerUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -89,6 +92,7 @@ public class CampaignService {
      * @param creatorId Optional filter for creator ID
      * @param name Optional filter for name (case-insensitive partial match)
      * @param expand Comma-separated list of relationships to expand
+     * @param auth The authentication object containing the current user
      * @return Paginated response containing campaigns
      */
     @Transactional(readOnly = true)
@@ -97,7 +101,8 @@ public class CampaignService {
             int size,
             Long creatorId,
             String name,
-            String expand) {
+            String expand,
+            Authentication auth) {
 
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
@@ -108,7 +113,7 @@ public class CampaignService {
 
         return PagedResponse.<CampaignResponse>builder()
                 .content(campaignPage.getContent().stream()
-                        .map(campaign -> toResponse(campaign, expandSet))
+                        .map(campaign -> toResponse(campaign, expandSet, auth))
                         .toList())
                 .totalElements(campaignPage.getTotalElements())
                 .totalPages(campaignPage.getTotalPages())
@@ -138,7 +143,7 @@ public class CampaignService {
         validatePlayerAccess(campaign, auth, "view");
 
         Set<String> expandSet = parseExpand(expand);
-        return toResponse(campaign, expandSet);
+        return toResponse(campaign, expandSet, auth);
     }
 
     /**
@@ -665,7 +670,7 @@ public class CampaignService {
 
         return PagedResponse.<CampaignResponse>builder()
                 .content(campaignPage.getContent().stream()
-                        .map(campaign -> toResponse(campaign, expandSet))
+                        .map(campaign -> toResponse(campaign, expandSet, auth))
                         .toList())
                 .totalElements(campaignPage.getTotalElements())
                 .totalPages(campaignPage.getTotalPages())
@@ -712,7 +717,7 @@ public class CampaignService {
 
         return PagedResponse.<CampaignResponse>builder()
                 .content(campaignPage.getContent().stream()
-                        .map(campaign -> toResponse(campaign, expandSet))
+                        .map(campaign -> toResponse(campaign, expandSet, auth))
                         .toList())
                 .totalElements(campaignPage.getTotalElements())
                 .totalPages(campaignPage.getTotalPages())
@@ -895,6 +900,77 @@ public class CampaignService {
         return toResponse(updatedCampaign, Set.of());
     }
 
+    // ==================== GM SCREEN ====================
+
+    /**
+     * Updates the campaign's Fear counter.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can change Fear.
+     * The value is absolute, not a delta, and its 0-12 range is enforced by request validation.
+     * </p>
+     *
+     * @param campaignId The campaign ID
+     * @param request The request containing the new Fear value
+     * @param auth The authentication object containing the current user
+     * @return Updated CampaignResponse including GM-only fields
+     * @throws EntityNotFoundException if the campaign is not found
+     * @throws InsufficientPermissionsException if the user lacks permission
+     * @throws IllegalStateException if the campaign is ended
+     */
+    @Transactional
+    public CampaignResponse updateFear(Long campaignId, UpdateCampaignFearRequest request, Authentication auth) {
+        Campaign campaign = campaignRepository.findActiveById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
+
+        validateGameMasterAccess(campaign, auth, "update fear for");
+        validateNotEnded(campaign, "update fear for");
+
+        campaign.setFear(request.getFear());
+        Campaign updatedCampaign = campaignRepository.save(campaign);
+
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_FEAR_UPDATED, ctx,
+                String.format("fear: %d in \"%s\" (campaign_id: %d)",
+                        request.getFear(), campaign.getName(), campaignId));
+
+        return toResponse(updatedCampaign, Set.of(), auth);
+    }
+
+    /**
+     * Updates the campaign's game master notes.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can change the notes.
+     * The submitted text is sanitized before persistence, so the stored value may differ from
+     * the request. An empty string clears the notes.
+     * </p>
+     *
+     * @param campaignId The campaign ID
+     * @param request The request containing the new notes
+     * @param auth The authentication object containing the current user
+     * @return Updated CampaignResponse including GM-only fields
+     * @throws EntityNotFoundException if the campaign is not found
+     * @throws InsufficientPermissionsException if the user lacks permission
+     * @throws IllegalStateException if the campaign is ended
+     */
+    @Transactional
+    public CampaignResponse updateGmNotes(Long campaignId, UpdateCampaignGmNotesRequest request, Authentication auth) {
+        Campaign campaign = campaignRepository.findActiveById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
+
+        validateGameMasterAccess(campaign, auth, "update GM notes for");
+        validateNotEnded(campaign, "update GM notes for");
+
+        campaign.setGmNotes(MarkdownSanitizerUtil.sanitize(request.getGmNotes()));
+        Campaign updatedCampaign = campaignRepository.save(campaign);
+
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_GM_NOTES_UPDATED, ctx,
+                String.format("\"%s\" (campaign_id: %d, length: %d)",
+                        campaign.getName(), campaignId, campaign.getGmNotes().length()));
+
+        return toResponse(updatedCampaign, Set.of(), auth);
+    }
+
     // ==================== ACCESS CONTROL HELPERS ====================
 
     /**
@@ -935,17 +1011,33 @@ public class CampaignService {
      * @throws InsufficientPermissionsException if the user lacks permission
      */
     private void validateGameMasterAccess(Campaign campaign, Authentication auth, String operation) {
-        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
-        Long userId = userDetails.getUserId();
-
-        boolean isCreator = campaign.isCreator(userId);
-        boolean isGameMaster = campaign.isGameMaster(userId);
-        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
-
-        if (!isCreator && !isGameMaster && !isModerator) {
+        if (!hasGameMasterAccess(campaign, auth)) {
             throw new InsufficientPermissionsException(
                     "You do not have permission to " + operation + " this campaign");
         }
+    }
+
+    /**
+     * Determines, without throwing, whether the current user has game master-level access.
+     * <p>
+     * This is the single definition of "is a GM" for this service: {@link #validateGameMasterAccess}
+     * delegates to it, and {@link #toResponse(Campaign, Set, Authentication)} uses it to decide
+     * whether GM-only fields may be serialized. Fails closed for an absent or unrecognized principal.
+     * </p>
+     *
+     * @param campaign The campaign to check access against
+     * @param auth The authentication object containing the current user, may be null
+     * @return true if the user is the creator, a game master, or a MODERATOR/ADMIN/OWNER
+     */
+    private boolean hasGameMasterAccess(Campaign campaign, Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails userDetails)) {
+            return false;
+        }
+
+        Long userId = userDetails.getUserId();
+        return campaign.isCreator(userId)
+                || campaign.isGameMaster(userId)
+                || roleHierarchyService.hasModeratorOrHigher(userDetails);
     }
 
     /**
@@ -1031,21 +1123,47 @@ public class CampaignService {
     }
 
     /**
-     * Converts a Campaign entity to CampaignResponse DTO.
+     * Converts a Campaign entity to CampaignResponse DTO, omitting all GM-only fields.
      * <p>
      * Always includes IDs for relationships. Optionally expands full relationship
      * objects based on the expand set.
      * </p>
+     * <p>
+     * This overload is the fail-closed default: it never emits {@code gmNotes}, so any
+     * response built through it is safe to hand to a player. Use
+     * {@link #toResponse(Campaign, Set, Authentication)} on paths where the caller has
+     * been identified and GM-only fields should be included when permitted.
+     * </p>
      *
      * @param campaign The campaign entity
      * @param expand Set of relationships to expand
-     * @return CampaignResponse DTO
+     * @return CampaignResponse DTO without GM-only fields
      */
     private CampaignResponse toResponse(Campaign campaign, Set<String> expand) {
+        return toResponse(campaign, expand, null);
+    }
+
+    /**
+     * Converts a Campaign entity to CampaignResponse DTO, including GM-only fields when
+     * the supplied authentication has game master-level access to the campaign.
+     * <p>
+     * {@code gmNotes} is populated only for the campaign creator, its game masters, and
+     * MODERATOR/ADMIN/OWNER users. For anyone else it is left null and therefore omitted
+     * from the serialized JSON, since CampaignResponse is {@code @JsonInclude(NON_NULL)}.
+     * {@code fear} is always included: it is a table-visible shared resource.
+     * </p>
+     *
+     * @param campaign The campaign entity
+     * @param expand Set of relationships to expand
+     * @param auth The authentication object for the requesting user, or null to omit GM-only fields
+     * @return CampaignResponse DTO
+     */
+    private CampaignResponse toResponse(Campaign campaign, Set<String> expand, Authentication auth) {
         CampaignResponse.CampaignResponseBuilder builder = CampaignResponse.builder()
                 .id(campaign.getId())
                 .name(campaign.getName())
                 .description(campaign.getDescription())
+                .fear(campaign.getFear())
                 .creatorId(campaign.getCreator().getId())
                 .gameMasterIds(campaign.getGameMasters().stream()
                         .map(User::getId)
@@ -1067,6 +1185,11 @@ public class CampaignService {
                 .createdAt(campaign.getCreatedAt())
                 .lastModifiedAt(campaign.getLastModifiedAt())
                 .deletedAt(campaign.getDeletedAt());
+
+        // GM-only: never expose prep notes to players
+        if (hasGameMasterAccess(campaign, auth)) {
+            builder.gmNotes(campaign.getGmNotes());
+        }
 
         // Expand creator if requested
         if (ExpandUtil.shouldExpand(expand, "creator")) {

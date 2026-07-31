@@ -62,6 +62,26 @@ public class Campaign extends BaseEntity {
     @Column(length = 2000)
     private String description;
 
+    // ========== GM Screen State ==========
+
+    /**
+     * The campaign's current Fear counter.
+     * Fear is a shared resource the GM spends to make moves against the party.
+     * It is table-visible, so it is exposed to every campaign participant.
+     * Valid values are 0 through 12; the range is enforced at the request layer.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer fear = 0;
+
+    /**
+     * Free-text preparation notes kept by the game master.
+     * Visible only to the campaign creator, game masters, and MODERATOR/ADMIN/OWNER users.
+     * Content is sanitized before persistence.
+     */
+    @Column(name = "gm_notes", columnDefinition = "TEXT")
+    private String gmNotes;
+
     // ========== Ownership ==========
 
     /**

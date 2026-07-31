@@ -41,6 +41,8 @@ public enum AuditAction {
     CAMPAIGN_CHARACTER_REJECTED("Character rejected"),
     CAMPAIGN_NPC_ADDED("NPC added"),
     CAMPAIGN_CHARACTER_REMOVED("Character removed"),
+    CAMPAIGN_FEAR_UPDATED("Campaign fear updated"),
+    CAMPAIGN_GM_NOTES_UPDATED("Campaign GM notes updated"),
 
     // Character Sheet
     CHARACTER_CREATED("Character created"),

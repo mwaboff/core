@@ -2,6 +2,8 @@ package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCampaignFearRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCampaignGmNotesRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
 import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
@@ -113,6 +115,7 @@ public class CampaignController {
      * @param creatorId Optional filter for campaign creator ID
      * @param name Optional filter for campaign name (case-insensitive partial match)
      * @param expand Comma-separated list of relationships to expand
+     * @param authentication The authentication object containing the current user
      * @return Paginated response containing campaigns with 200 OK status
      */
     @GetMapping
@@ -122,10 +125,11 @@ public class CampaignController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) Long creatorId,
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication) {
 
         PagedResponse<CampaignResponse> response =
-                campaignService.getAllCampaigns(page, size, creatorId, name, expand);
+                campaignService.getAllCampaigns(page, size, creatorId, name, expand, authentication);
         return ResponseEntity.ok(response);
     }
 
@@ -319,6 +323,67 @@ public class CampaignController {
         CampaignResponse response = campaignService.leaveCampaign(id, authentication);
 
         auditLogger.requestCompleted(ctx, "POST", "/api/dh/campaigns/" + id + "/leave", startTime);
+        return ResponseEntity.ok(response);
+    }
+
+    // ==================== GM SCREEN ENDPOINTS ====================
+
+    /**
+     * Updates the campaign's Fear counter.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can update Fear.
+     * The value is absolute (0-12), not a delta. Fear is returned to all participants.
+     * </p>
+     *
+     * @param id The campaign ID
+     * @param request The request containing the new Fear value
+     * @param authentication The authentication object containing the current user
+     * @return Updated campaign response with 200 OK status
+     */
+    @PatchMapping("/{id}/fear")
+    public ResponseEntity<CampaignResponse> updateFear(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateCampaignFearRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PATCH", "/api/dh/campaigns/" + id + "/fear");
+
+        CampaignResponse response = campaignService.updateFear(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PATCH", "/api/dh/campaigns/" + id + "/fear", startTime);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Updates the campaign's game master notes.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can update the notes.
+     * The submitted text is sanitized before storage, and the notes are returned only to
+     * callers with GM-level access.
+     * </p>
+     *
+     * @param id The campaign ID
+     * @param request The request containing the new notes
+     * @param authentication The authentication object containing the current user
+     * @return Updated campaign response with 200 OK status
+     */
+    @PatchMapping("/{id}/gm-notes")
+    public ResponseEntity<CampaignResponse> updateGmNotes(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateCampaignGmNotesRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PATCH", "/api/dh/campaigns/" + id + "/gm-notes");
+
+        CampaignResponse response = campaignService.updateGmNotes(id, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PATCH", "/api/dh/campaigns/" + id + "/gm-notes", startTime);
         return ResponseEntity.ok(response);
     }
 

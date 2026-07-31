@@ -50,6 +50,26 @@ public class CampaignResponse {
      */
     private String description;
 
+    // ========== GM Screen State ==========
+
+    /**
+     * The campaign's current Fear counter (always included).
+     * Fear is a table-visible shared resource, so it is returned to every
+     * participant of the campaign, players included.
+     */
+    private Integer fear;
+
+    /**
+     * The game master's private preparation notes.
+     * <p>
+     * GM-only: this field is populated solely for the campaign creator, game masters,
+     * and MODERATOR/ADMIN/OWNER users. For every other caller it is left null and,
+     * because this DTO is annotated {@code @JsonInclude(NON_NULL)}, omitted from the
+     * serialized response entirely.
+     * </p>
+     */
+    private String gmNotes;
+
     // ========== Ownership ==========
 
     /**
