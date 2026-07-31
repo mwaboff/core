@@ -36,6 +36,8 @@ class BeastformTest {
                 .name("Dire Wolf")
                 .example("A massive wolf with glowing eyes")
                 .advantages("Enhanced tracking in forests")
+                .evasion(2)
+                .tier(2)
                 .agilityModifier(2)
                 .strengthModifier(3)
                 .finesseModifier(-1)
@@ -55,6 +57,8 @@ class BeastformTest {
         assertThat(beastform.getName()).isEqualTo("Dire Wolf");
         assertThat(beastform.getExample()).isEqualTo("A massive wolf with glowing eyes");
         assertThat(beastform.getAdvantages()).isEqualTo("Enhanced tracking in forests");
+        assertThat(beastform.getEvasion()).isEqualTo(2);
+        assertThat(beastform.getTier()).isEqualTo(2);
         assertThat(beastform.getAgilityModifier()).isEqualTo(2);
         assertThat(beastform.getStrengthModifier()).isEqualTo(3);
         assertThat(beastform.getFinesseModifier()).isEqualTo(-1);
@@ -78,12 +82,15 @@ class BeastformTest {
                 .build();
 
         assertThat(beastform.getName()).isEqualTo("Basic Beast");
-        assertThat(beastform.getAgilityModifier()).isEqualTo(0);
-        assertThat(beastform.getStrengthModifier()).isEqualTo(0);
-        assertThat(beastform.getFinesseModifier()).isEqualTo(0);
-        assertThat(beastform.getInstinctModifier()).isEqualTo(0);
-        assertThat(beastform.getPresenceModifier()).isEqualTo(0);
-        assertThat(beastform.getKnowledgeModifier()).isEqualTo(0);
+        // evasion and the six trait modifiers have no builder default -- they stay null
+        // unless explicitly set, so an omitted import field is never silently coerced to 0.
+        assertThat(beastform.getEvasion()).isNull();
+        assertThat(beastform.getAgilityModifier()).isNull();
+        assertThat(beastform.getStrengthModifier()).isNull();
+        assertThat(beastform.getFinesseModifier()).isNull();
+        assertThat(beastform.getInstinctModifier()).isNull();
+        assertThat(beastform.getPresenceModifier()).isNull();
+        assertThat(beastform.getKnowledgeModifier()).isNull();
         assertThat(beastform.getIsOfficial()).isFalse();
         assertThat(beastform.getIsPublic()).isFalse();
         assertThat(beastform.getFeatures()).isEmpty();
@@ -92,15 +99,17 @@ class BeastformTest {
     // ==================== DEFAULT VALUES TESTS ====================
 
     @Test
-    void defaultTraitModifiers_AreZero() {
+    void defaultTraitModifiers_AreNull() {
+        // No @Builder.Default: an unset trait modifier stays null, not a manufactured 0 --
+        // see Beastform.agilityModifier for the null-vs-zero rationale.
         Beastform beastform = Beastform.builder().name("Test").build();
 
-        assertThat(beastform.getAgilityModifier()).isEqualTo(0);
-        assertThat(beastform.getStrengthModifier()).isEqualTo(0);
-        assertThat(beastform.getFinesseModifier()).isEqualTo(0);
-        assertThat(beastform.getInstinctModifier()).isEqualTo(0);
-        assertThat(beastform.getPresenceModifier()).isEqualTo(0);
-        assertThat(beastform.getKnowledgeModifier()).isEqualTo(0);
+        assertThat(beastform.getAgilityModifier()).isNull();
+        assertThat(beastform.getStrengthModifier()).isNull();
+        assertThat(beastform.getFinesseModifier()).isNull();
+        assertThat(beastform.getInstinctModifier()).isNull();
+        assertThat(beastform.getPresenceModifier()).isNull();
+        assertThat(beastform.getKnowledgeModifier()).isNull();
     }
 
     @Test
@@ -193,6 +202,30 @@ class BeastformTest {
         assertThat(beastform.isDeleted()).isTrue();
         beastform.restore();
         assertThat(beastform.isDeleted()).isFalse();
+    }
+
+    // ==================== EVASION / TIER TESTS ====================
+
+    @Test
+    void defaultEvasion_IsNull() {
+        // No @Builder.Default: an unset evasion stays null, not a manufactured 0 -- see
+        // Beastform.evasion for the null-vs-zero rationale.
+        Beastform beastform = Beastform.builder().name("Test").build();
+        assertThat(beastform.getEvasion()).isNull();
+    }
+
+    @Test
+    void setEvasion_UpdatesValue() {
+        Beastform beastform = Beastform.builder().name("Test").build();
+        beastform.setEvasion(3);
+        assertThat(beastform.getEvasion()).isEqualTo(3);
+    }
+
+    @Test
+    void setTier_UpdatesValue() {
+        Beastform beastform = Beastform.builder().name("Test").tier(1).build();
+        beastform.setTier(3);
+        assertThat(beastform.getTier()).isEqualTo(3);
     }
 
     // ==================== FIELD SETTERS TESTS ====================

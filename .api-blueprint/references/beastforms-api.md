@@ -87,6 +87,8 @@ Retrieve a single beastform by ID.
   "name": "Wolf",
   "example": "A lean grey wolf",
   "advantages": "Advantage on Instinct Rolls to track prey",
+  "evasion": 2,
+  "tier": 1,
   "agilityModifier": 1,
   "strengthModifier": 0,
   "finesseModifier": 0,
@@ -133,6 +135,8 @@ Create a new beastform. Requires ADMIN or OWNER role.
   "name": "Wolf",
   "example": "A lean grey wolf",
   "advantages": "Advantage on Instinct Rolls to track prey",
+  "evasion": 2,
+  "tier": 1,
   "agilityModifier": 1,
   "strengthModifier": 0,
   "finesseModifier": 0,
@@ -169,19 +173,21 @@ Create a new beastform. Requires ADMIN or OWNER role.
 | `name` | String | Yes | Not blank, max 200 chars |
 | `example` | String | No | Flavor text |
 | `advantages` | String | No | Special benefits text |
-| `agilityModifier` | Integer | No | Defaults to 0 if omitted |
-| `strengthModifier` | Integer | No | Defaults to 0 if omitted |
-| `finesseModifier` | Integer | No | Defaults to 0 if omitted |
-| `instinctModifier` | Integer | No | Defaults to 0 if omitted |
-| `presenceModifier` | Integer | No | Defaults to 0 if omitted |
-| `knowledgeModifier` | Integer | No | Defaults to 0 if omitted |
-| `attackRange` | Range | Yes | See [Range enum](#range) |
-| `attackTrait` | Trait | Yes | See [Trait enum](#trait) |
-| `damage` | DamageRollRequest | Yes | Nested object |
+| `evasion` | Integer | No | Evasion bonus while transformed; `null` if omitted (see note) |
+| `tier` | Integer | Yes | Beastform tier, 1-4; `chk_beastforms_tier` CHECK constraint |
+| `agilityModifier` | Integer | No | `null` if omitted (see note) |
+| `strengthModifier` | Integer | No | `null` if omitted (see note) |
+| `finesseModifier` | Integer | No | `null` if omitted (see note) |
+| `instinctModifier` | Integer | No | `null` if omitted (see note) |
+| `presenceModifier` | Integer | No | `null` if omitted (see note) |
+| `knowledgeModifier` | Integer | No | `null` if omitted (see note) |
+| `attackRange` | Range | No | `null` if omitted; see [Range enum](#range) |
+| `attackTrait` | Trait | No | `null` if omitted; see [Trait enum](#trait) |
+| `damage` | DamageRollRequest | No | Nested object; `null` if omitted |
 | `damage.diceCount` | Integer | No | Null = uses character proficiency |
-| `damage.diceType` | DiceType | Yes | See [DiceType enum](#dicetype) |
+| `damage.diceType` | DiceType | Yes, if `damage` present | See [DiceType enum](#dicetype) |
 | `damage.modifier` | Integer | No | Positive or negative bonus |
-| `damage.damageType` | DamageType | Yes | See [DamageType enum](#damagetype) |
+| `damage.damageType` | DamageType | Yes, if `damage` present | See [DamageType enum](#damagetype) |
 | `expansionId` | Long | Yes | Must reference an active expansion |
 | `isOfficial` | Boolean | Yes | |
 | `isPublic` | Boolean | No | Defaults to `false` if omitted |
@@ -189,10 +195,20 @@ Create a new beastform. Requires ADMIN or OWNER role.
 | `features` | List\<FeatureInput\> | No | Inline features to create and attach (merged with featureIds) |
 | `originalBeastformId` | Long | No | Source beastform ID if this is a custom copy |
 
-**Note:** the six trait-modifier fields use `null`-coalescing to `0` in the service layer, not
-Lombok `@Builder.Default` — `@Builder.Default` only applies when the DTO is constructed via its
-generated builder, not when Jackson deserializes JSON through the no-args constructor + setters.
-Omitting a modifier field from the JSON body is safe and resolves to `0`.
+**Important — `evasion`, the six trait modifiers, `attackRange`, `attackTrait`, and `damage` are
+all genuinely optional and are NOT defaulted to `0`/a value when omitted.** They persist as SQL
+`NULL`. This exists because 2 of the 24 core-book beastform cards ("Legendary Beast", "Mythic
+Beast") are "Evolved: upgrade an earlier pick" meta-cards that print no stat line at all — no
+Evasion, no attack range/trait/damage, no trait bonus — their mechanical effect is prose in the
+feature text that the player applies manually. `NULL` is the honest encoding of "this card prints
+no value here"; it is deliberately distinct from an explicit `0`, since a column that silently
+turns "omitted from the source data" into "the beastform grants +0" is exactly the defect that
+left a large share of the loot catalog mis-tiered in prod (an earlier import omitted `tier` into a
+`NOT NULL DEFAULT 1` column, and the default silently stood in as real data with nothing to flag
+it). If an ordinary card genuinely has no bonus for a given trait, send that field explicitly as
+`0` — the server does not infer it. `tier` is the only field in this group that stays required.
+`damage`, when present at all, must be a complete roll — `diceType` and `damageType` inside it are
+still required, since a partially-specified damage roll isn't meaningful.
 
 ### Response: `201 Created`
 
@@ -223,6 +239,8 @@ Array of `CreateBeastformRequest` objects (same schema as single create).
     "name": "Wolf",
     "expansionId": 1,
     "isOfficial": true,
+    "evasion": 2,
+    "tier": 1,
     "attackRange": "MELEE",
     "attackTrait": "AGILITY",
     "damage": { "diceCount": 1, "diceType": "D6", "damageType": "PHYSICAL" }
@@ -231,12 +249,34 @@ Array of `CreateBeastformRequest` objects (same schema as single create).
     "name": "Bear",
     "expansionId": 1,
     "isOfficial": true,
+    "evasion": 1,
+    "tier": 1,
     "attackRange": "MELEE",
     "attackTrait": "STRENGTH",
     "damage": { "diceType": "D10", "damageType": "PHYSICAL" }
+  },
+  {
+    "name": "Legendary Beast",
+    "example": "Upgrade an earlier pick",
+    "expansionId": 1,
+    "isOfficial": true,
+    "isPublic": true,
+    "tier": 3,
+    "features": [
+      {
+        "name": "Evolved",
+        "description": "Upgrade the trait bonus, Evasion, and damage of a beastform you've already chosen.",
+        "featureType": "OTHER",
+        "expansionId": 1
+      }
+    ]
   }
 ]
 ```
+
+The third item is a stat-less "Evolved" meta-card: `evasion`, `attackRange`, `attackTrait`,
+`damage`, and all six trait modifiers are omitted entirely rather than sent as `0`/defaults. Its
+mechanical effect lives only in the `features` prose; the player applies it manually.
 
 ### Response: `201 Created`
 
@@ -348,15 +388,17 @@ GET /api/dh/beastforms/1?expand=expansion,features,originalBeastform
 | `name` | String | Yes | Beastform name |
 | `example` | String | If non-null | Flavor text |
 | `advantages` | String | If non-null | Special benefits text |
-| `agilityModifier` | Integer | Yes | AGILITY trait modifier while transformed |
-| `strengthModifier` | Integer | Yes | STRENGTH trait modifier while transformed |
-| `finesseModifier` | Integer | Yes | FINESSE trait modifier while transformed |
-| `instinctModifier` | Integer | Yes | INSTINCT trait modifier while transformed |
-| `presenceModifier` | Integer | Yes | PRESENCE trait modifier while transformed |
-| `knowledgeModifier` | Integer | Yes | KNOWLEDGE trait modifier while transformed |
-| `attackRange` | Range | Yes | Effective attack range |
-| `attackTrait` | Trait | Yes | Trait used for attack rolls |
-| `damage` | DamageRollResponse | Yes | Damage roll info (nested) |
+| `evasion` | Integer | If non-null | Evasion bonus while transformed; absent for stat-less "Evolved" cards |
+| `tier` | Integer | Yes | Beastform tier (1-4) |
+| `agilityModifier` | Integer | If non-null | AGILITY trait modifier while transformed |
+| `strengthModifier` | Integer | If non-null | STRENGTH trait modifier while transformed |
+| `finesseModifier` | Integer | If non-null | FINESSE trait modifier while transformed |
+| `instinctModifier` | Integer | If non-null | INSTINCT trait modifier while transformed |
+| `presenceModifier` | Integer | If non-null | PRESENCE trait modifier while transformed |
+| `knowledgeModifier` | Integer | If non-null | KNOWLEDGE trait modifier while transformed |
+| `attackRange` | Range | If non-null | Effective attack range; absent for stat-less "Evolved" cards |
+| `attackTrait` | Trait | If non-null | Trait used for attack rolls; absent for stat-less "Evolved" cards |
+| `damage` | DamageRollResponse | If non-null | Damage roll info (nested); absent for stat-less "Evolved" cards |
 | `expansionId` | Long | Yes | Owning expansion ID |
 | `expansion` | ExpansionResponse | Only with `?expand=expansion` | Full expansion object |
 | `isOfficial` | Boolean | Yes | Official game content flag |

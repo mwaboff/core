@@ -739,6 +739,66 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
+    void createCharacterSheet_WithInventoryWeaponJsonOmittingEquipped_DefaultsToFalse() throws Exception {
+        // Arrange - a raw JSON body whose inventoryWeapons/inventoryArmors entries genuinely
+        // omit the "equipped" key, unlike the builder-based tests above. InventoryWeaponRequest
+        // and InventoryArmorRequest declare "equipped" with @Builder.Default = false, but Lombok
+        // builder defaults are NOT applied by Jackson during deserialization (Jackson uses the
+        // no-args constructor + setters) -- only a real omitted-key JSON payload like this one
+        // exercises that path. CharacterSheetService.java:306,555 defensively coalesces a null
+        // "equipped" to false; this test is the regression guard for that coalescing.
+        Weapon weapon = createWeapon("Spare Sword");
+        Armor armor = createArmor("Leather Armor");
+
+        String requestJson = """
+            {
+                "name": "Strider",
+                "pronouns": "he/him",
+                "level": 3,
+                "evasion": 10,
+                "armorMax": 5,
+                "armorMarked": 0,
+                "majorDamageThreshold": 3,
+                "severeDamageThreshold": 6,
+                "agilityModifier": 2,
+                "agilityMarked": false,
+                "strengthModifier": 3,
+                "strengthMarked": false,
+                "finesseModifier": 1,
+                "finesseMarked": false,
+                "instinctModifier": 2,
+                "instinctMarked": false,
+                "presenceModifier": 2,
+                "presenceMarked": false,
+                "knowledgeModifier": 0,
+                "knowledgeMarked": false,
+                "hitPointMax": 10,
+                "hitPointMarked": 0,
+                "stressMax": 6,
+                "stressMarked": 0,
+                "hopeMax": 3,
+                "hopeMarked": 0,
+                "gold": 50,
+                "inventoryWeapons": [ { "weaponId": %d } ],
+                "inventoryArmors": [ { "armorId": %d } ]
+            }
+            """.formatted(weapon.getId(), armor.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson)
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.inventoryWeapons.length()").value(1))
+                .andExpect(jsonPath("$.inventoryWeapons[0].weaponId").value(weapon.getId()))
+                .andExpect(jsonPath("$.inventoryWeapons[0].equipped").value(false))
+                .andExpect(jsonPath("$.inventoryArmors.length()").value(1))
+                .andExpect(jsonPath("$.inventoryArmors[0].armorId").value(armor.getId()))
+                .andExpect(jsonPath("$.inventoryArmors[0].equipped").value(false));
+    }
+
+    @Test
     void updateCharacterSheet_WithInventoryWeapons_Returns200() throws Exception {
         // Arrange
         Weapon weapon = createWeapon("New Sword");

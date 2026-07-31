@@ -2,6 +2,7 @@ package com.aboff.core.config;
 
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.dh.AncestryCard;
+import com.aboff.core.model.entity.dh.Beastform;
 import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
@@ -232,6 +233,50 @@ class SearchFieldMappingTest {
 
         // Assert
         assertThat(data.getDamageType()).isNull();
+    }
+
+    // ==================== BEASTFORM TESTS ====================
+
+    @Test
+    void buildSearchIndexData_Beastform_MapsTierFilterColumn() {
+        // Arrange — regression test: tier must not be null (it was silently missing from
+        // buildForBeastform, breaking the tier search facet, since it was added after
+        // Beastform's own search registration went in)
+        Beastform beastform = Beastform.builder()
+                .name("Agile Scout")
+                .evasion(2)
+                .tier(1)
+                .build();
+        beastform.setId(70L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(beastform, SearchableEntityType.BEASTFORM);
+
+        // Assert
+        assertThat(data.getTier()).isEqualTo(1);
+    }
+
+    @Test
+    void buildSearchIndexData_Beastform_MapsNameAndDescriptionText() {
+        // Arrange
+        Beastform beastform = Beastform.builder()
+                .name("Agile Scout")
+                .example("Fox, Mouse, Weasel, etc.")
+                .advantages("Gain advantage on: deceive, locate, sneak")
+                .evasion(2)
+                .tier(1)
+                .build();
+        beastform.setId(71L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(beastform, SearchableEntityType.BEASTFORM);
+
+        // Assert
+        assertThat(data.getNameText()).isEqualTo("Agile Scout");
+        assertThat(data.getDescriptionText())
+                .isEqualTo("Fox, Mouse, Weasel, etc. Gain advantage on: deceive, locate, sneak");
     }
 
     // ==================== DOMAIN TESTS ====================

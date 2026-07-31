@@ -435,7 +435,10 @@ public class SearchFieldMapping {
     /**
      * Builds search index data for a {@link Beastform} entity.
      * Weight A: name. Weight B: example + advantages. Weight C: features text.
-     * Filter: expansionId, isOfficial, isPublic, createdByUserId.
+     * Filter: expansionId, isOfficial, isPublic, tier, createdByUserId.
+     *
+     * <p>{@code evasion} is a raw stat modifier, not a facet, so — consistent with the trait
+     * modifiers, which are also never indexed — it is not mapped to a filter column here.
      *
      * @param beastform the beastform entity
      * @return populated search index data
@@ -451,6 +454,7 @@ public class SearchFieldMapping {
                 .expansionId(expansionId(beastform.getExpansion()))
                 .isOfficial(beastform.getIsOfficial())
                 .isPublic(beastform.getIsPublic())
+                .tier(beastform.getTier())
                 .createdByUserId(userId(beastform.getCreatedBy()))
                 .build();
     }

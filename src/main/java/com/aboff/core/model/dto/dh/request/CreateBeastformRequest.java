@@ -5,6 +5,8 @@ import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Trait;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -42,58 +44,78 @@ public class CreateBeastformRequest {
     private String advantages;
 
     /**
-     * Modifier applied to AGILITY trait while in this beastform.
+     * Modifier applied to Evasion while in this beastform. Optional: the two "Evolved"
+     * meta-cards (Legendary Beast, Mythic Beast) print no Evasion line at all. Omitting this
+     * field from the request body leaves it {@code null} on the entity — it is NOT defaulted
+     * to 0 — since "no Evasion line printed" and "printed Evasion +0" are different statements
+     * (see {@link com.aboff.core.model.entity.dh.Beastform#agilityModifier} for the fuller
+     * null-vs-zero rationale, which applies identically here).
      */
-    @Builder.Default
-    private Integer agilityModifier = 0;
+    private Integer evasion;
 
     /**
-     * Modifier applied to STRENGTH trait while in this beastform.
+     * The beastform's tier (1-4). Required — every beastform card prints a tier, including
+     * the stat-less "Evolved" meta-cards.
      */
-    @Builder.Default
-    private Integer strengthModifier = 0;
+    @NotNull(message = "Tier is required")
+    @Min(value = 1, message = "Tier must be at least 1")
+    @Max(value = 4, message = "Tier must be at most 4")
+    private Integer tier;
 
     /**
-     * Modifier applied to FINESSE trait while in this beastform.
+     * Modifier applied to AGILITY trait while in this beastform. Optional and NOT defaulted
+     * to 0 when omitted — see {@link #evasion} for why.
      */
-    @Builder.Default
-    private Integer finesseModifier = 0;
+    private Integer agilityModifier;
 
     /**
-     * Modifier applied to INSTINCT trait while in this beastform.
+     * Modifier applied to STRENGTH trait while in this beastform. See {@link #evasion} for the
+     * null-vs-zero rationale.
      */
-    @Builder.Default
-    private Integer instinctModifier = 0;
+    private Integer strengthModifier;
 
     /**
-     * Modifier applied to PRESENCE trait while in this beastform.
+     * Modifier applied to FINESSE trait while in this beastform. See {@link #evasion} for the
+     * null-vs-zero rationale.
      */
-    @Builder.Default
-    private Integer presenceModifier = 0;
+    private Integer finesseModifier;
 
     /**
-     * Modifier applied to KNOWLEDGE trait while in this beastform.
+     * Modifier applied to INSTINCT trait while in this beastform. See {@link #evasion} for the
+     * null-vs-zero rationale.
      */
-    @Builder.Default
-    private Integer knowledgeModifier = 0;
+    private Integer instinctModifier;
 
     /**
-     * The effective range of attacks in this beastform.
+     * Modifier applied to PRESENCE trait while in this beastform. See {@link #evasion} for the
+     * null-vs-zero rationale.
      */
-    @NotNull(message = "Attack range is required")
+    private Integer presenceModifier;
+
+    /**
+     * Modifier applied to KNOWLEDGE trait while in this beastform. See {@link #evasion} for the
+     * null-vs-zero rationale.
+     */
+    private Integer knowledgeModifier;
+
+    /**
+     * The effective range of attacks in this beastform. Optional: the two "Evolved" meta-cards
+     * print no combat stat line, upgrading whichever base form the player already has instead.
+     */
     private Range attackRange;
 
     /**
-     * The trait used for attack rolls in this beastform.
+     * The trait used for attack rolls in this beastform. Optional for the same "Evolved" cards
+     * as {@link #attackRange}.
      */
-    @NotNull(message = "Attack trait is required")
     private Trait attackTrait;
 
     /**
-     * The damage roll for attacks made in this beastform.
+     * The damage roll for attacks made in this beastform. Optional for the same "Evolved"
+     * cards as {@link #attackRange}. When present, {@code diceType} and {@code damageType}
+     * within it are still required — a partially-specified damage roll is not meaningful.
      */
     @Valid
-    @NotNull(message = "Damage is required")
     private DamageRollRequest damage;
 
     /**

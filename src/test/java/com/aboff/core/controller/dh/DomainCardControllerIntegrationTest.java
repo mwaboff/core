@@ -7,6 +7,7 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
@@ -14,6 +15,7 @@ import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -65,6 +67,8 @@ class DomainCardControllerIntegrationTest {
     @Autowired
     private DomainRepository domainRepository;
 
+    @Autowired
+    private FeatureRepository featureRepository;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -294,6 +298,103 @@ class DomainCardControllerIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(2));
 
         assertThat(domainCardRepository.findAll()).hasSize(2);
+    }
+
+    @Test
+    void createDomainCardsBulk_TransformationType_RealisticBeastformPayload_Returns201() throws Exception {
+        // Arrange - the core rulebook's 24 Druid Beastform cards (pages 33-36) import as
+        // ordinary domainCard payloads with type: "TRANSFORMATION" -- this is the ONE case
+        // where DomainCardType.TRANSFORMATION is correct (see
+        // .claude/skills/daggerheart-pdf-import/references/core-rulebook.md's "Beastform" note
+        // and HANDOFF.md's correction that this content is 24 named entries, not 12). This
+        // exact shape is what's on disk in
+        // core-import/intermediate/04b-beastform-cards.json's "Agile Scout"/"Nimble Grazer"
+        // records and is about to be uploaded for real -- the transformation_card/beastform
+        // table has 0 rows today and this path has never seen production data.
+        //
+        // Raw JSON, not builders, matching the actual resolved payload shape:
+        //   - no card-level "description" (Beastform cards carry all rules text inside a single
+        //     feature, not the card description field) -- CreateDomainCardRequest.description
+        //     has no @NotNull, so this must round-trip as null, not fail validation.
+        //   - the nested feature genuinely omits "name" (the parse deliberately treats the whole
+        //     printed card as one unnamed rules-text block, confirmed in the source JSON's
+        //     "features[0].name": null derivation) -- FeatureInput.name has no @NotNull, so
+        //     find-or-create must fall through to always-create rather than colliding two
+        //     different creatures' null-named features into one row.
+        //   - recallCost: 0 and level: 1, both inferred defaults per the source JSON's _flags,
+        //     sent explicitly (not omitted) since they're genuinely part of the resolved payload.
+        Domain arcana = createDomain("Arcana", "Arcana domain", testExpansion);
+        String bulkRequest = """
+            [
+                {
+                    "name": "Agile Scout",
+                    "expansionId": %d,
+                    "isOfficial": true,
+                    "associatedDomainId": %d,
+                    "level": 1,
+                    "recallCost": 0,
+                    "type": "TRANSFORMATION",
+                    "features": [
+                        { "description": "(Fox, Mouse, Weasel, etc.) Agility +1 | Evasion +2. Melee Agility d4 phy. Gain advantage on: deceive, locate, sneak. Agile: Your movement is silent, and you can spend a Hope to move up to Far range without rolling. Fragile: When you take Major or greater damage, you drop out of Beastform.", "featureType": "DOMAIN", "expansionId": %d }
+                    ]
+                },
+                {
+                    "name": "Nimble Grazer",
+                    "expansionId": %d,
+                    "isOfficial": true,
+                    "associatedDomainId": %d,
+                    "level": 1,
+                    "recallCost": 0,
+                    "type": "TRANSFORMATION",
+                    "features": [
+                        { "description": "(Deer, Gazelle, Goat, etc.) Agility +1 | Evasion +3. Melee Agility d6 phy. Gain advantage on: leap, sneak, sprint. Elusive Prey: When an attack roll against you would succeed, you can mark a Stress and roll a d4. Add the result to your Evasion against this attack. Fragile: When you take Major or greater damage, you drop out of Beastform.", "featureType": "DOMAIN", "expansionId": %d }
+                    ]
+                }
+            ]
+            """.formatted(testExpansion.getId(), arcana.getId(), testExpansion.getId(),
+                    testExpansion.getId(), arcana.getId(), testExpansion.getId());
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/cards/domain/bulk")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(bulkRequest))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].name").value("Agile Scout"))
+                .andExpect(jsonPath("$[0].type").value("TRANSFORMATION"))
+                .andExpect(jsonPath("$[0].description").doesNotExist())
+                .andExpect(jsonPath("$[0].featureIds").isArray())
+                .andExpect(jsonPath("$[0].featureIds.length()").value(1))
+                // HANDOFF.md section 4.4's hazard: Card.cardType is insertable=false/updatable=false
+                // and reads null on a freshly-built in-memory entity before the DB round-trip
+                // populates the discriminator. DomainCardService.toResponse() is called immediately
+                // after save() in the same transaction, with no re-fetch -- assert the bulk-create
+                // response's cardType is not silently null on the exact path that hazard describes.
+                .andExpect(jsonPath("$[0].cardType").value("DOMAIN_CARD"))
+                .andExpect(jsonPath("$[1].name").value("Nimble Grazer"))
+                .andExpect(jsonPath("$[1].type").value("TRANSFORMATION"))
+                .andExpect(jsonPath("$[1].featureIds.length()").value(1))
+                .andExpect(jsonPath("$[1].cardType").value("DOMAIN_CARD"));
+
+        List<DomainCard> saved = domainCardRepository.findAll();
+        assertThat(saved).hasSize(2);
+        assertThat(saved).extracting(DomainCard::getType)
+                .containsExactly(DomainCardType.TRANSFORMATION, DomainCardType.TRANSFORMATION);
+        assertThat(saved).extracting(DomainCard::getLevel).containsExactly(1, 1);
+        assertThat(saved).extracting(DomainCard::getRecallCost).containsExactly(0, 0);
+        assertThat(saved).extracting(c -> c.getAssociatedDomain().getId())
+                .containsExactly(arcana.getId(), arcana.getId());
+
+        // The two null-named features must NOT collide into one shared row via find-or-create --
+        // FeatureService.findOrCreate only attempts a lookup when a name is provided, so each
+        // unnamed Beastform feature must always create its own distinct row even though both
+        // share (name=null, expansionId, featureType=DOMAIN).
+        assertThat(featureRepository.findAll()).hasSize(2);
+        assertThat(featureRepository.findAll()).extracting(Feature::getName)
+                .containsExactly(null, null);
+        assertThat(featureRepository.findAll()).extracting(Feature::getDescription)
+                .allMatch(d -> d != null && !d.isBlank());
     }
 
     @Test

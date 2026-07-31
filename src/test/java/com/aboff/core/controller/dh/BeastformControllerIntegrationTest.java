@@ -150,6 +150,7 @@ class BeastformControllerIntegrationTest {
                 .example("A lean grey wolf")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
+                .tier(1)
                 .attackRange(Range.MELEE)
                 .attackTrait(Trait.AGILITY)
                 .damage(CreateBeastformRequest.DamageRollRequest.builder()
@@ -188,6 +189,7 @@ class BeastformControllerIntegrationTest {
                 .name("Wolf")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
+                .tier(1)
                 .attackRange(Range.MELEE)
                 .attackTrait(Trait.AGILITY)
                 .damage(CreateBeastformRequest.DamageRollRequest.builder()
@@ -213,6 +215,7 @@ class BeastformControllerIntegrationTest {
                 .name("Wolf")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
+                .tier(1)
                 .attackRange(Range.MELEE)
                 .attackTrait(Trait.AGILITY)
                 .damage(CreateBeastformRequest.DamageRollRequest.builder()
@@ -224,6 +227,7 @@ class BeastformControllerIntegrationTest {
                 .name("Bear")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
+                .tier(1)
                 .attackRange(Range.MELEE)
                 .attackTrait(Trait.STRENGTH)
                 .damage(CreateBeastformRequest.DamageRollRequest.builder()
@@ -235,6 +239,7 @@ class BeastformControllerIntegrationTest {
                 .name("Owl")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
+                .tier(1)
                 .attackRange(Range.FAR)
                 .attackTrait(Trait.FINESSE)
                 .damage(CreateBeastformRequest.DamageRollRequest.builder()
@@ -256,11 +261,145 @@ class BeastformControllerIntegrationTest {
     }
 
     @Test
+    void createBeastformsBulk_AsAdmin_WithAgileScoutRawJson_PersistsEvasionTierAndFeatures() throws Exception {
+        // Raw JSON, not a builder — proves the full HTTP -> Jackson -> service -> entity path
+        // populates evasion and tier, since @Builder.Default on CreateBeastformRequest.evasion
+        // would NOT catch a field silently arriving null via real deserialization (HANDOFF.md §4.3).
+        String requestJson = """
+                [
+                  {
+                    "name": "Agile Scout",
+                    "example": "Fox, Mouse, Weasel, etc.",
+                    "advantages": "Gain advantage on: deceive, locate, sneak",
+                    "agilityModifier": 1,
+                    "evasion": 2,
+                    "tier": 1,
+                    "attackRange": "MELEE",
+                    "attackTrait": "AGILITY",
+                    "damage": {
+                      "diceCount": 1,
+                      "diceType": "D4",
+                      "damageType": "PHYSICAL"
+                    },
+                    "expansionId": %d,
+                    "isOfficial": true,
+                    "features": [
+                      {
+                        "name": "Agile",
+                        "description": "Your movement is silent, and you can spend a Hope to move up to Far range without rolling.",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                      },
+                      {
+                        "name": "Fragile",
+                        "description": "When you take Major or greater damage while you're in this beastform, you're immediately knocked out of it.",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                      }
+                    ]
+                  }
+                ]
+                """.formatted(testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
+
+        String responseJson = mockMvc.perform(post("/api/dh/beastforms/bulk")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$[0].name").value("Agile Scout"))
+                .andExpect(jsonPath("$[0].evasion").value(2))
+                .andExpect(jsonPath("$[0].tier").value(1))
+                .andExpect(jsonPath("$[0].agilityModifier").value(1))
+                .andExpect(jsonPath("$[0].attackRange").value("MELEE"))
+                .andExpect(jsonPath("$[0].attackTrait").value("AGILITY"))
+                .andExpect(jsonPath("$[0].featureIds.length()").value(2))
+                .andReturn().getResponse().getContentAsString();
+
+        Long createdId = objectMapper.readTree(responseJson).get(0).get("id").asLong();
+        Beastform persisted = beastformRepository.findByIdAndDeletedAtIsNull(createdId).orElseThrow();
+
+        assertThat(persisted.getName()).isEqualTo("Agile Scout");
+        assertThat(persisted.getEvasion()).isEqualTo(2);
+        assertThat(persisted.getTier()).isEqualTo(1);
+        assertThat(persisted.getAgilityModifier()).isEqualTo(1);
+        assertThat(persisted.getFeatures()).hasSize(2);
+        assertThat(persisted.getFeatures())
+                .extracting("name")
+                .containsExactlyInAnyOrder("Agile", "Fragile");
+    }
+
+    @Test
+    void createBeastformsBulk_AsAdmin_WithEvolvedMetaCardRawJson_PersistsWithNoStatFields() throws Exception {
+        // "Legendary Beast" (PDF p352) is an "Evolved: upgrade an earlier pick" card -- it
+        // prints no stat line at all (no evasion, attack range/trait, damage, or trait
+        // modifiers). Its bonus applies to whichever base form the player already chose and
+        // is described in prose in the feature text, not a per-column value. This raw-JSON
+        // payload omits evasion/attackRange/attackTrait/damage and all six trait modifiers
+        // entirely -- proving the columns are genuinely optional end-to-end, not just
+        // defaulted, since a NOT NULL DEFAULT 0 column would still accept an omitted key.
+        String requestJson = """
+                [
+                  {
+                    "name": "Legendary Beast",
+                    "example": "Upgrade an earlier pick",
+                    "tier": 3,
+                    "features": [
+                      {
+                        "name": "Evolved",
+                        "description": "Upgrade the trait bonus, Evasion, and damage of a beastform you've already chosen.",
+                        "featureType": "OTHER",
+                        "expansionId": %d
+                      }
+                    ],
+                    "expansionId": %d,
+                    "isOfficial": true,
+                    "isPublic": true
+                  }
+                ]
+                """.formatted(testExpansion.getId(), testExpansion.getId());
+
+        String responseJson = mockMvc.perform(post("/api/dh/beastforms/bulk")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(requestJson))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$[0].name").value("Legendary Beast"))
+                .andExpect(jsonPath("$[0].tier").value(3))
+                .andExpect(jsonPath("$[0].evasion").doesNotExist())
+                .andExpect(jsonPath("$[0].attackRange").doesNotExist())
+                .andExpect(jsonPath("$[0].attackTrait").doesNotExist())
+                .andExpect(jsonPath("$[0].damage").doesNotExist())
+                .andExpect(jsonPath("$[0].featureIds.length()").value(1))
+                .andReturn().getResponse().getContentAsString();
+
+        Long createdId = objectMapper.readTree(responseJson).get(0).get("id").asLong();
+        Beastform persisted = beastformRepository.findByIdAndDeletedAtIsNull(createdId).orElseThrow();
+
+        assertThat(persisted.getName()).isEqualTo("Legendary Beast");
+        assertThat(persisted.getTier()).isEqualTo(3);
+        assertThat(persisted.getEvasion()).isNull();
+        assertThat(persisted.getAttackRange()).isNull();
+        assertThat(persisted.getAttackTrait()).isNull();
+        assertThat(persisted.getDamage()).isNull();
+        assertThat(persisted.getAgilityModifier()).isNull();
+        assertThat(persisted.getStrengthModifier()).isNull();
+        assertThat(persisted.getFinesseModifier()).isNull();
+        assertThat(persisted.getInstinctModifier()).isNull();
+        assertThat(persisted.getPresenceModifier()).isNull();
+        assertThat(persisted.getKnowledgeModifier()).isNull();
+        assertThat(persisted.getFeatures()).hasSize(1);
+        assertThat(persisted.getFeatures())
+                .extracting("name")
+                .containsExactly("Evolved");
+    }
+
+    @Test
     void createBeastformsBulk_AsUser_Returns403() throws Exception {
         CreateBeastformRequest request = CreateBeastformRequest.builder()
                 .name("Wolf")
                 .expansionId(testExpansion.getId())
                 .isOfficial(true)
+                .tier(1)
                 .attackRange(Range.MELEE)
                 .attackTrait(Trait.AGILITY)
                 .damage(CreateBeastformRequest.DamageRollRequest.builder()
@@ -390,6 +529,8 @@ class BeastformControllerIntegrationTest {
                 .createdBy(adminUser)
                 .isOfficial(true)
                 .isPublic(false)
+                .evasion(0)
+                .tier(1)
                 .attackRange(attackRange)
                 .attackTrait(attackTrait)
                 .damage(DamageRoll.builder()

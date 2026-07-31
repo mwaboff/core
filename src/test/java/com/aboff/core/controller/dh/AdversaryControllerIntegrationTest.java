@@ -513,29 +513,72 @@ class AdversaryControllerIntegrationTest {
 
     @Test
     void createAdversariesBulk_AsModerator_Returns201() throws Exception {
-        // Arrange
+        // Arrange - realistic full-shape payload matching the real bulk-import JSON
+        // (hope_and_fear-import/json/10-adversaries.json's "Bugboar"/"Atototl" entries),
+        // including a nested "features" array with real multi-feature cardinality
+        // (Young Ice Dragon/Adult Flickerfly carry 7 features in production).
+        // Deliberately omits hitPointMax/stressMax/isPublic on the second adversary so the
+        // response assertions below can verify AdversaryService's defensive null-coalescing
+        // (hitPointMax/stressMax -> 0, isPublic -> false) actually fires on the real bulk-JSON
+        // deserialization path, not just via the Lombok builder's @Builder.Default.
         String bulkRequest = """
             [
                 {
-                    "name": "Goblin 1",
+                    "name": "Bugboar",
                     "tier": 1,
-                    "adversaryType": "MINION",
-                    "difficulty": 5,
-                    "majorThreshold": 3,
-                    "severeThreshold": 6,
-                    "expansionId": %d
+                    "adversaryType": "BRUISER",
+                    "description": "A large bipedal creature that has a tusked snout and coarse fur. | Experience: Traps +3",
+                    "motivesAndTactics": "Ambush, bully, seek carnage and shiny things",
+                    "difficulty": 13,
+                    "majorThreshold": 8,
+                    "severeThreshold": 15,
+                    "hitPointMax": 5,
+                    "stressMax": 3,
+                    "attackModifier": 1,
+                    "weaponName": "Tusks",
+                    "attackRange": "MELEE",
+                    "damage": { "diceCount": 1, "diceType": "D8", "modifier": 1, "damageType": "PHYSICAL" },
+                    "isPublic": true,
+                    "expansionId": %d,
+                    "features": [
+                        { "name": "Surprise! - Passive [Bugboar]", "description": "The first time the Bugboar attacks a target, it deals extra damage equal to its tier.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Tusked Charge - Action [Bugboar]", "description": "Mark a Stress to move up to Far range and make an attack against a target in melee range.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Bristling Hide - Passive [Bugboar]", "description": "The Bugboar's coarse fur grants it resistance to physical damage.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Territorial - Passive [Bugboar]", "description": "The Bugboar gains advantage on attacks against creatures within its territory.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Frenzy - Reaction [Bugboar]", "description": "When the Bugboar is damaged, it can mark a Stress to immediately attack the source.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Relentless (3) - Passive [Bugboar]", "description": "The Bugboar can be spotlighted up to three times per GM turn.", "featureType": "OTHER", "expansionId": %d }
+                    ]
                 },
                 {
-                    "name": "Goblin 2",
+                    "name": "Atototl",
                     "tier": 1,
-                    "adversaryType": "MINION",
-                    "difficulty": 5,
-                    "majorThreshold": 3,
-                    "severeThreshold": 6,
-                    "expansionId": %d
+                    "adversaryType": "STANDARD",
+                    "description": "A majestic green water bird that has a ten-foot wingspan and is hunted for the fortune-telling stone inside their stomach. | Experience: Flight +3, Jungles +3",
+                    "motivesAndTactics": "Avoid, escape, misdirect",
+                    "difficulty": 12,
+                    "majorThreshold": 8,
+                    "severeThreshold": 12,
+                    "attackModifier": 1,
+                    "weaponName": "Talons",
+                    "attackRange": "MELEE",
+                    "damage": { "diceCount": 1, "diceType": "D8", "modifier": 1, "damageType": "PHYSICAL" },
+                    "expansionId": %d,
+                    "features": [
+                        { "name": "Wind Lord - Passive [Atototl]", "description": "While the Atototl is flying, attacks against it is made with disadvantage.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Stone of Omens - Passive [Atototl]", "description": "Inside the Atototl is a stone that foretells good or ill fortune.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Archer's Bane - Reaction [Atototl]", "description": "When a creature beyond Melee range targets the Atototl with an attack, it can move to Melee range of that creature.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Evasive Flight - Passive [Atototl]", "description": "The Atototl is difficult to pin down while airborne.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Shrieking Cry - Action [Atototl]", "description": "The Atototl lets out a piercing cry that can be heard for miles.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Nimble Retreat - Reaction [Atototl]", "description": "When targeted by an attack, the Atototl can mark a Stress to move away from the attacker.", "featureType": "OTHER", "expansionId": %d },
+                        { "name": "Fortune's Guardian - Passive [Atototl]", "description": "Creatures that harm the Atototl gain Fear equal to half the damage dealt, rounded down.", "featureType": "OTHER", "expansionId": %d }
+                    ]
                 }
             ]
-            """.formatted(testExpansion.getId(), testExpansion.getId());
+            """.formatted(
+                    testExpansion.getId(), testExpansion.getId(), testExpansion.getId(), testExpansion.getId(),
+                    testExpansion.getId(), testExpansion.getId(), testExpansion.getId(),
+                    testExpansion.getId(), testExpansion.getId(), testExpansion.getId(), testExpansion.getId(),
+                    testExpansion.getId(), testExpansion.getId(), testExpansion.getId(), testExpansion.getId());
 
         // Act & Assert
         mockMvc.perform(post("/api/dh/adversaries/bulk")
@@ -544,10 +587,24 @@ class AdversaryControllerIntegrationTest {
                         .content(bulkRequest))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].name").value("Goblin 1"))
-                .andExpect(jsonPath("$[1].name").value("Goblin 2"));
+                .andExpect(jsonPath("$[0].name").value("Bugboar"))
+                .andExpect(jsonPath("$[0].hitPointMax").value(5))
+                .andExpect(jsonPath("$[0].stressMax").value(3))
+                .andExpect(jsonPath("$[0].isPublic").value(true))
+                .andExpect(jsonPath("$[0].featureIds").isArray())
+                .andExpect(jsonPath("$[0].featureIds.length()").value(6))
+                .andExpect(jsonPath("$[1].name").value("Atototl"))
+                // hitPointMax/stressMax/isPublic are deliberately omitted from Atototl's JSON above;
+                // this asserts AdversaryService's null-coalescing defaults actually fire on the real
+                // deserialization path (not just via the builder's @Builder.Default, which Jackson bypasses)
+                .andExpect(jsonPath("$[1].hitPointMax").value(0))
+                .andExpect(jsonPath("$[1].stressMax").value(0))
+                .andExpect(jsonPath("$[1].isPublic").value(false))
+                .andExpect(jsonPath("$[1].featureIds").isArray())
+                .andExpect(jsonPath("$[1].featureIds.length()").value(7));
 
         assertThat(adversaryRepository.findAll()).hasSize(2);
+        assertThat(featureRepository.findAll()).hasSize(13);
     }
 
     @Test
