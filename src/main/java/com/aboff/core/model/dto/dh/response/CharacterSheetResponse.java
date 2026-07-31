@@ -21,6 +21,7 @@ import java.util.List;
  * - communityCards: List of community card objects
  * - ancestryCards: List of ancestry card objects
  * - subclassCards: List of subclass card objects
+ * - class: Full class objects for every class the character has
  * - domainCards: List of domain card objects
  * - inventoryWeapons: Full weapon objects nested in inventory weapon entries
  * - inventoryArmors: Full armor objects nested in inventory armor entries
@@ -226,18 +227,50 @@ public class CharacterSheetResponse {
     // ========== Class ==========
 
     /**
-     * ID of the character's class, derived from their subclass cards (always included, null if no subclass cards)
+     * IDs of all the character's classes, derived from their subclass cards, ordered by class ID ascending
+     * (always included, empty if no subclass cards). A multiclassed character has more than one entry.
      */
+    private List<Long> classIds;
+
+    /**
+     * Names of all the character's classes, derived from their subclass cards, in the same order as
+     * {@link #classIds} (always included, empty if no subclass cards).
+     */
+    private List<String> classNames;
+
+    /**
+     * Full class objects for every class the character has (included only when ?expand=class is specified),
+     * in the same order as {@link #classIds}.
+     */
+    private List<ClassResponse> classes;
+
+    /**
+     * ID of the character's first class, derived from their subclass cards (always included, null if no
+     * subclass cards).
+     *
+     * @deprecated multiclassed characters have more than one class; use {@link #classIds} instead.
+     * Retained for backward compatibility and populated with the first element of {@link #classIds}.
+     */
+    @Deprecated
     private Long classId;
 
     /**
-     * Name of the character's class, derived from their subclass cards (always included, null if no subclass cards)
+     * Name of the character's first class, derived from their subclass cards (always included, null if no
+     * subclass cards).
+     *
+     * @deprecated multiclassed characters have more than one class; use {@link #classNames} instead.
+     * Retained for backward compatibility and populated with the first element of {@link #classNames}.
      */
+    @Deprecated
     private String className;
 
     /**
-     * Full class object (included only when ?expand=class is specified)
+     * Full object for the character's first class (included only when ?expand=class is specified).
+     *
+     * @deprecated multiclassed characters have more than one class; use {@link #classes} instead.
+     * Retained for backward compatibility and populated with the first element of {@link #classes}.
      */
+    @Deprecated
     @JsonProperty("class")
     private ClassResponse classObject;
 
