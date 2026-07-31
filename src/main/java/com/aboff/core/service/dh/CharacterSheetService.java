@@ -36,8 +36,11 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -851,17 +854,14 @@ public class CharacterSheetService {
         builder.ancestryCardIds(sheet.getAncestryCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
         builder.subclassCardIds(sheet.getSubclassCards().stream().map(card -> card.getId()).collect(Collectors.toList()));
 
-        // Always include class info derived from subclass cards
-        Class characterClass = sheet.getSubclassCards().stream()
-                .map(SubclassCard::getSubclassPath)
-                .filter(path -> path != null)
-                .map(SubclassPath::getAssociatedClass)
-                .filter(c -> c != null)
-                .findFirst()
-                .orElse(null);
-        if (characterClass != null) {
-            builder.classId(characterClass.getId());
-            builder.className(characterClass.getName());
+        // Always include class info derived from subclass cards (a multiclassed character has more than one)
+        List<Class> characterClasses = resolveCharacterClasses(sheet);
+        builder.classIds(characterClasses.stream().map(Class::getId).collect(Collectors.toList()));
+        builder.classNames(characterClasses.stream().map(Class::getName).collect(Collectors.toList()));
+        if (!characterClasses.isEmpty()) {
+            Class primaryClass = characterClasses.get(0);
+            builder.classId(primaryClass.getId());
+            builder.className(primaryClass.getName());
         }
 
         // Domain card IDs split by equipped/vault
@@ -974,9 +974,13 @@ public class CharacterSheetService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand class if requested
-        if (ExpandUtil.shouldExpand(expand, "class") && characterClass != null) {
-            builder.classObject(classService.toResponse(characterClass, expand));
+        // Expand classes if requested
+        if (ExpandUtil.shouldExpand(expand, "class") && !characterClasses.isEmpty()) {
+            List<ClassResponse> classResponses = characterClasses.stream()
+                    .map(c -> classService.toResponse(c, expand))
+                    .collect(Collectors.toList());
+            builder.classes(classResponses);
+            builder.classObject(classResponses.get(0));
         }
 
         // Expand domain cards if requested
@@ -1003,6 +1007,35 @@ public class CharacterSheetService {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Resolves every class a character belongs to by walking all of their subclass cards.
+     * <p>
+     * A multiclassed character holds subclass cards from more than one class, and a single class can
+     * contribute several cards (foundation plus specialization). Classes are therefore deduplicated by
+     * ID and returned in a deterministic order (class ID ascending, then class name) so that repeated
+     * calls produce identical responses despite the underlying subclass cards being held in a
+     * {@link java.util.HashSet}.
+     * </p>
+     *
+     * @param sheet The character sheet to inspect
+     * @return An ordered, deduplicated list of the character's classes; empty if none can be resolved
+     */
+    private List<Class> resolveCharacterClasses(CharacterSheet sheet) {
+        Map<Long, Class> classesById = new LinkedHashMap<>();
+        for (SubclassCard card : sheet.getSubclassCards()) {
+            SubclassPath path = card.getSubclassPath();
+            if (path == null || path.getAssociatedClass() == null) {
+                continue;
+            }
+            Class associatedClass = path.getAssociatedClass();
+            classesById.putIfAbsent(associatedClass.getId(), associatedClass);
+        }
+        return classesById.values().stream()
+                .sorted(Comparator.comparing(Class::getId, Comparator.nullsLast(Comparator.naturalOrder()))
+                        .thenComparing(Class::getName, Comparator.nullsLast(Comparator.naturalOrder())))
+                .collect(Collectors.toList());
     }
 
     /**

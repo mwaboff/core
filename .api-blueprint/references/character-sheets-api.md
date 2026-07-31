@@ -866,7 +866,7 @@ Expand options come in two categories: **item/card expansion** (top-level, bring
 | `communityCards`       | All assigned community cards                 | `communityCards`            | `CommunityCardResponse[]`   |
 | `ancestryCards`        | All assigned ancestry cards                  | `ancestryCards`             | `AncestryCardResponse[]`    |
 | `subclassCards`        | All assigned subclass cards                  | `subclassCards`             | `SubclassCardResponse[]`    |
-| `class`                | Full class object (derived from subclass cards) | `class`                  | `ClassResponse`             |
+| `class`                | Full class objects for **every** class the character has (derived from all subclass cards) | `classes` (plus deprecated `class` = first entry) | `ClassResponse[]` |
 | `domainCards`          | All assigned domain cards (equipped + vault) | `domainCards`               | `DomainCardResponse[]`      |
 | `equippedDomainCards`  | Equipped domain cards only (max 5)           | `equippedDomainCards`       | `DomainCardResponse[]`      |
 | `vaultDomainCards`     | Vault (unequipped) domain cards              | `vaultDomainCards`          | `DomainCardResponse[]`      |
@@ -897,8 +897,10 @@ Nested options compose freely with any item/card expand options. Examples:
 | `?expand=ancestryCards,features,expansion`          | Returns ancestry cards with full features, and each item/card's expansion populated |
 | `?expand=domainCards,features,costTags,modifiers`   | Returns domain cards with features, their cost tags, and their modifiers all expanded |
 | `?expand=owner,experiences,inventoryWeapons,inventoryArmors` | Returns owner, experiences, and inventory weapon/armor details |
-| `?expand=class`                                             | Returns full class object with ID lists for features, domains, and questions |
-| `?expand=class,hopeFeatures,classFeatures`                  | Returns class object with full hope and class feature objects |
+| `?expand=class`                                             | Returns a `classes` array with one full class object per class, each with ID lists for features, domains, and questions |
+| `?expand=class,hopeFeatures,classFeatures`                  | Returns every class object with full hope and class feature objects |
+
+Multiclassed characters have more than one class. `classIds` / `classNames` are always present and list every class; `?expand=class` returns the matching `classes` array. The singular `classId` / `className` / `class` fields remain for backward compatibility and always hold the first entry of the corresponding list.
 
 Null fields are omitted from JSON responses (uses `@JsonInclude(NON_NULL)`). Inventory arrays (`inventoryWeapons`, `inventoryArmors`, `inventoryItems`) are always included in the response with linking entity data (IDs, equipped status, slot). The `expand` parameter controls whether the nested `weapon`/`armor`/`loot` objects within each entry are populated.
 
@@ -1088,9 +1090,12 @@ Returned by `GET /api/dh/character-sheets/{id}/notes`.
 | `communityCards`         | CommunityCardResponse[]   | No             | Only with `?expand=communityCards`         |
 | `ancestryCardIds`        | long[]                    | Yes            | --                                         |
 | `ancestryCards`          | AncestryCardResponse[]    | No             | Only with `?expand=ancestryCards`          |
-| `classId`                | long                      | No             | ID of character's class derived from subclass cards; null if no subclass cards |
-| `className`              | string                    | No             | Name of character's class; null if no subclass cards |
-| `class`                  | ClassResponse             | No             | Only with `?expand=class`. Supports nested expand keys (e.g. `hopeFeatures`, `classFeatures`, `expansion`) |
+| `classIds`               | long[]                    | Yes            | IDs of **all** the character's classes, derived from subclass cards, deduplicated and ordered by class ID ascending. Empty array if no subclass cards. A multiclassed character has more than one entry |
+| `classNames`             | string[]                  | Yes            | Names of all the character's classes, in the same order as `classIds`. Empty array if no subclass cards |
+| `classes`                | ClassResponse[]           | No             | Only with `?expand=class`. Full class object for **every** class, in the same order as `classIds`. Supports nested expand keys (e.g. `hopeFeatures`, `classFeatures`, `expansion`) |
+| `classId`                | long                      | No             | **Deprecated** — use `classIds`. First entry of `classIds`; null if no subclass cards |
+| `className`              | string                    | No             | **Deprecated** — use `classNames`. First entry of `classNames`; null if no subclass cards |
+| `class`                  | ClassResponse             | No             | **Deprecated** — use `classes`. Only with `?expand=class`. First entry of `classes` |
 | `subclassCardIds`        | long[]                    | Yes            | --                                         |
 | `subclassCards`          | SubclassCardResponse[]    | No             | Only with `?expand=subclassCards`          |
 | `domainCardIds`          | long[]                    | Yes            | Union of equipped + vault (backward compat) |
@@ -1617,16 +1622,22 @@ The six core character traits in Daggerheart.
 
 ### FeatureType
 
-| Value       | Description                        |
-|-------------|------------------------------------|
-| `HOPE`      | Hope feature type                  |
-| `ANCESTRY`  | Ancestry feature type              |
-| `CLASS`     | Class feature type                 |
-| `COMMUNITY` | Community feature type             |
-| `DOMAIN`    | Domain feature type                |
-| `ITEM`      | Item feature type                  |
-| `SUBCLASS`  | Subclass feature type              |
-| `OTHER`     | Other feature type                 |
+| Value            | Description                 |
+|------------------|-----------------------------|
+| `HOPE`           | Hope feature type           |
+| `ANCESTRY`       | Ancestry feature type       |
+| `CLASS`          | Class feature type          |
+| `COMMUNITY`      | Community feature type      |
+| `DOMAIN`         | Domain feature type         |
+| `ITEM`           | Item feature type           |
+| `SUBCLASS`       | Subclass feature type       |
+| `OTHER`          | Other feature type          |
+| `TRANSFORMATION` | Transformation feature type |
+| `ENVIRONMENT`    | Environment feature type    |
+| `CAMPAIGN_FRAME` | Campaign frame feature type |
+| `BEASTFORM`      | Beastform feature type      |
+| `MARTIAL_STANCE` | Martial stance feature type |
+| `ADVERSARY`      | Adversary feature type      |
 
 ### DomainCardType
 

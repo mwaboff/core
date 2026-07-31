@@ -2772,6 +2772,175 @@ class CharacterSheetServiceTest {
         assertThat(result.getClassName()).isNull();
     }
 
+    // ==================== MULTICLASS CLASS INFO TESTS ====================
+
+    /**
+     * Builds a minimal character sheet carrying the supplied subclass cards.
+     * Every collection must be initialised or toResponse throws a NullPointerException.
+     */
+    private CharacterSheet buildSheetWithSubclassCards(User owner, SubclassCard... subclassCards) {
+        return CharacterSheet.builder()
+                .id(1L).name("Aragorn").level(1).proficiency(0)
+                .evasion(10).armorMax(0).armorMarked(0)
+                .majorDamageThreshold(3).severeDamageThreshold(6)
+                .agilityModifier(0).agilityMarked(false)
+                .strengthModifier(0).strengthMarked(false)
+                .finesseModifier(0).finesseMarked(false)
+                .instinctModifier(0).instinctMarked(false)
+                .presenceModifier(0).presenceMarked(false)
+                .knowledgeModifier(0).knowledgeMarked(false)
+                .hitPointMax(6).hitPointMarked(0)
+                .stressMax(6).stressMarked(0)
+                .hopeMax(2).hopeMarked(0).gold(0)
+                .owner(owner)
+                .subclassCards(new HashSet<>(List.of(subclassCards)))
+                .communityCards(new HashSet<>()).ancestryCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+    }
+
+    /**
+     * Builds a subclass card whose path is associated with the supplied class.
+     */
+    private SubclassCard buildSubclassCard(Long cardId, String cardName, Long pathId, String pathName, Class associatedClass) {
+        SubclassPath path = SubclassPath.builder().id(pathId).name(pathName).associatedClass(associatedClass).build();
+        return SubclassCard.builder().id(cardId).name(cardName).subclassPath(path).build();
+    }
+
+    @Test
+    void getCharacterSheet_WithNoSubclassCards_ClassPluralsAreEmpty() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner);
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "class");
+
+        // Assert
+        assertThat(result.getClassIds()).isEmpty();
+        assertThat(result.getClassNames()).isEmpty();
+        assertThat(result.getClasses()).isNull();
+        assertThat(result.getClassId()).isNull();
+        assertThat(result.getClassName()).isNull();
+        assertThat(result.getClassObject()).isNull();
+    }
+
+    @Test
+    void getCharacterSheet_SingleClass_PluralAndSingularFieldsAgree() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class warrior = Class.builder().id(10L).name("Warrior").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "Call of the Brave", 5L, "Call of the Brave", warrior));
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassIds()).containsExactly(10L);
+        assertThat(result.getClassNames()).containsExactly("Warrior");
+        assertThat(result.getClassId()).isEqualTo(result.getClassIds().get(0));
+        assertThat(result.getClassName()).isEqualTo(result.getClassNames().get(0));
+    }
+
+    @Test
+    void getCharacterSheet_SingleClassWithTwoCardsFromSamePath_DeduplicatesClass() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class druid = Class.builder().id(20L).name("Druid").build();
+        SubclassPath wardenOfRenewal = SubclassPath.builder().id(6L).name("Warden of Renewal").associatedClass(druid).build();
+        SubclassCard foundation = SubclassCard.builder().id(1L).name("Foundation").subclassPath(wardenOfRenewal).build();
+        SubclassCard specialization = SubclassCard.builder().id(2L).name("Specialization").subclassPath(wardenOfRenewal).build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner, foundation, specialization);
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassIds()).containsExactly(20L);
+        assertThat(result.getClassNames()).containsExactly("Druid");
+    }
+
+    @Test
+    void getCharacterSheet_Multiclass_ReturnsAllClassesOrderedByClassId() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class wizard = Class.builder().id(30L).name("Wizard").build();
+        Class druid = Class.builder().id(20L).name("Druid").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "School of Knowledge", 7L, "School of Knowledge", wizard),
+                buildSubclassCard(2L, "Warden of Renewal", 6L, "Warden of Renewal", druid));
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassIds()).containsExactly(20L, 30L);
+        assertThat(result.getClassNames()).containsExactly("Druid", "Wizard");
+        assertThat(result.getClassId()).isEqualTo(20L);
+        assertThat(result.getClassName()).isEqualTo("Druid");
+    }
+
+    @Test
+    void getCharacterSheet_Multiclass_OrderingIsStableAcrossRepeatedCalls() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class wizard = Class.builder().id(30L).name("Wizard").build();
+        Class druid = Class.builder().id(20L).name("Druid").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "School of Knowledge", 7L, "School of Knowledge", wizard),
+                buildSubclassCard(2L, "Warden of Renewal", 6L, "Warden of Renewal", druid));
+        // Same character, subclass cards inserted in the opposite order
+        CharacterSheet reorderedSheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(2L, "Warden of Renewal", 6L, "Warden of Renewal", druid),
+                buildSubclassCard(1L, "School of Knowledge", 7L, "School of Knowledge", wizard));
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet), Optional.of(reorderedSheet));
+
+        // Act
+        List<String> firstCall = characterSheetService.getCharacterSheetById(1L, null).getClassNames();
+        List<String> secondCall = characterSheetService.getCharacterSheetById(1L, null).getClassNames();
+
+        // Assert
+        assertThat(firstCall).isEqualTo(secondCall).containsExactly("Druid", "Wizard");
+    }
+
+    @Test
+    void getCharacterSheet_MulticlassWithExpandClass_ExpandsEveryClass() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class wizard = Class.builder().id(30L).name("Wizard").build();
+        Class druid = Class.builder().id(20L).name("Druid").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "School of Knowledge", 7L, "School of Knowledge", wizard),
+                buildSubclassCard(2L, "Warden of Renewal", 6L, "Warden of Renewal", druid));
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(classService.toResponse(eq(druid), anySet()))
+                .thenReturn(ClassResponse.builder().id(20L).name("Druid").build());
+        when(classService.toResponse(eq(wizard), anySet()))
+                .thenReturn(ClassResponse.builder().id(30L).name("Wizard").build());
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "class");
+
+        // Assert
+        assertThat(result.getClasses()).extracting(ClassResponse::getName).containsExactly("Druid", "Wizard");
+        assertThat(result.getClassObject().getName()).isEqualTo("Druid");
+    }
+
     // ==================== GET NOTES TESTS ====================
 
     @Test

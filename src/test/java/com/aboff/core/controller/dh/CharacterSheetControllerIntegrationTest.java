@@ -8,16 +8,21 @@ import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
+import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.model.enums.Role;
+import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.LootRepository;
+import com.aboff.core.repository.dh.SubclassCardRepository;
+import com.aboff.core.repository.dh.SubclassPathRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
@@ -36,6 +41,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -84,6 +90,15 @@ class CharacterSheetControllerIntegrationTest {
 
     @Autowired
     private LootRepository lootRepository;
+
+    @Autowired
+    private ClassRepository classRepository;
+
+    @Autowired
+    private SubclassPathRepository subclassPathRepository;
+
+    @Autowired
+    private SubclassCardRepository subclassCardRepository;
 
 
     @Autowired
@@ -286,6 +301,23 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.owner").exists())
                 .andExpect(jsonPath("$.owner.username").value("player1"))
                 .andExpect(jsonPath("$.owner.email").value("player1@example.com"));
+    }
+
+    @Test
+    void getCharacterSheetById_Multiclass_ReturnsAllClassNames() throws Exception {
+        // Arrange
+        CharacterSheet multiclassSheet = createCharacterSheet("Merlin", "they/them", 6, player1);
+        multiclassSheet.getSubclassCards().add(createSubclassCard("Warden of Renewal", "Druid"));
+        multiclassSheet.getSubclassCards().add(createSubclassCard("School of Knowledge", "Wizard"));
+        characterSheetRepository.save(multiclassSheet);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", multiclassSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.classNames.length()").value(2))
+                .andExpect(jsonPath("$.classNames", containsInAnyOrder("Druid", "Wizard")))
+                .andExpect(jsonPath("$.classIds.length()").value(2));
     }
 
     // ==================== CREATE CHARACTER SHEET TESTS ====================
@@ -1188,6 +1220,42 @@ class CharacterSheetControllerIntegrationTest {
                 .owner(owner)
                 .build();
         return characterSheetRepository.save(sheet);
+    }
+
+    /**
+     * Creates a persisted subclass card whose path belongs to a newly created class of the given name.
+     */
+    private SubclassCard createSubclassCard(String pathName, String className) {
+        Expansion expansion = Expansion.builder()
+                .name("Test Expansion " + pathName)
+                .isPublished(true)
+                .build();
+        expansion = expansionRepository.save(expansion);
+
+        Class characterClass = Class.builder()
+                .name(className)
+                .expansion(expansion)
+                .isOfficial(true)
+                .startingEvasion(10)
+                .startingHitPoints(6)
+                .build();
+        characterClass = classRepository.save(characterClass);
+
+        SubclassPath path = SubclassPath.builder()
+                .name(pathName)
+                .associatedClass(characterClass)
+                .expansion(expansion)
+                .build();
+        path = subclassPathRepository.save(path);
+
+        SubclassCard card = SubclassCard.builder()
+                .name(pathName + " Foundation")
+                .expansion(expansion)
+                .isOfficial(true)
+                .subclassPath(path)
+                .level(SubclassLevel.FOUNDATION)
+                .build();
+        return subclassCardRepository.save(card);
     }
 
     private Experience createExperience(String description, Integer modifier, CharacterSheet sheet, User createdBy) {
