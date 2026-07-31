@@ -87,7 +87,7 @@ class CampaignServiceTest {
                 .thenReturn(campaignPage);
 
         // Act
-        PagedResponse<CampaignResponse> result = campaignService.getAllCampaigns(0, 20, null, null, null);
+        PagedResponse<CampaignResponse> result = campaignService.getAllCampaigns(0, 20, null, null, null, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -106,7 +106,7 @@ class CampaignServiceTest {
                 .thenReturn(campaignPage);
 
         // Act
-        PagedResponse<CampaignResponse> result = campaignService.getAllCampaigns(0, 20, 1L, null, null);
+        PagedResponse<CampaignResponse> result = campaignService.getAllCampaigns(0, 20, 1L, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -124,7 +124,7 @@ class CampaignServiceTest {
                 .thenReturn(campaignPage);
 
         // Act
-        PagedResponse<CampaignResponse> result = campaignService.getAllCampaigns(0, 20, null, "Dragon", null);
+        PagedResponse<CampaignResponse> result = campaignService.getAllCampaigns(0, 20, null, "Dragon", null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);

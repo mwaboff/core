@@ -27,8 +27,10 @@ All endpoints require authentication via `AUTH_TOKEN` HttpOnly cookie unless oth
 17. [Reject Character Sheet](#17-reject-character-sheet)
 18. [Add NPC](#18-add-npc)
 19. [Remove Character Sheet](#19-remove-character-sheet)
-20. [Models](#models)
-21. [Enums](#enums)
+20. [Update Fear](#20-update-fear)
+21. [Update GM Notes](#21-update-gm-notes)
+22. [Models](#models)
+23. [Enums](#enums)
 
 ---
 
@@ -209,11 +211,14 @@ Retrieves a single campaign. Only campaign participants (creator, GM, or player)
 
 ### Response: `200 OK`
 
+Shown as returned to a **player**: `fear` is present, `gmNotes` is absent. A creator/GM/MODERATOR+ receives the same body plus a `gmNotes` field -- see the [`gmNotes` visibility rule](#gmnotes-visibility-rule).
+
 ```json
 {
   "id": 1,
   "name": "Test Campaign",
   "description": "A test campaign",
+  "fear": 5,
   "creatorId": 1,
   "gameMasterIds": [1],
   "playerIds": [3, 4],
@@ -1046,6 +1051,165 @@ curl -s -X DELETE http://localhost:8080/api/dh/campaigns/1/character-sheets/10 \
 
 ---
 
+## 20. Update Fear
+
+Sets the campaign's Fear counter. Fear is a shared, table-visible resource: any campaign participant can read it, but only the GM side of the table can change it.
+
+The submitted value is absolute, not a delta.
+
+- **Method:** `PATCH`
+- **Path:** `/api/dh/campaigns/{id}/fear`
+- **Auth:** Campaign creator/GM or MODERATOR/ADMIN/OWNER
+
+### Path Parameters
+
+| Parameter | Type | Required | Description     |
+|-----------|------|----------|-----------------|
+| id        | long | Yes      | The campaign ID |
+
+### Request Body
+
+| Field | Type    | Required | Constraints                  |
+|-------|---------|----------|------------------------------|
+| fear  | integer | Yes      | `@NotNull`, `@Min(0)`, `@Max(12)` |
+
+### Request Example
+
+```json
+{
+  "fear": 5
+}
+```
+
+### Response: `200 OK`
+
+Returns the updated CampaignResponse. `gmNotes` is included because the caller necessarily has GM-level access.
+
+```json
+{
+  "id": 1,
+  "name": "Test Campaign",
+  "description": "A test campaign",
+  "fear": 5,
+  "gmNotes": "Session 3: the bridge collapses.",
+  "creatorId": 1,
+  "gameMasterIds": [1],
+  "playerIds": [3],
+  "pendingCharacterSheetIds": [],
+  "playerCharacterIds": [10],
+  "nonPlayerCharacterIds": [],
+  "isEnded": false,
+  "endedAt": null,
+  "createdAt": "2026-03-13T10:00:00",
+  "lastModifiedAt": "2026-07-31T12:00:00",
+  "deletedAt": null
+}
+```
+
+### Error Responses
+
+| Status | Condition                                              | Error Body Type |
+|--------|--------------------------------------------------------|-----------------|
+| 400    | `fear` missing, below 0, or above 12                   | ValidationErrorResponse |
+| 400    | Campaign has ended                                     | ErrorResponse   |
+| 401    | No AUTH_TOKEN cookie                                   | ErrorResponse   |
+| 403    | User is not a creator/GM and not MODERATOR+            | ErrorResponse   |
+| 404    | Campaign not found or soft-deleted                     | ErrorResponse   |
+
+### curl Example
+
+```bash
+curl -s -X PATCH http://localhost:8080/api/dh/campaigns/1/fear \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"fear": 5}'
+```
+
+---
+
+## 21. Update GM Notes
+
+Replaces the campaign's game master notes. Send an empty string to clear them.
+
+The submitted text is sanitized before storage (HTML tags outside a small safe-formatting allowlist are stripped, and dangerous URI schemes in markdown links are neutralized), so the stored and returned value may differ from what was sent.
+
+- **Method:** `PATCH`
+- **Path:** `/api/dh/campaigns/{id}/gm-notes`
+- **Auth:** Campaign creator/GM or MODERATOR/ADMIN/OWNER
+
+### Path Parameters
+
+| Parameter | Type | Required | Description     |
+|-----------|------|----------|-----------------|
+| id        | long | Yes      | The campaign ID |
+
+### Request Body
+
+| Field   | Type   | Required | Constraints                        |
+|---------|--------|----------|------------------------------------|
+| gmNotes | string | Yes      | `@NotNull`, max 50000 characters   |
+
+### Request Example
+
+```json
+{
+  "gmNotes": "Session 3: the bridge collapses."
+}
+```
+
+### Response: `200 OK`
+
+Returns the updated CampaignResponse, including the sanitized `gmNotes`.
+
+```json
+{
+  "id": 1,
+  "name": "Test Campaign",
+  "description": "A test campaign",
+  "fear": 5,
+  "gmNotes": "Session 3: the bridge collapses.",
+  "creatorId": 1,
+  "gameMasterIds": [1],
+  "playerIds": [3],
+  "pendingCharacterSheetIds": [],
+  "playerCharacterIds": [10],
+  "nonPlayerCharacterIds": [],
+  "isEnded": false,
+  "endedAt": null,
+  "createdAt": "2026-03-13T10:00:00",
+  "lastModifiedAt": "2026-07-31T12:00:00",
+  "deletedAt": null
+}
+```
+
+### Error Responses
+
+| Status | Condition                                              | Error Body Type |
+|--------|--------------------------------------------------------|-----------------|
+| 400    | `gmNotes` null/missing or longer than 50000 characters | ValidationErrorResponse |
+| 400    | Campaign has ended                                     | ErrorResponse   |
+| 401    | No AUTH_TOKEN cookie                                   | ErrorResponse   |
+| 403    | User is not a creator/GM and not MODERATOR+            | ErrorResponse   |
+| 404    | Campaign not found or soft-deleted                     | ErrorResponse   |
+
+### curl Examples
+
+```bash
+# Set notes
+curl -s -X PATCH http://localhost:8080/api/dh/campaigns/1/gm-notes \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"gmNotes": "Session 3: the bridge collapses."}'
+
+# Clear notes
+curl -s -X PATCH http://localhost:8080/api/dh/campaigns/1/gm-notes \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"gmNotes": ""}'
+```
+
+---
+
 ## Models
 
 ### CampaignResponse
@@ -1057,6 +1221,8 @@ Null fields are omitted from the JSON response (`@JsonInclude(NON_NULL)`).
 | id                        | long                      | Yes            | Campaign ID                                          |
 | name                      | string                    | Yes            | Campaign name (max 200 chars)                        |
 | description               | string                    | No             | Campaign description (max 2000 chars)                |
+| fear                      | integer                   | Yes            | Current Fear counter (0-12), visible to all participants |
+| gmNotes                   | string                    | No             | **GM-only.** See visibility rule below               |
 | creatorId                 | long                      | Yes            | ID of the campaign creator                           |
 | creator                   | UserResponse              | No             | Expanded when `?expand=creator`                      |
 | gameMasterIds             | long[]                    | Yes            | IDs of all game masters                              |
@@ -1076,6 +1242,14 @@ Null fields are omitted from the JSON response (`@JsonInclude(NON_NULL)`).
 | lastModifiedAt            | datetime                           | Yes            | ISO 8601 last modified timestamp                     |
 | deletedAt                 | datetime                           | No             | ISO 8601 soft-deletion timestamp (null if active)    |
 
+#### `gmNotes` visibility rule
+
+`gmNotes` is returned **only** when the requesting user is the campaign creator, one of its game masters, or has a MODERATOR/ADMIN/OWNER role. For every other caller -- including players in the campaign -- the field is left null and, because of `@JsonInclude(NON_NULL)`, is absent from the JSON entirely. Clients must treat a missing `gmNotes` as "not authorized to see it", not as "no notes set"; an empty string means the notes were explicitly cleared.
+
+This applies uniformly to every endpoint that returns a CampaignResponse: `GET /api/dh/campaigns/{id}`, `GET /api/dh/campaigns/mine`, `GET /api/dh/campaigns`, `GET /api/users/{userId}/campaigns`, and the two GM Screen PATCH endpoints.
+
+`fear`, by contrast, is always present -- it is a table-visible shared resource in Daggerheart and is returned to players as well.
+
 ### CreateCampaignRequest
 
 | Field         | Type   | Required | Constraints                           |
@@ -1093,6 +1267,20 @@ Supports partial updates. Only non-null fields are applied. Blank name values ar
 |-------------|--------|----------|-------------------------|
 | name        | string | No       | Max 200 characters      |
 | description | string | No       | Max 2000 characters     |
+
+### UpdateCampaignFearRequest
+
+| Field | Type    | Required | Constraints                       |
+|-------|---------|----------|-----------------------------------|
+| fear  | integer | Yes      | `@NotNull`, `@Min(0)`, `@Max(12)` |
+
+### UpdateCampaignGmNotesRequest
+
+| Field   | Type   | Required | Constraints                      |
+|---------|--------|----------|----------------------------------|
+| gmNotes | string | Yes      | `@NotNull`, max 50000 characters |
+
+Send `""` to clear the notes. The value is sanitized before storage.
 
 ### UserResponse (expanded)
 
