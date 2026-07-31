@@ -558,16 +558,22 @@ GET /api/dh/weapons/1?expand=expansion,features,originalWeapon
 
 ### FeatureType
 
-| Value |
-|-------|
-| `HOPE` |
-| `ANCESTRY` |
-| `CLASS` |
-| `COMMUNITY` |
-| `DOMAIN` |
-| `ITEM` |
-| `OTHER` |
-| `SUBCLASS` |
+| Value            |
+|------------------|
+| `HOPE`           |
+| `ANCESTRY`       |
+| `CLASS`          |
+| `COMMUNITY`      |
+| `DOMAIN`         |
+| `ITEM`           |
+| `OTHER`          |
+| `SUBCLASS`       |
+| `TRANSFORMATION` |
+| `ENVIRONMENT`    |
+| `CAMPAIGN_FRAME` |
+| `BEASTFORM`      |
+| `MARTIAL_STANCE` |
+| `ADVERSARY`      |
 
 ### CostTagCategory
 

@@ -542,16 +542,22 @@ Used in `CreateLootRequest.features` and `UpdateLootRequest.features` for inline
 
 Used in `FeatureInput.featureType` and `FeatureResponse.featureType`.
 
-| Value       | Description              |
-|-------------|--------------------------|
-| `HOPE`      | Hope feature type        |
-| `ANCESTRY`  | Ancestry feature type    |
-| `CLASS`     | Class feature type       |
-| `COMMUNITY` | Community feature type   |
-| `DOMAIN`    | Domain feature type      |
-| `ITEM`      | Item feature type        |
-| `OTHER`     | Other/miscellaneous      |
-| `SUBCLASS`  | Subclass feature type    |
+| Value            | Description                 |
+|------------------|-----------------------------|
+| `HOPE`           | Hope feature type           |
+| `ANCESTRY`       | Ancestry feature type       |
+| `CLASS`          | Class feature type          |
+| `COMMUNITY`      | Community feature type      |
+| `DOMAIN`         | Domain feature type         |
+| `ITEM`           | Item feature type           |
+| `OTHER`          | Other/miscellaneous         |
+| `SUBCLASS`       | Subclass feature type       |
+| `TRANSFORMATION` | Transformation feature type |
+| `ENVIRONMENT`    | Environment feature type    |
+| `CAMPAIGN_FRAME` | Campaign frame feature type |
+| `BEASTFORM`      | Beastform feature type      |
+| `MARTIAL_STANCE` | Martial stance feature type |
+| `ADVERSARY`      | Adversary feature type      |
 
 ### Tier Values
 

@@ -33,7 +33,7 @@ content). Privileged users (MODERATOR and above) bypass these restrictions.
 | `expansionId` | Long | -- | No | Filter by expansion foreign key (the `id` of an expansion resource). |
 | `isOfficial` | Boolean | -- | No | `true` — only official content; `false` — only custom/community content. |
 | `cardType` | String | -- | No | Filter by card type (e.g., `ANCESTRY`, `DOMAIN`, `COMMUNITY`, `SUBCLASS`). |
-| `featureType` | String | -- | No | Filter by feature type (e.g., `CLASS_FEATURE`, `SUBCLASS_FEATURE`). Applicable to `FEATURE` type. |
+| `featureType` | String | -- | No | Filter by feature type (e.g., `CLASS`, `SUBCLASS`, `BEASTFORM`, `ADVERSARY`). Applicable to `FEATURE` type. |
 | `adversaryType` | String | -- | No | Filter by adversary role (e.g., `MINION`, `STANDARD`, `LEADER`, `SOLO`, `BOSS`). Applicable to `ADVERSARY` type. |
 | `domainCardType` | String | -- | No | Filter by domain card type (e.g., `ABILITY`, `SPELL`). Applicable to `DOMAIN_CARD` type. |
 | `associatedDomainId` | Long | -- | No | Filter by associated domain primary key. Applicable to `DOMAIN_CARD`, `FEATURE`, and related types. |

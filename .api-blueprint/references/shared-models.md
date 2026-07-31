@@ -107,16 +107,22 @@ Progression levels for subclass cards.
 ### FeatureType
 Categories of character features.
 
-| Value | Description |
-|-------|-------------|
-| `HOPE` | Hope feature |
-| `ANCESTRY` | Ancestry feature |
-| `CLASS` | Class feature |
-| `COMMUNITY` | Community feature |
-| `DOMAIN` | Domain feature |
-| `ITEM` | Item feature |
-| `OTHER` | Other/miscellaneous feature |
-| `SUBCLASS` | Subclass feature |
+| Value            | Description                 |
+|------------------|-----------------------------|
+| `HOPE`           | Hope feature                |
+| `ANCESTRY`       | Ancestry feature            |
+| `CLASS`          | Class feature               |
+| `COMMUNITY`      | Community feature           |
+| `DOMAIN`         | Domain feature              |
+| `ITEM`           | Item feature                |
+| `OTHER`          | Other/miscellaneous feature |
+| `SUBCLASS`       | Subclass feature            |
+| `TRANSFORMATION` | Transformation feature      |
+| `ENVIRONMENT`    | Environment feature         |
+| `CAMPAIGN_FRAME` | Campaign frame feature      |
+| `BEASTFORM`      | Beastform feature           |
+| `MARTIAL_STANCE` | Martial stance feature      |
+| `ADVERSARY`      | Adversary feature           |
 
 **Used by:** Feature entity, FeatureResponse, Create/UpdateFeatureRequest, FeatureInput, FeatureRepository, FeatureService
 

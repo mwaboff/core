@@ -898,16 +898,22 @@ Tactical role and combat behavior. Each type has an associated battle point valu
 
 ### FeatureType
 
-| Value       | Description              |
-|-------------|--------------------------|
-| `HOPE`      | Hope feature             |
-| `ANCESTRY`  | Ancestry feature         |
-| `CLASS`     | Class feature            |
-| `COMMUNITY` | Community feature        |
-| `DOMAIN`    | Domain feature           |
-| `ITEM`      | Item feature             |
-| `OTHER`     | Other/generic feature    |
-| `SUBCLASS`  | Subclass feature         |
+| Value            | Description            |
+|------------------|------------------------|
+| `HOPE`           | Hope feature           |
+| `ANCESTRY`       | Ancestry feature       |
+| `CLASS`          | Class feature          |
+| `COMMUNITY`      | Community feature      |
+| `DOMAIN`         | Domain feature         |
+| `ITEM`           | Item feature           |
+| `OTHER`          | Other/generic feature  |
+| `SUBCLASS`       | Subclass feature       |
+| `TRANSFORMATION` | Transformation feature |
+| `ENVIRONMENT`    | Environment feature    |
+| `CAMPAIGN_FRAME` | Campaign frame feature |
+| `BEASTFORM`      | Beastform feature      |
+| `MARTIAL_STANCE` | Martial stance feature |
+| `ADVERSARY`      | Adversary feature      |
 
 ### CostTagCategory
 

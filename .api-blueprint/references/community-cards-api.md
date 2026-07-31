@@ -434,16 +434,22 @@ Restores a soft-deleted community card (clears `deletedAt` timestamp).
 
 ### FeatureType
 
-| Value |
-|---|
-| `HOPE` |
-| `ANCESTRY` |
-| `CLASS` |
-| `COMMUNITY` |
-| `DOMAIN` |
-| `ITEM` |
-| `OTHER` |
-| `SUBCLASS` |
+| Value            |
+|------------------|
+| `HOPE`           |
+| `ANCESTRY`       |
+| `CLASS`          |
+| `COMMUNITY`      |
+| `DOMAIN`         |
+| `ITEM`           |
+| `OTHER`          |
+| `SUBCLASS`       |
+| `TRANSFORMATION` |
+| `ENVIRONMENT`    |
+| `CAMPAIGN_FRAME` |
+| `BEASTFORM`      |
+| `MARTIAL_STANCE` |
+| `ADVERSARY`      |
 
 ### CostTagCategory
 
