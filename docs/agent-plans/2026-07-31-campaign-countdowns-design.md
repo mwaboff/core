@@ -87,10 +87,12 @@ countdowns at once can be complex, so most encounters include no more than one."
 
 **Zero timing:** the effect "triggers immediately after the last action roll is resolved."
 
-### Out-of-scope variants confirmed to exist
-
 **Chase countdowns** (p. 163) — two linked dynamic countdowns, the escapee's die set 1/3/5 lower
-for a small/decent/substantial lead. A real published variant, not built here.
+for a small/decent/substantial lead. Documented in the help section rather than modelled: a chase
+adds no mechanics, only setup guidance and a pairing convention, so two ordinary countdowns
+already run one. Automating the pair was considered and deferred — it would need an
+outcome-driven tick applied to two rows atomically, which conflicts with the absolute-value tick
+contract chosen for race safety, and would reintroduce the per-outcome buttons rejected above.
 
 "Ticking up" is a genuine inconsistency in published text — the rules say countdowns only
 reduce, but some Hope & Fear environment features say "tick up the countdown by 2". We
