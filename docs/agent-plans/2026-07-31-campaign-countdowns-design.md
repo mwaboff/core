@@ -71,11 +71,26 @@ examples:
 | Inverse collection | **None** on `Campaign`. Matches `CampaignInvite` / `CharacterSheetCondition` |
 | Search index | **Not indexed.** Private per-campaign state, not catalogue content |
 
-### Explicitly NOT in the SRD
+### Guidance the panel teaches (Core Rulebook pp. 162–164)
 
-The SRD gives **no** guidance on picking a starting value and **no** general rule for
-picking a trigger beyond the three advancement modes above. The panel must not invent
-either. Where the UI needs a default it will be labelled as a suggestion, not a rule.
+The SRD omits all of this; it was recovered from the Core Rulebook, which is ~3× longer on the
+subject. It is the substance of the panel's help section, since "how do I run one" is the
+user's actual problem.
+
+**The three elements to decide** (p. 162) — the framework the help section is built around:
+*Activation* (what in the fiction starts it), *Advancement* (what makes it tick), *Effect*
+(what happens at 0).
+
+**Starting values:** 2–4 for something that should land soon regardless of rolls; 5+ for a move
+that builds across a scene; 5–10 typical for dynamic; 4–12 for long-term. "Running multiple
+countdowns at once can be complex, so most encounters include no more than one."
+
+**Zero timing:** the effect "triggers immediately after the last action roll is resolved."
+
+### Out-of-scope variants confirmed to exist
+
+**Chase countdowns** (p. 163) — two linked dynamic countdowns, the escapee's die set 1/3/5 lower
+for a small/decent/substantial lead. A real published variant, not built here.
 
 "Ticking up" is a genuine inconsistency in published text — the rules say countdowns only
 reduce, but some Hope & Fear environment features say "tick up the countdown by 2". We
@@ -130,10 +145,19 @@ Applied server-side when a tick brings `currentValue` to 0:
 | `NONE` | Stays at 0. Effect has triggered; GM deletes or resets manually |
 | `LOOP` | `currentValue = startingValue` |
 | `LOOP_INCREASING` | `startingValue += 1`, then `currentValue = startingValue` |
-| `LOOP_DECREASING` | `startingValue -= 1` (floored at 1), then `currentValue = startingValue` |
+| `LOOP_DECREASING` | `startingValue -= 1`, then `currentValue = startingValue`. At 0 the countdown is **spent** and stops looping |
 
-**The floor at 1 is an application decision, not a rule** — the SRD specifies no floor. A
-decreasing loop that reached 0 would otherwise trigger forever. Documented in the entity.
+Decreasing countdowns have a **finite life**, per the Core Rulebook (p. 163):
+
+> Once a decreasing countdown reaches 0, a major event triggers—maybe a cave the PCs are
+> struggling to escape from finally collapses, or a ship they're trying to keep afloat sinks
+> beneath the waves.
+
+That 0 is the *starting* value decaying away, not the current value. An earlier draft of this
+design floored the starting value at 1 to prevent infinite triggering — that was wrong, invented
+to solve a problem the rules already solve. The SRD omits this sentence entirely; only the Core
+Rulebook has it. `starting_value` therefore permits 0 at the DB level, while the request DTOs
+still require >= 1 so a GM cannot author one.
 
 ### Migration
 

@@ -13,8 +13,12 @@
 --   CONSEQUENCE - dynamic, toward a negative effect (same table, other column)
 --   LONG_TERM   - advances on rests
 --
--- loop_behavior mirrors the SRD's "Advanced Countdown Features" (p. 69). starting_value is
--- deliberately mutable: increasing/decreasing loops shift it by 1 on every loop.
+-- loop_behavior mirrors the "Advanced Countdown Features" rules (Core Rulebook p. 163).
+-- starting_value is deliberately mutable: increasing/decreasing loops shift it by 1 on every
+-- loop. It is allowed to reach 0, which is only reachable via LOOP_DECREASING and marks a
+-- decreasing countdown that has decayed past its final loop ("Once a decreasing countdown
+-- reaches 0, a major event triggers"). A GM-authored starting value is still >= 1; that floor
+-- is enforced by the request DTOs rather than here.
 --
 -- Countdowns are GM-only state, like campaigns.gm_notes. They are not search-indexed.
 
@@ -39,7 +43,7 @@ CREATE TABLE countdowns (
         CHECK (countdown_type IN ('STANDARD', 'PROGRESS', 'CONSEQUENCE', 'LONG_TERM')),
     CONSTRAINT check_countdown_loop_behavior
         CHECK (loop_behavior IN ('NONE', 'LOOP', 'LOOP_INCREASING', 'LOOP_DECREASING')),
-    CONSTRAINT check_countdown_starting_value CHECK (starting_value BETWEEN 1 AND 99),
+    CONSTRAINT check_countdown_starting_value CHECK (starting_value BETWEEN 0 AND 99),
     CONSTRAINT check_countdown_current_value CHECK (current_value BETWEEN 0 AND 99)
 );
 

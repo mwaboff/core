@@ -56,10 +56,12 @@ brings `currentValue` to 0.
 | `NONE` | Rests at 0 |
 | `LOOP` | `currentValue` resets to `startingValue` |
 | `LOOP_INCREASING` | `startingValue` += 1, then reset |
-| `LOOP_DECREASING` | `startingValue` -= 1 (floored at 1), then reset |
+| `LOOP_DECREASING` | `startingValue` -= 1, then reset. At 0 the countdown is **spent** and stops |
 
-The floor of 1 for decreasing loops is an application decision, not a rule — the SRD sets no lower
-bound, and a starting value of 0 would re-trigger forever.
+Decreasing countdowns are finite (Core Rulebook p. 163): "Once a decreasing countdown reaches 0, a
+major event triggers." That 0 is the *starting* value decaying away. `startingValue` therefore
+permits 0 in the schema — a spent countdown — while the request DTOs still require >= 1, so only
+the decay path can produce one.
 
 ---
 

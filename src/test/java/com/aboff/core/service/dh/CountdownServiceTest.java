@@ -294,25 +294,36 @@ class CountdownServiceTest {
     }
 
     @Test
-    void updateCountdownValue_DecreasingLoopAtOne_FloorsAtOne() {
+    void updateCountdownValue_DecreasingLoopOnItsLastLoop_DecaysToZero() {
         when(countdownRepository.findById(100L))
                 .thenReturn(Optional.of(countdown(1, 1, CountdownLoop.LOOP_DECREASING)));
 
         CountdownResponse response =
                 countdownService.updateCountdownValue(100L, valueRequest(0), authentication);
 
-        assertThat(response.getStartingValue()).isEqualTo(1);
+        assertThat(response.getStartingValue()).isZero();
     }
 
     @Test
-    void updateCountdownValue_DecreasingLoopAtOne_StillResetsRatherThanRestingAtZero() {
+    void updateCountdownValue_DecreasingLoopOnItsLastLoop_DoesNotResetAgain() {
         when(countdownRepository.findById(100L))
                 .thenReturn(Optional.of(countdown(1, 1, CountdownLoop.LOOP_DECREASING)));
 
         CountdownResponse response =
                 countdownService.updateCountdownValue(100L, valueRequest(0), authentication);
 
-        assertThat(response.getCurrentValue()).isEqualTo(1);
+        assertThat(response.getCurrentValue()).isZero();
+    }
+
+    @Test
+    void updateCountdownValue_SpentDecreasingLoop_DoesNotDecayBelowZero() {
+        when(countdownRepository.findById(100L))
+                .thenReturn(Optional.of(countdown(0, 0, CountdownLoop.LOOP_DECREASING)));
+
+        CountdownResponse response =
+                countdownService.updateCountdownValue(100L, valueRequest(0), authentication);
+
+        assertThat(response.getStartingValue()).isZero();
     }
 
     @Test

@@ -70,7 +70,8 @@ public class Countdown extends BaseEntity {
      * The value this countdown resets to when it loops.
      * <p>
      * Deliberately mutable rather than fixed configuration: an increasing or decreasing loop
-     * shifts its own starting value by 1 every time it loops (SRD p. 69).
+     * shifts its own starting value by 1 every time it loops (Core Rulebook p. 163). May reach 0
+     * for a decreasing countdown that has run out of loops — see {@link #isSpent()}.
      * </p>
      */
     @Column(name = "starting_value", nullable = false)
@@ -96,19 +97,30 @@ public class Countdown extends BaseEntity {
     private Integer displayOrder = 0;
 
     /**
-     * The smallest starting value a decreasing loop may shrink to.
+     * Whether a decreasing countdown has run out of loops entirely.
      * <p>
-     * This floor is an application decision, not a rule: the SRD specifies no lower bound for
-     * decreasing countdowns, but a starting value of 0 would re-trigger the effect forever.
+     * Only reachable via {@link CountdownLoop#LOOP_DECREASING}: the Core Rulebook (p. 163) gives
+     * decreasing countdowns a finite life, ending when the starting value itself decays to 0.
      * </p>
+     *
+     * @return true if this countdown has decayed past its final loop
      */
-    private static final int MIN_STARTING_VALUE = 1;
+    public boolean isSpent() {
+        return startingValue == 0;
+    }
 
     /**
      * Applies this countdown's loop behaviour, if any, now that its effect has triggered.
      * <p>
      * Called when {@code currentValue} reaches 0. A non-looping countdown simply rests at 0
      * until the GM resets or deletes it.
+     * </p>
+     * <p>
+     * Decreasing countdowns are the subtle case. Per the Core Rulebook (p. 163) they do not loop
+     * forever: "Once a decreasing countdown reaches 0, a major event triggers—maybe a cave the
+     * PCs are struggling to escape from finally collapses". That 0 is the <em>starting</em> value
+     * decaying away, not the current value, so the final decrement leaves the countdown spent
+     * rather than resetting it again.
      * </p>
      */
     public void applyLoop() {
@@ -122,7 +134,8 @@ public class Countdown extends BaseEntity {
                 currentValue = startingValue;
             }
             case LOOP_DECREASING -> {
-                startingValue = Math.max(MIN_STARTING_VALUE, startingValue - 1);
+                if (isSpent()) break;
+                startingValue = startingValue - 1;
                 currentValue = startingValue;
             }
         }
