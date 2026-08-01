@@ -347,6 +347,15 @@ public class CharacterSheet extends BaseEntity {
     private DiceType comboDie;
 
     /**
+     * Whether the Game Master has granted this character access to transformations.
+     * False by default: the transformation panel stays hidden and every transformation
+     * mutation on the player-facing update path is rejected until a GM enables it.
+     */
+    @Column(name = "transformation_enabled", nullable = false)
+    @Builder.Default
+    private boolean transformationEnabled = false;
+
+    /**
      * The transformation card attached to this character, if any.
      * A character may have at most one transformation (structural: single FK).
      * Does not count against the domain card loadout limit.

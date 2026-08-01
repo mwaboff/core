@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -110,4 +111,18 @@ public interface CharacterSheetRepository extends JpaRepository<CharacterSheet, 
             @Param("minLevel") Integer minLevel,
             @Param("maxLevel") Integer maxLevel,
             Pageable pageable);
+
+    /**
+     * Finds character sheets by ID with their transformation card eagerly fetched.
+     * <p>
+     * Used to initialize the lazy {@code transformationCard} association for a whole batch of
+     * sheets in a single query, avoiding one query per sheet when building campaign character
+     * summaries.
+     * </p>
+     *
+     * @param ids the character sheet IDs to load
+     * @return the matching character sheets with their transformation card loaded
+     */
+    @Query("SELECT cs FROM CharacterSheet cs LEFT JOIN FETCH cs.transformationCard WHERE cs.id IN :ids")
+    List<CharacterSheet> findAllByIdInWithTransformationCard(@Param("ids") Collection<Long> ids);
 }

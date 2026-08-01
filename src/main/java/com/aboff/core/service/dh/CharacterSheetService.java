@@ -816,6 +816,8 @@ public class CharacterSheetService {
      * @param sheet   the character sheet being updated
      * @param request the partial update request
      * @throws EntityNotFoundException if a referenced transformation card or martial stance is not found
+     * @throws IllegalStateException if the request mutates transformation state while the sheet is
+     *                               not transformation-enabled (see {@link #validateTransformationAccess})
      */
     private void updateHopeAndFearResources(CharacterSheet sheet, UpdateCharacterSheetRequest request) {
         if (request.getFocusMax() != null) {
@@ -830,6 +832,8 @@ public class CharacterSheetService {
         if (request.getFavor() != null) {
             sheet.setFavor(request.getFavor());
         }
+
+        validateTransformationAccess(sheet, request);
 
         // Transformation attachment: an explicit clear flag detaches the transformation card and
         // resets every piece of state that only makes sense while a transformation is attached.
@@ -863,6 +867,38 @@ public class CharacterSheetService {
                     .orElseThrow(() -> new EntityNotFoundException(
                             "MartialStance not found with id: " + request.getActiveMartialStanceId()));
             sheet.setActiveMartialStance(stance);
+        }
+    }
+
+    /**
+     * Rejects transformation mutations on a character whose Game Master has not enabled
+     * transformations.
+     * <p>
+     * Transformations are granted by a GM through the campaign transformation endpoint, so the
+     * player-facing update path must not be able to attach, detach, or operate a transformation
+     * on a sheet that is not transformation-enabled. Without this check the flag would be purely
+     * cosmetic, because {@code UpdateCharacterSheetRequest} deliberately has no
+     * {@code transformationEnabled} field for a player to set.
+     * </p>
+     *
+     * @param sheet   the character sheet being updated
+     * @param request the partial update request
+     * @throws IllegalStateException if the request touches transformation state while the sheet
+     *                               is not transformation-enabled
+     */
+    private void validateTransformationAccess(CharacterSheet sheet, UpdateCharacterSheetRequest request) {
+        if (sheet.isTransformationEnabled()) {
+            return;
+        }
+
+        boolean touchesTransformation = request.getTransformationCardId() != null
+                || Boolean.TRUE.equals(request.getClearTransformationCard())
+                || request.getTransformationTokens() != null
+                || request.getWolfFormActive() != null;
+
+        if (touchesTransformation) {
+            throw new IllegalStateException(
+                    "Transformations are not enabled for this character. Ask your GM to enable them.");
         }
     }
 
@@ -992,6 +1028,7 @@ public class CharacterSheetService {
                 .focusMax(sheet.getFocusMax())
                 .favor(sheet.getFavor())
                 .comboDie(sheet.getComboDie())
+                .transformationEnabled(sheet.isTransformationEnabled())
                 .transformationTokens(sheet.getTransformationTokens())
                 .wolfFormActive(sheet.getWolfFormActive())
                 .ownerId(sheet.getOwner().getId())

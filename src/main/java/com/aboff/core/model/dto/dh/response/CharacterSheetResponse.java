@@ -220,6 +220,13 @@ public class CharacterSheetResponse {
     private DiceType comboDie;
 
     /**
+     * Whether the Game Master has granted this character access to transformations.
+     * When false the transformation panel is hidden and transformation fields cannot be
+     * changed through the player-facing update endpoint.
+     */
+    private boolean transformationEnabled;
+
+    /**
      * ID of the transformation card attached to this character (null if none).
      */
     private Long transformationCardId;

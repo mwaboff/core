@@ -549,6 +549,7 @@ class CharacterSheetControllerIntegrationTest {
     @Test
     void updateCharacterSheet_AttachAndDetachTransformationCard_Returns200() throws Exception {
         TransformationCard card = createTransformationCard("Vampire");
+        enableTransformations(testSheet);
 
         UpdateCharacterSheetRequest attach = UpdateCharacterSheetRequest.builder()
                 .transformationCardId(card.getId())
@@ -1308,6 +1309,15 @@ class CharacterSheetControllerIntegrationTest {
                 .expiresAt(LocalDateTime.now().plusDays(30))
                 .build();
         activeTokenRepository.save(activeToken);
+    }
+
+    /**
+     * Grants the sheet GM-level transformation access, which is off by default.
+     */
+    private void enableTransformations(CharacterSheet sheet) {
+        CharacterSheet persisted = characterSheetRepository.findById(sheet.getId()).orElseThrow();
+        persisted.setTransformationEnabled(true);
+        characterSheetRepository.save(persisted);
     }
 
     private CharacterSheet createCharacterSheet(String name, String pronouns, Integer level, User owner) {

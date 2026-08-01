@@ -1822,6 +1822,9 @@ class CharacterSheetServiceTest {
                 .focusMax(6)
                 .focusMarked(0)
                 .favor(0)
+                // Transformations are GM-granted; enable them so these tests exercise the
+                // transformation behaviour rather than the access gate.
+                .transformationEnabled(true)
                 .knownMartialStances(new HashSet<>())
                 .build();
     }
@@ -2047,6 +2050,120 @@ class CharacterSheetServiceTest {
         assertThat(result.getTransformationCardId()).isNull();
         assertThat(result.getTransformationTokens()).isNull();
         assertThat(result.getWolfFormActive()).isFalse();
+    }
+
+    // ==================== TRANSFORMATION ACCESS GATE TESTS ====================
+
+    @Test
+    void updateCharacterSheet_TransformationEnabled_IsIncludedInResponse() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder().gold(10).build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.isTransformationEnabled()).isTrue();
+    }
+
+    @Test
+    void updateCharacterSheet_AttachTransformationCard_WhenNotEnabled_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationCardId(5L)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Transformations are not enabled for this character. Ask your GM to enable them.");
+    }
+
+    @Test
+    void updateCharacterSheet_ClearTransformationCard_WhenNotEnabled_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .clearTransformationCard(true)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Ask your GM to enable them");
+    }
+
+    @Test
+    void updateCharacterSheet_TransformationTokens_WhenNotEnabled_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationTokens(2)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void updateCharacterSheet_WolfFormActive_WhenNotEnabled_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .wolfFormActive(true)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void updateCharacterSheet_NonTransformationFields_WhenNotEnabled_Succeeds() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .gold(75)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getGold()).isEqualTo(75);
+        assertThat(result.isTransformationEnabled()).isFalse();
     }
 
     @Test

@@ -1045,6 +1045,7 @@ All optional; only non-null fields are applied. These fields exist on every char
 | `focusMarked`                | integer | >= 0. Actively clamped server-side to `0..focusMax` (unlike HP/Stress/Hope, where `marked` may legitimately exceed `max`). |
 | `favor`                      | integer | >= 0. Warlock resource.                                                     |
 | `transformationCardId`      | long    | Must reference an existing TransformationCard. Ignored if `clearTransformationCard` is `true`. |
+| _(no `transformationEnabled`)_ | --   | **Not settable here.** Transformations are GM-granted via `PUT /api/dh/campaigns/{campaignId}/character-sheets/{sheetId}/transformation`. If the sheet's `transformationEnabled` is `false`, sending any of `transformationCardId`, `clearTransformationCard`, `transformationTokens`, or `wolfFormActive` fails with `400 Bad Request` ("Transformations are not enabled for this character. Ask your GM to enable them."). |
 | `clearTransformationCard`   | boolean | Detaches the transformation card and resets `transformationCardId`, `transformationTokens`, and `wolfFormActive` together. Needed because a plain `null` `transformationCardId` means "leave unchanged," not "clear" (partial-update convention; see `clearDifficulty` on `UpdateEnvironmentRequest` for the same pattern). |
 | `transformationTokens`      | integer | >= 0. Clamped server-side to `0..6` (Vampire "Feed" token cap).             |
 | `wolfFormActive`            | boolean | Werewolf transformation's "Wolf Form" toggle. Deliberately specific to Werewolf — always `false` for other transformations. |
@@ -1109,6 +1110,7 @@ Returned by `GET /api/dh/character-sheets/{id}/notes`.
 | `focusMax`               | integer                   | Yes            | --                                         |
 | `favor`                  | integer                   | Yes            | Warlock resource. `0` for other classes.   |
 | `comboDie`               | string                    | No             | Brawler's Combo Die size (`"D4"`...`"D20"`). Omitted (`null`) until the character has one. Read-only here — see `UPGRADE_COMBO_DIE` level-up advancement. |
+| `transformationEnabled`  | boolean                   | Yes            | Whether a GM has granted this character access to transformations. `false` by default — the transformation panel stays hidden and transformation fields are read-only on this endpoint until a GM enables it. |
 | `transformationCardId`   | long                      | No             | ID of the attached transformation card. Omitted if none.|
 | `transformationCard`     | TransformationCardResponse| No             | Only with `?expand=transformationCard`. See `references/transformation-cards-api.md`. |
 | `transformationTokens`   | integer                   | No             | Vampire "Feed" token count (0-6). Omitted (`null`) unless the attached transformation uses a token pool. |

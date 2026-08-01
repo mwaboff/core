@@ -3,7 +3,9 @@ package com.aboff.core.service.dh;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateTransformationAccessRequest;
 import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
+import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
 import com.aboff.core.model.dto.dh.response.JoinCampaignResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
@@ -11,10 +13,13 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.CampaignInvite;
 import com.aboff.core.model.entity.dh.CharacterSheet;
+import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CampaignInviteRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.TransformationCardRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
@@ -38,6 +43,8 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -60,6 +67,12 @@ class CampaignServiceTest {
 
     @Mock
     private CharacterSheetRepository characterSheetRepository;
+
+    @Mock
+    private TransformationCardRepository transformationCardRepository;
+
+    @Mock
+    private CharacterSheetService characterSheetService;
 
     @Mock
     private RoleHierarchyService roleHierarchyService;
@@ -1395,7 +1408,226 @@ class CampaignServiceTest {
         verify(campaignRepository).save(any(Campaign.class));
     }
 
+    // ==================== TRANSFORMATION ACCESS TESTS ====================
+
+    @Test
+    void updateTransformationAccess_AsCreator_EnablesTransformations() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+                .thenReturn(CharacterSheetResponse.builder().id(10L).transformationEnabled(true).build());
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        CharacterSheetResponse result = campaignService.updateTransformationAccess(1L, 10L, request, authentication);
+
+        assertThat(result.isTransformationEnabled()).isTrue();
+        assertThat(sheet.isTransformationEnabled()).isTrue();
+    }
+
+    @Test
+    void updateTransformationAccess_EndedCampaign_ThrowsIllegalState() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getPlayerCharacters().add(createTestCharacterSheet(10L, "Hero", creator));
+        campaign.setEndedAt(LocalDateTime.now());
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateTransformationAccess(1L, 10L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ended campaign");
+    }
+
+    @Test
+    void updateTransformationAccess_Disable_PreservesCardTokensAndWolfForm() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        TransformationCard card = createTestTransformationCard(5L, "Werewolf");
+        sheet.setTransformationEnabled(true);
+        sheet.setTransformationCard(card);
+        sheet.setTransformationTokens(3);
+        sheet.setWolfFormActive(true);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+                .thenReturn(CharacterSheetResponse.builder().id(10L).build());
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(false)
+                .build();
+
+        campaignService.updateTransformationAccess(1L, 10L, request, authentication);
+
+        assertThat(sheet.isTransformationEnabled()).isFalse();
+        assertThat(sheet.getTransformationCard()).isSameAs(card);
+        assertThat(sheet.getTransformationTokens()).isEqualTo(3);
+        assertThat(sheet.getWolfFormActive()).isTrue();
+    }
+
+    @Test
+    void updateTransformationAccess_AssignsCardWhileDisabled() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        campaign.getPlayerCharacters().add(sheet);
+        TransformationCard card = createTestTransformationCard(5L, "Vampire");
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(transformationCardRepository.findByIdAndDeletedAtIsNull(5L)).thenReturn(Optional.of(card));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+                .thenReturn(CharacterSheetResponse.builder().id(10L).build());
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(false)
+                .transformationCardId(5L)
+                .build();
+
+        campaignService.updateTransformationAccess(1L, 10L, request, authentication);
+
+        assertThat(sheet.isTransformationEnabled()).isFalse();
+        assertThat(sheet.getTransformationCard()).isSameAs(card);
+    }
+
+    @Test
+    void updateTransformationAccess_ClearFlag_TakesPrecedenceOverCardId() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        sheet.setTransformationCard(createTestTransformationCard(5L, "Werewolf"));
+        sheet.setTransformationTokens(2);
+        sheet.setWolfFormActive(true);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+                .thenReturn(CharacterSheetResponse.builder().id(10L).build());
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(true)
+                .transformationCardId(9L)
+                .clearTransformationCard(true)
+                .build();
+
+        campaignService.updateTransformationAccess(1L, 10L, request, authentication);
+
+        assertThat(sheet.getTransformationCard()).isNull();
+        assertThat(sheet.getTransformationTokens()).isNull();
+        assertThat(sheet.getWolfFormActive()).isFalse();
+        verify(transformationCardRepository, never()).findByIdAndDeletedAtIsNull(anyLong());
+    }
+
+    @Test
+    void updateTransformationAccess_UnknownCardId_ThrowsEntityNotFound() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(transformationCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(true)
+                .transformationCardId(999L)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateTransformationAccess(1L, 10L, request, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("TransformationCard not found");
+    }
+
+    @Test
+    void updateTransformationAccess_SheetNotInCampaign_ThrowsEntityNotFound() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateTransformationAccess(1L, 99L, request, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("CharacterSheet not found with id: 99");
+    }
+
+    @Test
+    void updateTransformationAccess_AsUnrelatedPlayer_ThrowsInsufficientPermissions() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        User player = User.builder().id(2L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getPlayers().add(player);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", player);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(player);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateTransformationAccess(1L, 10L, request, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
+    }
+
+    @Test
+    void updateTransformationAccess_CampaignNotFound_ThrowsEntityNotFound() {
+        when(campaignRepository.findActiveById(99L)).thenReturn(Optional.empty());
+
+        UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateTransformationAccess(99L, 10L, request, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("Campaign not found");
+    }
+
     // ==================== HELPER METHODS ====================
+
+    private void mockAuthenticatedUser(User user) {
+        when(authentication.getPrincipal()).thenReturn(new CustomUserDetails(user));
+    }
+
+    private CharacterSheet createTestCharacterSheet(Long id, String name, User owner) {
+        return CharacterSheet.builder()
+                .id(id)
+                .name(name)
+                .level(1)
+                .owner(owner)
+                .build();
+    }
+
+    private TransformationCard createTestTransformationCard(Long id, String name) {
+        Expansion expansion = Expansion.builder().id(3L).name("Hope & Fear").build();
+        return TransformationCard.builder().id(id).name(name).expansion(expansion).build();
+    }
 
     private Campaign createTestCampaign(Long id, String name, User creator) {
         Campaign campaign = Campaign.builder()

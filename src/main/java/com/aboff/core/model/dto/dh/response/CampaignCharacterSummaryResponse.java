@@ -61,4 +61,20 @@ public class CampaignCharacterSummaryResponse {
      * Names of the character's class cards (derived from subclass card class names)
      */
     private List<String> classNames;
+
+    /**
+     * Whether the Game Master has enabled transformations for this character.
+     * Lets the GM roster render the current gate state without fetching each sheet.
+     */
+    private boolean transformationEnabled;
+
+    /**
+     * ID of the transformation card assigned to this character, or null if none.
+     */
+    private Long transformationCardId;
+
+    /**
+     * Name of the transformation card assigned to this character, or null if none.
+     */
+    private String transformationCardName;
 }
