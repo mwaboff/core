@@ -873,6 +873,9 @@ Expand options come in two categories: **item/card expansion** (top-level, bring
 | `inventoryWeapons`     | Expands nested `weapon` objects within inventory weapon entries | `inventoryWeapons[].weapon` | `WeaponResponse`   |
 | `inventoryArmors`      | Expands nested `armor` objects within inventory armor entries   | `inventoryArmors[].armor`   | `ArmorResponse`    |
 | `inventoryItems`       | Expands nested `loot` objects within inventory loot entries     | `inventoryItems[].loot`     | `LootResponse`     |
+| `transformationCard`   | Full transformation card object (if attached)                | `transformationCard`        | `TransformationCardResponse`|
+| `knownMartialStances`  | All known martial stances                                    | `knownMartialStances`       | `MartialStanceResponse[]`   |
+| `activeMartialStance`  | Full object for the currently active stance (if any)         | `activeMartialStance`       | `MartialStanceResponse`     |
 
 ### Nested Expand Options
 
@@ -1032,6 +1035,25 @@ Collection fields (`communityCardIds`, `ancestryCardIds`, `subclassCardIds`, `in
 
 **Notes field:** `UpdateCharacterSheetRequest` does NOT include a `notes` field. To create or update character notes, use the dedicated `PATCH /api/dh/character-sheets/{id}/notes` endpoint.
 
+#### Hope & Fear fields (Update)
+
+All optional; only non-null fields are applied. These fields exist on every character sheet regardless of class — the value is `0`/`false`/`null` and harmless for characters without the relevant class/subclass.
+
+| Field                       | Type    | Validation                                                                 |
+|-----------------------------|---------|-----------------------------------------------------------------------------|
+| `focusMax`                  | integer | >= 0. Lowering it clamps `focusMarked` down to the new max (same pattern as `armorMax`/`hitPointMax`/etc). |
+| `focusMarked`                | integer | >= 0. Actively clamped server-side to `0..focusMax` (unlike HP/Stress/Hope, where `marked` may legitimately exceed `max`). |
+| `favor`                      | integer | >= 0. Warlock resource.                                                     |
+| `transformationCardId`      | long    | Must reference an existing TransformationCard. Ignored if `clearTransformationCard` is `true`. |
+| `clearTransformationCard`   | boolean | Detaches the transformation card and resets `transformationCardId`, `transformationTokens`, and `wolfFormActive` together. Needed because a plain `null` `transformationCardId` means "leave unchanged," not "clear" (partial-update convention; see `clearDifficulty` on `UpdateEnvironmentRequest` for the same pattern). |
+| `transformationTokens`      | integer | >= 0. Clamped server-side to `0..6` (Vampire "Feed" token cap).             |
+| `wolfFormActive`            | boolean | Werewolf transformation's "Wolf Form" toggle. Deliberately specific to Werewolf — always `false` for other transformations. |
+| `knownMartialStanceIds`     | long[]  | Each must reference an existing MartialStance. Replaces the entire known-stances set. Each known stance's `tier` must be <= the character's tier (derived from `level`). `null` leaves unchanged; `[]` clears all known stances. |
+| `activeMartialStanceId`     | long    | Must reference a MartialStance already present in the (possibly just-updated) known-stances set. Ignored if `clearActiveMartialStance` is `true`. |
+| `clearActiveMartialStance`  | boolean | Drops the active stance back to none. Same "explicit clear flag" pattern as `clearTransformationCard`. |
+
+**Not exposed here: `comboDie`.** The Brawler's Combo Die is only ever stepped up via the `UPGRADE_COMBO_DIE` level-up advancement (see `POST /api/dh/character-sheets/{id}/level-up`) — it cannot be set through this endpoint. It is still readable on `CharacterSheetResponse`.
+
 ### UpdateCharacterSheetNotesRequest
 
 Request body for `PATCH /api/dh/character-sheets/{id}/notes`.
@@ -1083,6 +1105,18 @@ Returned by `GET /api/dh/character-sheets/{id}/notes`.
 | `hopeMax`                | integer                   | Yes            | --                                         |
 | `hopeMarked`             | integer                   | Yes            | --                                         |
 | `gold`                   | integer                   | Yes            | --                                         |
+| `focusMarked`            | integer                   | Yes            | Martial Artist's Focus resource. `0` (harmless) for other classes. |
+| `focusMax`               | integer                   | Yes            | --                                         |
+| `favor`                  | integer                   | Yes            | Warlock resource. `0` for other classes.   |
+| `comboDie`               | string                    | No             | Brawler's Combo Die size (`"D4"`...`"D20"`). Omitted (`null`) until the character has one. Read-only here — see `UPGRADE_COMBO_DIE` level-up advancement. |
+| `transformationCardId`   | long                      | No             | ID of the attached transformation card. Omitted if none.|
+| `transformationCard`     | TransformationCardResponse| No             | Only with `?expand=transformationCard`. See `references/transformation-cards-api.md`. |
+| `transformationTokens`   | integer                   | No             | Vampire "Feed" token count (0-6). Omitted (`null`) unless the attached transformation uses a token pool. |
+| `wolfFormActive`         | boolean                   | Yes            | Werewolf transformation's "Wolf Form" toggle. `false` for every other transformation. |
+| `knownMartialStanceIds`  | long[]                    | Yes            | IDs of martial stances the character knows. Empty array if none. |
+| `knownMartialStances`    | MartialStanceResponse[]   | No             | Only with `?expand=knownMartialStances`. See `references/martial-stances-api.md`. |
+| `activeMartialStanceId`  | long                      | No             | ID of the currently active stance. Omitted if none.|
+| `activeMartialStance`    | MartialStanceResponse     | No             | Only with `?expand=activeMartialStance`.   |
 | `ownerId`                | long                      | Yes            | --                                         |
 | `ownerName`              | string                    | Yes            | Username of the owner                      |
 | `owner`                  | UserResponse              | No             | Only with `?expand=owner`                  |
@@ -1192,6 +1226,7 @@ One of the two advancement choices included in a `LevelUpRequest`.
 | `BOOST_PROFICIENCY` | None (type only)                                          |
 | `MULTICLASS`        | `subclassCardId` (must be a FOUNDATION-level card)        |
 | `FEATURE_DOMAIN_CARD` | `domainCardId` (always added unequipped; bypasses the two-advancements count and the `GAIN_DOMAIN_CARD` per-tier limit; not returned by `getLevelUpOptions` — injected by the client when a subclass feature has a `BONUS_DOMAIN_CARD_SELECTIONS` modifier) |
+| `UPGRADE_COMBO_DIE` | None (type only). Brawler resource. Steps `comboDie` up exactly one die size (`D4`→`D6`→`D8`→`D10`→`D12`→`D20`, defaulting from unset to `D4` first). Once per tier (min tier 1). Rejected with a 400 if the die is already at `D20`. This is the **only** way to set `comboDie` — it is not writable via `PUT /api/dh/character-sheets/{id}`. |
 
 ### DomainCardTradeRequest
 
@@ -1711,6 +1746,8 @@ The stored `*_max` columns (`armor_max`, `hit_point_max`, `stress_max`, `hope_ma
 
 The only exception: when an update request explicitly sets a `*_max` field to a value lower than the current `*_marked`, the service clamps `*_marked` down to the new max. A create request, or an update that does not touch `*_max`, never alters the submitted `*_marked` value.
 
+**Focus is the one exception to "marked may exceed max."** Unlike HP/Stress/Hope/Armor, `focusMarked` is actively clamped server-side to `0..focusMax` every time it is set directly (not only when `focusMax` is lowered). `transformationTokens` is likewise always clamped to `0..6` regardless of any max field. These two resources have no equipment-driven "effective cap above the base" concept, so the stricter clamp is safe.
+
 ### Foreign Key Behavior
 
 | Relationship            | On Delete     |
@@ -1719,6 +1756,8 @@ The only exception: when an update request explicitly sets a `*_max` field to a 
 | `active_primary_weapon_id` -> `weapons` | SET NULL |
 | `active_secondary_weapon_id` -> `weapons` | SET NULL |
 | `active_armor_id` -> `armors` | SET NULL |
+| `transformation_card_id` -> `transformation_cards` | (no action; cleared via `clearTransformationCard`) |
+| `active_martial_stance_id` -> `martial_stances` | (no action; cleared via `clearActiveMartialStance`) |
 | All join table references | CASCADE     |
 
 ### Sorting

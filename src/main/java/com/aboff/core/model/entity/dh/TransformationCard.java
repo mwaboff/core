@@ -67,6 +67,19 @@ public class TransformationCard extends BaseEntity {
     private Set<Feature> features = new HashSet<>();
 
     /**
+     * Character-creation questions associated with this transformation card.
+     * Each transformation card has exactly 6 questions in official content.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "transformation_card_questions",
+        joinColumns = @JoinColumn(name = "transformation_card_id"),
+        inverseJoinColumns = @JoinColumn(name = "question_id")
+    )
+    @Builder.Default
+    private Set<Question> questions = new HashSet<>();
+
+    /**
      * Timestamp indicating when this transformation card was soft-deleted.
      * If null, the transformation card is active.
      */

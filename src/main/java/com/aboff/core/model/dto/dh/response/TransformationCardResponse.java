@@ -62,6 +62,16 @@ public class TransformationCardResponse {
     private List<FeatureResponse> features;
 
     /**
+     * IDs of questions associated with this transformation card (always included).
+     */
+    private List<Long> questionIds;
+
+    /**
+     * Full question objects (included only when ?expand=questions is specified).
+     */
+    private List<QuestionResponse> questions;
+
+    /**
      * Timestamp when the transformation card was created.
      */
     private LocalDateTime createdAt;

@@ -24,6 +24,8 @@ import com.aboff.core.repository.dh.LootRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
 import com.aboff.core.repository.dh.SubclassPathRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
+import com.aboff.core.repository.dh.MartialStanceRepository;
+import com.aboff.core.repository.dh.TransformationCardRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -39,6 +41,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -100,6 +103,11 @@ class CharacterSheetControllerIntegrationTest {
     @Autowired
     private SubclassCardRepository subclassCardRepository;
 
+    @Autowired
+    private TransformationCardRepository transformationCardRepository;
+
+    @Autowired
+    private MartialStanceRepository martialStanceRepository;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -503,6 +511,120 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.agilityModifier").value(3))
                 .andExpect(jsonPath("$.hitPointMax").value(12))
                 .andExpect(jsonPath("$.gold").value(100));
+    }
+
+    // ==================== HOPE & FEAR RESOURCE INTEGRATION TESTS ====================
+
+    @Test
+    void updateCharacterSheet_SetsFocusFavorAndDefaults_Returns200() throws Exception {
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .focusMarked(4)
+                .favor(2)
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.focusMarked").value(4))
+                .andExpect(jsonPath("$.focusMax").value(6))
+                .andExpect(jsonPath("$.favor").value(2));
+    }
+
+    @Test
+    void updateCharacterSheet_FocusMarkedAboveMax_ClampedToFocusMax() throws Exception {
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .focusMarked(99)
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.focusMarked").value(6));
+    }
+
+    @Test
+    void updateCharacterSheet_AttachAndDetachTransformationCard_Returns200() throws Exception {
+        TransformationCard card = createTransformationCard("Vampire");
+
+        UpdateCharacterSheetRequest attach = UpdateCharacterSheetRequest.builder()
+                .transformationCardId(card.getId())
+                .transformationTokens(3)
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(attach))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transformationCardId").value(card.getId()))
+                .andExpect(jsonPath("$.transformationTokens").value(3));
+
+        UpdateCharacterSheetRequest detach = UpdateCharacterSheetRequest.builder()
+                .clearTransformationCard(true)
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(detach))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.transformationCardId").doesNotExist())
+                .andExpect(jsonPath("$.transformationTokens").doesNotExist());
+    }
+
+    @Test
+    void updateCharacterSheet_KnownAndActiveMartialStance_Returns200() throws Exception {
+        MartialStance stance = createMartialStance("Bear Stance", 1);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .knownMartialStanceIds(List.of(stance.getId()))
+                .activeMartialStanceId(stance.getId())
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.knownMartialStanceIds[0]").value(stance.getId()))
+                .andExpect(jsonPath("$.activeMartialStanceId").value(stance.getId()));
+    }
+
+    @Test
+    void updateCharacterSheet_ActiveMartialStanceNotKnown_Returns400() throws Exception {
+        MartialStance knownStance = createMartialStance("Bear Stance", 1);
+        MartialStance unknownStance = createMartialStance("Tiger Stance", 1);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .knownMartialStanceIds(List.of(knownStance.getId()))
+                .activeMartialStanceId(unknownStance.getId())
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateCharacterSheet_KnownMartialStanceTierTooHigh_Returns400() throws Exception {
+        // testSheet is level 5 -> tier 3, so a tier 4 stance must be rejected.
+        MartialStance tier4Stance = createMartialStance("Dragon Stance", 4);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .knownMartialStanceIds(List.of(tier4Stance.getId()))
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -1292,6 +1414,30 @@ class CharacterSheetControllerIntegrationTest {
                 .type(DomainCardType.SPELL)
                 .build();
         return domainCardRepository.save(card);
+    }
+
+    private TransformationCard createTransformationCard(String name) {
+        Expansion expansion = Expansion.builder().name("Test Expansion " + name).isPublished(true).build();
+        expansion = expansionRepository.save(expansion);
+        TransformationCard card = TransformationCard.builder()
+                .name(name)
+                .description("Test transformation")
+                .expansion(expansion)
+                .build();
+        return transformationCardRepository.save(card);
+    }
+
+    private MartialStance createMartialStance(String name, int tier) {
+        Expansion expansion = Expansion.builder().name("Test Expansion " + name).isPublished(true).build();
+        expansion = expansionRepository.save(expansion);
+        MartialStance stance = MartialStance.builder()
+                .name(name)
+                .tier(tier)
+                .expansion(expansion)
+                .isOfficial(true)
+                .description("Test stance effect")
+                .build();
+        return martialStanceRepository.save(stance);
     }
 
     private Weapon createWeapon(String name) {

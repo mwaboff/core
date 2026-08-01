@@ -46,4 +46,16 @@ public class UpdateTransformationCardRequest {
      */
     @Valid
     private List<FeatureInput> features;
+
+    /**
+     * IDs of existing questions to associate with this transformation card.
+     * Replaces existing questions when provided.
+     */
+    private List<Long> questionIds;
+
+    /**
+     * Questions to find or create inline. Merged with questionIds if both provided.
+     */
+    @Valid
+    private List<QuestionInput> questions;
 }

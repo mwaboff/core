@@ -87,6 +87,13 @@ public class CharacterSheetService {
     private final DomainCardService domainCardService;
     private final LootService lootService;
     private final ClassService classService;
+    private final TransformationCardRepository transformationCardRepository;
+    private final MartialStanceRepository martialStanceRepository;
+    private final TransformationCardService transformationCardService;
+    private final MartialStanceService martialStanceService;
+
+    /** Maximum value for Vampire "Feed" tokens and the highest tier a martial stance can be. */
+    private static final int TRANSFORMATION_TOKENS_MAX = 6;
 
     /**
      * Retrieves a paginated list of character sheets.
@@ -479,6 +486,9 @@ public class CharacterSheetService {
             characterSheet.setGold(request.getGold());
         }
 
+        // Update Hope & Fear resources
+        updateHopeAndFearResources(characterSheet, request);
+
         // Update card collections (replace entire collection if provided)
         if (request.getCommunityCardIds() != null) {
             Set<CommunityCard> communityCards = new HashSet<>();
@@ -741,6 +751,7 @@ public class CharacterSheetService {
                     "Severe damage threshold (" + sheet.getSevereDamageThreshold() +
                     ") must be greater than or equal to major damage threshold (" + sheet.getMajorDamageThreshold() + ")");
         }
+        validateMartialStanceConstraints(sheet);
     }
 
     /**
@@ -785,6 +796,131 @@ public class CharacterSheetService {
     }
 
     /**
+     * Applies partial updates for the Hope &amp; Fear resources (Focus, Favor, transformation
+     * state, and known/active martial stances) on a character sheet.
+     * <p>
+     * Follows the same clamp-on-max-change convention used for hit points/stress/hope
+     * ({@link #updateCharacterSheet}): lowering {@code focusMax} clamps {@code focusMarked} down
+     * with it. Unlike those resources, Focus itself is also actively clamped to
+     * {@code 0..focusMax} whenever it is set directly, and Vampire "Feed" tokens are clamped to
+     * {@code 0..6} — see the design doc for why Focus and transformation tokens differ from the
+     * "marked may legitimately exceed max" rule that governs HP/Stress/Hope.
+     * </p>
+     *
+     * @param sheet   the character sheet being updated
+     * @param request the partial update request
+     * @throws EntityNotFoundException if a referenced transformation card or martial stance is not found
+     */
+    private void updateHopeAndFearResources(CharacterSheet sheet, UpdateCharacterSheetRequest request) {
+        if (request.getFocusMax() != null) {
+            sheet.setFocusMax(request.getFocusMax());
+            if (sheet.getFocusMarked() > request.getFocusMax()) {
+                sheet.setFocusMarked(request.getFocusMax());
+            }
+        }
+        if (request.getFocusMarked() != null) {
+            sheet.setFocusMarked(clamp(request.getFocusMarked(), 0, sheet.getFocusMax()));
+        }
+        if (request.getFavor() != null) {
+            sheet.setFavor(request.getFavor());
+        }
+
+        // Transformation attachment: an explicit clear flag detaches the transformation card and
+        // resets every piece of state that only makes sense while a transformation is attached.
+        if (Boolean.TRUE.equals(request.getClearTransformationCard())) {
+            sheet.setTransformationCard(null);
+            sheet.setTransformationTokens(null);
+            sheet.setWolfFormActive(false);
+        } else if (request.getTransformationCardId() != null) {
+            TransformationCard card = transformationCardRepository.findByIdAndDeletedAtIsNull(request.getTransformationCardId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "TransformationCard not found with id: " + request.getTransformationCardId()));
+            sheet.setTransformationCard(card);
+        }
+        if (request.getTransformationTokens() != null) {
+            sheet.setTransformationTokens(clamp(request.getTransformationTokens(), 0, TRANSFORMATION_TOKENS_MAX));
+        }
+        if (request.getWolfFormActive() != null) {
+            sheet.setWolfFormActive(request.getWolfFormActive());
+        }
+
+        if (request.getKnownMartialStanceIds() != null) {
+            Set<MartialStance> knownStances = new HashSet<>(
+                    martialStanceRepository.findAllByIdInAndDeletedAtIsNull(request.getKnownMartialStanceIds()));
+            sheet.setKnownMartialStances(knownStances);
+        }
+
+        if (Boolean.TRUE.equals(request.getClearActiveMartialStance())) {
+            sheet.setActiveMartialStance(null);
+        } else if (request.getActiveMartialStanceId() != null) {
+            MartialStance stance = martialStanceRepository.findByIdAndDeletedAtIsNull(request.getActiveMartialStanceId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "MartialStance not found with id: " + request.getActiveMartialStanceId()));
+            sheet.setActiveMartialStance(stance);
+        }
+    }
+
+    /**
+     * Clamps an integer value to the inclusive range {@code [min, max]}.
+     *
+     * @param value the value to clamp
+     * @param min   the inclusive lower bound
+     * @param max   the inclusive upper bound
+     * @return the clamped value
+     */
+    private int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(value, max));
+    }
+
+    /**
+     * Validates the martial stance invariants on a character sheet:
+     * <ul>
+     *   <li>The active stance, if any, must be a member of the character's known stances.</li>
+     *   <li>Every known stance's tier must be at or below the character's current tier.</li>
+     * </ul>
+     *
+     * @param sheet The character sheet to validate
+     * @throws IllegalStateException if either invariant is violated
+     */
+    private void validateMartialStanceConstraints(CharacterSheet sheet) {
+        MartialStance activeStance = sheet.getActiveMartialStance();
+        Set<MartialStance> knownStances = sheet.getKnownMartialStances();
+
+        if (activeStance != null && (knownStances == null || !knownStances.contains(activeStance))) {
+            throw new IllegalStateException(
+                    "Active martial stance (id: " + activeStance.getId() + ") must be one of the character's known stances");
+        }
+
+        if (knownStances != null && !knownStances.isEmpty()) {
+            int characterTier = getTierForLevel(sheet.getLevel());
+            for (MartialStance stance : knownStances) {
+                if (stance.getTier() != null && stance.getTier() > characterTier) {
+                    throw new IllegalStateException(
+                            "Martial stance '" + stance.getName() + "' (tier " + stance.getTier() +
+                            ") exceeds the character's current tier (" + characterTier + ")");
+                }
+            }
+        }
+    }
+
+    /**
+     * Determines the tier for a given character level.
+     * <p>
+     * Mirrors {@link LevelUpService#getTierForLevel(int)}. Duplicated rather than shared to avoid
+     * a circular service dependency (LevelUpService already depends on CharacterSheetService).
+     * </p>
+     *
+     * @param level the character level (1-10)
+     * @return the tier (1-4)
+     */
+    private int getTierForLevel(int level) {
+        if (level <= 1) return 1;
+        if (level <= 4) return 2;
+        if (level <= 7) return 3;
+        return 4;
+    }
+
+    /**
      * Converts a CharacterSheet entity to CharacterSheetResponse DTO.
      * <p>
      * Always includes IDs for relationships. Optionally expands full relationship
@@ -805,6 +941,9 @@ public class CharacterSheetService {
      * - costTags: Full cost tag objects within features and cards
      * - modifiers: Full feature modifier objects within features
      * - expansion: Full expansion objects within weapons, armor, cards, and loot items
+     * - transformationCard: Full transformation card object
+     * - knownMartialStances: Full martial stance objects for every known stance
+     * - activeMartialStance: Full martial stance object for the currently active stance
      * </p>
      *
      * @param sheet The character sheet entity
@@ -843,11 +982,43 @@ public class CharacterSheetService {
                 .hopeMax(sheet.getHopeMax())
                 .hopeMarked(sheet.getHopeMarked())
                 .gold(sheet.getGold())
+                .focusMarked(sheet.getFocusMarked())
+                .focusMax(sheet.getFocusMax())
+                .favor(sheet.getFavor())
+                .comboDie(sheet.getComboDie())
+                .transformationTokens(sheet.getTransformationTokens())
+                .wolfFormActive(sheet.getWolfFormActive())
                 .ownerId(sheet.getOwner().getId())
                 .ownerName(sheet.getOwner().getUsername())
                 .createdAt(sheet.getCreatedAt())
                 .lastModifiedAt(sheet.getLastModifiedAt())
                 .deletedAt(sheet.getDeletedAt());
+
+        // Transformation card (always include ID; expand for the full object)
+        if (sheet.getTransformationCard() != null) {
+            builder.transformationCardId(sheet.getTransformationCard().getId());
+            if (ExpandUtil.shouldExpand(expand, "transformationCard")) {
+                builder.transformationCard(transformationCardService.toResponse(sheet.getTransformationCard(), Set.of()));
+            }
+        }
+
+        // Known martial stances (always include IDs; expand for the full objects)
+        builder.knownMartialStanceIds(sheet.getKnownMartialStances().stream()
+                .map(MartialStance::getId)
+                .collect(Collectors.toList()));
+        if (ExpandUtil.shouldExpand(expand, "knownMartialStances")) {
+            builder.knownMartialStances(sheet.getKnownMartialStances().stream()
+                    .map(stance -> martialStanceService.toResponse(stance, Set.of()))
+                    .collect(Collectors.toList()));
+        }
+
+        // Active martial stance (always include ID; expand for the full object)
+        if (sheet.getActiveMartialStance() != null) {
+            builder.activeMartialStanceId(sheet.getActiveMartialStance().getId());
+            if (ExpandUtil.shouldExpand(expand, "activeMartialStance")) {
+                builder.activeMartialStance(martialStanceService.toResponse(sheet.getActiveMartialStance(), Set.of()));
+            }
+        }
 
         // Always include IDs for card collections
         builder.communityCardIds(sheet.getCommunityCards().stream().map(card -> card.getId()).collect(Collectors.toList()));

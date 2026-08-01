@@ -189,6 +189,75 @@ public class UpdateCharacterSheetRequest {
     @PositiveOrZero(message = "Gold must be zero or positive")
     private Integer gold;
 
+    // ========== Hope & Fear Resources ==========
+
+    /**
+     * Updated maximum Focus this character can hold (capped at 6 by rule; not enforced here to
+     * allow homebrew, but the marked value is clamped down if it would exceed the new max).
+     */
+    @PositiveOrZero(message = "Focus max must be zero or positive")
+    private Integer focusMax;
+
+    /**
+     * Updated Focus currently held. Clamped to {@code 0..focusMax} by the service.
+     */
+    @PositiveOrZero(message = "Focus marked must be zero or positive")
+    private Integer focusMarked;
+
+    /**
+     * Updated Favor amount (Warlock resource).
+     */
+    @PositiveOrZero(message = "Favor must be zero or positive")
+    private Integer favor;
+
+    /**
+     * ID of the transformation card to attach to this character.
+     * A character may have at most one transformation. Ignored (and left unchanged) if
+     * {@link #clearTransformationCard} is true.
+     */
+    private Long transformationCardId;
+
+    /**
+     * Explicit flag to detach the character's transformation card, clearing
+     * {@code transformationCardId}, {@code transformationTokens}, and {@code wolfFormActive}
+     * together. Partial-update requests only apply non-null fields, so a plain null
+     * {@link #transformationCardId} can't otherwise distinguish "leave unchanged" from
+     * "detach the transformation" -- see {@link #clearDifficulty} on
+     * {@code UpdateEnvironmentRequest} for the same pattern.
+     */
+    private Boolean clearTransformationCard;
+
+    /**
+     * Updated Vampire "Feed" token count. Clamped to {@code 0..6} by the service.
+     * Null when the character's transformation does not use a token pool.
+     */
+    @PositiveOrZero(message = "Transformation tokens must be zero or positive")
+    private Integer transformationTokens;
+
+    /**
+     * Whether the Werewolf transformation's "Wolf Form" is currently active.
+     */
+    private Boolean wolfFormActive;
+
+    /**
+     * Updated IDs of martial stances this character knows (null to leave unchanged, empty list
+     * to clear all known stances).
+     */
+    private List<Long> knownMartialStanceIds;
+
+    /**
+     * ID of the martial stance the character is currently shifted into.
+     * Must be a member of the sheet's known stances. Ignored (and left unchanged) if
+     * {@link #clearActiveMartialStance} is true.
+     */
+    private Long activeMartialStanceId;
+
+    /**
+     * Explicit flag to drop the character's active stance back to none. See
+     * {@link #clearTransformationCard} for why a boolean flag is needed instead of a plain null.
+     */
+    private Boolean clearActiveMartialStance;
+
     // ========== Card IDs ==========
 
     /**

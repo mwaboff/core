@@ -5,10 +5,12 @@ import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateTransformationCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateTransformationCardRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
+import com.aboff.core.model.dto.dh.response.QuestionResponse;
 import com.aboff.core.model.dto.dh.response.TransformationCardResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.ExpansionRepository;
@@ -47,6 +49,7 @@ public class TransformationCardService {
     private final TransformationCardRepository transformationCardRepository;
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
+    private final QuestionService questionService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -189,6 +192,12 @@ public class TransformationCardService {
             card.setFeatures(resolvedFeatures);
         }
 
+        Set<Question> resolvedQuestions = questionService.resolveQuestions(
+                request.getQuestionIds(), request.getQuestions());
+        if (resolvedQuestions != null) {
+            card.setQuestions(resolvedQuestions);
+        }
+
         TransformationCard updatedCard = transformationCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedCard, EntityChangeEvent.ChangeType.UPDATED));
         auditLogger.log(AuditAction.CONTENT_UPDATED,
@@ -270,6 +279,12 @@ public class TransformationCardService {
             card.setFeatures(resolvedFeatures);
         }
 
+        Set<Question> resolvedQuestions = questionService.resolveQuestions(
+                request.getQuestionIds(), request.getQuestions());
+        if (resolvedQuestions != null) {
+            card.setQuestions(resolvedQuestions);
+        }
+
         return card;
     }
 
@@ -311,6 +326,26 @@ public class TransformationCardService {
         if (ExpandUtil.shouldExpand(expand, "features") && card.getFeatures() != null) {
             builder.features(card.getFeatures().stream()
                     .map(feature -> featureService.toResponse(feature, Set.of()))
+                    .collect(Collectors.toList()));
+        }
+
+        if (card.getQuestions() != null) {
+            builder.questionIds(card.getQuestions().stream()
+                    .map(Question::getId)
+                    .collect(Collectors.toList()));
+        }
+
+        if (ExpandUtil.shouldExpand(expand, "questions") && card.getQuestions() != null) {
+            builder.questions(card.getQuestions().stream()
+                    .map(question -> QuestionResponse.builder()
+                            .id(question.getId())
+                            .questionText(question.getQuestionText())
+                            .questionType(question.getQuestionType())
+                            .expansionId(question.getExpansion().getId())
+                            .createdAt(question.getCreatedAt())
+                            .lastModifiedAt(question.getLastModifiedAt())
+                            .deletedAt(question.getDeletedAt())
+                            .build())
                     .collect(Collectors.toList()));
         }
 

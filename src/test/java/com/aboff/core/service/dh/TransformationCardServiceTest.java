@@ -1,13 +1,16 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateTransformationCardRequest;
+import com.aboff.core.model.dto.dh.request.QuestionInput;
 import com.aboff.core.model.dto.dh.request.UpdateTransformationCardRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.TransformationCardResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.entity.dh.TransformationCard;
+import com.aboff.core.model.enums.QuestionType;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.TransformationCardRepository;
 import com.aboff.core.service.AuditLogger;
@@ -48,6 +51,9 @@ class TransformationCardServiceTest {
 
     @Mock
     private FeatureService featureService;
+
+    @Mock
+    private QuestionService questionService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -281,5 +287,104 @@ class TransformationCardServiceTest {
 
         assertThat(response.getFeatureIds()).containsExactly(5L);
         assertThat(response.getFeatures()).isNull();
+    }
+
+    // ==================== QUESTION RESOLUTION TESTS ====================
+
+    @Test
+    void createTransformationCard_WithInlineAndIdQuestions_ResolvesViaQuestionService() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+
+        Question existingQuestion = Question.builder().id(7L).questionText("Existing?").questionType(QuestionType.TRANSFORMATION).expansion(expansion).build();
+        when(questionService.resolveQuestions(eq(List.of(7L)), anyList())).thenReturn(Set.of(existingQuestion));
+
+        QuestionInput inlineQuestion = QuestionInput.builder()
+                .questionText("What do you fear about this change?")
+                .questionType(QuestionType.TRANSFORMATION)
+                .expansionId(1L)
+                .build();
+
+        CreateTransformationCardRequest request = CreateTransformationCardRequest.builder()
+                .name("Vampire")
+                .expansionId(1L)
+                .questionIds(List.of(7L))
+                .questions(List.of(inlineQuestion))
+                .build();
+
+        when(transformationCardRepository.save(any(TransformationCard.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TransformationCardResponse response = transformationCardService.createTransformationCard(request, authentication);
+
+        assertThat(response.getQuestionIds()).containsExactly(7L);
+        verify(questionService).resolveQuestions(eq(List.of(7L)), anyList());
+    }
+
+    @Test
+    void createTransformationCard_WithNoQuestions_LeavesQuestionsEmpty() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
+
+        CreateTransformationCardRequest request = CreateTransformationCardRequest.builder()
+                .name("Ghost")
+                .expansionId(1L)
+                .build();
+
+        when(transformationCardRepository.save(any(TransformationCard.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TransformationCardResponse response = transformationCardService.createTransformationCard(request, authentication);
+
+        assertThat(response.getQuestionIds()).isEmpty();
+    }
+
+    @Test
+    void updateTransformationCard_WithQuestionIds_ReplacesExistingQuestions() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Question oldQuestion = Question.builder().id(1L).questionText("Old?").questionType(QuestionType.TRANSFORMATION).expansion(expansion).build();
+        TransformationCard existing = TransformationCard.builder()
+                .id(1L).name("Werewolf").expansion(expansion).questions(Set.of(oldQuestion)).build();
+        when(transformationCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existing));
+        when(transformationCardRepository.save(any(TransformationCard.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        Question newQuestion = Question.builder().id(2L).questionText("New?").questionType(QuestionType.TRANSFORMATION).expansion(expansion).build();
+        when(questionService.resolveQuestions(eq(List.of(2L)), isNull())).thenReturn(Set.of(newQuestion));
+
+        UpdateTransformationCardRequest request = UpdateTransformationCardRequest.builder()
+                .questionIds(List.of(2L))
+                .build();
+
+        TransformationCardResponse response = transformationCardService.updateTransformationCard(1L, request, authentication);
+
+        assertThat(response.getQuestionIds()).containsExactly(2L);
+    }
+
+    @Test
+    void toResponse_ExpandQuestions_IncludesFullQuestionObjects() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Question question = Question.builder().id(9L).questionText("What changed?").questionType(QuestionType.TRANSFORMATION).expansion(expansion).build();
+        TransformationCard card = TransformationCard.builder()
+                .id(1L).name("Demigod").expansion(expansion)
+                .questions(Set.of(question)).build();
+
+        TransformationCardResponse response = transformationCardService.toResponse(card, Set.of("questions"));
+
+        assertThat(response.getQuestionIds()).containsExactly(9L);
+        assertThat(response.getQuestions()).hasSize(1);
+        assertThat(response.getQuestions().get(0).getQuestionText()).isEqualTo("What changed?");
+    }
+
+    @Test
+    void toResponse_WithoutExpandQuestions_OnlyIncludesQuestionIds() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Question question = Question.builder().id(9L).questionText("What changed?").questionType(QuestionType.TRANSFORMATION).expansion(expansion).build();
+        TransformationCard card = TransformationCard.builder()
+                .id(1L).name("Demigod").expansion(expansion)
+                .questions(Set.of(question)).build();
+
+        TransformationCardResponse response = transformationCardService.toResponse(card, Set.of());
+
+        assertThat(response.getQuestionIds()).containsExactly(9L);
+        assertThat(response.getQuestions()).isNull();
     }
 }
