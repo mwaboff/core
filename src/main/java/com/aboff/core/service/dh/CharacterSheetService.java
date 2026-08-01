@@ -92,7 +92,13 @@ public class CharacterSheetService {
     private final TransformationCardService transformationCardService;
     private final MartialStanceService martialStanceService;
 
-    /** Maximum value for Vampire "Feed" tokens and the highest tier a martial stance can be. */
+    /**
+     * Maximum value for Vampire "Feed" tokens ("You can hold up to 6 tokens at a time").
+     * <p>
+     * This is unrelated to martial stance tiers, which cap at 4 and are validated separately in
+     * {@code validateMartialStanceConstraints} against the character's own tier.
+     * </p>
+     */
     private static final int TRANSFORMATION_TOKENS_MAX = 6;
 
     /**

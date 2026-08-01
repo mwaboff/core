@@ -848,6 +848,11 @@ public class LevelUpService {
      * The per-tier usage limit (once per tier) is already enforced generically in
      * {@link #validateLevelUpRequest}; this only guards against stepping past the largest
      * available die size.
+     * </p><p>
+     * Note the printed ceiling is lower than this guard: the die starts at d4 and steps once per
+     * tier across 4 tiers, so play can only reach d12. The check is against the largest
+     * {@link DiceType} rather than d12 so that it stays correct if the tier count or the
+     * per-tier allowance ever changes, rather than silently permitting growth past the rules.
      * </p>
      *
      * @param sheet the character sheet
