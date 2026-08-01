@@ -1,6 +1,6 @@
 ---
 name: "Heart & Fear API"
-description: "This skill should be used when the user needs to interact with the Heart & Fear backend API, including 'create a character sheet', 'authenticate with the backend', 'manage campaigns', 'fetch weapons or armor', 'list adversaries', 'work with domain cards', 'manage encounters', 'call the character API', 'level up a character', 'search game content', or build any client application that communicates with the Daggerheart TTRPG character management backend. It provides complete endpoint documentation, request/response models, and example payloads for all 170 endpoints across 25 controllers."
+description: "This skill should be used when the user needs to interact with the Heart & Fear backend API, including 'create a character sheet', 'authenticate with the backend', 'manage campaigns', 'fetch weapons or armor', 'list adversaries', 'work with domain cards', 'manage encounters', 'call the character API', 'level up a character', 'search game content', or build any client application that communicates with the Daggerheart TTRPG character management backend. It provides complete endpoint documentation, request/response models, and example payloads for all 176 endpoints across 26 controllers."
 version: "1.1.0"
 generated_by: "api-blueprint"
 generated_at: "2026-04-08T00:00:00Z"
@@ -117,6 +117,24 @@ Full documentation: `references/campaigns-api.md`
 
 ---
 
+### Countdowns
+
+Base path: `/api/dh/countdowns`
+Authentication: Game master of the campaign (reads included — GM-only state)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/dh/countdowns?campaignId= | List a campaign's countdowns |
+| GET | /api/dh/countdowns/{id} | Get countdown |
+| POST | /api/dh/countdowns | Create countdown |
+| PUT | /api/dh/countdowns/{id} | Update countdown definition |
+| PATCH | /api/dh/countdowns/{id}/value | Tick countdown (absolute value; applies loops) |
+| DELETE | /api/dh/countdowns/{id} | Delete countdown |
+
+Full documentation: `references/countdowns-api.md`
+
+---
+
 ### Adversaries
 
 Base path: `/api/dh/adversaries`
@@ -227,6 +245,7 @@ Includes 16 enums (Role, Trait, CardType, DomainCardType, SubclassLevel, Feature
 | `references/campaigns-api.md` | Campaign management with player/GM operations — 14 endpoints |
 | `references/adversaries-api.md` | Adversary CRUD — 8 endpoints |
 | `references/encounters-api.md` | Encounter management — 9 endpoints |
+| `references/countdowns-api.md` | GM-only campaign countdowns, tick and loop behaviour — 6 endpoints |
 | `references/weapons-api.md` | Weapon CRUD with damage rolls — 7 endpoints |
 | `references/armors-api.md` | Armor CRUD — 7 endpoints |
 | `references/loot-api.md` | Loot item CRUD — 7 endpoints |

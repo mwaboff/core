@@ -1010,7 +1010,7 @@ public class CampaignService {
      * @param operation The operation being performed (for error message)
      * @throws InsufficientPermissionsException if the user lacks permission
      */
-    private void validateGameMasterAccess(Campaign campaign, Authentication auth, String operation) {
+    public void validateGameMasterAccess(Campaign campaign, Authentication auth, String operation) {
         if (!hasGameMasterAccess(campaign, auth)) {
             throw new InsufficientPermissionsException(
                     "You do not have permission to " + operation + " this campaign");
@@ -1020,16 +1020,18 @@ public class CampaignService {
     /**
      * Determines, without throwing, whether the current user has game master-level access.
      * <p>
-     * This is the single definition of "is a GM" for this service: {@link #validateGameMasterAccess}
-     * delegates to it, and {@link #toResponse(Campaign, Set, Authentication)} uses it to decide
-     * whether GM-only fields may be serialized. Fails closed for an absent or unrecognized principal.
+     * This is the single definition of "is a GM" for the application: {@link #validateGameMasterAccess}
+     * delegates to it, {@link #toResponse(Campaign, Set, Authentication)} uses it to decide
+     * whether GM-only fields may be serialized, and other campaign-scoped services
+     * (e.g. {@code CountdownService}) delegate here rather than reimplementing the rule.
+     * Fails closed for an absent or unrecognized principal.
      * </p>
      *
      * @param campaign The campaign to check access against
      * @param auth The authentication object containing the current user, may be null
      * @return true if the user is the creator, a game master, or a MODERATOR/ADMIN/OWNER
      */
-    private boolean hasGameMasterAccess(Campaign campaign, Authentication auth) {
+    public boolean hasGameMasterAccess(Campaign campaign, Authentication auth) {
         if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails userDetails)) {
             return false;
         }
@@ -1072,7 +1074,7 @@ public class CampaignService {
      * @param operation The operation being attempted (for error message)
      * @throws IllegalStateException if the campaign is ended
      */
-    private void validateNotEnded(Campaign campaign, String operation) {
+    public void validateNotEnded(Campaign campaign, String operation) {
         if (campaign.isEnded()) {
             throw new IllegalStateException("Cannot " + operation + " an ended campaign");
         }

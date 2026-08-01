@@ -43,6 +43,9 @@ public enum AuditAction {
     CAMPAIGN_CHARACTER_REMOVED("Character removed"),
     CAMPAIGN_FEAR_UPDATED("Campaign fear updated"),
     CAMPAIGN_GM_NOTES_UPDATED("Campaign GM notes updated"),
+    CAMPAIGN_COUNTDOWN_CREATED("Campaign countdown created"),
+    CAMPAIGN_COUNTDOWN_UPDATED("Campaign countdown updated"),
+    CAMPAIGN_COUNTDOWN_DELETED("Campaign countdown deleted"),
 
     // Character Sheet
     CHARACTER_CREATED("Character created"),
