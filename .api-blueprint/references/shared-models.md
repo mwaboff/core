@@ -244,7 +244,7 @@ Character advancement options available during level-up. Each type has a minimum
 | `BOOST_PROFICIENCY` | +1 proficiency (Tier 3+) | 3 |
 | `MULTICLASS` | Choose additional class (Tier 3+) | 3 |
 | `FEATURE_DOMAIN_CARD` | Bonus domain card granted by a subclass feature's `BONUS_DOMAIN_CARD_SELECTIONS` modifier. Client-injected; not returned by `getLevelUpOptions` and not player-selectable. | 1 |
-| `UPGRADE_COMBO_DIE` | Step the Brawler's Combo Die up one size (`D4`→`D6`→`D8`→`D10`→`D12`→`D20`). Rejected if already at `D20`. This is the only way `comboDie` is ever set on a character sheet. | 1 |
+| `UPGRADE_COMBO_DIE` | Step the Brawler's Combo Die up one size (`D4`→`D6`→`D8`→`D10`→`D12`→`D20`). Only offered to, and only accepted from, characters with a class feature named "Combo Strike". Rejected if already at `D20`. This is the only way `comboDie` is ever set on a character sheet. | 1 |
 
 **Per-tier limits:** BOOST_TRAITS: 3, GAIN_HP: 2, GAIN_STRESS: 2, BOOST_EXPERIENCES: 1, GAIN_DOMAIN_CARD: 1, BOOST_EVASION: 1, UPGRADE_SUBCLASS: 1, BOOST_PROFICIENCY: 2, MULTICLASS: 2, UPGRADE_COMBO_DIE: 1. Players may select the same advancement type twice in one level-up if the per-tier limit allows it. `FEATURE_DOMAIN_CARD` has no per-tier cap and does not count toward `GAIN_DOMAIN_CARD`'s limit.
 

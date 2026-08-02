@@ -11,6 +11,7 @@ import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.enums.AdvancementType;
 import com.aboff.core.model.enums.DomainCardType;
+import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
@@ -594,7 +595,7 @@ class LevelUpServiceTest {
 
     @Test
     void levelUp_UpgradeComboDie_FromNullStepsToD6() {
-        CharacterSheet sheet = buildSheet(6);
+        CharacterSheet sheet = buildBrawlerSheet(6);
         sheet.setMajorDamageThreshold(8);
         sheet.setSevereDamageThreshold(13);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
@@ -622,7 +623,7 @@ class LevelUpServiceTest {
 
     @Test
     void levelUp_UpgradeComboDie_StepsFromExistingDieBySingleSize() {
-        CharacterSheet sheet = buildSheet(6);
+        CharacterSheet sheet = buildBrawlerSheet(6);
         sheet.setComboDie(com.aboff.core.model.enums.DiceType.D8);
         sheet.setMajorDamageThreshold(8);
         sheet.setSevereDamageThreshold(13);
@@ -651,7 +652,7 @@ class LevelUpServiceTest {
 
     @Test
     void levelUp_UpgradeComboDie_RejectedTwiceInSameTier() throws Exception {
-        CharacterSheet sheet = buildSheet(3);
+        CharacterSheet sheet = buildBrawlerSheet(3);
         sheet.setMajorDamageThreshold(4);
         sheet.setSevereDamageThreshold(7);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
@@ -680,7 +681,7 @@ class LevelUpServiceTest {
         // A prior UPGRADE_COMBO_DIE usage in tier 2 must not count against tier 3: the usage map is
         // built exclusively from tier-3-scoped logs, so a fresh tier always starts at zero usage
         // regardless of what happened in an earlier tier.
-        CharacterSheet sheet = buildSheet(6);
+        CharacterSheet sheet = buildBrawlerSheet(6);
         sheet.setComboDie(com.aboff.core.model.enums.DiceType.D6);
         sheet.setMajorDamageThreshold(8);
         sheet.setSevereDamageThreshold(13);
@@ -709,7 +710,7 @@ class LevelUpServiceTest {
 
     @Test
     void levelUp_UpgradeComboDie_RejectedWhenAlreadyAtMaximum() {
-        CharacterSheet sheet = buildSheet(6);
+        CharacterSheet sheet = buildBrawlerSheet(6);
         sheet.setComboDie(com.aboff.core.model.enums.DiceType.D20);
         sheet.setMajorDamageThreshold(8);
         sheet.setSevereDamageThreshold(13);
@@ -726,6 +727,106 @@ class LevelUpServiceTest {
         assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("maximum");
+    }
+
+    @Test
+    void getLevelUpOptions_OmitsUpgradeComboDieWithoutComboStrikeFeature() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(5);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+
+        LevelUpOptionsResponse response = levelUpService.getLevelUpOptions(1L, authentication);
+
+        assertThat(response.getAvailableAdvancements())
+                .noneMatch(a -> a.getType() == AdvancementType.UPGRADE_COMBO_DIE);
+    }
+
+    @Test
+    void getLevelUpOptions_OmitsUpgradeComboDieWhenCharacterHasNoClass() {
+        CharacterSheet sheet = buildSheet(5);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+
+        LevelUpOptionsResponse response = levelUpService.getLevelUpOptions(1L, authentication);
+
+        assertThat(response.getAvailableAdvancements())
+                .noneMatch(a -> a.getType() == AdvancementType.UPGRADE_COMBO_DIE);
+    }
+
+    @Test
+    void getLevelUpOptions_IncludesUpgradeComboDieWithComboStrikeFeature() {
+        CharacterSheet sheet = buildBrawlerSheet(5);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+
+        LevelUpOptionsResponse response = levelUpService.getLevelUpOptions(1L, authentication);
+
+        assertThat(response.getAvailableAdvancements())
+                .anyMatch(a -> a.getType() == AdvancementType.UPGRADE_COMBO_DIE);
+    }
+
+    @Test
+    void getLevelUpOptions_IncludesUpgradeComboDieWhenFeatureNameHasMixedCaseAndPadding() {
+        CharacterSheet sheet = buildBrawlerSheet(5, "  combo strike  ");
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+
+        LevelUpOptionsResponse response = levelUpService.getLevelUpOptions(1L, authentication);
+
+        assertThat(response.getAvailableAdvancements())
+                .anyMatch(a -> a.getType() == AdvancementType.UPGRADE_COMBO_DIE);
+    }
+
+    @Test
+    void levelUp_UpgradeComboDie_RejectedWithoutComboStrikeFeature() {
+        CharacterSheet sheet = buildSheetWithSubclassCards(6);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.UPGRADE_COMBO_DIE).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Combo Strike");
+    }
+
+    @Test
+    void levelUp_UpgradeComboDie_AllowedWhenFeatureNameHasMixedCaseAndPadding() {
+        CharacterSheet sheet = buildBrawlerSheet(6, "  combo strike  ");
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.UPGRADE_COMBO_DIE).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getComboDie()).isEqualTo(com.aboff.core.model.enums.DiceType.D6);
     }
 
     @Test
@@ -2404,6 +2505,27 @@ class LevelUpServiceTest {
                 .characterSheetDomainCards(new HashSet<>())
                 .advancementLogs(new HashSet<>())
                 .build();
+    }
+
+    /**
+     * Builds a sheet whose class carries the Brawler "Combo Strike" feature, which is what grants
+     * the Combo Die that UPGRADE_COMBO_DIE steps up.
+     */
+    private CharacterSheet buildBrawlerSheet(int level) {
+        return buildBrawlerSheet(level, "Combo Strike");
+    }
+
+    private CharacterSheet buildBrawlerSheet(int level, String featureName) {
+        CharacterSheet sheet = buildSheet(level);
+        Feature comboStrike = Feature.builder().id(70L).name(featureName)
+                .featureType(FeatureType.CLASS).build();
+        Class brawler = Class.builder().id(7L).name("Brawler")
+                .classFeatures(new HashSet<>(Set.of(comboStrike))).build();
+        SubclassPath path = SubclassPath.builder().id(7L).name("Juggernaut")
+                .associatedClass(brawler).associatedDomains(Set.of()).build();
+        sheet.getSubclassCards().add(SubclassCard.builder().id(70L).name("Juggernaut Foundation")
+                .level(SubclassLevel.FOUNDATION).subclassPath(path).build());
+        return sheet;
     }
 
     private CharacterSheet buildSheetWithSubclassCards(int level) {
