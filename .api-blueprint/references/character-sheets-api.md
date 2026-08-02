@@ -450,6 +450,8 @@ GET /api/dh/character-sheets/{id}/level-up-options
 
 Returns the available advancement options for the character's next level-up, including which advancements are still available in the current tier, domain card constraints, and tier transition information.
 
+The list is filtered to what the character can actually take: `FEATURE_DOMAIN_CARD` is never returned (the client injects it), and `UPGRADE_COMBO_DIE` is returned only for characters that have the Combo Die — that is, characters with a class whose class features include one named "Combo Strike" (the Brawler's, matched case-insensitively so homebrew classes reprinting it qualify).
+
 **Path Parameters:**
 
 | Parameter | Type | Required | Description          |
@@ -1228,7 +1230,7 @@ One of the two advancement choices included in a `LevelUpRequest`.
 | `BOOST_PROFICIENCY` | None (type only)                                          |
 | `MULTICLASS`        | `subclassCardId` (must be a FOUNDATION-level card)        |
 | `FEATURE_DOMAIN_CARD` | `domainCardId` (always added unequipped; bypasses the two-advancements count and the `GAIN_DOMAIN_CARD` per-tier limit; not returned by `getLevelUpOptions` — injected by the client when a subclass feature has a `BONUS_DOMAIN_CARD_SELECTIONS` modifier) |
-| `UPGRADE_COMBO_DIE` | None (type only). Brawler resource. Steps `comboDie` up exactly one die size (`D4`→`D6`→`D8`→`D10`→`D12`→`D20`, defaulting from unset to `D4` first). Once per tier (min tier 1). Rejected with a 400 if the die is already at `D20`. This is the **only** way to set `comboDie` — it is not writable via `PUT /api/dh/character-sheets/{id}`. |
+| `UPGRADE_COMBO_DIE` | None (type only). Brawler resource. Requires the character to have a class with a class feature named "Combo Strike" — rejected with a 400 otherwise, and omitted from `getLevelUpOptions` for such characters. Steps `comboDie` up exactly one die size (`D4`→`D6`→`D8`→`D10`→`D12`→`D20`, defaulting from unset to `D4` first). Once per tier (min tier 1). Rejected with a 400 if the die is already at `D20`. This is the **only** way to set `comboDie` — it is not writable via `PUT /api/dh/character-sheets/{id}`. |
 
 ### DomainCardTradeRequest
 
@@ -1251,7 +1253,7 @@ Returned by `GET /api/dh/character-sheets/{id}/level-up-options`.
 | `currentTier`            | integer                   | Tier for the current level                                          |
 | `nextTier`               | integer                   | Tier for the next level                                             |
 | `isTierTransition`       | boolean                   | `true` if leveling up crosses a tier boundary (levels 2, 5, 8)     |
-| `availableAdvancements`  | AvailableAdvancement[]    | List of advancement types available for the next level-up           |
+| `availableAdvancements`  | AvailableAdvancement[]    | List of advancement types available for the next level-up. Excludes `FEATURE_DOMAIN_CARD` always, and `UPGRADE_COMBO_DIE` unless the character has the "Combo Strike" class feature. |
 | `domainCardLevelCap`     | integer (nullable)        | Maximum domain card level for the next tier. `null` means uncapped (Tier 4). |
 | `accessibleDomainIds`    | long[]                    | IDs of domains accessible to the character (determined by subclass paths) |
 | `equippedDomainCardCount`| integer                   | Number of currently equipped domain cards                           |

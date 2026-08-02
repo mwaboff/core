@@ -42,6 +42,9 @@ public class LevelUpService {
     private static final int MAX_LEVEL = 10;
     private static final int MAX_EQUIPPED_DOMAIN_CARDS = 5;
 
+    /** Name of the Brawler class feature that grants the Combo Die. */
+    private static final String COMBO_STRIKE_FEATURE_NAME = "Combo Strike";
+
     private final CharacterSheetRepository characterSheetRepository;
     private final CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
     private final CharacterAdvancementLogRepository characterAdvancementLogRepository;
@@ -85,7 +88,7 @@ public class LevelUpService {
                 .findByCharacterSheetIdAndTier(characterSheetId, nextTier);
         Map<AdvancementType, Integer> usageMap = buildUsageMap(tierLogs);
 
-        List<AvailableAdvancement> availableAdvancements = buildAvailableAdvancements(nextTier, usageMap);
+        List<AvailableAdvancement> availableAdvancements = buildAvailableAdvancements(sheet, nextTier, usageMap);
 
         long equippedCount = characterSheetDomainCardRepository.countEquippedByCharacterSheetId(characterSheetId);
 
@@ -553,23 +556,29 @@ public class LevelUpService {
     }
 
     /**
-     * Builds the list of available advancements for a given tier and usage.
+     * Builds the list of available advancements for a given character, tier and usage.
      *
+     * @param sheet the character sheet the advancements are offered to
      * @param nextTier the target tier
      * @param usageMap the current tier usage counts
      * @return list of available advancements
      */
-    private List<AvailableAdvancement> buildAvailableAdvancements(int nextTier, Map<AdvancementType, Integer> usageMap) {
+    private List<AvailableAdvancement> buildAvailableAdvancements(CharacterSheet sheet, int nextTier,
+                                                                  Map<AdvancementType, Integer> usageMap) {
         List<AvailableAdvancement> available = new ArrayList<>();
 
         int upgradeUsed = usageMap.getOrDefault(AdvancementType.UPGRADE_SUBCLASS, 0);
         int multiclassUsed = usageMap.getOrDefault(AdvancementType.MULTICLASS, 0);
+        boolean hasComboStrike = hasComboStrikeFeature(sheet);
 
         for (AdvancementType type : AdvancementType.values()) {
             if (type.getMinTier() > nextTier) continue;
             // FEATURE_DOMAIN_CARD is not a player-selectable advancement — the client injects
             // it based on the subclass feature's BONUS_DOMAIN_CARD_SELECTIONS modifier.
             if (type == AdvancementType.FEATURE_DOMAIN_CARD) continue;
+            // UPGRADE_COMBO_DIE only applies to characters that actually have a Combo Die,
+            // which is granted by the Brawler "Combo Strike" class feature.
+            if (type == AdvancementType.UPGRADE_COMBO_DIE && !hasComboStrike) continue;
 
             int limit = getAdvancementLimitPerTier(type);
             int used = usageMap.getOrDefault(type, 0);
@@ -843,11 +852,11 @@ public class LevelUpService {
     }
 
     /**
-     * Validates that a character's Combo Die can still be stepped up.
+     * Validates that a character has a Combo Die and that it can still be stepped up.
      * <p>
      * The per-tier usage limit (once per tier) is already enforced generically in
-     * {@link #validateLevelUpRequest}; this only guards against stepping past the largest
-     * available die size.
+     * {@link #validateLevelUpRequest}; this guards against characters without the granting
+     * feature and against stepping past the largest available die size.
      * </p><p>
      * Note the printed ceiling is lower than this guard: the die starts at d4 and steps once per
      * tier across 4 tiers, so play can only reach d12. The check is against the largest
@@ -856,13 +865,50 @@ public class LevelUpService {
      * </p>
      *
      * @param sheet the character sheet
-     * @throws IllegalStateException if the Combo Die is already at its maximum size
+     * @throws IllegalStateException if the character has no Combo Die, or it is already at its
+     *         maximum size
      */
     private void validateUpgradeComboDie(CharacterSheet sheet) {
+        if (!hasComboStrikeFeature(sheet)) {
+            throw new IllegalStateException("Only characters with the Combo Strike feature have a Combo Die to upgrade");
+        }
         DiceType currentDie = sheet.getComboDie() != null ? sheet.getComboDie() : DiceType.D4;
         if (currentDie.ordinal() >= DiceType.values().length - 1) {
             throw new IllegalStateException("Combo Die is already at its maximum size (" + currentDie.getCode() + ")");
         }
+    }
+
+    /**
+     * Determines whether a character has the Brawler "Combo Strike" class feature, which is what
+     * grants the Combo Die.
+     * <p>
+     * Detection is by feature name rather than by class identity so that multiclass characters and
+     * homebrew classes reprinting the feature qualify too. This mirrors the frontend's check in
+     * {@code hf-class-resource-access.utils.ts}.
+     * </p>
+     *
+     * @param sheet the character sheet to inspect
+     * @return true when any of the character's classes has a class feature named "Combo Strike",
+     *         compared case-insensitively and ignoring surrounding whitespace
+     */
+    private boolean hasComboStrikeFeature(CharacterSheet sheet) {
+        for (SubclassCard card : sheet.getSubclassCards()) {
+            SubclassPath path = card.getSubclassPath();
+            if (path == null || path.getAssociatedClass() == null) {
+                continue;
+            }
+            Set<Feature> classFeatures = path.getAssociatedClass().getClassFeatures();
+            if (classFeatures == null) {
+                continue;
+            }
+            for (Feature feature : classFeatures) {
+                if (feature != null && feature.getName() != null
+                        && COMBO_STRIKE_FEATURE_NAME.equalsIgnoreCase(feature.getName().trim())) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     private void validateTrade(DomainCardTradeRequest trade, CharacterSheet sheet,
