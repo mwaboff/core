@@ -593,6 +593,218 @@ class LevelUpServiceTest {
     }
 
     @Test
+    void levelUp_UpgradeComboDie_FromNullStepsToD6() {
+        CharacterSheet sheet = buildSheet(6);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.UPGRADE_COMBO_DIE).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getComboDie()).isEqualTo(com.aboff.core.model.enums.DiceType.D6);
+    }
+
+    @Test
+    void levelUp_UpgradeComboDie_StepsFromExistingDieBySingleSize() {
+        CharacterSheet sheet = buildSheet(6);
+        sheet.setComboDie(com.aboff.core.model.enums.DiceType.D8);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.UPGRADE_COMBO_DIE).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getComboDie()).isEqualTo(com.aboff.core.model.enums.DiceType.D10);
+    }
+
+    @Test
+    void levelUp_UpgradeComboDie_RejectedTwiceInSameTier() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        String advData = objectMapper.writeValueAsString(Map.of(
+                "advancements", List.of(Map.of("type", "UPGRADE_COMBO_DIE"), Map.of("type", "GAIN_HP"))
+        ));
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advData).build();
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of(log));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.UPGRADE_COMBO_DIE).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("exceeds tier limit");
+    }
+
+    @Test
+    void levelUp_UpgradeComboDie_AllowedAgainInNextTier() {
+        // A prior UPGRADE_COMBO_DIE usage in tier 2 must not count against tier 3: the usage map is
+        // built exclusively from tier-3-scoped logs, so a fresh tier always starts at zero usage
+        // regardless of what happened in an earlier tier.
+        CharacterSheet sheet = buildSheet(6);
+        sheet.setComboDie(com.aboff.core.model.enums.DiceType.D6);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
+            CharacterAdvancementLog l = i.getArgument(0);
+            l.setId(1L);
+            return l;
+        });
+        when(characterSheetDomainCardRepository.countEquippedByCharacterSheetId(1L)).thenReturn(0L);
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().build());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.UPGRADE_COMBO_DIE).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(sheet.getComboDie()).isEqualTo(com.aboff.core.model.enums.DiceType.D8);
+    }
+
+    @Test
+    void levelUp_UpgradeComboDie_RejectedWhenAlreadyAtMaximum() {
+        CharacterSheet sheet = buildSheet(6);
+        sheet.setComboDie(com.aboff.core.model.enums.DiceType.D20);
+        sheet.setMajorDamageThreshold(8);
+        sheet.setSevereDamageThreshold(13);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.UPGRADE_COMBO_DIE).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("maximum");
+    }
+
+    @Test
+    void undoLevelUp_ReversesUpgradeComboDieFromNull() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        sheet.setComboDie(com.aboff.core.model.enums.DiceType.D6);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+
+        Map<String, Object> advDataMap = new LinkedHashMap<>();
+        // Map.of() rejects null values, so the "no previous die" case (null previousComboDie) is
+        // built manually via a mutable LinkedHashMap.
+        List<Map<String, Object>> advancements = new ArrayList<>();
+        Map<String, Object> comboAdv = new LinkedHashMap<>();
+        comboAdv.put("type", "UPGRADE_COMBO_DIE");
+        comboAdv.put("previousComboDie", null);
+        advancements.add(comboAdv);
+        advancements.add(Map.of("type", "GAIN_HP"));
+        advDataMap.put("advancements", advancements);
+        advDataMap.put("previousDamageThresholds", Map.of("major", 3, "severe", 6));
+        advDataMap.put("previousValues", Map.of(
+                "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                "traitModifiers", Map.of(), "traitMarks", Map.of(), "experienceModifiers", Map.of()
+        ));
+
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(2).build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getComboDie()).isNull();
+    }
+
+    @Test
+    void undoLevelUp_ReversesUpgradeComboDieToPreviousSize() throws Exception {
+        CharacterSheet sheet = buildSheet(3);
+        sheet.setComboDie(com.aboff.core.model.enums.DiceType.D10);
+        sheet.setMajorDamageThreshold(4);
+        sheet.setSevereDamageThreshold(7);
+
+        Map<String, Object> advDataMap = new LinkedHashMap<>();
+        List<Map<String, Object>> advancements = new ArrayList<>();
+        Map<String, Object> comboAdv = new LinkedHashMap<>();
+        comboAdv.put("type", "UPGRADE_COMBO_DIE");
+        comboAdv.put("previousComboDie", "D8");
+        advancements.add(comboAdv);
+        advancements.add(Map.of("type", "GAIN_HP"));
+        advDataMap.put("advancements", advancements);
+        advDataMap.put("previousDamageThresholds", Map.of("major", 3, "severe", 6));
+        advDataMap.put("previousValues", Map.of(
+                "proficiency", 0, "evasion", 10, "hitPointMax", 6, "stressMax", 6,
+                "traitModifiers", Map.of(), "traitMarks", Map.of(), "experienceModifiers", Map.of()
+        ));
+
+        String advJson = objectMapper.writeValueAsString(advDataMap);
+
+        CharacterAdvancementLog log = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2).advancementData(advJson).build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(log));
+        when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(characterSheetService.toResponse(any(), any())).thenReturn(CharacterSheetResponse.builder().level(2).build());
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(sheet.getComboDie()).isEqualTo(com.aboff.core.model.enums.DiceType.D8);
+    }
+
+    @Test
     void levelUp_Multiclass_AddsFoundationCard() {
         CharacterSheet sheet = buildSheetWithSubclassCards(6);
         sheet.setProficiency(2);

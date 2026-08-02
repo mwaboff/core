@@ -2,6 +2,7 @@ package com.aboff.core.model.entity.dh;
 
 import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.entity.User;
+import com.aboff.core.model.enums.DiceType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -310,6 +311,95 @@ public class CharacterSheet extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "active_beastform_id")
     private Beastform activeBeastform;
+
+    // ========== Hope & Fear Resources ==========
+
+    /**
+     * Number of Focus points currently held (Martial Artist's "Stance Fighter" resource).
+     * Follows the {@code hope_marked} convention: marked = amount currently held, not spent.
+     * Zero and harmless for characters without the Martial Artist subclass.
+     */
+    @Column(name = "focus_marked", nullable = false)
+    @Builder.Default
+    private Integer focusMarked = 0;
+
+    /**
+     * Maximum Focus this character can hold. Capped at 6 by rule.
+     */
+    @Column(name = "focus_max", nullable = false)
+    @Builder.Default
+    private Integer focusMax = 6;
+
+    /**
+     * Favor points currently held (Warlock resource). Zero and harmless for other classes.
+     */
+    @Column(nullable = false)
+    @Builder.Default
+    private Integer favor = 0;
+
+    /**
+     * The current size of the character's Combo Die (Brawler resource).
+     * Starts at D4 and may be stepped up once per tier via the
+     * {@code UPGRADE_COMBO_DIE} advancement. Null when the character has no Combo Die.
+     */
+    @Column(name = "combo_die", length = 10)
+    @Enumerated(EnumType.STRING)
+    private DiceType comboDie;
+
+    /**
+     * Whether the Game Master has granted this character access to transformations.
+     * False by default: the transformation panel stays hidden and every transformation
+     * mutation on the player-facing update path is rejected until a GM enables it.
+     */
+    @Column(name = "transformation_enabled", nullable = false)
+    @Builder.Default
+    private boolean transformationEnabled = false;
+
+    /**
+     * The transformation card attached to this character, if any.
+     * A character may have at most one transformation (structural: single FK).
+     * Does not count against the domain card loadout limit.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "transformation_card_id")
+    private TransformationCard transformationCard;
+
+    /**
+     * Vampire "Feed" tokens. Capped at 6. Null when the character has no transformation
+     * that uses a token pool (i.e. anything other than Vampire).
+     */
+    @Column(name = "transformation_tokens")
+    private Integer transformationTokens;
+
+    /**
+     * Whether the Werewolf transformation's "Wolf Form" is currently active.
+     * Deliberately specific to the Werewolf transformation card — see design doc for why a
+     * generic "transformation active" flag was rejected. False for every other transformation.
+     */
+    @Column(name = "wolf_form_active", nullable = false)
+    @Builder.Default
+    private Boolean wolfFormActive = false;
+
+    /**
+     * The martial stances this character knows.
+     * Characters know 2 Tier-1 stances at pick and gain +1 stance per level thereafter.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "character_sheet_martial_stances",
+        joinColumns = @JoinColumn(name = "character_sheet_id"),
+        inverseJoinColumns = @JoinColumn(name = "martial_stance_id")
+    )
+    @Builder.Default
+    private Set<MartialStance> knownMartialStances = new HashSet<>();
+
+    /**
+     * The martial stance the character is currently shifted into, if any.
+     * Must be a member of {@link #knownMartialStances}.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "active_martial_stance_id")
+    private MartialStance activeMartialStance;
 
     // ========== Ownership ==========
 

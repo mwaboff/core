@@ -29,8 +29,9 @@ All endpoints require authentication via `AUTH_TOKEN` HttpOnly cookie unless oth
 19. [Remove Character Sheet](#19-remove-character-sheet)
 20. [Update Fear](#20-update-fear)
 21. [Update GM Notes](#21-update-gm-notes)
-22. [Models](#models)
-23. [Enums](#enums)
+22. [Update Transformation Access](#22-update-transformation-access)
+23. [Models](#models)
+24. [Enums](#enums)
 
 ---
 
@@ -1210,6 +1211,107 @@ curl -s -X PATCH http://localhost:8080/api/dh/campaigns/1/gm-notes \
 
 ---
 
+## 22. Update Transformation Access
+
+Grants or revokes a character's access to transformations, and optionally assigns or clears the character's transformation card in the same call.
+
+Transformations are GM-granted. Until a GM enables them, the character sheet's transformation panel is hidden and the player-facing `PUT /api/dh/character-sheets/{id}` endpoint rejects any request that sets `transformationCardId`, `clearTransformationCard`, `transformationTokens`, or `wolfFormActive` with `400 Bad Request`.
+
+Disabling access **preserves** `transformationCardId`, `transformationTokens`, and `wolfFormActive` — it only hides the panel, it never destroys the player's selection. A card may also be assigned while `enabled` is `false`, so a GM can pre-load a transformation before revealing it.
+
+- **Method:** `PUT`
+- **Path:** `/api/dh/campaigns/{campaignId}/character-sheets/{sheetId}/transformation`
+- **Auth:** Campaign creator/GM or MODERATOR/ADMIN/OWNER
+
+### Path Parameters
+
+| Parameter  | Type | Required | Description                                          |
+|------------|------|----------|------------------------------------------------------|
+| campaignId | long | Yes      | The campaign ID                                      |
+| sheetId    | long | Yes      | The character sheet ID; must belong to the campaign  |
+
+### Request Body
+
+| Field                   | Type    | Required | Constraints                                                        |
+|-------------------------|---------|----------|--------------------------------------------------------------------|
+| enabled                 | boolean | Yes      | `@NotNull`                                                         |
+| transformationCardId    | long    | No       | Must reference an active transformation card                        |
+| clearTransformationCard | boolean | No       | Takes precedence over `transformationCardId` when `true`            |
+
+### Request Examples
+
+```json
+{
+  "enabled": true,
+  "transformationCardId": 5
+}
+```
+
+```json
+{
+  "enabled": false
+}
+```
+
+```json
+{
+  "enabled": true,
+  "clearTransformationCard": true
+}
+```
+
+### Response: `200 OK`
+
+Returns the updated CharacterSheetResponse (full character sheet, no expansions).
+
+```json
+{
+  "id": 10,
+  "name": "Roster Hero",
+  "level": 1,
+  "transformationEnabled": true,
+  "transformationCardId": 5,
+  "transformationTokens": 4,
+  "wolfFormActive": false,
+  "ownerId": 3,
+  "createdAt": "2026-03-13T10:00:00",
+  "lastModifiedAt": "2026-08-01T12:00:00"
+}
+```
+
+### Error Responses
+
+| Status | Condition                                                       | Error Body Type         |
+|--------|-----------------------------------------------------------------|-------------------------|
+| 400    | `enabled` null/missing                                          | ValidationErrorResponse |
+| 401    | No AUTH_TOKEN cookie                                            | ErrorResponse           |
+| 403    | User is not a creator/GM and not MODERATOR+                     | ErrorResponse           |
+| 404    | Campaign not found, sheet not in the campaign, or unknown card  | ErrorResponse           |
+
+### curl Examples
+
+```bash
+# Enable transformations and assign a card
+curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/transformation \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"enabled": true, "transformationCardId": 5}'
+
+# Hide the panel again without losing the player's selection
+curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/transformation \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"enabled": false}'
+
+# Detach the transformation entirely
+curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/transformation \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"enabled": true, "clearTransformationCard": true}'
+```
+
+---
+
 ## Models
 
 ### CampaignResponse
@@ -1282,6 +1384,16 @@ Supports partial updates. Only non-null fields are applied. Blank name values ar
 
 Send `""` to clear the notes. The value is sanitized before storage.
 
+### UpdateTransformationAccessRequest
+
+| Field                   | Type    | Required | Constraints                                              |
+|-------------------------|---------|----------|----------------------------------------------------------|
+| enabled                 | boolean | Yes      | `@NotNull`                                               |
+| transformationCardId    | long    | No       | Must reference an active transformation card             |
+| clearTransformationCard | boolean | No       | Wins over `transformationCardId` when `true`             |
+
+Setting `enabled` to `false` preserves the character's existing transformation card, tokens, and Wolf Form state.
+
 ### UserResponse (expanded)
 
 When a user is expanded in a campaign response, these fields are included. Null fields are omitted.
@@ -1331,18 +1443,23 @@ When a character sheet is expanded in a campaign response, only basic fields are
 
 ### CampaignCharacterSummaryResponse
 
-Lightweight character summary used in campaign GET with `?expand=characterSummaries`. Includes all characters across pending, PC, and NPC collections.
+Lightweight character summary used in campaign GET with `?expand=characterSummaries`. Includes all characters across pending, PC, and NPC collections. Null fields are omitted (`@JsonInclude(NON_NULL)`).
 
-| Field          | Type     | Description                              |
-|----------------|----------|------------------------------------------|
-| id             | long     | Character sheet ID                       |
-| name           | string   | Character name                           |
-| level          | integer  | Character level                          |
-| ownerId        | long     | ID of the character owner                |
-| ownerUsername  | string   | Username of the character owner          |
-| ancestryNames  | string[] | Names of ancestry cards                  |
-| subclassNames  | string[] | Names of subclass cards                  |
-| classNames     | string[] | Names of associated classes (via subclass paths) |
+| Field                  | Type     | Always Present | Description                                      |
+|------------------------|----------|----------------|--------------------------------------------------|
+| id                     | long     | Yes            | Character sheet ID                               |
+| name                   | string   | Yes            | Character name                                   |
+| level                  | integer  | Yes            | Character level                                  |
+| ownerId                | long     | Yes            | ID of the character owner                        |
+| ownerUsername          | string   | Yes            | Username of the character owner                  |
+| ancestryNames          | string[] | Yes            | Names of ancestry cards                          |
+| subclassNames          | string[] | Yes            | Names of subclass cards                          |
+| classNames             | string[] | Yes            | Names of associated classes (via subclass paths) |
+| transformationEnabled  | boolean  | Yes            | Whether a GM has enabled transformations         |
+| transformationCardId   | long     | No             | Assigned transformation card ID (absent if none) |
+| transformationCardName | string   | No             | Assigned transformation card name (absent if none) |
+
+The three transformation fields let a GM roster render the current transformation state without an extra fetch per character; the assigned card is loaded in a single batched query.
 
 ### PagedResponse
 
@@ -1455,6 +1572,7 @@ Campaigns have two distinct lifecycle states beyond active:
 | Reject character sheet     | Yes     | Yes               | No      | Yes        | Yes       |
 | Add NPC                    | Yes     | Yes               | No      | Yes        | No        |
 | Remove character sheet     | Yes     | Yes               | Yes***  | Yes        | Yes       |
+| Update transformation access | Yes   | Yes               | No      | Yes        | Yes       |
 
 \* Must also be the character sheet owner. Character sheet must not already be in an active campaign.
 \*\* Returns error if already ended.

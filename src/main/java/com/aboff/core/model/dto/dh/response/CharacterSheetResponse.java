@@ -1,6 +1,7 @@
 package com.aboff.core.model.dto.dh.response;
 
 import com.aboff.core.model.dto.response.UserResponse;
+import com.aboff.core.model.enums.DiceType;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
@@ -194,6 +195,76 @@ public class CharacterSheetResponse {
      * Amount of gold the character has
      */
     private Integer gold;
+
+    // ========== Hope & Fear Resources ==========
+
+    /**
+     * Focus currently held (Martial Artist's "Stance Fighter" resource). Zero and harmless for
+     * characters without the Martial Artist subclass.
+     */
+    private Integer focusMarked;
+
+    /**
+     * Maximum Focus this character can hold.
+     */
+    private Integer focusMax;
+
+    /**
+     * Favor points currently held (Warlock resource).
+     */
+    private Integer favor;
+
+    /**
+     * Current Combo Die size (Brawler resource), null when the character has no Combo Die.
+     */
+    private DiceType comboDie;
+
+    /**
+     * Whether the Game Master has granted this character access to transformations.
+     * When false the transformation panel is hidden and transformation fields cannot be
+     * changed through the player-facing update endpoint.
+     */
+    private boolean transformationEnabled;
+
+    /**
+     * ID of the transformation card attached to this character (null if none).
+     */
+    private Long transformationCardId;
+
+    /**
+     * Full transformation card object (included only when ?expand=transformationCard is specified).
+     */
+    private TransformationCardResponse transformationCard;
+
+    /**
+     * Vampire "Feed" token count. Null when the character's transformation does not use a token pool.
+     */
+    private Integer transformationTokens;
+
+    /**
+     * Whether the Werewolf transformation's "Wolf Form" is currently active.
+     */
+    private Boolean wolfFormActive;
+
+    /**
+     * IDs of martial stances this character knows (always included).
+     */
+    private List<Long> knownMartialStanceIds;
+
+    /**
+     * Full martial stance objects (included only when ?expand=knownMartialStances is specified).
+     */
+    private List<MartialStanceResponse> knownMartialStances;
+
+    /**
+     * ID of the martial stance the character is currently shifted into (null if none).
+     */
+    private Long activeMartialStanceId;
+
+    /**
+     * Full active martial stance object (included only when ?expand=activeMartialStance is specified).
+     */
+    private MartialStanceResponse activeMartialStance;
 
     // ========== Campaign Info ==========
 

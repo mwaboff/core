@@ -36,6 +36,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -125,6 +126,18 @@ class CharacterSheetServiceTest {
 
     @Mock
     private ClassService classService;
+
+    @Mock
+    private TransformationCardRepository transformationCardRepository;
+
+    @Mock
+    private MartialStanceRepository martialStanceRepository;
+
+    @Mock
+    private TransformationCardService transformationCardService;
+
+    @Mock
+    private MartialStanceService martialStanceService;
 
     @Mock
     private Authentication authentication;
@@ -1784,6 +1797,530 @@ class CharacterSheetServiceTest {
         assertThat(result.getHitPointMax()).isEqualTo(12);
         assertThat(result.getHitPointMarked()).isEqualTo(3);
         assertThat(result.getGold()).isEqualTo(100);
+    }
+
+    // ==================== HOPE & FEAR RESOURCE TESTS ====================
+
+    private CharacterSheet buildHfSheet(User owner) {
+        return CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .level(1)
+                .owner(owner)
+                .evasion(10)
+                .armorMax(5)
+                .armorMarked(0)
+                .majorDamageThreshold(3)
+                .severeDamageThreshold(6)
+                .hitPointMax(10)
+                .hitPointMarked(0)
+                .stressMax(6)
+                .stressMarked(0)
+                .hopeMax(3)
+                .hopeMarked(0)
+                .gold(50)
+                .focusMax(6)
+                .focusMarked(0)
+                .favor(0)
+                // Transformations are GM-granted; enable them so these tests exercise the
+                // transformation behaviour rather than the access gate.
+                .transformationEnabled(true)
+                .knownMartialStances(new HashSet<>())
+                .build();
+    }
+
+    private void stubSaveWithEmptyCollections(CharacterSheetRepository repo) {
+        when(repo.save(any(CharacterSheet.class))).thenAnswer(invocation -> {
+            CharacterSheet saved = invocation.getArgument(0);
+            if (saved.getCommunityCards() == null) saved.setCommunityCards(new HashSet<>());
+            if (saved.getAncestryCards() == null) saved.setAncestryCards(new HashSet<>());
+            if (saved.getSubclassCards() == null) saved.setSubclassCards(new HashSet<>());
+            if (saved.getCharacterSheetDomainCards() == null) saved.setCharacterSheetDomainCards(new HashSet<>());
+            if (saved.getCharacterSheetWeapons() == null) saved.setCharacterSheetWeapons(new HashSet<>());
+            if (saved.getCharacterSheetArmors() == null) saved.setCharacterSheetArmors(new HashSet<>());
+            if (saved.getCharacterSheetLoot() == null) saved.setCharacterSheetLoot(new HashSet<>());
+            if (saved.getExperiences() == null) saved.setExperiences(new HashSet<>());
+            if (saved.getKnownMartialStances() == null) saved.setKnownMartialStances(new HashSet<>());
+            return saved;
+        });
+    }
+
+    @Test
+    void updateCharacterSheet_FocusMarked_ClampsToZeroWhenNegativeIsRejectedByRange() {
+        // The DTO's @PositiveOrZero prevents negative input at the controller layer; the service
+        // still clamps defensively so a marked value can never end up below zero.
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setFocusMarked(4);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .focusMarked(0)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getFocusMarked()).isZero();
+    }
+
+    @Test
+    void updateCharacterSheet_FocusMarked_ClampedToFocusMaxWhenExceedingIt() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setFocusMax(6);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .focusMarked(99)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getFocusMarked()).isEqualTo(6);
+    }
+
+    @Test
+    void updateCharacterSheet_FocusMarked_AtBoundarySix_IsAccepted() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .focusMarked(6)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getFocusMarked()).isEqualTo(6);
+    }
+
+    @Test
+    void updateCharacterSheet_LoweringFocusMax_ClampsFocusMarkedDown() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setFocusMarked(6);
+        sheet.setFocusMax(6);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .focusMax(2)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getFocusMax()).isEqualTo(2);
+        assertThat(result.getFocusMarked()).isEqualTo(2);
+    }
+
+    @Test
+    void updateCharacterSheet_TransformationTokens_ClampedToSixMaximum() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationTokens(99)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getTransformationTokens()).isEqualTo(6);
+    }
+
+    @Test
+    void updateCharacterSheet_TransformationTokens_ZeroIsAccepted() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationTokens(0)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getTransformationTokens()).isZero();
+    }
+
+    @Test
+    void updateCharacterSheet_TransformationTokens_NullLeavesFieldUnchanged() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationTokens(null);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .gold(10)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getTransformationTokens()).isNull();
+    }
+
+    @Test
+    void updateCharacterSheet_AttachTransformationCard_SetsTransformationCardId() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        TransformationCard card = TransformationCard.builder().id(5L).name("Vampire").expansion(expansion).build();
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationCardId(5L)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(transformationCardRepository.findByIdAndDeletedAtIsNull(5L)).thenReturn(Optional.of(card));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getTransformationCardId()).isEqualTo(5L);
+    }
+
+    @Test
+    void updateCharacterSheet_AttachTransformationCard_NotFound_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationCardId(999L)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(transformationCardRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    @Test
+    void updateCharacterSheet_ClearTransformationCard_DetachesCardTokensAndWolfForm() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        TransformationCard card = TransformationCard.builder().id(5L).name("Werewolf").expansion(expansion).build();
+        sheet.setTransformationCard(card);
+        sheet.setTransformationTokens(3);
+        sheet.setWolfFormActive(true);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .clearTransformationCard(true)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getTransformationCardId()).isNull();
+        assertThat(result.getTransformationTokens()).isNull();
+        assertThat(result.getWolfFormActive()).isFalse();
+    }
+
+    // ==================== TRANSFORMATION ACCESS GATE TESTS ====================
+
+    @Test
+    void updateCharacterSheet_TransformationEnabled_IsIncludedInResponse() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder().gold(10).build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.isTransformationEnabled()).isTrue();
+    }
+
+    @Test
+    void updateCharacterSheet_AttachTransformationCard_WhenNotEnabled_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationCardId(5L)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Transformations are not enabled for this character. Ask your GM to enable them.");
+    }
+
+    @Test
+    void updateCharacterSheet_ClearTransformationCard_WhenNotEnabled_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .clearTransformationCard(true)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("Ask your GM to enable them");
+    }
+
+    @Test
+    void updateCharacterSheet_TransformationTokens_WhenNotEnabled_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationTokens(2)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void updateCharacterSheet_WolfFormActive_WhenNotEnabled_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .wolfFormActive(true)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void updateCharacterSheet_NonTransformationFields_WhenNotEnabled_Succeeds() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .gold(75)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getGold()).isEqualTo(75);
+        assertThat(result.isTransformationEnabled()).isFalse();
+    }
+
+    @Test
+    void updateCharacterSheet_KnownMartialStances_ActiveStanceNotInKnownSet_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        MartialStance knownStance = MartialStance.builder().id(1L).name("Bear Stance").tier(1).expansion(expansion).isOfficial(true).build();
+        MartialStance unknownStance = MartialStance.builder().id(2L).name("Tiger Stance").tier(1).expansion(expansion).isOfficial(true).build();
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .knownMartialStanceIds(List.of(1L))
+                .activeMartialStanceId(2L)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(martialStanceRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(knownStance));
+        when(martialStanceRepository.findByIdAndDeletedAtIsNull(2L)).thenReturn(Optional.of(unknownStance));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("known stances");
+    }
+
+    @Test
+    void updateCharacterSheet_KnownMartialStances_ActiveStanceInKnownSet_Succeeds() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        MartialStance stance = MartialStance.builder().id(1L).name("Bear Stance").tier(1).expansion(expansion).isOfficial(true).build();
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .knownMartialStanceIds(List.of(1L))
+                .activeMartialStanceId(1L)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(martialStanceRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(stance));
+        when(martialStanceRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(stance));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getKnownMartialStanceIds()).containsExactly(1L);
+        assertThat(result.getActiveMartialStanceId()).isEqualTo(1L);
+    }
+
+    @Test
+    void updateCharacterSheet_KnownMartialStance_TierAboveCharacterTier_ThrowsException() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setLevel(1); // tier 1
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        MartialStance tier2Stance = MartialStance.builder().id(1L).name("Iron Stance").tier(2).expansion(expansion).isOfficial(true).build();
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .knownMartialStanceIds(List.of(1L))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(martialStanceRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(tier2Stance));
+
+        assertThatThrownBy(() -> characterSheetService.updateCharacterSheet(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("tier");
+    }
+
+    @Test
+    void updateCharacterSheet_ClearActiveMartialStance_ClearsActiveStance() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        MartialStance stance = MartialStance.builder().id(1L).name("Bear Stance").tier(1).expansion(expansion).isOfficial(true).build();
+        sheet.getKnownMartialStances().add(stance);
+        sheet.setActiveMartialStance(stance);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .clearActiveMartialStance(true)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getActiveMartialStanceId()).isNull();
+    }
+
+    @Test
+    void toResponse_ExpandTransformationCard_IncludesFullObject() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        TransformationCard card = TransformationCard.builder().id(5L).name("Ghost").expansion(expansion).build();
+        sheet.setTransformationCard(card);
+
+        TransformationCardResponse cardResponse = TransformationCardResponse.builder().id(5L).name("Ghost").build();
+        when(transformationCardService.toResponse(eq(card), eq(Set.of()))).thenReturn(cardResponse);
+
+        CharacterSheetResponse response = characterSheetService.toResponse(sheet, Set.of("transformationCard"));
+
+        assertThat(response.getTransformationCardId()).isEqualTo(5L);
+        assertThat(response.getTransformationCard()).isNotNull();
+        assertThat(response.getTransformationCard().getName()).isEqualTo("Ghost");
+    }
+
+    @Test
+    void toResponse_WithoutExpand_TransformationCardIdOnlyNoFullObject() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        TransformationCard card = TransformationCard.builder().id(5L).name("Ghost").expansion(expansion).build();
+        sheet.setTransformationCard(card);
+
+        CharacterSheetResponse response = characterSheetService.toResponse(sheet, Set.of());
+
+        assertThat(response.getTransformationCardId()).isEqualTo(5L);
+        assertThat(response.getTransformationCard()).isNull();
+    }
+
+    @Test
+    void toResponse_ExpandKnownMartialStances_IncludesFullObjects() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        MartialStance stance = MartialStance.builder().id(1L).name("Bear Stance").tier(1).expansion(expansion).isOfficial(true).build();
+        sheet.getKnownMartialStances().add(stance);
+
+        MartialStanceResponse stanceResponse = MartialStanceResponse.builder().id(1L).name("Bear Stance").build();
+        when(martialStanceService.toResponse(eq(stance), eq(Set.of()))).thenReturn(stanceResponse);
+
+        CharacterSheetResponse response = characterSheetService.toResponse(sheet, Set.of("knownMartialStances"));
+
+        assertThat(response.getKnownMartialStanceIds()).containsExactly(1L);
+        assertThat(response.getKnownMartialStances()).hasSize(1);
+    }
+
+    @Test
+    void toResponse_NoTransformationOrStances_NullFieldsAndEmptyIds() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+
+        CharacterSheetResponse response = characterSheetService.toResponse(sheet, Set.of());
+
+        assertThat(response.getTransformationCardId()).isNull();
+        assertThat(response.getActiveMartialStanceId()).isNull();
+        assertThat(response.getKnownMartialStanceIds()).isEmpty();
+        assertThat(response.getFocusMarked()).isZero();
+        assertThat(response.getFocusMax()).isEqualTo(6);
     }
 
     @Test

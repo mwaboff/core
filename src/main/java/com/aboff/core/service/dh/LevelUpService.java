@@ -8,6 +8,7 @@ import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.enums.AdvancementType;
 import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.UserRepository;
@@ -510,6 +511,7 @@ public class LevelUpService {
             case UPGRADE_SUBCLASS -> 1;
             case BOOST_PROFICIENCY -> 2;
             case MULTICLASS -> 2;
+            case UPGRADE_COMBO_DIE -> 1;
             // Feature-granted cards have no per-tier cap — quantity is gated by the subclass
             // feature's modifier, not by level-up usage limits. Value is unused because
             // FEATURE_DOMAIN_CARD is never counted in usage maps, but Integer.MAX_VALUE makes
@@ -680,6 +682,7 @@ public class LevelUpService {
                 case GAIN_DOMAIN_CARD -> validateGainDomainCard(choice, accessibleDomainIds, domainCardLevelCap);
                 case UPGRADE_SUBCLASS -> validateUpgradeSubclass(choice, sheet);
                 case MULTICLASS -> validateMulticlass(choice, sheet);
+                case UPGRADE_COMBO_DIE -> validateUpgradeComboDie(sheet);
                 default -> { /* GAIN_HP, GAIN_STRESS, BOOST_EVASION, BOOST_PROFICIENCY need no extra validation */ }
             }
         }
@@ -836,6 +839,29 @@ public class LevelUpService {
                 .anyMatch(sc -> sc.getSubclassPath().getAssociatedClass().getId().equals(newClassId));
         if (hasClass) {
             throw new IllegalStateException("Character already has a subclass from this class");
+        }
+    }
+
+    /**
+     * Validates that a character's Combo Die can still be stepped up.
+     * <p>
+     * The per-tier usage limit (once per tier) is already enforced generically in
+     * {@link #validateLevelUpRequest}; this only guards against stepping past the largest
+     * available die size.
+     * </p><p>
+     * Note the printed ceiling is lower than this guard: the die starts at d4 and steps once per
+     * tier across 4 tiers, so play can only reach d12. The check is against the largest
+     * {@link DiceType} rather than d12 so that it stays correct if the tier count or the
+     * per-tier allowance ever changes, rather than silently permitting growth past the rules.
+     * </p>
+     *
+     * @param sheet the character sheet
+     * @throws IllegalStateException if the Combo Die is already at its maximum size
+     */
+    private void validateUpgradeComboDie(CharacterSheet sheet) {
+        DiceType currentDie = sheet.getComboDie() != null ? sheet.getComboDie() : DiceType.D4;
+        if (currentDie.ordinal() >= DiceType.values().length - 1) {
+            throw new IllegalStateException("Combo Die is already at its maximum size (" + currentDie.getCode() + ")");
         }
     }
 
@@ -1032,6 +1058,14 @@ public class LevelUpService {
                 sheet.setProficiency(sheet.getProficiency() + 1);
                 appliedChanges.add("+1 proficiency");
             }
+            case UPGRADE_COMBO_DIE -> {
+                DiceType storedDie = sheet.getComboDie();
+                DiceType currentDie = storedDie != null ? storedDie : DiceType.D4;
+                DiceType nextDie = DiceType.values()[currentDie.ordinal() + 1];
+                advData.put("previousComboDie", storedDie != null ? storedDie.name() : null);
+                sheet.setComboDie(nextDie);
+                appliedChanges.add("Combo Die upgraded to " + nextDie.getCode());
+            }
             case MULTICLASS -> {
                 SubclassCard card = subclassCardRepository.findById(choice.getSubclassCardId())
                         .orElseThrow(() -> new EntityNotFoundException("SubclassCard not found with id: " + choice.getSubclassCardId()));
@@ -1171,6 +1205,10 @@ public class LevelUpService {
                 }
             }
             case BOOST_PROFICIENCY -> sheet.setProficiency(sheet.getProficiency() - 1);
+            case UPGRADE_COMBO_DIE -> {
+                Object previous = adv.get("previousComboDie");
+                sheet.setComboDie(previous != null ? DiceType.valueOf((String) previous) : null);
+            }
         }
     }
 

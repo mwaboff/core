@@ -69,7 +69,12 @@ public enum AdvancementType {
      * {@code getLevelUpOptions} as a selectable option. Cards granted this way are added unequipped.
      * </p>
      */
-    FEATURE_DOMAIN_CARD(1);
+    FEATURE_DOMAIN_CARD(1),
+
+    /**
+     * Step the Brawler's Combo Die up one size (e.g. d4 to d6). Once per tier.
+     */
+    UPGRADE_COMBO_DIE(1);
 
     /**
      * The minimum tier at which this advancement type becomes available.

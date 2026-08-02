@@ -5,8 +5,10 @@ import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignFearRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignGmNotesRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateTransformationAccessRequest;
 import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
+import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
 import com.aboff.core.model.dto.dh.response.JoinCampaignResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.service.AuditLogger;
@@ -642,6 +644,41 @@ public class CampaignController {
         CampaignResponse response = campaignService.removeCharacterSheet(id, sheetId, authentication);
 
         auditLogger.requestCompleted(ctx, "DELETE", "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId, startTime);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Grants or revokes a character's access to transformations, optionally assigning or
+     * clearing the character's transformation card.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can change
+     * transformation access. Disabling access hides the transformation panel but preserves the
+     * character's existing transformation card, tokens, and Wolf Form state.
+     * </p>
+     *
+     * @param id The campaign ID
+     * @param sheetId The character sheet ID, which must belong to the campaign
+     * @param request The request containing the access flag and optional card assignment
+     * @param authentication The authentication object containing the current user
+     * @return Updated character sheet response with 200 OK status
+     */
+    @PutMapping("/{id}/character-sheets/{sheetId}/transformation")
+    public ResponseEntity<CharacterSheetResponse> updateTransformationAccess(
+            @PathVariable Long id,
+            @PathVariable Long sheetId,
+            @Valid @RequestBody UpdateTransformationAccessRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        String path = "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId + "/transformation";
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", path);
+
+        CharacterSheetResponse response =
+                campaignService.updateTransformationAccess(id, sheetId, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", path, startTime);
         return ResponseEntity.ok(response);
     }
 }

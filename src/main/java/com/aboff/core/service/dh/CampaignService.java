@@ -6,6 +6,7 @@ import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignFearRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignGmNotesRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateTransformationAccessRequest;
 import com.aboff.core.model.dto.dh.response.CampaignCharacterSummaryResponse;
 import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
@@ -17,10 +18,12 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.CampaignInvite;
 import com.aboff.core.model.entity.dh.CharacterSheet;
+import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.CampaignInviteRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.TransformationCardRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
@@ -45,6 +48,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Service for managing Campaign entities.
@@ -75,6 +79,8 @@ public class CampaignService {
     private final CampaignInviteRepository campaignInviteRepository;
     private final UserRepository userRepository;
     private final CharacterSheetRepository characterSheetRepository;
+    private final TransformationCardRepository transformationCardRepository;
+    private final CharacterSheetService characterSheetService;
     private final RoleHierarchyService roleHierarchyService;
     private final AuditLogger auditLogger;
 
@@ -971,6 +977,96 @@ public class CampaignService {
         return toResponse(updatedCampaign, Set.of(), auth);
     }
 
+    /**
+     * Grants or revokes a character's access to transformations, optionally assigning or clearing
+     * the character's transformation card in the same call.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can change
+     * transformation access; transformations are something a GM grants, which is why the
+     * player-facing character sheet update endpoint has no equivalent field.
+     * </p>
+     * <p>
+     * Disabling access deliberately <strong>preserves</strong> the character's
+     * {@code transformationCardId}, {@code transformationTokens}, and {@code wolfFormActive}.
+     * Turning transformations off only hides the panel; it must never destroy the player's
+     * selection, so a GM can re-enable it later without the character losing state.
+     * </p>
+     * <p>
+     * A transformation card may be assigned while access is disabled so a GM can pre-load a
+     * transformation before revealing it. {@code clearTransformationCard} takes precedence over
+     * {@code transformationCardId}, mirroring the tri-state convention used by the character
+     * sheet update path.
+     * </p>
+     *
+     * @param campaignId The campaign ID
+     * @param sheetId The character sheet ID, which must belong to the campaign
+     * @param request The request containing the new access flag and optional card assignment
+     * @param auth The authentication object containing the current user
+     * @return The updated character sheet
+     * @throws EntityNotFoundException if the campaign, the sheet within that campaign, or a
+     *                                 referenced transformation card is not found
+     * @throws InsufficientPermissionsException if the user lacks game master access
+     * @throws IllegalStateException if the campaign has ended
+     */
+    @Transactional
+    public CharacterSheetResponse updateTransformationAccess(
+            Long campaignId, Long sheetId, UpdateTransformationAccessRequest request, Authentication auth) {
+
+        Campaign campaign = campaignRepository.findActiveById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
+
+        validateGameMasterAccess(campaign, auth, "update transformation access for");
+        // Granting a transformation is a live-play act, so it follows the other GM mutations
+        // (fear, GM notes, approvals) in refusing an ended campaign. removeCharacterSheet is the
+        // deliberate exception to that rule because it is cleanup, not play.
+        validateNotEnded(campaign, "update transformation access for");
+
+        CharacterSheet sheet = findCharacterSheetInCampaign(campaign, sheetId);
+
+        sheet.setTransformationEnabled(Boolean.TRUE.equals(request.getEnabled()));
+
+        if (Boolean.TRUE.equals(request.getClearTransformationCard())) {
+            sheet.setTransformationCard(null);
+            sheet.setTransformationTokens(null);
+            sheet.setWolfFormActive(false);
+        } else if (request.getTransformationCardId() != null) {
+            TransformationCard card = transformationCardRepository
+                    .findByIdAndDeletedAtIsNull(request.getTransformationCardId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "TransformationCard not found with id: " + request.getTransformationCardId()));
+            sheet.setTransformationCard(card);
+        }
+
+        CharacterSheet updatedSheet = characterSheetRepository.save(sheet);
+
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withCharacterSheetId(sheetId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_TRANSFORMATION_ACCESS_UPDATED, ctx,
+                String.format("transformations %s for \"%s\" (character_sheet_id: %d, campaign_id: %d)",
+                        updatedSheet.isTransformationEnabled() ? "enabled" : "disabled",
+                        updatedSheet.getName(), sheetId, campaignId));
+
+        return characterSheetService.toResponse(updatedSheet, Set.of());
+    }
+
+    /**
+     * Finds a character sheet that belongs to the campaign, in any of its roster collections.
+     *
+     * @param campaign The campaign to search
+     * @param sheetId The character sheet ID
+     * @return The character sheet belonging to the campaign
+     * @throws EntityNotFoundException if the sheet is not part of the campaign
+     */
+    private CharacterSheet findCharacterSheetInCampaign(Campaign campaign, Long sheetId) {
+        return Stream.of(campaign.getPlayerCharacters(),
+                        campaign.getNonPlayerCharacters(),
+                        campaign.getPendingCharacterSheets())
+                .flatMap(Set::stream)
+                .filter(sheet -> sheet.getId().equals(sheetId))
+                .findFirst()
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "CharacterSheet not found with id: " + sheetId + " in campaign with id: " + campaign.getId()));
+    }
+
     // ==================== ACCESS CONTROL HELPERS ====================
 
     /**
@@ -1236,6 +1332,7 @@ public class CampaignService {
 
         // Expand character summaries if requested
         if (ExpandUtil.shouldExpand(expand, "characterSummaries")) {
+            prefetchTransformationCards(campaign);
             List<CampaignCharacterSummaryResponse> summaries = new ArrayList<>();
             for (CharacterSheet sheet : campaign.getPlayerCharacters()) {
                 summaries.add(toCampaignCharacterSummary(sheet));
@@ -1277,6 +1374,8 @@ public class CampaignService {
      * @return CampaignCharacterSummaryResponse with enriched data
      */
     private CampaignCharacterSummaryResponse toCampaignCharacterSummary(CharacterSheet sheet) {
+        TransformationCard transformationCard = sheet.getTransformationCard();
+
         List<String> ancestryNames = sheet.getAncestryCards().stream()
                 .map(card -> card.getName())
                 .collect(Collectors.toList());
@@ -1299,7 +1398,31 @@ public class CampaignService {
                 .ancestryNames(ancestryNames)
                 .subclassNames(subclassNames)
                 .classNames(classNames)
+                .transformationEnabled(sheet.isTransformationEnabled())
+                .transformationCardId(transformationCard != null ? transformationCard.getId() : null)
+                .transformationCardName(transformationCard != null ? transformationCard.getName() : null)
                 .build();
+    }
+
+    /**
+     * Initializes the lazy transformation card association for every character sheet in the
+     * campaign with a single query.
+     * <p>
+     * The character summaries expose the assigned transformation card's name; without this
+     * pre-fetch Hibernate would issue one additional select per sheet while building the roster.
+     * </p>
+     *
+     * @param campaign The campaign whose character sheets are being summarized
+     */
+    private void prefetchTransformationCards(Campaign campaign) {
+        Set<Long> sheetIds = new HashSet<>();
+        campaign.getPlayerCharacters().forEach(sheet -> sheetIds.add(sheet.getId()));
+        campaign.getNonPlayerCharacters().forEach(sheet -> sheetIds.add(sheet.getId()));
+        campaign.getPendingCharacterSheets().forEach(sheet -> sheetIds.add(sheet.getId()));
+
+        if (!sheetIds.isEmpty()) {
+            characterSheetRepository.findAllByIdInWithTransformationCard(sheetIds);
+        }
     }
 
     /**
