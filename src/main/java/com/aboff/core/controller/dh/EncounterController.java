@@ -51,7 +51,7 @@ public class EncounterController {
      * @param isOfficial Optional filter for official status
      * @param name Optional filter for name (partial match, case-insensitive)
      * @param expand Comma-separated list of relationships to expand
-     *               (creator, campaign, originalEncounter, adversaryDetails)
+     *               (creator, campaign, environment, originalEncounter, adversaryDetails)
      * @param auth Authentication context
      * @return Paginated response containing encounters
      */

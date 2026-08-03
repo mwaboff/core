@@ -1,11 +1,13 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.model.dh.ImprovisedTierStatistics;
 import com.aboff.core.model.dto.dh.request.CreateEncounterRequest;
 import com.aboff.core.model.dto.dh.request.UpdateEncounterRequest;
 import com.aboff.core.model.dto.dh.response.AdversaryResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
 import com.aboff.core.model.dto.dh.response.EncounterResponse;
+import com.aboff.core.model.dto.dh.response.EnvironmentResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
@@ -13,11 +15,14 @@ import com.aboff.core.model.entity.dh.Adversary;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.Encounter;
 import com.aboff.core.model.entity.dh.EncounterAdversary;
+import com.aboff.core.model.entity.dh.Environment;
+import com.aboff.core.model.enums.AdversaryType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.EncounterAdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
+import com.aboff.core.repository.dh.EnvironmentRepository;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.security.CustomUserDetails;
@@ -65,6 +70,7 @@ public class EncounterService {
     private final EncounterAdversaryRepository encounterAdversaryRepository;
     private final AdversaryRepository adversaryRepository;
     private final CampaignRepository campaignRepository;
+    private final EnvironmentRepository environmentRepository;
     private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
@@ -163,6 +169,13 @@ public class EncounterService {
                 .createdBy(creator)
                 .isOfficial(false)
                 .isPublic(request.getIsPublic() != null ? request.getIsPublic() : false)
+                .partySize(request.getPartySize())
+                .adjustmentEasier(nullToFalse(request.getAdjustmentEasier()))
+                .adjustmentTwoPlusSolos(nullToFalse(request.getAdjustmentTwoPlusSolos()))
+                .adjustmentBonusDamage(nullToFalse(request.getAdjustmentBonusDamage()))
+                .adjustmentLowerTier(nullToFalse(request.getAdjustmentLowerTier()))
+                .adjustmentNoElites(nullToFalse(request.getAdjustmentNoElites()))
+                .adjustmentHarder(nullToFalse(request.getAdjustmentHarder()))
                 .encounterAdversaries(new ArrayList<>())
                 .build();
 
@@ -174,20 +187,30 @@ public class EncounterService {
             encounter.setCampaign(campaign);
         }
 
-        // Add adversaries if provided
-        if (request.getAdversaryIds() != null && !request.getAdversaryIds().isEmpty()) {
-            for (Long adversaryId : request.getAdversaryIds()) {
-                Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(adversaryId)
-                        .orElseThrow(() -> new EntityNotFoundException(
-                                "Adversary not found with id: " + adversaryId));
+        // Set optional environment
+        if (request.getEnvironmentId() != null) {
+            encounter.setEnvironment(findActiveEnvironment(request.getEnvironmentId()));
+        }
 
-                EncounterAdversary encounterAdversary = EncounterAdversary.builder()
-                        .encounter(encounter)
-                        .adversary(adversary)
-                        .build();
+        // Add adversaries if provided (richer `adversaries` entries preferred; falls back to
+        // the deprecated bare `adversaryIds` list for backward compatibility)
+        List<CreateEncounterRequest.AdversaryEntry> entries = resolveAdversaryEntries(
+                request.getAdversaries(), request.getAdversaryIds());
+        int displayOrder = 0;
+        for (CreateEncounterRequest.AdversaryEntry entry : entries) {
+            Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(entry.getAdversaryId())
+                    .orElseThrow(() -> new EntityNotFoundException(
+                            "Adversary not found with id: " + entry.getAdversaryId()));
 
-                encounter.getEncounterAdversaries().add(encounterAdversary);
-            }
+            EncounterAdversary encounterAdversary = EncounterAdversary.builder()
+                    .encounter(encounter)
+                    .adversary(adversary)
+                    .label(entry.getLabel())
+                    .tierOverride(entry.getTierOverride())
+                    .displayOrder(displayOrder++)
+                    .build();
+
+            encounter.getEncounterAdversaries().add(encounterAdversary);
         }
 
         Encounter savedEncounter = encounterRepository.save(encounter);
@@ -228,6 +251,27 @@ public class EncounterService {
         if (request.getIsPublic() != null) {
             encounter.setIsPublic(request.getIsPublic());
         }
+        if (request.getPartySize() != null) {
+            encounter.setPartySize(request.getPartySize());
+        }
+        if (request.getAdjustmentEasier() != null) {
+            encounter.setAdjustmentEasier(request.getAdjustmentEasier());
+        }
+        if (request.getAdjustmentTwoPlusSolos() != null) {
+            encounter.setAdjustmentTwoPlusSolos(request.getAdjustmentTwoPlusSolos());
+        }
+        if (request.getAdjustmentBonusDamage() != null) {
+            encounter.setAdjustmentBonusDamage(request.getAdjustmentBonusDamage());
+        }
+        if (request.getAdjustmentLowerTier() != null) {
+            encounter.setAdjustmentLowerTier(request.getAdjustmentLowerTier());
+        }
+        if (request.getAdjustmentNoElites() != null) {
+            encounter.setAdjustmentNoElites(request.getAdjustmentNoElites());
+        }
+        if (request.getAdjustmentHarder() != null) {
+            encounter.setAdjustmentHarder(request.getAdjustmentHarder());
+        }
 
         // Update campaign if provided
         if (request.getCampaignId() != null) {
@@ -237,18 +281,30 @@ public class EncounterService {
             encounter.setCampaign(campaign);
         }
 
-        // Replace adversaries if provided
-        if (request.getAdversaryIds() != null) {
+        // Update environment if provided
+        if (request.getEnvironmentId() != null) {
+            encounter.setEnvironment(findActiveEnvironment(request.getEnvironmentId()));
+        }
+
+        // Replace adversaries if provided (richer `adversaries` entries preferred; falls back
+        // to the deprecated bare `adversaryIds` list for backward compatibility)
+        List<CreateEncounterRequest.AdversaryEntry> entries = resolveAdversaryEntries(
+                request.getAdversaries(), request.getAdversaryIds());
+        if (!entries.isEmpty() || request.getAdversaries() != null || request.getAdversaryIds() != null) {
             encounter.getEncounterAdversaries().clear();
 
-            for (Long adversaryId : request.getAdversaryIds()) {
-                Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(adversaryId)
+            int displayOrder = 0;
+            for (CreateEncounterRequest.AdversaryEntry entry : entries) {
+                Adversary adversary = adversaryRepository.findByIdAndDeletedAtIsNull(entry.getAdversaryId())
                         .orElseThrow(() -> new EntityNotFoundException(
-                                "Adversary not found with id: " + adversaryId));
+                                "Adversary not found with id: " + entry.getAdversaryId()));
 
                 EncounterAdversary encounterAdversary = EncounterAdversary.builder()
                         .encounter(encounter)
                         .adversary(adversary)
+                        .label(entry.getLabel())
+                        .tierOverride(entry.getTierOverride())
+                        .displayOrder(displayOrder++)
                         .build();
 
                 encounter.getEncounterAdversaries().add(encounterAdversary);
@@ -348,6 +404,14 @@ public class EncounterService {
                 .isOfficial(false)
                 .isPublic(false)
                 .campaign(null) // Don't copy campaign association
+                .environment(original.getEnvironment())
+                .partySize(original.getPartySize())
+                .adjustmentEasier(original.getAdjustmentEasier())
+                .adjustmentTwoPlusSolos(original.getAdjustmentTwoPlusSolos())
+                .adjustmentBonusDamage(original.getAdjustmentBonusDamage())
+                .adjustmentLowerTier(original.getAdjustmentLowerTier())
+                .adjustmentNoElites(original.getAdjustmentNoElites())
+                .adjustmentHarder(original.getAdjustmentHarder())
                 .encounterAdversaries(new ArrayList<>())
                 .build();
 
@@ -356,6 +420,9 @@ public class EncounterService {
             EncounterAdversary copyEA = EncounterAdversary.builder()
                     .encounter(copy)
                     .adversary(originalEA.getAdversary())
+                    .label(originalEA.getLabel())
+                    .tierOverride(originalEA.getTierOverride())
+                    .displayOrder(originalEA.getDisplayOrder())
                     .build();
             copy.getEncounterAdversaries().add(copyEA);
         }
@@ -389,6 +456,7 @@ public class EncounterService {
         EncounterAdversary encounterAdversary = EncounterAdversary.builder()
                 .encounter(encounter)
                 .adversary(adversary)
+                .displayOrder(nextDisplayOrder(encounter))
                 .build();
         encounter.getEncounterAdversaries().add(encounterAdversary);
         encounterRepository.save(encounter);
@@ -466,12 +534,17 @@ public class EncounterService {
     /**
      * Validates that the authenticated user has permission to view the encounter.
      * Private non-official encounters are only visible to creator and moderators+.
+     * <p>
+     * Package-private rather than private: {@code EncounterRunService} delegates here to decide
+     * whether a user may start a run from an encounter, so "can view this encounter" cannot
+     * drift between the two services.
+     * </p>
      *
      * @param encounter The encounter being viewed
      * @param auth Authentication context
      * @throws EntityNotFoundException if user cannot view the encounter
      */
-    private void validateViewPermission(Encounter encounter, Authentication auth) {
+    void validateViewPermission(Encounter encounter, Authentication auth) {
         if (encounter.getIsOfficial() || encounter.getIsPublic()) {
             return; // Anyone can view official or public encounters
         }
@@ -499,7 +572,17 @@ public class EncounterService {
                 .isOfficial(encounter.getIsOfficial())
                 .isPublic(encounter.getIsPublic())
                 .creatorId(encounter.getCreatedBy().getId())
-                .totalBattlePoints(encounter.calculateTotalBattlePoints())
+                .partySize(encounter.getPartySize())
+                .adjustmentEasier(encounter.getAdjustmentEasier())
+                .adjustmentTwoPlusSolos(encounter.getAdjustmentTwoPlusSolos())
+                .adjustmentBonusDamage(encounter.getAdjustmentBonusDamage())
+                .adjustmentLowerTier(encounter.getAdjustmentLowerTier())
+                .adjustmentNoElites(encounter.getAdjustmentNoElites())
+                .adjustmentHarder(encounter.getAdjustmentHarder())
+                .suggestedBattlePoints(BattlePointCalculator.suggestedBudget(
+                        encounter.getPartySize(), toAdjustments(encounter)))
+                .spentBattlePoints(BattlePointCalculator.spentPoints(
+                        toAdversaryTypes(encounter), encounter.getPartySize()))
                 .createdAt(encounter.getCreatedAt())
                 .lastModifiedAt(encounter.getLastModifiedAt())
                 .deletedAt(encounter.getDeletedAt());
@@ -507,6 +590,11 @@ public class EncounterService {
         // Campaign ID
         if (encounter.getCampaign() != null) {
             builder.campaignId(encounter.getCampaign().getId());
+        }
+
+        // Environment ID
+        if (encounter.getEnvironment() != null) {
+            builder.environmentId(encounter.getEnvironment().getId());
         }
 
         // Original encounter ID
@@ -546,6 +634,10 @@ public class EncounterService {
                     .build());
         }
 
+        if (ExpandUtil.shouldExpand(expand, "environment") && encounter.getEnvironment() != null) {
+            builder.environment(toEnvironmentResponse(encounter.getEnvironment()));
+        }
+
         if (ExpandUtil.shouldExpand(expand, "originalEncounter") && encounter.getOriginalEncounter() != null) {
             builder.originalEncounter(toResponse(encounter.getOriginalEncounter(), Set.of()));
         }
@@ -562,7 +654,10 @@ public class EncounterService {
         EncounterResponse.EncounterAdversaryResponse.EncounterAdversaryResponseBuilder builder =
                 EncounterResponse.EncounterAdversaryResponse.builder()
                 .id(ea.getId())
-                .adversaryId(ea.getAdversary().getId());
+                .adversaryId(ea.getAdversary().getId())
+                .label(ea.getLabel())
+                .tierOverride(ea.getTierOverride())
+                .displayOrder(ea.getDisplayOrder());
 
         // Expand full adversary if requested
         if (expandAdversary) {
@@ -577,6 +672,129 @@ public class EncounterService {
                     .build());
         }
 
+        // Derived retiered statistics, computed on read rather than stored
+        ImprovisedTierStatistics.forTier(ea.getTierOverride()).ifPresent(stats ->
+                builder.retieredStatistics(EncounterResponse.RetieredStatisticsResponse.builder()
+                        .tier(stats.tier())
+                        .attackModifier(stats.attackModifier())
+                        .difficulty(stats.difficulty())
+                        .majorThreshold(stats.majorThreshold())
+                        .severeThreshold(stats.severeThreshold())
+                        .damageDiceRange(stats.damageDiceRange())
+                        .build()));
+
         return builder.build();
+    }
+
+    /**
+     * Converts an Environment entity to EnvironmentResponse DTO (unexpanded).
+     */
+    private EnvironmentResponse toEnvironmentResponse(Environment environment) {
+        return EnvironmentResponse.builder()
+                .id(environment.getId())
+                .name(environment.getName())
+                .tier(environment.getTier())
+                .environmentType(environment.getEnvironmentType())
+                .description(environment.getDescription())
+                .impulses(environment.getImpulses())
+                .difficulty(environment.getDifficulty())
+                .difficultySpecial(environment.getDifficultySpecial())
+                .potentialAdversaries(environment.getPotentialAdversaries())
+                .isOfficial(environment.getIsOfficial())
+                .isPublic(environment.getIsPublic())
+                .expansionId(environment.getExpansion().getId())
+                .creatorId(environment.getCreatedBy().getId())
+                .createdAt(environment.getCreatedAt())
+                .lastModifiedAt(environment.getLastModifiedAt())
+                .deletedAt(environment.getDeletedAt())
+                .build();
+    }
+
+    /**
+     * Builds the {@link BattlePointCalculator.Adjustments} record from an encounter's six
+     * adjustment flags.
+     */
+    private BattlePointCalculator.Adjustments toAdjustments(Encounter encounter) {
+        return new BattlePointCalculator.Adjustments(
+                Boolean.TRUE.equals(encounter.getAdjustmentEasier()),
+                Boolean.TRUE.equals(encounter.getAdjustmentTwoPlusSolos()),
+                Boolean.TRUE.equals(encounter.getAdjustmentBonusDamage()),
+                Boolean.TRUE.equals(encounter.getAdjustmentLowerTier()),
+                Boolean.TRUE.equals(encounter.getAdjustmentNoElites()),
+                Boolean.TRUE.equals(encounter.getAdjustmentHarder()));
+    }
+
+    /**
+     * Extracts the {@link AdversaryType} of each of an encounter's adversary instances, for
+     * {@link BattlePointCalculator#spentPoints}. Instances with no adversary or no type
+     * resolved (should not normally occur given the FK constraint) are skipped.
+     */
+    private List<AdversaryType> toAdversaryTypes(Encounter encounter) {
+        if (encounter.getEncounterAdversaries() == null) {
+            return List.of();
+        }
+        return encounter.getEncounterAdversaries().stream()
+                .filter(ea -> ea.getAdversary() != null && ea.getAdversary().getAdversaryType() != null)
+                .map(ea -> ea.getAdversary().getAdversaryType())
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Resolves the effective list of adversary entries to apply, preferring the richer
+     * {@code adversaries} field over the deprecated bare {@code adversaryIds} list.
+     *
+     * @param entries The richer adversary entries from the request, may be null
+     * @param legacyIds The deprecated bare adversary ID list from the request, may be null
+     * @return The entries to apply; empty if neither field was provided
+     */
+    private List<CreateEncounterRequest.AdversaryEntry> resolveAdversaryEntries(
+            List<CreateEncounterRequest.AdversaryEntry> entries, List<Long> legacyIds) {
+        if (entries != null) {
+            return entries;
+        }
+        if (legacyIds != null) {
+            return legacyIds.stream()
+                    .map(id -> CreateEncounterRequest.AdversaryEntry.builder().adversaryId(id).build())
+                    .collect(Collectors.toList());
+        }
+        return List.of();
+    }
+
+    /**
+     * Looks up an active (non-deleted) environment by ID.
+     *
+     * @param environmentId The environment ID to look up
+     * @return The environment entity
+     * @throws EntityNotFoundException if no active environment exists with that ID
+     */
+    private Environment findActiveEnvironment(Long environmentId) {
+        return environmentRepository.findByIdAndDeletedAtIsNull(environmentId)
+                .orElseThrow(() -> new EntityNotFoundException(
+                        "Environment not found with id: " + environmentId));
+    }
+
+    /**
+     * Returns the next display order for a new instance appended to an encounter's adversary
+     * list -- one past the current highest, or 0 if the encounter has no adversaries yet.
+     *
+     * @param encounter The encounter a new instance is being added to
+     * @return The display order to assign to the new instance
+     */
+    private int nextDisplayOrder(Encounter encounter) {
+        if (encounter.getEncounterAdversaries() == null || encounter.getEncounterAdversaries().isEmpty()) {
+            return 0;
+        }
+        return encounter.getEncounterAdversaries().stream()
+                .mapToInt(EncounterAdversary::getDisplayOrder)
+                .max()
+                .orElse(-1) + 1;
+    }
+
+    /**
+     * Coalesces a nullable Boolean to {@code false}, for building entity defaults from request
+     * fields that are optional and default to off.
+     */
+    private boolean nullToFalse(Boolean value) {
+        return Boolean.TRUE.equals(value);
     }
 }

@@ -82,6 +82,12 @@ public enum AuditAction {
     ENCOUNTER_ADVERSARY_ADDED("Adversary added to encounter"),
     ENCOUNTER_ADVERSARY_REMOVED("Adversary removed from encounter"),
 
+    // Encounter Run
+    ENCOUNTER_RUN_STARTED("Encounter run started"),
+    ENCOUNTER_RUN_ADVERSARY_UPDATED("Encounter run adversary updated"),
+    ENCOUNTER_RUN_COMPLETED("Encounter run completed"),
+    ENCOUNTER_RUN_DELETED("Encounter run deleted"),
+
     // Game Content (Weapon, Armor, Loot, Domain, Class, Cards, etc.)
     CONTENT_CREATED("Content created"),
     CONTENT_BATCH_CREATED("Content batch created"),
