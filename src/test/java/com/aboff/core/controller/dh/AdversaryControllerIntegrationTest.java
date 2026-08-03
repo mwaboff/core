@@ -31,6 +31,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.is;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -135,6 +138,60 @@ class AdversaryControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].tier").value(1));
+    }
+
+    @Test
+    void getAllAdversaries_FilterByMultipleTiers_ReturnsAdversariesFromAnyListedTier() throws Exception {
+        // Arrange - browsing several tiers at once via repeated ?tier= params. Production data
+        // has dozens of adversaries per tier (Core + Hope & Fear: T1 86, T2 78, T3 55, T4 45),
+        // so this seeds several per tier rather than one, to catch an IN-clause bug that only
+        // returns a single match per tier value instead of all of them.
+        createAdversary("Goblin", testExpansion, true, true, regularUser, AdversaryType.MINION, 1);
+        createAdversary("Goblin Scout", testExpansion, true, true, regularUser, AdversaryType.SKULK, 1);
+        createAdversary("Goblin Archer", testExpansion, true, true, regularUser, AdversaryType.RANGED, 1);
+        createAdversary("Orc", testExpansion, true, true, regularUser, AdversaryType.STANDARD, 2);
+        createAdversary("Orc Chief", testExpansion, true, true, regularUser, AdversaryType.LEADER, 2);
+        createAdversary("Troll", testExpansion, true, true, regularUser, AdversaryType.BRUISER, 3);
+        createAdversary("Dragon", testExpansion, true, true, regularUser, AdversaryType.SOLO, 4);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/adversaries")
+                        .param("tier", "1", "2")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(5))
+                .andExpect(jsonPath("$.content.length()").value(5))
+                .andExpect(jsonPath("$.content[*].tier", everyItem(anyOf(is(1), is(2)))));
+    }
+
+    @Test
+    void getAllAdversaries_FilterByMultipleTiers_PaginatesCorrectlyAtProductionScale() throws Exception {
+        // Arrange - mirrors the real local DB's tier spread order of magnitude (dozens per
+        // tier) closely enough to catch a pagination bug that only surfaces once a tier filter
+        // matches more rows than fit on one page (default page size 20)
+        for (int i = 0; i < 15; i++) {
+            createAdversary("Tier1-" + i, testExpansion, true, true, regularUser, AdversaryType.MINION, 1);
+        }
+        for (int i = 0; i < 12; i++) {
+            createAdversary("Tier2-" + i, testExpansion, true, true, regularUser, AdversaryType.STANDARD, 2);
+        }
+        createAdversary("Tier3-excluded", testExpansion, true, true, regularUser, AdversaryType.BRUISER, 3);
+
+        // Act & Assert - 27 total across tiers 1 and 2, default page size 20 -> 2 pages
+        mockMvc.perform(get("/api/dh/adversaries")
+                        .param("tier", "1", "2")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(27))
+                .andExpect(jsonPath("$.content.length()").value(20))
+                .andExpect(jsonPath("$.totalPages").value(2));
+
+        mockMvc.perform(get("/api/dh/adversaries")
+                        .param("tier", "1", "2")
+                        .param("page", "1")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(7));
     }
 
     @Test

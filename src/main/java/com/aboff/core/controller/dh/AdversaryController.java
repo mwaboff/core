@@ -58,7 +58,8 @@ public class AdversaryController {
      * @param size Number of items per page (default: 20, max: 100)
      * @param includeDeleted Whether to include soft-deleted adversaries (ADMIN+ only)
      * @param expansionId Optional filter for expansion ID
-     * @param tier Optional filter for tier (1-4)
+     * @param tier Optional filter for one or more tiers (1-4). Repeat the parameter
+     *             (e.g. {@code ?tier=1&tier=2}) to match any of several tiers at once
      * @param adversaryType Optional filter for adversary type
      * @param isOfficial Optional filter for official status
      * @param name Optional filter for name (partial match, case-insensitive)
@@ -73,7 +74,7 @@ public class AdversaryController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "false") boolean includeDeleted,
             @RequestParam(required = false) Long expansionId,
-            @RequestParam(required = false) Integer tier,
+            @RequestParam(required = false) List<Integer> tier,
             @RequestParam(required = false) AdversaryType adversaryType,
             @RequestParam(required = false) Boolean isOfficial,
             @RequestParam(required = false) String name,

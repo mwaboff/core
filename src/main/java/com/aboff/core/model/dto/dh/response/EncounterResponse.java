@@ -20,6 +20,7 @@ import java.util.List;
  *   <li>By default: returns relationship IDs only</li>
  *   <li>With ?expand=creator: includes creator user object</li>
  *   <li>With ?expand=campaign: includes campaign object</li>
+ *   <li>With ?expand=environment: includes environment object</li>
  *   <li>With ?expand=originalEncounter: includes full original encounter object</li>
  *   <li>With ?expand=adversaryDetails: includes full adversary objects in adversaries list</li>
  *   <li>Multiple expansions can be comma-separated</li>
@@ -74,6 +75,16 @@ public class EncounterResponse {
     private CampaignResponse campaign;
 
     /**
+     * ID of the environment (scene stat block) this encounter takes place in (null if none).
+     */
+    private Long environmentId;
+
+    /**
+     * Full environment object (included only when ?expand=environment is specified).
+     */
+    private EnvironmentResponse environment;
+
+    /**
      * ID of the original encounter if this is a copy (null if original).
      */
     private Long originalEncounterId;
@@ -101,10 +112,53 @@ public class EncounterResponse {
     private List<EncounterAdversaryResponse> adversaries;
 
     /**
-     * Total battle points for this encounter (calculated).
-     * Used for encounter balancing.
+     * The number of PCs in combat, manually entered by the GM (null until set).
+     * Drives {@link #suggestedBattlePoints} and Minion grouping in {@link #spentBattlePoints}.
      */
-    private Integer totalBattlePoints;
+    private Integer partySize;
+
+    /**
+     * Battle Point adjustment: -1, the fight should be less difficult or shorter.
+     */
+    private Boolean adjustmentEasier;
+
+    /**
+     * Battle Point adjustment: -2, using 2 or more Solo adversaries.
+     */
+    private Boolean adjustmentTwoPlusSolos;
+
+    /**
+     * Battle Point adjustment: -2, adding +1d4 (or a static +2) to all adversaries' damage rolls.
+     */
+    private Boolean adjustmentBonusDamage;
+
+    /**
+     * Battle Point adjustment: +1, choosing an adversary from a lower tier.
+     */
+    private Boolean adjustmentLowerTier;
+
+    /**
+     * Battle Point adjustment: +1, including no Bruisers, Hordes, Leaders, or Solos.
+     */
+    private Boolean adjustmentNoElites;
+
+    /**
+     * Battle Point adjustment: +2, the fight should be more dangerous or last longer.
+     */
+    private Boolean adjustmentHarder;
+
+    /**
+     * The suggested Battle Point budget: {@code (3 * partySize) + 2}, adjusted by whichever of
+     * the six adjustment flags above are set. Calculated server-side.
+     */
+    private Integer suggestedBattlePoints;
+
+    /**
+     * The total Battle Points actually spent by this encounter's adversary instances, with
+     * Minions billed per group of {@code partySize} rather than individually. Calculated
+     * server-side.
+     */
+    private Integer spentBattlePoints;
 
     /**
      * Timestamp when the encounter was created.
@@ -145,5 +199,69 @@ public class EncounterResponse {
          * Full adversary object (included only when ?expand=adversaryDetails is specified).
          */
         private AdversaryResponse adversary;
+
+        /**
+         * Optional GM nickname for this instance, e.g. "Archer A".
+         */
+        private String label;
+
+        /**
+         * Optional retier target (1-4) for this instance (null if not retiered).
+         */
+        private Integer tierOverride;
+
+        /**
+         * Statistics for this instance's effective tier, computed on read from
+         * {@link com.aboff.core.model.dh.ImprovisedTierStatistics}. Only present when
+         * {@link #tierOverride} is set.
+         */
+        private RetieredStatisticsResponse retieredStatistics;
+
+        /**
+         * Display order of this instance within the encounter's adversary list.
+         */
+        private Integer displayOrder;
+    }
+
+    /**
+     * Nested DTO for the derived statistics of a retiered adversary instance, computed from
+     * {@link com.aboff.core.model.dh.ImprovisedTierStatistics}.
+     */
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public static class RetieredStatisticsResponse {
+
+        /**
+         * The tier these statistics apply to.
+         */
+        private Integer tier;
+
+        /**
+         * The attack modifier for this tier.
+         */
+        private Integer attackModifier;
+
+        /**
+         * The Difficulty for this tier.
+         */
+        private Integer difficulty;
+
+        /**
+         * The Major damage threshold for this tier.
+         */
+        private Integer majorThreshold;
+
+        /**
+         * The Severe damage threshold for this tier.
+         */
+        private Integer severeThreshold;
+
+        /**
+         * The printed damage dice range for this tier, as display text (e.g. "1d6+2 - 1d12+4").
+         */
+        private String damageDiceRange;
     }
 }

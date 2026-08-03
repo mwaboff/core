@@ -23,7 +23,7 @@ GET /api/dh/adversaries
 | `size`           | integer | No       | `20`    | Items per page (max: 100)                                       |
 | `includeDeleted` | boolean | No       | `false` | Include soft-deleted adversaries (ADMIN+ only)                  |
 | `expansionId`    | long    | No       | --      | Filter by expansion ID                                          |
-| `tier`           | integer | No       | --      | Filter by tier (1-4)                                            |
+| `tier`           | integer (repeatable) | No | --   | Filter by one or more tiers (1-4). Repeat the parameter (`?tier=1&tier=2`) to match any of several tiers at once; a single `?tier=1` still works as before |
 | `adversaryType`  | string  | No       | --      | Filter by adversary type (e.g., `MINION`, `BRUISER`)            |
 | `isOfficial`     | boolean | No       | --      | Filter by official status                                       |
 | `name`           | string  | No       | --      | Filter by name (case-insensitive partial match)                 |
@@ -38,6 +38,13 @@ GET /api/dh/adversaries
 ```bash
 curl -b "AUTH_TOKEN=<token>" \
   "http://localhost:8080/api/dh/adversaries?page=0&size=10&tier=1&adversaryType=MINION&expand=expansion"
+```
+
+**Example Request (multiple tiers, e.g. browsing Tier 1 and Tier 2 together):**
+
+```bash
+curl -b "AUTH_TOKEN=<token>" \
+  "http://localhost:8080/api/dh/adversaries?tier=1&tier=2"
 ```
 
 **Example Response:**

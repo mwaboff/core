@@ -183,16 +183,41 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(adversary));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), eq(4), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), eq(List.of(4)), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
         PagedResponse<AdversaryResponse> result = adversaryService.getAllAdversaries(
-                0, 20, false, null, 4, null, null, null, null, authentication);
+                0, 20, false, null, List.of(4), null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getTier()).isEqualTo(4);
+    }
+
+    @Test
+    void getAllAdversaries_WithMultipleTierFilter_ReturnsAdversariesFromAnyListedTier() {
+        // Arrange - the multi-tier filter should match any tier in the list, e.g.
+        // ?tier=1&tier=2 for browsing several tiers at once
+        setupAuthenticationWith(regularUserDetails);
+
+        Adversary tierOne = createTestAdversary(1L, "Goblin", expansion, regularUser);
+        Adversary tierTwo = createTestAdversary(2L, "Orc", expansion, regularUser);
+        tierTwo.setTier(2);
+
+        Page<Adversary> adversaryPage = new PageImpl<>(List.of(tierOne, tierTwo));
+        when(adversaryRepository.findAccessibleWithFilters(
+                eq(1L), isNull(), eq(List.of(1, 2)), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(adversaryPage);
+
+        // Act
+        PagedResponse<AdversaryResponse> result = adversaryService.getAllAdversaries(
+                0, 20, false, null, List.of(1, 2), null, null, null, null, authentication);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(2);
+        assertThat(result.getContent()).extracting(AdversaryResponse::getTier)
+                .containsExactlyInAnyOrder(1, 2);
     }
 
     @Test

@@ -114,6 +114,67 @@ public class Encounter extends BaseEntity {
     @JoinColumn(name = "campaign_id")
     private Campaign campaign;
 
+    /**
+     * Optional environment (scene stat block) this encounter takes place in.
+     * Null if no environment has been chosen.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "environment_id")
+    private Environment environment;
+
+    // ========== Battle Points ==========
+
+    /**
+     * The number of PCs in combat, manually entered by the GM.
+     * Drives both the suggested Battle Point budget and Minion grouping in
+     * {@link BattlePointCalculator}. Never derived from a campaign roster -- an encounter can
+     * be built and run with no campaign at all. Null until the GM sets it.
+     */
+    @Column(name = "party_size")
+    private Integer partySize;
+
+    /**
+     * Battle Point adjustment: -1, the fight should be less difficult or shorter.
+     */
+    @Column(name = "adjustment_easier", nullable = false)
+    @lombok.Builder.Default
+    private Boolean adjustmentEasier = false;
+
+    /**
+     * Battle Point adjustment: -2, using 2 or more Solo adversaries.
+     */
+    @Column(name = "adjustment_two_plus_solos", nullable = false)
+    @lombok.Builder.Default
+    private Boolean adjustmentTwoPlusSolos = false;
+
+    /**
+     * Battle Point adjustment: -2, adding +1d4 (or a static +2) to all adversaries' damage rolls.
+     */
+    @Column(name = "adjustment_bonus_damage", nullable = false)
+    @lombok.Builder.Default
+    private Boolean adjustmentBonusDamage = false;
+
+    /**
+     * Battle Point adjustment: +1, choosing an adversary from a lower tier.
+     */
+    @Column(name = "adjustment_lower_tier", nullable = false)
+    @lombok.Builder.Default
+    private Boolean adjustmentLowerTier = false;
+
+    /**
+     * Battle Point adjustment: +1, including no Bruisers, Hordes, Leaders, or Solos.
+     */
+    @Column(name = "adjustment_no_elites", nullable = false)
+    @lombok.Builder.Default
+    private Boolean adjustmentNoElites = false;
+
+    /**
+     * Battle Point adjustment: +2, the fight should be more dangerous or last longer.
+     */
+    @Column(name = "adjustment_harder", nullable = false)
+    @lombok.Builder.Default
+    private Boolean adjustmentHarder = false;
+
     // ========== Adversaries ==========
 
     /**
@@ -162,19 +223,4 @@ public class Encounter extends BaseEntity {
         this.deletedAt = null;
     }
 
-    /**
-     * Calculates the total battle points for this encounter.
-     * Sums the battle points of all adversary instances.
-     *
-     * @return Total battle points for encounter balancing
-     */
-    public int calculateTotalBattlePoints() {
-        if (encounterAdversaries == null || encounterAdversaries.isEmpty()) {
-            return 0;
-        }
-        return encounterAdversaries.stream()
-                .filter(ea -> ea.getAdversary() != null && ea.getAdversary().getAdversaryType() != null)
-                .mapToInt(ea -> ea.getAdversary().getAdversaryType().getBattlePoints())
-                .sum();
-    }
 }

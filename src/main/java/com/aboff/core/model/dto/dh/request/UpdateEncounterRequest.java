@@ -45,16 +45,73 @@ public class UpdateEncounterRequest {
     private Long campaignId;
 
     /**
+     * Optional ID of the environment (scene stat block) this encounter takes place in.
+     */
+    private Long environmentId;
+
+    /**
      * Whether this encounter is publicly visible to other users.
      */
     private Boolean isPublic;
 
     /**
-     * List of adversary IDs to replace the current adversaries in the encounter.
-     * If provided, completely replaces the existing adversary list.
-     * Each entry represents a single adversary instance.
-     * To include multiple instances of the same adversary, include the ID multiple times.
+     * The number of PCs in combat, manually entered by the GM.
+     */
+    @Min(value = 1, message = "Party size must be at least 1")
+    @Max(value = 12, message = "Party size must not exceed 12")
+    private Integer partySize;
+
+    /**
+     * Battle Point adjustment: -1, the fight should be less difficult or shorter.
+     */
+    private Boolean adjustmentEasier;
+
+    /**
+     * Battle Point adjustment: -2, using 2 or more Solo adversaries.
+     */
+    private Boolean adjustmentTwoPlusSolos;
+
+    /**
+     * Battle Point adjustment: -2, adding +1d4 (or a static +2) to all adversaries' damage rolls.
+     */
+    private Boolean adjustmentBonusDamage;
+
+    /**
+     * Battle Point adjustment: +1, choosing an adversary from a lower tier.
+     */
+    private Boolean adjustmentLowerTier;
+
+    /**
+     * Battle Point adjustment: +1, including no Bruisers, Hordes, Leaders, or Solos.
+     */
+    private Boolean adjustmentNoElites;
+
+    /**
+     * Battle Point adjustment: +2, the fight should be more dangerous or last longer.
+     */
+    private Boolean adjustmentHarder;
+
+    /**
+     * List of adversary instances to replace the current adversaries in the encounter, each
+     * optionally carrying a GM label and a retier target. If provided, completely replaces the
+     * existing adversary list. Each entry represents a single adversary instance; to include
+     * multiple instances of the same adversary, add multiple entries with the same
+     * {@code adversaryId}.
+     * <p>
+     * Preferred over the deprecated {@link #adversaryIds}. If both are provided, this field
+     * wins and {@link #adversaryIds} is ignored.
+     * </p>
      */
     @Valid
+    private List<CreateEncounterRequest.AdversaryEntry> adversaries;
+
+    /**
+     * Deprecated: list of bare adversary IDs to replace the current adversaries in the
+     * encounter. Each entry represents a single adversary instance with no label or retier
+     * target. Kept for backward compatibility with existing clients; prefer
+     * {@link #adversaries}, which also supports a label and tier override per instance.
+     */
+    @Valid
+    @Deprecated
     private List<Long> adversaryIds;
 }
