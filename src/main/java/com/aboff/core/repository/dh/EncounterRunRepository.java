@@ -79,4 +79,19 @@ public interface EncounterRunRepository extends JpaRepository<EncounterRun, Long
             + "ORDER BY r.createdAt DESC")
     List<EncounterRun> findByCampaignIdAndOptionalStatus(
             @Param("campaignId") Long campaignId, @Param("status") EncounterRunStatus status);
+
+    /**
+     * Finds a source encounter's runs in a given status.
+     * <p>
+     * Backs {@code EncounterService#deleteEncounter}'s cascade: a soft-deleted encounter must not
+     * leave an {@link EncounterRunStatus#ACTIVE} run playable/resumable against it, so that run is
+     * discarded in the same transaction. No fetch-join here (unlike the finders above) -- the
+     * caller only needs the ids to hard-delete, never the encounter/environment relations.
+     * </p>
+     *
+     * @param encounterId The source encounter's ID
+     * @param status The status to match
+     * @return The matching runs
+     */
+    List<EncounterRun> findByEncounter_IdAndStatus(Long encounterId, EncounterRunStatus status);
 }

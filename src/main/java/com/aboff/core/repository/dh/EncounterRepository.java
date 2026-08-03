@@ -30,8 +30,15 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
     /**
      * Finds all non-deleted encounters accessible to a user with optional filters.
      * Returns encounters that are official, public, or created by the specified user.
+     * <p>
+     * When {@code creatorId} is supplied, it narrows within that visibility rule rather than
+     * replacing it: a caller filtering to another user's ID still only sees that user's
+     * official/public encounters, never their private ones. Filtering to the caller's own ID is
+     * equivalent to the existing "own encounters" clause and returns everything they created.
+     * </p>
      *
      * @param userId The ID of the requesting user
+     * @param creatorId Optional filter for the encounter's creator; narrows, does not widen, visibility
      * @param campaignId Optional filter for campaign ID
      * @param tier Optional filter for encounter tier (1-4)
      * @param isOfficial Optional filter for official status
@@ -41,12 +48,14 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
      */
     @Query("SELECT e FROM Encounter e WHERE e.deletedAt IS NULL " +
            "AND (e.isOfficial = true OR e.isPublic = true OR e.createdBy.id = :userId) " +
+           "AND (:creatorId IS NULL OR e.createdBy.id = :creatorId) " +
            "AND (:campaignId IS NULL OR e.campaign.id = :campaignId) " +
            "AND (:tier IS NULL OR e.tier = :tier) " +
            "AND (:isOfficial IS NULL OR e.isOfficial = :isOfficial) " +
            "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
     Page<Encounter> findAccessibleWithFilters(
             @Param("userId") Long userId,
+            @Param("creatorId") Long creatorId,
             @Param("campaignId") Long campaignId,
             @Param("tier") Integer tier,
             @Param("isOfficial") Boolean isOfficial,
@@ -57,6 +66,7 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
      * Finds all encounters with optional filters, including soft-deleted ones.
      * For administrative use only.
      *
+     * @param creatorId Optional filter for the encounter's creator
      * @param campaignId Optional filter for campaign ID
      * @param tier Optional filter for encounter tier (1-4)
      * @param isOfficial Optional filter for official status
@@ -67,11 +77,13 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
      */
     @Query("SELECT e FROM Encounter e WHERE " +
            "(:includeDeleted = true OR e.deletedAt IS NULL) " +
+           "AND (:creatorId IS NULL OR e.createdBy.id = :creatorId) " +
            "AND (:campaignId IS NULL OR e.campaign.id = :campaignId) " +
            "AND (:tier IS NULL OR e.tier = :tier) " +
            "AND (:isOfficial IS NULL OR e.isOfficial = :isOfficial) " +
            "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
     Page<Encounter> findAllWithFilters(
+            @Param("creatorId") Long creatorId,
             @Param("campaignId") Long campaignId,
             @Param("tier") Integer tier,
             @Param("isOfficial") Boolean isOfficial,

@@ -6,15 +6,18 @@ import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Adversary;
 import com.aboff.core.model.entity.dh.Encounter;
+import com.aboff.core.model.entity.dh.EncounterRun;
 import com.aboff.core.model.entity.dh.Environment;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.enums.AdversaryType;
+import com.aboff.core.model.enums.EncounterRunStatus;
 import com.aboff.core.model.enums.EnvironmentType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
+import com.aboff.core.repository.dh.EncounterRunRepository;
 import com.aboff.core.repository.dh.EnvironmentRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.security.JwtTokenProvider;
@@ -76,6 +79,9 @@ class EncounterControllerIntegrationTest {
 
     @Autowired
     private EnvironmentRepository environmentRepository;
+
+    @Autowired
+    private EncounterRunRepository encounterRunRepository;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -281,6 +287,161 @@ class EncounterControllerIntegrationTest {
                 .andExpect(status().isNotFound());
     }
 
+    // ==================== GET ALL: creatorId FILTER ====================
+
+    @Test
+    void getAllEncounters_NoCreatorIdFilter_ReturnsOwnPlusPublicPlusOfficial() throws Exception {
+        // Arrange - unchanged existing behaviour: own private, someone else's public, and official
+        // all show up when no creatorId is supplied
+        createEncounter("Mine", regularUser, false, false);
+        createEncounter("Their Public One", otherUser, false, true);
+        createEncounter("Their Private One", otherUser, false, false);
+        createEncounter("Official", adminUser, true, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/encounters")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.content[*].name", org.hamcrest.Matchers.containsInAnyOrder(
+                        "Mine", "Their Public One", "Official")));
+    }
+
+    @Test
+    void getAllEncounters_CreatorIdIsCaller_ReturnsOnlyOwnEncounters() throws Exception {
+        // Arrange
+        Encounter mine = createEncounter("Mine", regularUser, false, false);
+        createEncounter("Their Public One", otherUser, false, true);
+        createEncounter("Official", adminUser, true, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/encounters")
+                        .param("creatorId", regularUser.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(mine.getId()));
+    }
+
+    @Test
+    void getAllEncounters_CreatorIdIsAnotherUser_OnlyReturnsThatUsersPublicAndOfficialEncounters() throws Exception {
+        // Arrange - this pins the load-bearing behaviour: filtering to another user's ID must
+        // never leak their private encounters, only whatever was already visible under the
+        // official/public/own rules
+        createEncounter("Their Public One", otherUser, false, true);
+        Encounter theirPrivate = createEncounter("Their Private One", otherUser, false, false);
+        createEncounter("Mine", regularUser, false, false);
+
+        // Act & Assert - regularUser filters to otherUser's ID
+        mockMvc.perform(get("/api/dh/encounters")
+                        .param("creatorId", otherUser.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Their Public One"));
+
+        // Sanity check the private one really exists and is otherUser's, so the omission above
+        // is the visibility rule at work and not just an empty fixture
+        assertThat(encounterRepository.findByIdAndDeletedAtIsNull(theirPrivate.getId())).isPresent();
+    }
+
+    @Test
+    void getAllEncounters_CreatorIdOwnerFilteringToOwnPrivate_SeesItViaTheOtherToken() throws Exception {
+        // Arrange - otherUser filtering to their own ID (as the authenticated caller) sees their
+        // own private encounter, confirming the narrowing composes with "own" visibility too
+        Encounter theirPrivate = createEncounter("Their Private One", otherUser, false, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/encounters")
+                        .param("creatorId", otherUser.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", otherUserToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(theirPrivate.getId()));
+    }
+
+    @Test
+    void getAllEncounters_CreatorIdIsNonexistentUser_ReturnsEmptyPage() throws Exception {
+        // Arrange
+        createEncounter("Mine", regularUser, false, false);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/encounters")
+                        .param("creatorId", "999999")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
+    @Test
+    void getAllEncounters_CreatorIdWithPaging_AppliesBothTogether() throws Exception {
+        // Arrange - three of the caller's own encounters, paged at size 2
+        createEncounter("Alpha", regularUser, false, false);
+        createEncounter("Bravo", regularUser, false, false);
+        createEncounter("Charlie", regularUser, false, false);
+
+        // Act & Assert - page 0
+        mockMvc.perform(get("/api/dh/encounters")
+                        .param("creatorId", regularUser.getId().toString())
+                        .param("page", "0")
+                        .param("size", "2")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(3))
+                .andExpect(jsonPath("$.totalPages").value(2))
+                .andExpect(jsonPath("$.content.length()").value(2));
+
+        // Act & Assert - page 1 has the remainder
+        mockMvc.perform(get("/api/dh/encounters")
+                        .param("creatorId", regularUser.getId().toString())
+                        .param("page", "1")
+                        .param("size", "2")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void getAllEncounters_AdminIncludeDeletedWithCreatorId_ReturnsThatCreatorsSoftDeletedEncounters() throws Exception {
+        // Arrange - a soft-deleted encounter for otherUser, plus an undeleted one for regularUser
+        // as a distractor that must not show up in the creatorId-scoped result
+        Encounter deleted = createEncounter("Their Deleted Fight", otherUser, false, false);
+        deleted.softDelete();
+        encounterRepository.save(deleted);
+        createEncounter("Mine, Not Deleted", regularUser, false, false);
+
+        // Act & Assert - admin, includeDeleted=true, creatorId=otherUser routes through the
+        // admin-only findAllWithFilters query and surfaces the soft-deleted row
+        mockMvc.perform(get("/api/dh/encounters")
+                        .param("includeDeleted", "true")
+                        .param("creatorId", otherUser.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].id").value(deleted.getId()))
+                .andExpect(jsonPath("$.content[0].deletedAt").isNotEmpty());
+    }
+
+    @Test
+    void getAllEncounters_NonAdminIncludeDeletedWithCreatorId_IgnoresIncludeDeletedAndStaysVisibilityScoped() throws Exception {
+        // Arrange - same soft-deleted encounter, but the caller lacks ADMIN+, so includeDeleted
+        // must be ignored and the request must fall through to the visibility-scoped query
+        // (findAccessibleWithFilters), which excludes soft-deleted rows regardless of creatorId
+        Encounter deleted = createEncounter("Their Deleted Fight", otherUser, false, false);
+        deleted.softDelete();
+        encounterRepository.save(deleted);
+
+        // Act & Assert - regularUser, includeDeleted=true, creatorId=otherUser
+        mockMvc.perform(get("/api/dh/encounters")
+                        .param("includeDeleted", "true")
+                        .param("creatorId", otherUser.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElements").value(0))
+                .andExpect(jsonPath("$.content").isEmpty());
+    }
+
     // ==================== UPDATE ====================
 
     @Test
@@ -423,6 +584,26 @@ class EncounterControllerIntegrationTest {
 
         Encounter deleted = encounterRepository.findById(encounter.getId()).orElseThrow();
         assertThat(deleted.getDeletedAt()).isNotNull();
+    }
+
+    @Test
+    void deleteEncounter_WithAnActiveRun_AlsoDiscardsTheRun() throws Exception {
+        // Arrange -- a live fight must not survive as an orphan once its encounter is gone.
+        Encounter encounter = createEncounter("Ambush With A Live Run", regularUser, false, false);
+        EncounterRun run = EncounterRun.builder()
+                .encounter(encounter)
+                .startedBy(regularUser)
+                .status(EncounterRunStatus.ACTIVE)
+                .build();
+        run = encounterRunRepository.save(run);
+
+        // Act
+        mockMvc.perform(delete("/api/dh/encounters/{id}", encounter.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isNoContent());
+
+        // Assert
+        assertThat(encounterRunRepository.findById(run.getId())).isEmpty();
     }
 
     // ==================== HELPER METHODS ====================

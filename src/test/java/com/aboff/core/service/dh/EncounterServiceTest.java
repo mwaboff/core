@@ -9,14 +9,17 @@ import com.aboff.core.model.entity.dh.Adversary;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.Encounter;
 import com.aboff.core.model.entity.dh.EncounterAdversary;
+import com.aboff.core.model.entity.dh.EncounterRun;
 import com.aboff.core.model.entity.dh.Environment;
 import com.aboff.core.model.enums.AdversaryType;
+import com.aboff.core.model.enums.EncounterRunStatus;
 import com.aboff.core.model.enums.EnvironmentType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.EncounterAdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
+import com.aboff.core.repository.dh.EncounterRunRepository;
 import com.aboff.core.repository.dh.EnvironmentRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
@@ -81,6 +84,9 @@ class EncounterServiceTest {
     private EnvironmentRepository environmentRepository;
 
     @Mock
+    private EncounterRunRepository encounterRunRepository;
+
+    @Mock
     private RoleHierarchyService roleHierarchyService;
 
     @Mock
@@ -122,16 +128,73 @@ class EncounterServiceTest {
         Encounter encounter = baseEncounterBuilder().build();
         Page<Encounter> page = new PageImpl<>(List.of(encounter));
         when(encounterRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(page);
 
         // Act
         var response = encounterService.getAllEncounters(
-                0, 20, false, null, null, null, null, null, authentication);
+                0, 20, false, null, null, null, null, null, null, authentication);
 
         // Assert
         assertThat(response.getContent()).hasSize(1);
-        verify(encounterRepository, never()).findAllWithFilters(any(), any(), any(), any(), anyBoolean(), any());
+        verify(encounterRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    void getAllEncounters_WithCreatorId_PassesItToTheAccessibleQuery() {
+        // Arrange - the caller's own ID: just narrows their own "own encounters" clause
+        setupAuthenticationWith(regularUserDetails);
+        Page<Encounter> page = new PageImpl<>(List.of(baseEncounterBuilder().build()));
+        when(encounterRepository.findAccessibleWithFilters(
+                eq(1L), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(page);
+
+        // Act
+        encounterService.getAllEncounters(0, 20, false, 1L, null, null, null, null, null, authentication);
+
+        // Assert - creatorId reaches the repository as a distinct parameter from the caller's
+        // own userId, so the visibility clause and the creator filter compose rather than collapse
+        verify(encounterRepository).findAccessibleWithFilters(
+                eq(1L), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void getAllEncounters_WithAnotherUsersCreatorId_StillUsesAccessibleQuery() {
+        // Arrange - filtering to someone else's ID must still route through the visibility-aware
+        // query, not the admin-only findAllWithFilters, so private encounters stay hidden
+        setupAuthenticationWith(regularUserDetails);
+        Page<Encounter> page = new PageImpl<>(List.of());
+        when(encounterRepository.findAccessibleWithFilters(
+                eq(1L), eq(2L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                .thenReturn(page);
+
+        // Act
+        encounterService.getAllEncounters(0, 20, false, 2L, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(encounterRepository).findAccessibleWithFilters(
+                eq(1L), eq(2L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(encounterRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), anyBoolean(), any());
+    }
+
+    @Test
+    void getAllEncounters_IncludeDeletedAsAdminWithCreatorId_PassesItToTheAdminQuery() {
+        // Arrange
+        setupAuthenticationWith(adminUserDetails);
+        when(roleHierarchyService.hasRoleOrHigher(adminUser, Role.ADMIN)).thenReturn(true);
+        Page<Encounter> page = new PageImpl<>(List.of(baseEncounterBuilder().build()));
+        when(encounterRepository.findAllWithFilters(
+                eq(2L), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
+                .thenReturn(page);
+
+        // Act
+        var response = encounterService.getAllEncounters(
+                0, 20, true, 2L, null, null, null, null, null, authentication);
+
+        // Assert
+        assertThat(response.getContent()).hasSize(1);
+        verify(encounterRepository).findAllWithFilters(
+                eq(2L), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class));
     }
 
     @Test
@@ -528,6 +591,42 @@ class EncounterServiceTest {
         // Assert
         assertThat(encounter.getDeletedAt()).isNotNull();
         verify(encounterRepository).save(encounter);
+    }
+
+    @Test
+    void deleteEncounter_WithAnActiveRun_AlsoDiscardsIt() {
+        // Arrange -- an in-progress fight must not be left playable against a deleted encounter.
+        setupAuthenticationWith(regularUserDetails);
+        Encounter encounter = baseEncounterBuilder().build();
+        when(encounterRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(encounter));
+        EncounterRun activeRun = EncounterRun.builder()
+                .id(500L).encounter(encounter).startedBy(regularUser).status(EncounterRunStatus.ACTIVE)
+                .encounterRunAdversaries(new ArrayList<>())
+                .build();
+        when(encounterRunRepository.findByEncounter_IdAndStatus(1L, EncounterRunStatus.ACTIVE))
+                .thenReturn(List.of(activeRun));
+
+        // Act
+        encounterService.deleteEncounter(1L, authentication);
+
+        // Assert
+        verify(encounterRunRepository).deleteAll(List.of(activeRun));
+    }
+
+    @Test
+    void deleteEncounter_WithNoActiveRuns_DoesNotTouchEncounterRunRepository() {
+        // Arrange -- the common case: no in-progress fight exists for this encounter.
+        setupAuthenticationWith(regularUserDetails);
+        Encounter encounter = baseEncounterBuilder().build();
+        when(encounterRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(encounter));
+        when(encounterRunRepository.findByEncounter_IdAndStatus(1L, EncounterRunStatus.ACTIVE))
+                .thenReturn(List.of());
+
+        // Act
+        encounterService.deleteEncounter(1L, authentication);
+
+        // Assert
+        verify(encounterRunRepository, never()).deleteAll(any());
     }
 
     @Test
