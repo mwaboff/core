@@ -35,6 +35,7 @@ Retrieves a paginated list of encounters. Returns encounters that are official, 
 | page           | int     | 0       | Zero-based page number                                |
 | size           | int     | 20      | Items per page (max: 100)                             |
 | includeDeleted | boolean | false   | Include soft-deleted encounters (ADMIN+ only)         |
+| creatorId      | Long    | -       | Filter by creator. Narrows within the usual official/public/own visibility rules -- it never widens them: filtering to another user's ID returns only that user's official or public encounters, not their private ones |
 | campaignId     | Long    | -       | Filter by campaign ID                                 |
 | tier           | Integer | -       | Filter by tier (1-4)                                  |
 | isOfficial     | Boolean | -       | Filter by official status                             |
@@ -420,7 +421,12 @@ Updates an existing encounter. Supports partial updates.
 
 ### DELETE /api/dh/encounters/{id}
 
-Soft deletes an encounter (sets `deletedAt` timestamp).
+Soft deletes an encounter (sets `deletedAt` timestamp). Also **hard-deletes any of the
+encounter's `ACTIVE` runs** (see `encounter-runs-api.md`) in the same transaction, so a live fight
+can't keep being playable against an encounter that no longer appears anywhere in the UI.
+`COMPLETED` runs are left alone -- they're historical record, not resumable state. This is a
+hard delete of the runs, not a soft one: restoring the encounter later (`POST .../restore`)
+does not bring the discarded runs back.
 
 **Authorization:**
 - Official encounters: OWNER role only
@@ -438,6 +444,8 @@ Soft deletes an encounter (sets `deletedAt` timestamp).
 ### POST /api/dh/encounters/{id}/restore
 
 Restores a soft-deleted encounter.
+
+**Note:** Restoring does **not** bring back any `ACTIVE` runs that existed at deletion time -- deleting an encounter hard-deletes its `ACTIVE` runs (see `DELETE /api/dh/encounters/{id}` below), and hard deletes are not reversible. The encounter itself comes back; any live fight in progress against it does not.
 
 **Authorization:** ADMIN or OWNER role required (`@PreAuthorize`)
 

@@ -46,6 +46,10 @@ public class EncounterController {
      * @param page Zero-based page number (default: 0)
      * @param size Number of items per page (default: 20, max: 100)
      * @param includeDeleted Whether to include soft-deleted encounters (ADMIN+ only)
+     * @param creatorId Optional filter for the encounter's creator. Narrows the result set to
+     *                  that user's encounters, but the usual official/public/own visibility
+     *                  rules still apply on top of it -- filtering to another user's ID returns
+     *                  only their official/public encounters, never their private ones.
      * @param campaignId Optional filter for campaign ID
      * @param tier Optional filter for tier (1-4)
      * @param isOfficial Optional filter for official status
@@ -60,6 +64,7 @@ public class EncounterController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(defaultValue = "false") boolean includeDeleted,
+            @RequestParam(required = false) Long creatorId,
             @RequestParam(required = false) Long campaignId,
             @RequestParam(required = false) Integer tier,
             @RequestParam(required = false) Boolean isOfficial,
@@ -68,7 +73,7 @@ public class EncounterController {
             Authentication auth) {
 
         PagedResponse<EncounterResponse> response = encounterService.getAllEncounters(
-                page, size, includeDeleted, campaignId, tier, isOfficial, name, expand, auth);
+                page, size, includeDeleted, creatorId, campaignId, tier, isOfficial, name, expand, auth);
 
         return ResponseEntity.ok(response);
     }

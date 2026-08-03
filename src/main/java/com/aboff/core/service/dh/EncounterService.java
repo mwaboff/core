@@ -15,13 +15,16 @@ import com.aboff.core.model.entity.dh.Adversary;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.Encounter;
 import com.aboff.core.model.entity.dh.EncounterAdversary;
+import com.aboff.core.model.entity.dh.EncounterRun;
 import com.aboff.core.model.entity.dh.Environment;
 import com.aboff.core.model.enums.AdversaryType;
+import com.aboff.core.model.enums.EncounterRunStatus;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.EncounterAdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
+import com.aboff.core.repository.dh.EncounterRunRepository;
 import com.aboff.core.repository.dh.EnvironmentRepository;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.enums.AuditAction;
@@ -71,16 +74,24 @@ public class EncounterService {
     private final AdversaryRepository adversaryRepository;
     private final CampaignRepository campaignRepository;
     private final EnvironmentRepository environmentRepository;
+    private final EncounterRunRepository encounterRunRepository;
     private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
     /**
      * Retrieves a paginated list of encounters accessible to the authenticated user.
+     * <p>
+     * When {@code creatorId} is supplied, results are narrowed to that creator's encounters --
+     * but the existing official/public/own visibility rules still apply on top of it. Filtering
+     * to another user's ID returns only that user's official or public encounters, never their
+     * private ones; it cannot be used to see encounters the caller couldn't otherwise view.
+     * </p>
      *
      * @param page Zero-based page number
      * @param size Number of items per page
      * @param includeDeleted Whether to include soft-deleted encounters (ADMIN+ only)
+     * @param creatorId Optional filter for the encounter's creator; narrows visibility, never widens it
      * @param campaignId Optional filter for campaign ID
      * @param tier Optional filter for tier (1-4)
      * @param isOfficial Optional filter for official status
@@ -94,6 +105,7 @@ public class EncounterService {
             int page,
             int size,
             boolean includeDeleted,
+            Long creatorId,
             Long campaignId,
             Integer tier,
             Boolean isOfficial,
@@ -110,10 +122,10 @@ public class EncounterService {
 
         if (includeDeleted && roleHierarchyService.hasRoleOrHigher(user, Role.ADMIN)) {
             encounterPage = encounterRepository.findAllWithFilters(
-                    campaignId, tier, isOfficial, name, true, pageable);
+                    creatorId, campaignId, tier, isOfficial, name, true, pageable);
         } else {
             encounterPage = encounterRepository.findAccessibleWithFilters(
-                    user.getId(), campaignId, tier, isOfficial, name, pageable);
+                    user.getId(), creatorId, campaignId, tier, isOfficial, name, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -321,6 +333,19 @@ public class EncounterService {
 
     /**
      * Soft deletes an encounter.
+     * <p>
+     * Also hard-deletes any of the encounter's {@link EncounterRunStatus#ACTIVE} runs in the same
+     * transaction. Without this, a run stays fully playable (its PATCH/complete/discard endpoints
+     * only check run access, never the source encounter's {@code deletedAt}) against an encounter
+     * that no longer appears anywhere in the UI -- an orphaned, unreachable-except-by-URL live
+     * fight. {@code COMPLETED} runs are left alone: they're historical record of a finished fight,
+     * not resumable state, so they aren't orphaned in the same sense.
+     * </p>
+     * <p>
+     * This discard is a hard delete, like all of {@link EncounterRun}'s deletions -- it has no
+     * {@code deletedAt} to reverse. {@link #restoreEncounter} brings the encounter itself back,
+     * but never these runs; there is nothing left to restore them from.
+     * </p>
      *
      * @param id The encounter ID to delete
      * @param auth Authentication context
@@ -336,6 +361,13 @@ public class EncounterService {
 
         encounter.softDelete();
         encounterRepository.save(encounter);
+
+        List<EncounterRun> activeRuns = encounterRunRepository.findByEncounter_IdAndStatus(id, EncounterRunStatus.ACTIVE);
+        if (!activeRuns.isEmpty()) {
+            encounterRunRepository.deleteAll(activeRuns);
+            log.info("Discarded {} active run(s) for deleted encounter_id: {}", activeRuns.size(), id);
+        }
+
         eventPublisher.publishEvent(new EntityChangeEvent(this, encounter, EntityChangeEvent.ChangeType.SOFT_DELETED));
         auditLogger.log(AuditAction.ENCOUNTER_DELETED, AuditContext.forUser(auth).build(),
                 "encounter_id: " + id);
@@ -344,6 +376,12 @@ public class EncounterService {
     /**
      * Restores a soft-deleted encounter.
      * Only ADMIN or OWNER can restore encounters.
+     * <p>
+     * Does <b>not</b> restore any {@link EncounterRunStatus#ACTIVE} runs {@link #deleteEncounter}
+     * discarded when the encounter was deleted -- those were hard-deleted, not soft-deleted, so
+     * there is no record left to bring back. An admin restoring an encounter gets the encounter
+     * back, not the live fight that was running against it.
+     * </p>
      *
      * @param id The encounter ID to restore
      * @param auth Authentication context

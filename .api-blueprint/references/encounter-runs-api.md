@@ -243,6 +243,8 @@ Marks a run complete: sets `status` to `COMPLETED` and stamps `endedAt`.
 
 Permanently discards a run (hard delete -- no `deletedAt`). Unlike the PATCH and complete endpoints, this does **not** check whether a tagged campaign has ended: discarding is cleanup, not play, matching `Countdown`'s and `Campaign#removeCharacterSheet`'s treatment of deletion as always allowed.
 
+Also happens implicitly: deleting the source `Encounter` (`DELETE /api/dh/encounters/{id}`) hard-deletes any of *its* `ACTIVE` runs in the same transaction -- see `encounters-api.md`. This endpoint is still the only way to discard a run without deleting the whole encounter.
+
 **Authorization:** `startedBy`, that campaign's GMs (if tagged), or MODERATOR+
 
 **Response:** `204 No Content`
