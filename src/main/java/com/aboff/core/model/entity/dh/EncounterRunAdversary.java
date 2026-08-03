@@ -95,6 +95,17 @@ public class EncounterRunAdversary extends BaseEntity {
     private String note;
 
     /**
+     * Tokens currently placed on this instance's stat block during the run (Daggerheart Core ch.
+     * 4, "Adversary Tokens" -- e.g. the {@code Slow} passive, or Hope & Fear's {@code Pool}
+     * feature). Unlike {@link #hitPointsMarked}/{@link #stressMarked}, this has no ceiling to
+     * clamp against -- a Pool can hold any number of tokens -- so only a floor is enforced, by
+     * the database {@code check_encounter_run_adversary_tokens} constraint and the service layer.
+     */
+    @Column(name = "tokens", nullable = false)
+    @Builder.Default
+    private Integer tokens = 0;
+
+    /**
      * Display order of this instance within the run's adversary list, copied from the source
      * instance at run start.
      */

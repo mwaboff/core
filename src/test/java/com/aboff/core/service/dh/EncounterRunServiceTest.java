@@ -4,6 +4,8 @@ import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateEncounterRunRequest;
 import com.aboff.core.model.dto.dh.request.UpdateEncounterRunAdversaryRequest;
 import com.aboff.core.model.dto.dh.response.EncounterRunResponse;
+import com.aboff.core.model.dto.dh.response.ExperienceResponse;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Adversary;
 import com.aboff.core.model.entity.dh.Campaign;
@@ -11,9 +13,15 @@ import com.aboff.core.model.entity.dh.Encounter;
 import com.aboff.core.model.entity.dh.EncounterAdversary;
 import com.aboff.core.model.entity.dh.EncounterRun;
 import com.aboff.core.model.entity.dh.EncounterRunAdversary;
+import com.aboff.core.model.entity.dh.Environment;
+import com.aboff.core.model.entity.dh.Experience;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.AdversaryType;
 import com.aboff.core.model.enums.EncounterRunStatus;
+import com.aboff.core.model.enums.EnvironmentType;
+import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.Role;
+import com.aboff.core.repository.dh.AdversaryRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
 import com.aboff.core.repository.dh.EncounterRunAdversaryRepository;
@@ -36,6 +44,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -45,6 +54,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -76,10 +86,16 @@ class EncounterRunServiceTest {
     private CampaignRepository campaignRepository;
 
     @Mock
+    private AdversaryRepository adversaryRepository;
+
+    @Mock
     private EncounterService encounterService;
 
     @Mock
     private CampaignService campaignService;
+
+    @Mock
+    private AdversaryService adversaryService;
 
     @Mock
     private RoleHierarchyService roleHierarchyService;
@@ -228,6 +244,8 @@ class EncounterRunServiceTest {
         assertThat(instance.getHitPointsMarked()).isZero();
         assertThat(instance.getStressMarked()).isZero();
         assertThat(instance.getIsDefeated()).isFalse();
+        // A Pool (Hope & Fear) or any other token-driven feature is empty when the scene begins.
+        assertThat(instance.getTokens()).isZero();
     }
 
     @Test
@@ -464,6 +482,98 @@ class EncounterRunServiceTest {
         assertThat(response.getAdversaries().get(0).getAdversary().getName()).isEqualTo(adversary.getName());
     }
 
+    @Test
+    void getRun_IncludesAdversaryFeaturesAndExperiences() {
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        EncounterRun run = activeRun(owner, null, runInstance(200L, adversary, 0, 0, 0));
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+
+        Feature feature = Feature.builder().id(1L).name("Relentless (3) - Passive").featureType(FeatureType.ADVERSARY).build();
+        Experience experience = Experience.builder().id(2L).description("Combat Expert").modifier(2).build();
+        Adversary withFeature = testAdversary(50L);
+        withFeature.setFeatures(new HashSet<>(Set.of(feature)));
+        Adversary withExperience = testAdversary(50L);
+        withExperience.setExperiences(new HashSet<>(Set.of(experience)));
+        when(adversaryRepository.findAllByIdInWithFeatures(List.of(50L))).thenReturn(List.of(withFeature));
+        when(adversaryRepository.findAllByIdInWithExperiences(List.of(50L))).thenReturn(List.of(withExperience));
+
+        FeatureResponse featureResponse = FeatureResponse.builder().id(1L).name("Relentless (3) - Passive").build();
+        ExperienceResponse experienceResponse = ExperienceResponse.builder().id(2L).description("Combat Expert").modifier(2).build();
+        when(adversaryService.toFeatureResponses(Set.of(feature), Set.of())).thenReturn(Set.of(featureResponse));
+        when(adversaryService.toExperienceResponses(Set.of(experience))).thenReturn(Set.of(experienceResponse));
+
+        EncounterRunResponse response = encounterRunService.getRun(100L, authentication);
+
+        var statBlock = response.getAdversaries().get(0).getAdversary();
+        assertThat(statBlock.getFeatures()).containsExactly(featureResponse);
+        assertThat(statBlock.getFeatureIds()).containsExactly(1L);
+        assertThat(statBlock.getExperiences()).containsExactly(experienceResponse);
+        assertThat(statBlock.getExperienceIds()).containsExactly(2L);
+    }
+
+    @Test
+    void getRun_AdversaryWithNoFeaturesOrExperiences_OmitsThemFromStatBlock() {
+        // Batch-load queries default (via Mockito's unstubbed-collection behavior) to empty
+        // lists, matching an adversary with no features/experiences at all.
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        EncounterRun run = activeRun(owner, null, runInstance(200L, adversary, 0, 0, 0));
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+
+        EncounterRunResponse response = encounterRunService.getRun(100L, authentication);
+
+        var statBlock = response.getAdversaries().get(0).getAdversary();
+        assertThat(statBlock.getFeatures()).isNull();
+        assertThat(statBlock.getFeatureIds()).isNull();
+        assertThat(statBlock.getExperiences()).isNull();
+        assertThat(statBlock.getExperienceIds()).isNull();
+        verify(adversaryService, never()).toFeatureResponses(any(), any());
+        verify(adversaryService, never()).toExperienceResponses(any());
+    }
+
+    @Test
+    void getRun_BatchLoadsFeaturesOncePerDistinctAdversaryNotPerInstance() {
+        // A run holding multiple instances of the same adversary must load its features once,
+        // not once per instance -- the whole point of the batching.
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        EncounterRun run = activeRun(owner, null,
+                runInstance(200L, adversary, 0, 0, 0),
+                runInstance(201L, adversary, 0, 0, 1),
+                runInstance(202L, adversary, 0, 0, 2));
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+
+        encounterRunService.getRun(100L, authentication);
+
+        verify(adversaryRepository, times(1)).findAllByIdInWithFeatures(List.of(50L));
+        verify(adversaryRepository, times(1)).findAllByIdInWithExperiences(List.of(50L));
+    }
+
+    @Test
+    void getRun_EncounterWithoutEnvironment_EnvironmentIdIsNull() {
+        authAs(ownerDetails);
+        EncounterRun run = activeRun(owner, null);
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+
+        EncounterRunResponse response = encounterRunService.getRun(100L, authentication);
+
+        assertThat(response.getEnvironmentId()).isNull();
+    }
+
+    @Test
+    void getRun_EncounterWithEnvironment_ReturnsEnvironmentId() {
+        authAs(ownerDetails);
+        encounter.setEnvironment(Environment.builder().id(30L).name("Sunken Ruins")
+                .tier(1).environmentType(EnvironmentType.EXPLORATION).build());
+        EncounterRun run = activeRun(owner, null);
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+
+        EncounterRunResponse response = encounterRunService.getRun(100L, authentication);
+
+        assertThat(response.getEnvironmentId()).isEqualTo(30L);
+    }
+
     // ==================== UPDATE RUN ADVERSARY ====================
 
     @Test
@@ -509,6 +619,70 @@ class EncounterRunServiceTest {
                 100L, 200L, UpdateEncounterRunAdversaryRequest.builder().stressMarked(99).build(), authentication);
 
         assertThat(response.getAdversaries().get(0).getStressMarked()).isEqualTo(3);
+    }
+
+    @Test
+    void updateRunAdversary_SetsTokens() {
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        EncounterRunAdversary instance = runInstance(200L, adversary, 0, 0, 0);
+        EncounterRun run = activeRun(owner, null, instance);
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+        when(encounterRunAdversaryRepository.findById(200L)).thenReturn(Optional.of(instance));
+
+        EncounterRunResponse response = encounterRunService.updateRunAdversary(
+                100L, 200L, UpdateEncounterRunAdversaryRequest.builder().tokens(5).build(), authentication);
+
+        assertThat(response.getAdversaries().get(0).getTokens()).isEqualTo(5);
+    }
+
+    @Test
+    void updateRunAdversary_TokensBackToZero() {
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        EncounterRunAdversary instance = runInstance(200L, adversary, 0, 0, 0);
+        instance.setTokens(5);
+        EncounterRun run = activeRun(owner, null, instance);
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+        when(encounterRunAdversaryRepository.findById(200L)).thenReturn(Optional.of(instance));
+
+        EncounterRunResponse response = encounterRunService.updateRunAdversary(
+                100L, 200L, UpdateEncounterRunAdversaryRequest.builder().tokens(0).build(), authentication);
+
+        assertThat(response.getAdversaries().get(0).getTokens()).isZero();
+    }
+
+    @Test
+    void updateRunAdversary_TokensNotClampedToAnyMax() {
+        // Unlike hitPointsMarked/stressMarked, tokens has no adversary-derived ceiling -- a Pool
+        // (Hope & Fear) can hold any number.
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        EncounterRunAdversary instance = runInstance(200L, adversary, 0, 0, 0);
+        EncounterRun run = activeRun(owner, null, instance);
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+        when(encounterRunAdversaryRepository.findById(200L)).thenReturn(Optional.of(instance));
+
+        EncounterRunResponse response = encounterRunService.updateRunAdversary(
+                100L, 200L, UpdateEncounterRunAdversaryRequest.builder().tokens(99).build(), authentication);
+
+        assertThat(response.getAdversaries().get(0).getTokens()).isEqualTo(99);
+    }
+
+    @Test
+    void updateRunAdversary_NegativeTokens_ClampsToZero() {
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        EncounterRunAdversary instance = runInstance(200L, adversary, 0, 0, 0);
+        instance.setTokens(3);
+        EncounterRun run = activeRun(owner, null, instance);
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+        when(encounterRunAdversaryRepository.findById(200L)).thenReturn(Optional.of(instance));
+
+        EncounterRunResponse response = encounterRunService.updateRunAdversary(
+                100L, 200L, UpdateEncounterRunAdversaryRequest.builder().tokens(-5).build(), authentication);
+
+        assertThat(response.getAdversaries().get(0).getTokens()).isZero();
     }
 
     @Test
@@ -564,6 +738,7 @@ class EncounterRunServiceTest {
         Adversary adversary = testAdversary(50L);
         EncounterRunAdversary instance = runInstance(200L, adversary, 3, 1, 0);
         instance.setNote("Existing note");
+        instance.setTokens(2);
         EncounterRun run = activeRun(owner, null, instance);
         when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
         when(encounterRunAdversaryRepository.findById(200L)).thenReturn(Optional.of(instance));
@@ -575,6 +750,7 @@ class EncounterRunServiceTest {
         assertThat(updated.getHitPointsMarked()).isEqualTo(3);
         assertThat(updated.getStressMarked()).isEqualTo(1);
         assertThat(updated.getNote()).isEqualTo("Existing note");
+        assertThat(updated.getTokens()).isEqualTo(2);
     }
 
     @Test
@@ -827,5 +1003,20 @@ class EncounterRunServiceTest {
         List<EncounterRunResponse> responses = encounterRunService.listRuns(null, null, authentication);
 
         assertThat(responses.get(0).getAdversaries().get(0).getAdversary()).isNull();
+    }
+
+    @Test
+    void listRuns_DoesNotBatchLoadFeaturesOrExperiences() {
+        // The list endpoint must stay lightweight -- no per-adversary batch query at all, not
+        // even an empty-result one.
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        EncounterRun run = activeRun(owner, null, runInstance(200L, adversary, 0, 0, 0));
+        when(encounterRunRepository.findByStartedByIdAndOptionalStatus(1L, null)).thenReturn(List.of(run));
+
+        encounterRunService.listRuns(null, null, authentication);
+
+        verify(adversaryRepository, never()).findAllByIdInWithFeatures(any());
+        verify(adversaryRepository, never()).findAllByIdInWithExperiences(any());
     }
 }

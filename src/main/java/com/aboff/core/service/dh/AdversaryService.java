@@ -6,6 +6,7 @@ import com.aboff.core.model.dto.dh.request.UpdateAdversaryRequest;
 import com.aboff.core.model.dto.dh.response.AdversaryResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.ExperienceResponse;
+import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
@@ -699,23 +700,64 @@ public class AdversaryService {
         }
 
         if (ExpandUtil.shouldExpand(expand, "experiences") && adversary.getExperiences() != null) {
-            builder.experiences(adversary.getExperiences().stream()
-                    .map(exp -> ExperienceResponse.builder()
-                            .id(exp.getId())
-                            .description(exp.getDescription())
-                            .modifier(exp.getModifier())
-                            .createdAt(exp.getCreatedAt())
-                            .lastModifiedAt(exp.getLastModifiedAt())
-                            .build())
-                    .collect(Collectors.toSet()));
+            builder.experiences(toExperienceResponses(adversary.getExperiences()));
         }
 
         if (ExpandUtil.shouldExpand(expand, "features") && adversary.getFeatures() != null) {
-            builder.features(adversary.getFeatures().stream()
-                    .map(feature -> featureService.toResponse(feature, expand))
-                    .collect(Collectors.toSet()));
+            builder.features(toFeatureResponses(adversary.getFeatures(), expand));
         }
 
         return builder.build();
+    }
+
+    /**
+     * Maps an adversary's experiences to their response DTOs.
+     * <p>
+     * This is the single mapping used everywhere an adversary's experiences are surfaced as full
+     * objects -- both {@link #toResponse}'s {@code ?expand=experiences} and the encounter run's
+     * live stat block ({@code EncounterRunService}) call this rather than duplicating it. Only
+     * {@code id}, {@code description}, {@code modifier}, and timestamps are included -- an
+     * adversary-linked experience has no character sheet, companion, or creator, unlike a
+     * player's.
+     * </p>
+     *
+     * @param experiences The experiences to map
+     * @return The mapped response DTOs, empty if {@code experiences} is null or empty
+     */
+    public Set<ExperienceResponse> toExperienceResponses(Set<Experience> experiences) {
+        if (experiences == null || experiences.isEmpty()) {
+            return Set.of();
+        }
+        return experiences.stream()
+                .map(exp -> ExperienceResponse.builder()
+                        .id(exp.getId())
+                        .description(exp.getDescription())
+                        .modifier(exp.getModifier())
+                        .createdAt(exp.getCreatedAt())
+                        .lastModifiedAt(exp.getLastModifiedAt())
+                        .build())
+                .collect(Collectors.toSet());
+    }
+
+    /**
+     * Maps an adversary's features to their response DTOs via {@link FeatureService#toResponse}.
+     * <p>
+     * This is the single mapping used everywhere an adversary's features are surfaced as full
+     * objects -- both {@link #toResponse}'s {@code ?expand=features} and the encounter run's live
+     * stat block ({@code EncounterRunService}) call this rather than duplicating it.
+     * </p>
+     *
+     * @param features The features to map
+     * @param expand The expand set forwarded to {@link FeatureService#toResponse} for each
+     *               feature (e.g. to further expand a feature's cost tags or modifiers)
+     * @return The mapped response DTOs, empty if {@code features} is null or empty
+     */
+    public Set<FeatureResponse> toFeatureResponses(Set<Feature> features, Set<String> expand) {
+        if (features == null || features.isEmpty()) {
+            return Set.of();
+        }
+        return features.stream()
+                .map(feature -> featureService.toResponse(feature, expand))
+                .collect(Collectors.toSet());
     }
 }

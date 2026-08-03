@@ -20,7 +20,9 @@ import lombok.NoArgsConstructor;
  * <p>
  * {@code hitPointsMarked} and {@code stressMarked} are only floor-validated here (must not be
  * negative); the ceiling depends on the adversary's own {@code hitPointMax}/{@code stressMax}
- * and is enforced by the service, which clamps rather than rejects.
+ * and is enforced by the service, which clamps rather than rejects. {@code tokens} is also only
+ * floor-validated -- unlike HP/Stress it has no ceiling to clamp against at all, since a Pool
+ * (Hope &amp; Fear) can hold any number of tokens.
  * </p>
  */
 @Data
@@ -39,4 +41,12 @@ public class UpdateEncounterRunAdversaryRequest {
 
     @Size(max = 2000, message = "Note must not exceed 2000 characters")
     private String note;
+
+    /**
+     * Tokens placed on this instance's stat block (Daggerheart Core ch. 4, "Adversary Tokens").
+     * Absolute value, never a delta -- same convention as {@link #hitPointsMarked}/
+     * {@link #stressMarked}. Not clamped to any maximum.
+     */
+    @Min(value = 0, message = "Tokens must be at least 0")
+    private Integer tokens;
 }

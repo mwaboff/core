@@ -55,6 +55,7 @@ Starts a run of an encounter, snapshotting its current adversary instances. **Om
 {
   "id": 1,
   "encounterId": 5,
+  "environmentId": 9,
   "campaignId": null,
   "startedById": 12,
   "status": "ACTIVE",
@@ -76,7 +77,15 @@ Starts a run of an encounter, snapshotting its current adversary instances. **Om
         "attackModifier": 1,
         "weaponName": "Shortbow",
         "attackRange": "FAR",
-        "damage": {"diceCount": 1, "diceType": "D6", "modifier": 2, "damageType": "PHYSICAL", "notation": "1d6+2 phy"}
+        "damage": {"diceCount": 1, "diceType": "D6", "modifier": 2, "damageType": "PHYSICAL", "notation": "1d6+2 phy"},
+        "experienceIds": [3],
+        "experiences": [
+          {"id": 3, "description": "Ambush Tactics", "modifier": 2}
+        ],
+        "featureIds": [14],
+        "features": [
+          {"id": 14, "name": "Group Attack - Action", "description": "Spend a Fear to have this and up to two other Goblin Scouts attack as a group...", "featureType": "ADVERSARY", "expansionId": 1, "costTagIds": [], "modifierIds": []}
+        ]
       },
       "label": "Archer A",
       "tierOverride": null,
@@ -86,6 +95,7 @@ Starts a run of an encounter, snapshotting its current adversary instances. **Om
       "stressMax": 3,
       "isDefeated": false,
       "note": null,
+      "tokens": 0,
       "displayOrder": 0
     }
   ],
@@ -103,7 +113,7 @@ Starts a run of an encounter, snapshotting its current adversary instances. **Om
 
 ### GET /api/dh/encounter-runs/{runId}
 
-Retrieves a single run. **Every instance's full adversary stat block is always expanded** -- a GM needs the whole card to play, so this is not gated behind an `?expand=` parameter.
+Retrieves a single run. **Every instance's full adversary stat block is always expanded, including `features` and `experiences`** -- a GM needs the whole card (Passives, Actions, Reactions, and Experiences) to actually play the fight, so none of it is gated behind an `?expand=` parameter.
 
 **Authorization:** `startedBy`, that campaign's GMs (if tagged), or MODERATOR+
 
@@ -144,19 +154,22 @@ Lists the runs visible to the caller. Adversary stat blocks are **not** expanded
   {
     "id": 1,
     "encounterId": 5,
+    "environmentId": 9,
     "campaignId": null,
     "startedById": 12,
     "status": "ACTIVE",
     "startedAt": "2026-08-02T21:00:00",
     "adversaries": [
       {"id": 1, "adversaryId": 7, "label": "Archer A", "hitPointsMarked": 0, "hitPointMax": 6,
-       "stressMarked": 0, "stressMax": 3, "isDefeated": false, "displayOrder": 0}
+       "stressMarked": 0, "stressMax": 3, "isDefeated": false, "tokens": 0, "displayOrder": 0}
     ],
     "createdAt": "2026-08-02T21:00:00",
     "lastModifiedAt": "2026-08-02T21:00:00"
   }
 ]
 ```
+
+`environmentId` is a cheap scalar (the repository eagerly joins it, no per-run query) so, unlike the adversary stat block, it is **not** gated behind the single-run endpoint -- it appears on the list response too.
 
 **Error Responses:**
 - `401 Unauthorized` -- Missing or invalid JWT token
@@ -185,7 +198,8 @@ Updates a single adversary instance's live state within a run: marked HP/Stress,
   "hitPointsMarked": 4,
   "stressMarked": 2,
   "isDefeated": false,
-  "note": "Flanking the party's rogue"
+  "note": "Flanking the party's rogue",
+  "tokens": 1
 }
 ```
 
@@ -197,6 +211,7 @@ Updates a single adversary instance's live state within a run: marked HP/Stress,
 | stressMarked    | Integer | >= 0. **Clamped** to the adversary's `stressMax` if it exceeds it     |
 | isDefeated      | Boolean | -                                                                     |
 | note            | String  | Max 2000 characters; sanitized before persistence                    |
+| tokens          | Integer | >= 0 (400 if negative). **No maximum** -- unlike `hitPointsMarked`/`stressMarked` there is no ceiling to clamp against (Daggerheart Core ch. 4, "Adversary Tokens"; Hope & Fear's `Pool` can hold any number) |
 
 **Response:** `200 OK` -- the full updated run (same shape as `GET /api/dh/encounter-runs/{runId}`)
 
@@ -247,6 +262,7 @@ Permanently discards a run (hard delete -- no `deletedAt`). Unlike the PATCH and
 |-----------------|------------------------------------|----------------------------------------------------------------------|
 | id              | Long                               | Run ID                                                              |
 | encounterId     | Long                               | The source encounter this run was started from                     |
+| environmentId   | Long                               | The source encounter's environment ID, null if none set. Only the ID -- fetch the full stat block via `GET /api/dh/environments/{id}?expand=features` |
 | campaignId      | Long                               | Null for a standalone run                                          |
 | startedById     | Long                               | The user who started the run                                       |
 | status          | ACTIVE \| COMPLETED                | -                                                                    |
@@ -264,7 +280,7 @@ Permanently discards a run (hard delete -- no `deletedAt`). Unlike the PATCH and
 |--------------------|------------------------------|--------------------------------------------------------------------------------|
 | id                 | Long                        | Run adversary instance ID                                                    |
 | adversaryId        | Long                        | The catalog adversary ID (always included)                                  |
-| adversary          | AdversaryResponse           | Full stat block -- present on `GET .../{runId}` only, omitted on the list endpoint |
+| adversary          | AdversaryResponse           | Full stat block -- present on every endpoint that returns a single run (start, get, patch, complete), omitted only on the list endpoint (`GET /api/dh/encounter-runs`) |
 | label              | String                      | GM nickname copied from the source instance at run start                    |
 | tierOverride       | Integer                     | Retier target copied from the source instance, null if not retiered         |
 | retieredStatistics | RetieredStatisticsResponse  | Derived stats for the effective tier (see `encounters-api.md`); only present when `tierOverride` is set. Retiering does not change `hitPointMax`/`stressMax` |
@@ -274,9 +290,12 @@ Permanently discards a run (hard delete -- no `deletedAt`). Unlike the PATCH and
 | stressMax          | Integer                     | The adversary's Stress max                                                  |
 | isDefeated         | Boolean                     | -                                                                            |
 | note               | String                      | Free-text GM note for this instance during the run                          |
+| tokens             | Integer                     | Adversary Tokens placed on this instance's stat block (Daggerheart Core ch. 4). **Not clamped to any maximum.** Always included on both the single-run and list endpoints |
 | displayOrder       | Integer                     | Copied from the source instance at run start                               |
 
-The `adversary` stat block on this DTO is a combat-relevant subset (id, name, tier, type, description, motives/tactics, difficulty, thresholds, HP/Stress max, attack modifier, weapon, range, damage) -- it does not include `features`/`experiences`. It never includes `hitPointMarked`/`stressMarked` from the catalog `Adversary` -- those columns exist on `Adversary` but are never written to by a run; a run's live state lives entirely in `encounter_run_adversaries`.
+The `adversary` stat block on this DTO is the full catalog `AdversaryResponse` -- id, name, tier, type, description, motives/tactics, difficulty, thresholds, HP/Stress max, attack modifier, weapon, range, damage, **and `features`/`experiences`** (both the ID sets and the full expanded objects, unconditionally -- there is no `?expand=` parameter on this endpoint to gate them behind). Features and experiences are batch-loaded once per distinct adversary referenced by the run, not once per instance, so a run holding several copies of the same adversary costs one query per collection, not one per copy. It never includes `hitPointMarked`/`stressMarked` from the catalog `Adversary` -- those columns exist on `Adversary` but are never written to by a run; a run's live state lives entirely in `encounter_run_adversaries`.
+
+**Known data issue (not specific to this endpoint):** `Feature.timing` is null on every row in the database, so it is always omitted from `features[].timing`. The Action/Reaction/Passive tag instead lives as a `" - Passive"` / `" - Action"` / `" - Reaction"` suffix on `features[].name`, as printed on the card and passed through as-is -- this endpoint does not parse or correct it.
 
 ---
 
@@ -317,6 +336,7 @@ No `deleted_at` -- runs hard-delete.
 | stress_marked      | INTEGER       | No       | Default 0; clamped by the service to the adversary's `stressMax` |
 | is_defeated        | BOOLEAN       | No       | Default false                                                  |
 | note               | TEXT          | Yes      | Free-text GM note                                              |
+| tokens             | INTEGER       | No       | Default 0; floor-only (no ceiling -- a Pool can hold any number of tokens) |
 | display_order      | INTEGER       | No       | Default 0; copied from the source instance                     |
 | created_at         | TIMESTAMP     | No       | Auto-set                                                        |
 | last_modified_at   | TIMESTAMP     | No       | Auto-set                                                        |
@@ -325,6 +345,7 @@ No `deleted_at` -- runs hard-delete.
 - `check_encounter_run_adversary_tier_override` -- `tier_override IS NULL OR tier_override BETWEEN 1 AND 4`
 - `check_encounter_run_adversary_hit_points_marked` -- `hit_points_marked >= 0`
 - `check_encounter_run_adversary_stress_marked` -- `stress_marked >= 0`
+- `check_encounter_run_adversary_tokens` -- `tokens >= 0`
 
 No `deleted_at` -- deleting the parent run cascades.
 
@@ -372,6 +393,14 @@ curl -X PATCH http://localhost:8080/api/dh/encounter-runs/1/adversaries/1 \
   -H "Content-Type: application/json" \
   --cookie "AUTH_TOKEN=<jwt>" \
   -d '{"hitPointsMarked": 4}'
+```
+
+### Place an Adversary Token (e.g. the `Slow` passive)
+```bash
+curl -X PATCH http://localhost:8080/api/dh/encounter-runs/1/adversaries/1 \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<jwt>" \
+  -d '{"tokens": 1}'
 ```
 
 ### Complete a Run

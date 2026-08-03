@@ -30,6 +30,13 @@ public class EncounterRunResponse {
     /** ID of the encounter this run was started from. */
     private Long encounterId;
 
+    /**
+     * ID of the source encounter's environment (scene stat block), or null if the encounter has
+     * none set. Only the ID is included -- fetch the full stat block via
+     * {@code GET /api/dh/environments/{id}?expand=features} when needed.
+     */
+    private Long environmentId;
+
     /** ID of the campaign this run is tagged to (null for a standalone run). */
     private Long campaignId;
 
@@ -93,6 +100,14 @@ public class EncounterRunResponse {
         private Boolean isDefeated;
 
         private String note;
+
+        /**
+         * Tokens placed on this instance's stat block (Daggerheart Core ch. 4, "Adversary
+         * Tokens" -- e.g. the {@code Slow} passive, or Hope &amp; Fear's {@code Pool} feature).
+         * Always included, on both the single-run and list endpoints -- unlike {@link #adversary},
+         * it's cheap and useful at a glance in a run list. Not clamped to any maximum.
+         */
+        private Integer tokens;
 
         private Integer displayOrder;
     }

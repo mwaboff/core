@@ -9,9 +9,14 @@ import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.Encounter;
 import com.aboff.core.model.entity.dh.EncounterAdversary;
 import com.aboff.core.model.entity.dh.EncounterRun;
+import com.aboff.core.model.entity.dh.Environment;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Experience;
+import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.AdversaryType;
 import com.aboff.core.model.enums.EncounterRunStatus;
+import com.aboff.core.model.enums.EnvironmentType;
+import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
@@ -21,7 +26,10 @@ import com.aboff.core.repository.dh.EncounterAdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRepository;
 import com.aboff.core.repository.dh.EncounterRunAdversaryRepository;
 import com.aboff.core.repository.dh.EncounterRunRepository;
+import com.aboff.core.repository.dh.EnvironmentRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.ExperienceRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
@@ -38,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -89,6 +98,15 @@ class EncounterRunControllerIntegrationTest {
 
     @Autowired
     private AdversaryRepository adversaryRepository;
+
+    @Autowired
+    private FeatureRepository featureRepository;
+
+    @Autowired
+    private ExperienceRepository experienceRepository;
+
+    @Autowired
+    private EnvironmentRepository environmentRepository;
 
     @Autowired
     private ExpansionRepository expansionRepository;
@@ -186,6 +204,36 @@ class EncounterRunControllerIntegrationTest {
         instance.setEncounter(encounter);
 
         return encounterRepository.save(encounter);
+    }
+
+    private Feature createFeature(String name) {
+        return featureRepository.save(Feature.builder()
+                .name(name)
+                .description("Test feature description")
+                .featureType(FeatureType.ADVERSARY)
+                .expansion(testExpansion)
+                .build());
+    }
+
+    private Experience createExperience(String description, int modifier) {
+        return experienceRepository.save(Experience.builder()
+                .description(description)
+                .modifier(modifier)
+                .createdBy(creator)
+                .build());
+    }
+
+    private Environment createEnvironment(String name) {
+        return environmentRepository.save(Environment.builder()
+                .name(name)
+                .tier(1)
+                .environmentType(EnvironmentType.EXPLORATION)
+                .difficulty(11)
+                .isOfficial(true)
+                .isPublic(true)
+                .createdBy(creator)
+                .expansion(testExpansion)
+                .build());
     }
 
     // ==================== START RUN ====================
@@ -381,6 +429,65 @@ class EncounterRunControllerIntegrationTest {
                 .andExpect(jsonPath("$.adversaries[0].adversary.name").value("Goblin Scout"));
     }
 
+    @Test
+    void getRun_AdversaryWithNoFeaturesOrExperiences_OmitsThemFromStatBlock() throws Exception {
+        Long runId = startStandaloneRun();
+
+        mockMvc.perform(get("/api/dh/encounter-runs/{runId}", runId)
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.adversaries[0].adversary.features").doesNotExist())
+                .andExpect(jsonPath("$.adversaries[0].adversary.featureIds").doesNotExist())
+                .andExpect(jsonPath("$.adversaries[0].adversary.experiences").doesNotExist())
+                .andExpect(jsonPath("$.adversaries[0].adversary.experienceIds").doesNotExist());
+    }
+
+    @Test
+    void getRun_IncludesAdversaryFeaturesAndExperiences_Returns200() throws Exception {
+        // The whole reason this endpoint expands features/experiences: without them the GM has
+        // thresholds and a weapon line but none of the abilities that let the adversary play
+        // differently in a fight.
+        Feature feature = createFeature("Relentless (3) - Passive");
+        Experience experience = createExperience("Combat Expert", 2);
+        testAdversary.setFeatures(new HashSet<>(Set.of(feature)));
+        testAdversary.setExperiences(new HashSet<>(Set.of(experience)));
+        adversaryRepository.save(testAdversary);
+
+        Long runId = startStandaloneRun();
+
+        mockMvc.perform(get("/api/dh/encounter-runs/{runId}", runId)
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.adversaries[0].adversary.features[0].name").value("Relentless (3) - Passive"))
+                .andExpect(jsonPath("$.adversaries[0].adversary.featureIds[0]").value(feature.getId()))
+                .andExpect(jsonPath("$.adversaries[0].adversary.experiences[0].description").value("Combat Expert"))
+                .andExpect(jsonPath("$.adversaries[0].adversary.experienceIds[0]").value(experience.getId()));
+    }
+
+    @Test
+    void getRun_EncounterWithoutEnvironment_EnvironmentIdDoesNotExist() throws Exception {
+        Long runId = startStandaloneRun();
+
+        mockMvc.perform(get("/api/dh/encounter-runs/{runId}", runId)
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.environmentId").doesNotExist());
+    }
+
+    @Test
+    void getRun_EncounterWithEnvironment_ReturnsEnvironmentId() throws Exception {
+        Environment environment = createEnvironment("Sunken Ruins");
+        testEncounter.setEnvironment(environment);
+        encounterRepository.save(testEncounter);
+
+        Long runId = startStandaloneRun();
+
+        mockMvc.perform(get("/api/dh/encounter-runs/{runId}", runId)
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.environmentId").value(environment.getId()));
+    }
+
     // ==================== LIST ====================
 
     @Test
@@ -392,6 +499,21 @@ class EncounterRunControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
                 .andExpect(jsonPath("$[0].adversaries[0].adversary").doesNotExist());
+    }
+
+    @Test
+    void listRuns_IncludesEnvironmentIdEvenThoughAdversariesStayUnexpanded() throws Exception {
+        // environmentId is a cheap scalar (eagerly joined by the repository, not a per-instance
+        // lookup), so unlike the adversary stat block it stays on the list endpoint too.
+        Environment environment = createEnvironment("Sunken Ruins");
+        testEncounter.setEnvironment(environment);
+        encounterRepository.save(testEncounter);
+        startStandaloneRun();
+
+        mockMvc.perform(get("/api/dh/encounter-runs")
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].environmentId").value(environment.getId()));
     }
 
     @Test
@@ -500,6 +622,83 @@ class EncounterRunControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void updateRunAdversary_NewInstance_TokensDefaultToZero() throws Exception {
+        Long runId = startStandaloneRun();
+
+        mockMvc.perform(get("/api/dh/encounter-runs/{runId}", runId)
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.adversaries[0].tokens").value(0));
+    }
+
+    @Test
+    void updateRunAdversary_SetsTokens() throws Exception {
+        Long runId = startStandaloneRun();
+        Long instanceId = findInstanceId(runId);
+
+        mockMvc.perform(patchAdversaryTokens(runId, instanceId, 5, creatorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.adversaries[0].tokens").value(5));
+    }
+
+    @Test
+    void updateRunAdversary_TokensBackToZero() throws Exception {
+        Long runId = startStandaloneRun();
+        Long instanceId = findInstanceId(runId);
+        mockMvc.perform(patchAdversaryTokens(runId, instanceId, 5, creatorToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(patchAdversaryTokens(runId, instanceId, 0, creatorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.adversaries[0].tokens").value(0));
+    }
+
+    @Test
+    void updateRunAdversary_TokensNotClampedToAnyMax() throws Exception {
+        Long runId = startStandaloneRun();
+        Long instanceId = findInstanceId(runId);
+
+        mockMvc.perform(patchAdversaryTokens(runId, instanceId, 99, creatorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.adversaries[0].tokens").value(99));
+    }
+
+    @Test
+    void updateRunAdversary_NegativeTokens_Returns400() throws Exception {
+        Long runId = startStandaloneRun();
+        Long instanceId = findInstanceId(runId);
+
+        mockMvc.perform(patchAdversaryTokens(runId, instanceId, -1, creatorToken))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateRunAdversary_OmittedTokens_LeavesExistingTokensUnchanged() throws Exception {
+        Long runId = startStandaloneRun();
+        Long instanceId = findInstanceId(runId);
+        mockMvc.perform(patchAdversaryTokens(runId, instanceId, 5, creatorToken))
+                .andExpect(status().isOk());
+
+        // hitPointsMarked-only patch, tokens omitted entirely.
+        mockMvc.perform(patchAdversary(runId, instanceId, 4, null, null, creatorToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.adversaries[0].tokens").value(5));
+    }
+
+    @Test
+    void listRuns_IncludesTokensEvenThoughAdversariesStayUnexpanded() throws Exception {
+        Long runId = startStandaloneRun();
+        Long instanceId = findInstanceId(runId);
+        mockMvc.perform(patchAdversaryTokens(runId, instanceId, 5, creatorToken))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/dh/encounter-runs")
+                        .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].adversaries[0].tokens").value(5));
+    }
+
     // ==================== COMPLETE ====================
 
     @Test
@@ -592,6 +791,17 @@ class EncounterRunControllerIntegrationTest {
                 .hitPointsMarked(hitPoints)
                 .stressMarked(stress)
                 .isDefeated(defeated)
+                .build();
+        return patch("/api/dh/encounter-runs/{runId}/adversaries/{instanceId}", runId, instanceId)
+                .cookie(new Cookie("AUTH_TOKEN", token))
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request));
+    }
+
+    private MockHttpServletRequestBuilder patchAdversaryTokens(
+            Long runId, Long instanceId, Integer tokens, String token) throws Exception {
+        UpdateEncounterRunAdversaryRequest request = UpdateEncounterRunAdversaryRequest.builder()
+                .tokens(tokens)
                 .build();
         return patch("/api/dh/encounter-runs/{runId}/adversaries/{instanceId}", runId, instanceId)
                 .cookie(new Cookie("AUTH_TOKEN", token))
