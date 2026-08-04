@@ -107,16 +107,20 @@ class CompanionServiceTest {
                 .build();
     }
 
+    /**
+     * Builds a {@link CustomUserDetails} and points {@link #authentication} at it. Every stub
+     * here is {@code lenient()}: the read methods ({@link CompanionService#getAllCompanions} and
+     * {@link CompanionService#getCompanionById}) no longer check ownership or role at all, so
+     * callers that use this helper purely to set up a read (e.g. to exercise the non-owner case)
+     * leave {@code getUserId}/{@code getPrincipal}/{@code hasModeratorOrHigher} unused -- only the
+     * write paths (create/update/delete/training) still consult them.
+     */
     private CustomUserDetails asUser(Long userId, boolean moderatorOrHigher) {
         CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        lenientModerator(userDetails, moderatorOrHigher);
+        lenient().when(userDetails.getUserId()).thenReturn(userId);
+        lenient().when(authentication.getPrincipal()).thenReturn(userDetails);
+        lenient().when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(moderatorOrHigher);
         return userDetails;
-    }
-
-    private void lenientModerator(CustomUserDetails userDetails, boolean moderatorOrHigher) {
-        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(moderatorOrHigher);
     }
 
     // ==================== GET ALL COMPANIONS (SECURITY FIX) ====================
@@ -165,16 +169,25 @@ class CompanionServiceTest {
     }
 
     @Test
-    void getAllCompanions_AsOtherUser_ThrowsException() {
+    void getAllCompanions_AsNonOwnerNonModerator_ReturnsCompanions() {
+        // A read no longer requires ownership or a privileged role -- it must match the public
+        // read on the character sheet, which already embeds these same companions unconditionally
+        // whenever ?expand=companions is requested. characterSheetId scoping (asserted above in
+        // getAllCompanions_WithoutCharacterSheetId_ThrowsException) is what still prevents the
+        // original unfiltered-listing leak.
         CharacterSheet sheet = sheet(owner());
         asUser(OTHER_USER_ID, false);
+        Companion companion = companion(sheet);
 
         when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(eq(SHEET_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(companion)));
 
-        assertThatThrownBy(() -> companionService.getAllCompanions(0, 20, SHEET_ID, null, authentication))
-                .isInstanceOf(InsufficientPermissionsException.class);
+        PagedResponse<CompanionResponse> result =
+                companionService.getAllCompanions(0, 20, SHEET_ID, null, authentication);
 
-        verifyNoInteractions(companionRepository);
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("Wolf");
     }
 
     @Test
@@ -218,16 +231,19 @@ class CompanionServiceTest {
     }
 
     @Test
-    void getCompanionById_AsOtherUser_ThrowsException() {
+    void getCompanionById_AsNonOwnerNonModerator_ReturnsCompanion() {
+        // Same relaxation as getAllCompanions -- a single companion read is public to any
+        // authenticated user, matching the sheet that already embeds it.
         CharacterSheet sheet = sheet(owner());
         asUser(OTHER_USER_ID, false);
         Companion companion = companion(sheet);
 
         when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
 
-        assertThatThrownBy(() -> companionService.getCompanionById(COMPANION_ID, null, authentication))
-                .isInstanceOf(InsufficientPermissionsException.class)
-                .hasMessageContaining("permission to view");
+        CompanionResponse result = companionService.getCompanionById(COMPANION_ID, null, authentication);
+
+        assertThat(result.getId()).isEqualTo(COMPANION_ID);
+        assertThat(result.getName()).isEqualTo("Wolf");
     }
 
     @Test

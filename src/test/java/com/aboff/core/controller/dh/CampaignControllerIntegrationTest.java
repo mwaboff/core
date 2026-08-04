@@ -31,6 +31,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -187,12 +188,53 @@ class CampaignControllerIntegrationTest {
 
     @Test
     void getCampaignById_WithExpansion_IncludesExpandedData() throws Exception {
+        // Viewer is the creator themself, so full profile fields (including email) are included.
         mockMvc.perform(get("/api/dh/campaigns/{id}", testCampaign.getId())
                         .param("expand", "creator")
                         .cookie(new Cookie("AUTH_TOKEN", creatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.creator").exists())
-                .andExpect(jsonPath("$.creator.username").value("creator"));
+                .andExpect(jsonPath("$.creator.username").value("creator"))
+                .andExpect(jsonPath("$.creator.email").value("creator@example.com"));
+    }
+
+    @Test
+    void getCampaignById_ExpandCreator_AsNonPrivilegedParticipant_RedactsEmail() throws Exception {
+        // A participant who is not the creator (and not privileged) can view the campaign, but
+        // must not learn the creator's email -- same redaction GET /api/users/{id} applies.
+        addPlayerToCampaign(testCampaign, player1);
+
+        mockMvc.perform(get("/api/dh/campaigns/{id}", testCampaign.getId())
+                        .param("expand", "creator")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.creator.username").value("creator"))
+                .andExpect(jsonPath("$.creator.email").doesNotExist());
+    }
+
+    @Test
+    void getCampaignById_ExpandCreator_AsModerator_IncludesEmail() throws Exception {
+        mockMvc.perform(get("/api/dh/campaigns/{id}", testCampaign.getId())
+                        .param("expand", "creator")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.creator.username").value("creator"))
+                .andExpect(jsonPath("$.creator.email").value("creator@example.com"));
+    }
+
+    @Test
+    void getCampaignById_ExpandPlayers_AsNonPrivilegedParticipant_RedactsEmail() throws Exception {
+        // player1 sees their own email (self), but player2's email must not appear anywhere in
+        // the response -- checked against the raw body since Set ordering isn't guaranteed.
+        addPlayerToCampaign(testCampaign, player1);
+        addPlayerToCampaign(testCampaign, player2);
+
+        mockMvc.perform(get("/api/dh/campaigns/{id}", testCampaign.getId())
+                        .param("expand", "players")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(content().string(org.hamcrest.Matchers.containsString("player1@example.com")))
+                .andExpect(content().string(org.hamcrest.Matchers.not(org.hamcrest.Matchers.containsString("player2@example.com"))));
     }
 
     // ==================== CREATE CAMPAIGN TESTS ====================

@@ -23,9 +23,11 @@ import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.TransformationCardRepository;
 import com.aboff.core.repository.UserRepository;
+import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -81,6 +83,9 @@ class CampaignServiceTest {
 
     @Mock
     private AuditLogger auditLogger;
+
+    @Mock
+    private UserService userService;
 
     @Mock
     private Authentication authentication;
@@ -228,6 +233,8 @@ class CampaignServiceTest {
         CustomUserDetails userDetails = new CustomUserDetails(creator);
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        UserResponse creatorResponse = UserResponse.builder().id(1L).username("gm1").email("gm1@example.com").build();
+        when(userService.mapToUserResponse(creator, authentication)).thenReturn(creatorResponse);
 
         // Act
         CampaignResponse result = campaignService.getCampaignById(1L, "creator", authentication);
@@ -236,6 +243,54 @@ class CampaignServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getCreator()).isNotNull();
         assertThat(result.getCreator().getUsername()).isEqualTo("gm1");
+    }
+
+    @Test
+    void getCampaignById_ExpandCreator_RoutesThroughUserServiceRedaction() {
+        // Arrange -- CampaignService must never build a UserResponse itself; it has to delegate
+        // to UserService.mapToUserResponse so the email/avatarUrl/timezone redaction that
+        // GET /api/users/{id} applies is reused here too (see UserServiceTest for the redaction
+        // rules themselves).
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        UserResponse redacted = UserResponse.builder().id(1L).username("gm1").build();
+        when(userService.mapToUserResponse(creator, authentication)).thenReturn(redacted);
+
+        // Act
+        CampaignResponse result = campaignService.getCampaignById(1L, "creator", authentication);
+
+        // Assert
+        assertThat(result.getCreator()).isSameAs(redacted);
+        verify(userService).mapToUserResponse(creator, authentication);
+    }
+
+    @Test
+    void getCampaignById_ExpandGameMastersAndPlayers_RoutesThroughUserServiceRedaction() {
+        // Arrange
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        User gm = User.builder().id(4L).username("gm2").role(Role.USER).build();
+        User player = User.builder().id(5L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getGameMasters().add(gm);
+        campaign.getPlayers().add(player);
+
+        CustomUserDetails userDetails = new CustomUserDetails(creator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(userService.mapToUserResponse(any(User.class), eq(authentication)))
+                .thenAnswer(inv -> UserResponse.builder().id(((User) inv.getArgument(0)).getId()).build());
+
+        // Act
+        CampaignResponse result = campaignService.getCampaignById(1L, "gameMasters,players", authentication);
+
+        // Assert
+        assertThat(result.getGameMasters()).extracting(UserResponse::getId).containsExactlyInAnyOrder(1L, 4L);
+        assertThat(result.getPlayers()).extracting(UserResponse::getId).containsExactly(5L);
+        verify(userService, times(3)).mapToUserResponse(any(User.class), eq(authentication));
     }
 
     // ==================== CREATE CAMPAIGN TESTS ====================
@@ -1422,7 +1477,7 @@ class CampaignServiceTest {
         mockAuthenticatedUser(creator);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet(), any()))
                 .thenReturn(CharacterSheetResponse.builder().id(10L).transformationEnabled(true).build());
 
         UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
@@ -1469,7 +1524,7 @@ class CampaignServiceTest {
         mockAuthenticatedUser(creator);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet(), any()))
                 .thenReturn(CharacterSheetResponse.builder().id(10L).build());
 
         UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
@@ -1496,7 +1551,7 @@ class CampaignServiceTest {
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(transformationCardRepository.findByIdAndDeletedAtIsNull(5L)).thenReturn(Optional.of(card));
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet(), any()))
                 .thenReturn(CharacterSheetResponse.builder().id(10L).build());
 
         UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
@@ -1523,7 +1578,7 @@ class CampaignServiceTest {
         mockAuthenticatedUser(creator);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet(), any()))
                 .thenReturn(CharacterSheetResponse.builder().id(10L).build());
 
         UpdateTransformationAccessRequest request = UpdateTransformationAccessRequest.builder()
@@ -1623,7 +1678,7 @@ class CampaignServiceTest {
         mockAuthenticatedUser(creator);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet(), any()))
                 .thenReturn(CharacterSheetResponse.builder().id(10L).companionsEnabled(true).build());
 
         UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
@@ -1648,7 +1703,7 @@ class CampaignServiceTest {
         mockAuthenticatedUser(gm2);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet(), any()))
                 .thenReturn(CharacterSheetResponse.builder().id(10L).companionsEnabled(true).build());
 
         UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
@@ -1670,7 +1725,7 @@ class CampaignServiceTest {
         mockAuthenticatedUser(creator);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet(), any()))
                 .thenReturn(CharacterSheetResponse.builder().id(10L).companionsEnabled(true).build());
 
         UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
@@ -1697,7 +1752,7 @@ class CampaignServiceTest {
         mockAuthenticatedUser(creator);
         when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
         when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet(), any()))
                 .thenReturn(CharacterSheetResponse.builder().id(10L).companionsEnabled(false).build());
 
         UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()

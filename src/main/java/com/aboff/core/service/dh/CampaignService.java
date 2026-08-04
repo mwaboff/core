@@ -14,7 +14,6 @@ import com.aboff.core.model.dto.dh.response.CampaignResponse;
 import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
 import com.aboff.core.model.dto.dh.response.JoinCampaignResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
-import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.CampaignInvite;
@@ -29,6 +28,7 @@ import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.service.UserService;
 import com.aboff.core.util.ExpandUtil;
 import com.aboff.core.util.MarkdownSanitizerUtil;
 import jakarta.persistence.EntityNotFoundException;
@@ -84,6 +84,7 @@ public class CampaignService {
     private final CharacterSheetService characterSheetService;
     private final RoleHierarchyService roleHierarchyService;
     private final AuditLogger auditLogger;
+    private final UserService userService;
 
     // ==================== CRUD OPERATIONS ====================
 
@@ -1046,7 +1047,7 @@ public class CampaignService {
                         updatedSheet.isTransformationEnabled() ? "enabled" : "disabled",
                         updatedSheet.getName(), sheetId, campaignId));
 
-        return characterSheetService.toResponse(updatedSheet, Set.of());
+        return characterSheetService.toResponse(updatedSheet, Set.of(), auth);
     }
 
     /**
@@ -1092,7 +1093,7 @@ public class CampaignService {
                         updatedSheet.isCompanionsEnabled() ? "enabled" : "disabled",
                         updatedSheet.getName(), sheetId, campaignId));
 
-        return characterSheetService.toResponse(updatedSheet, Set.of());
+        return characterSheetService.toResponse(updatedSheet, Set.of(), auth);
     }
 
     /**
@@ -1336,23 +1337,23 @@ public class CampaignService {
             builder.gmNotes(campaign.getGmNotes());
         }
 
-        // Expand creator if requested
+        // Expand creator/gameMasters/players if requested. Routed through
+        // UserService.mapToUserResponse so the same email/avatarUrl/timezone redaction
+        // GET /api/users/{id} applies here too -- a non-self, non-privileged participant must
+        // not see another participant's private profile fields just by expanding the campaign.
         if (ExpandUtil.shouldExpand(expand, "creator")) {
-            User creator = campaign.getCreator();
-            builder.creator(toUserResponse(creator));
+            builder.creator(userService.mapToUserResponse(campaign.getCreator(), auth));
         }
 
-        // Expand game masters if requested
         if (ExpandUtil.shouldExpand(expand, "gameMasters")) {
             builder.gameMasters(campaign.getGameMasters().stream()
-                    .map(this::toUserResponse)
+                    .map(gm -> userService.mapToUserResponse(gm, auth))
                     .collect(Collectors.toList()));
         }
 
-        // Expand players if requested
         if (ExpandUtil.shouldExpand(expand, "players")) {
             builder.players(campaign.getPlayers().stream()
-                    .map(this::toUserResponse)
+                    .map(player -> userService.mapToUserResponse(player, auth))
                     .collect(Collectors.toList()));
         }
 
@@ -1394,24 +1395,6 @@ public class CampaignService {
         }
 
         return builder.build();
-    }
-
-    /**
-     * Converts a User entity to UserResponse DTO.
-     *
-     * @param user The user entity
-     * @return UserResponse DTO
-     */
-    private UserResponse toUserResponse(User user) {
-        return UserResponse.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .avatarUrl(user.getAvatarUrl())
-                .timezone(user.getTimezone())
-                .createdAt(user.getCreatedAt())
-                .lastModifiedAt(user.getLastModifiedAt())
-                .build();
     }
 
     /**

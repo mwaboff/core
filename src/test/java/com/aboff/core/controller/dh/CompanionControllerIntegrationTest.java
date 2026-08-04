@@ -133,28 +133,37 @@ class CompanionControllerIntegrationTest {
     }
 
     @Test
-    void companionSecurity_OtherUserCannotListSomeoneElsesCompanions_Returns403() throws Exception {
+    void companionSecurity_OtherUserCanListSomeoneElsesCompanions() throws Exception {
+        // Reads are now open to any authenticated user, matching the character sheet that already
+        // embeds these same companions unconditionally via ?expand=companions -- see
+        // CompanionService's class javadoc. characterSheetId scoping (asserted above in
+        // companionSecurity_ListWithoutCharacterSheetId_Returns400) is what still prevents the
+        // original unfiltered-listing leak; ownership is no longer required for a read.
         createCompanion("Wolf", testSheet);
 
         mockMvc.perform(get("/api/dh/companions")
                         .param("characterSheetId", testSheet.getId().toString())
                         .cookie(new Cookie("AUTH_TOKEN", player2Token)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].name").value("Wolf"));
     }
 
     @Test
-    void companionSecurity_ExpandExperiencesCannotBeUsedToLeakAnotherUsersData() throws Exception {
+    void companionSecurity_ExpandExperiencesVisibleToAnyAuthenticatedUser() throws Exception {
+        // Companion Experience text is game data on a public sheet, same as everything else
+        // ?expand=companions,experiences already exposes through the character sheet endpoint --
+        // gating the dedicated companion endpoint more strictly than the sheet that embeds it was
+        // the inconsistency this fix corrects, not a protection worth keeping.
         Companion companion = createCompanion("Wolf", testSheet);
         addExperienceToCompanion(companion, "Tracking");
 
-        // The previous vulnerability: expand=experiences on an unfiltered/unauthenticated list
-        // returned every user's companions and their Experience text. Confirm player2 is
-        // rejected outright, before any experience data could be serialized.
         mockMvc.perform(get("/api/dh/companions")
                         .param("characterSheetId", testSheet.getId().toString())
                         .param("expand", "experiences")
                         .cookie(new Cookie("AUTH_TOKEN", player2Token)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[0].experiences[0].description").value("Tracking"));
     }
 
     @Test
@@ -209,12 +218,15 @@ class CompanionControllerIntegrationTest {
     }
 
     @Test
-    void companionSecurity_OtherUserCannotGetSomeoneElsesCompanion_Returns403() throws Exception {
+    void companionSecurity_OtherUserCanGetSomeoneElsesCompanion() throws Exception {
+        // Same relaxation as the list endpoint -- a single companion read matches the public
+        // sheet that already embeds it.
         Companion companion = createCompanion("Wolf", testSheet);
 
         mockMvc.perform(get("/api/dh/companions/{id}", companion.getId())
                         .cookie(new Cookie("AUTH_TOKEN", player2Token)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Wolf"));
     }
 
     @Test
