@@ -47,6 +47,7 @@ public enum AuditAction {
     CAMPAIGN_COUNTDOWN_UPDATED("Campaign countdown updated"),
     CAMPAIGN_COUNTDOWN_DELETED("Campaign countdown deleted"),
     CAMPAIGN_TRANSFORMATION_ACCESS_UPDATED("Campaign transformation access updated"),
+    CAMPAIGN_COMPANION_ACCESS_UPDATED("Campaign companion access updated"),
 
     // Character Sheet
     CHARACTER_CREATED("Character created"),
