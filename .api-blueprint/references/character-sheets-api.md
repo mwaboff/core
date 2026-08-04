@@ -902,6 +902,7 @@ Nested options compose freely with any item/card expand options. Examples:
 | `?expand=ancestryCards,features,expansion`          | Returns ancestry cards with full features, and each item/card's expansion populated |
 | `?expand=domainCards,features,costTags,modifiers`   | Returns domain cards with features, their cost tags, and their modifiers all expanded |
 | `?expand=owner,experiences,inventoryWeapons,inventoryArmors` | Returns owner, experiences, and inventory weapon/armor details |
+| `?expand=companions`                                         | Returns a `companions` array with one full `CompanionResponse` per active companion. Supports nested expand keys understood by `references/companions-api.md` (e.g. `?expand=companions,experiences` also expands each companion's experiences). |
 | `?expand=class`                                             | Returns a `classes` array with one full class object per class, each with ID lists for features, domains, and questions |
 | `?expand=class,hopeFeatures,classFeatures`                  | Returns every class object with full hope and class feature objects |
 
@@ -1147,6 +1148,9 @@ Returned by `GET /api/dh/character-sheets/{id}/notes`.
 | `inventoryItems`         | InventoryLootResponse[]   | Yes            | Always included. Nested `loot` expanded with `?expand=inventoryItems`     |
 | `experienceIds`          | long[]                    | Yes            | --                                         |
 | `experiences`            | ExperienceResponse[]      | No             | Only with `?expand=experiences`            |
+| `companionsEnabled`      | boolean                   | Yes            | Whether a GM has granted this character access to **creating new** companions. `false` by default. Unlike `transformationEnabled`, this never hides a companion that already exists — see `references/companions-api.md`. |
+| `companionGrantedHopeSlots` | integer                | Yes            | Bonus Hope slots granted by this character's active companions' "Light in the Dark" Training picks. Derived fresh on every read, never stored; `0` if none. |
+| `companions`             | CompanionResponse[]       | No             | Only with `?expand=companions`. Active (non-soft-deleted) companions only. See `references/companions-api.md`. |
 | `notes`                  | string                    | No             | Free-text markdown notes about the character. Server sanitizes embedded HTML and neutralizes dangerous URI schemes. Omitted if null. Max 10,000 chars. |
 | `createdAt`              | datetime                  | Yes            | ISO 8601 format                            |
 | `lastModifiedAt`         | datetime                  | Yes            | ISO 8601 format                            |

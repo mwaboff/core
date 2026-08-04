@@ -139,7 +139,10 @@ Retrieves a single experience by ID.
 
 Creates a new experience. The authenticated user is recorded as the creator.
 
-**Authorization:** Any authenticated user
+**Authorization:** The owning character sheet's owner OR MODERATOR/ADMIN/OWNER role -- for a
+companion experience (`companionId`), "owning character sheet" is the companion's own
+`characterSheet`. (Previously the `characterSheetId` branch performed no check at all; fixed
+alongside the companions character-sheet integration work.)
 
 **Request Body:**
 
@@ -189,6 +192,7 @@ Or for a companion experience:
 **Error Responses:**
 - `400 Bad Request` -- Missing required fields (description blank)
 - `401 Unauthorized` -- Missing or invalid JWT token
+- `403 Forbidden` -- Caller is neither the owning character sheet's owner nor MODERATOR/ADMIN/OWNER
 - `404 Not Found` -- Referenced character sheet or companion does not exist
 
 ---

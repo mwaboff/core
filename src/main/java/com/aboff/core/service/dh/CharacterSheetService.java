@@ -91,6 +91,8 @@ public class CharacterSheetService {
     private final MartialStanceRepository martialStanceRepository;
     private final TransformationCardService transformationCardService;
     private final MartialStanceService martialStanceService;
+    private final CompanionRepository companionRepository;
+    private final CompanionService companionService;
 
     /**
      * Maximum value for Vampire "Feed" tokens ("You can hold up to 6 tokens at a time").
@@ -1217,6 +1219,18 @@ public class CharacterSheetService {
             builder.vaultDomainCards(sheet.getCharacterSheetDomainCards().stream()
                     .filter(csdc -> !csdc.getEquipped())
                     .map(csdc -> toDomainCardResponse(csdc.getDomainCard(), expand))
+                    .collect(Collectors.toList()));
+        }
+
+        // Companions: gate flag and derived Hope slots are always included; active companions
+        // are fetched once (soft-deleted ones are excluded by the repository query) since the
+        // Hope slot count needs them regardless of whether the full list is expanded.
+        List<Companion> activeCompanions = companionRepository.findActiveByCharacterSheetId(sheet.getId());
+        builder.companionsEnabled(sheet.isCompanionsEnabled());
+        builder.companionGrantedHopeSlots(CompanionDerivationService.companionGrantedHopeSlots(activeCompanions));
+        if (ExpandUtil.shouldExpand(expand, "companions")) {
+            builder.companions(activeCompanions.stream()
+                    .map(companion -> companionService.toResponse(companion, expand))
                     .collect(Collectors.toList()));
         }
 

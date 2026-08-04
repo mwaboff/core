@@ -134,10 +134,10 @@ public class ExperienceService {
     /**
      * Creates a new experience for a character or companion.
      * <p>
-     * If companionId is provided, only the character sheet owner or users with
-     * MODERATOR/ADMIN/OWNER role can create the experience. If characterSheetId
-     * is provided, any authenticated user can create an experience. The creating
-     * user is recorded as the createdBy user.
+     * Either way, only the owning character sheet's owner or users with
+     * MODERATOR/ADMIN/OWNER role can create the experience -- for a companion experience, the
+     * owning character sheet is the companion's own {@code characterSheet}. The creating user
+     * is recorded as the createdBy user.
      * </p>
      *
      * @param request The creation request containing experience details
@@ -145,7 +145,7 @@ public class ExperienceService {
      * @return ExperienceResponse containing the created experience
      * @throws EntityNotFoundException if the character sheet or companion is not found
      * @throws IllegalArgumentException if both or neither characterSheetId and companionId are provided
-     * @throws InsufficientPermissionsException if the user lacks permission to create (companion only)
+     * @throws InsufficientPermissionsException if the user lacks permission to create
      */
     @Transactional
     public ExperienceResponse createExperience(CreateExperienceRequest request, Authentication auth) {
@@ -173,20 +173,16 @@ public class ExperienceService {
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Companion not found with id: " + request.getCompanionId()));
 
-            // Validate access - must be character sheet owner or moderator+
-            Long ownerId = companion.getCharacterSheet().getOwner().getId();
-            boolean isOwner = ownerId.equals(userId);
-            boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
-
-            if (!isOwner && !isModerator) {
-                throw new InsufficientPermissionsException(
-                        "You do not have permission to create an experience for this companion");
-            }
+            requireOwnerOrModerator(companion.getCharacterSheet().getOwner().getId(), userDetails,
+                    "create an experience for this companion");
         } else {
             // Handle character sheet experience
             characterSheet = characterSheetRepository.findActiveById(request.getCharacterSheetId())
                     .orElseThrow(() -> new EntityNotFoundException(
                             "CharacterSheet not found with id: " + request.getCharacterSheetId()));
+
+            requireOwnerOrModerator(characterSheet.getOwner().getId(), userDetails,
+                    "create an experience for this character sheet");
         }
 
         // Build the experience
@@ -278,6 +274,26 @@ public class ExperienceService {
         auditLogger.log(AuditAction.EXPERIENCE_DELETED,
                 AuditContext.forUser(auth).build(),
                 "experience_id: " + id);
+    }
+
+    /**
+     * Validates that the current user is the given owner or holds a MODERATOR/ADMIN/OWNER
+     * role, throwing otherwise. Shared by both branches of {@link #createExperience}: the
+     * character-sheet branch previously performed no check at all while the companion branch
+     * did, letting any authenticated user create an experience on someone else's sheet.
+     *
+     * @param ownerId The ID of the user who owns the resource being acted on
+     * @param userDetails The current user's details
+     * @param operation Describes what is being attempted, for the error message
+     * @throws InsufficientPermissionsException if the current user is neither the owner nor privileged
+     */
+    private void requireOwnerOrModerator(Long ownerId, CustomUserDetails userDetails, String operation) {
+        boolean isOwner = ownerId.equals(userDetails.getUserId());
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
+
+        if (!isOwner && !isModerator) {
+            throw new InsufficientPermissionsException("You do not have permission to " + operation);
+        }
     }
 
     /**

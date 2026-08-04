@@ -27,6 +27,7 @@ import java.util.List;
  * - inventoryWeapons: Full weapon objects nested in inventory weapon entries
  * - inventoryArmors: Full armor objects nested in inventory armor entries
  * - inventoryItems: Full loot objects nested in inventory loot entries
+ * - companions: Full companion objects for this character's active companions
  * </p>
  */
 @Data
@@ -441,6 +442,28 @@ public class CharacterSheetResponse {
      * Full experience objects (included only when ?expand=experiences is specified)
      */
     private List<ExperienceResponse> experiences;
+
+    // ========== Companions ==========
+
+    /**
+     * Whether the Game Master has granted this character access to creating new companions.
+     * Always included. Unlike {@code transformationEnabled}, this never hides a companion
+     * that already exists -- it only gates whether a new one can be created.
+     */
+    private boolean companionsEnabled;
+
+    /**
+     * The number of bonus Hope slots granted by this character's active companions' "Light in
+     * the Dark" Training picks. Always included, derived fresh on every read -- never stored,
+     * so deleting a companion or reversing a Training pick is reflected with no extra code.
+     */
+    private Integer companionGrantedHopeSlots;
+
+    /**
+     * Full companion objects for this character's active (non-soft-deleted) companions.
+     * Included only when ?expand=companions is specified.
+     */
+    private List<CompanionResponse> companions;
 
     // ========== Timestamps ==========
 

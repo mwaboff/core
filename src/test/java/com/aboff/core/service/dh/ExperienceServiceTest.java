@@ -231,6 +231,7 @@ class ExperienceServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(userRepository.findById(2L)).thenReturn(Optional.of(creator));
+        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(true);
         when(experienceRepository.save(any(Experience.class))).thenReturn(savedExp);
 
         // Act
@@ -242,6 +243,76 @@ class ExperienceServiceTest {
         assertThat(result.getDescription()).isEqualTo("Survived dragon attack");
         assertThat(result.getModifier()).isEqualTo(2);
         verify(experienceRepository).save(any(Experience.class));
+    }
+
+    @Test
+    void createExperience_AsCharacterSheetOwner_CreatesExperience() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CreateExperienceRequest request = CreateExperienceRequest.builder()
+                .characterSheetId(1L)
+                .description("Survived dragon attack")
+                .modifier(2)
+                .build();
+
+        Experience savedExp = Experience.builder()
+                .id(1L)
+                .characterSheet(sheet)
+                .createdBy(owner)
+                .description("Survived dragon attack")
+                .modifier(2)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(experienceRepository.save(any(Experience.class))).thenReturn(savedExp);
+
+        // Act
+        ExperienceResponse result = experienceService.createExperience(request, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getDescription()).isEqualTo("Survived dragon attack");
+        verify(experienceRepository).save(any(Experience.class));
+    }
+
+    @Test
+    void createExperience_CharacterSheetOwnedByOtherUser_ThrowsInsufficientPermissionsException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        User otherUser = User.builder().id(3L).username("player2").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CreateExperienceRequest request = CreateExperienceRequest.builder()
+                .characterSheetId(1L)
+                .description("Trying to add an experience to someone else's sheet")
+                .modifier(2)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(otherUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(otherUser));
+
+        // Act & Assert
+        assertThatThrownBy(() -> experienceService.createExperience(request, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class)
+                .hasMessageContaining("You do not have permission to create an experience for this character sheet");
+
+        verify(experienceRepository, never()).save(any(Experience.class));
     }
 
     @Test
@@ -273,6 +344,7 @@ class ExperienceServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(userRepository.findById(2L)).thenReturn(Optional.of(creator));
+        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(true);
         when(experienceRepository.save(any(Experience.class))).thenReturn(savedExp);
 
         // Act

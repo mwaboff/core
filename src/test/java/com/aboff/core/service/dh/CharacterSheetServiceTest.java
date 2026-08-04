@@ -11,6 +11,7 @@ import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.entity.dh.Class;
+import com.aboff.core.model.enums.CompanionTrainingOption;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
@@ -138,6 +139,12 @@ class CharacterSheetServiceTest {
 
     @Mock
     private MartialStanceService martialStanceService;
+
+    @Mock
+    private CompanionRepository companionRepository;
+
+    @Mock
+    private CompanionService companionService;
 
     @Mock
     private Authentication authentication;
@@ -3743,5 +3750,183 @@ class CharacterSheetServiceTest {
         verify(characterSheetRepository).save(captor.capture());
         assertThat(captor.getValue().getNotes()).doesNotContain("javascript:");
         assertThat(captor.getValue().getNotes()).contains("unsafe:");
+    }
+
+    // ==================== COMPANIONS TESTS ====================
+
+    @Test
+    void getCharacterSheetById_CompanionsEnabledFalse_ReflectsFlag() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .companionsEnabled(false)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of());
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.isCompanionsEnabled()).isFalse();
+        assertThat(result.getCompanionGrantedHopeSlots()).isZero();
+        assertThat(result.getCompanions()).isNull();
+    }
+
+    @Test
+    void getCharacterSheetById_CompanionsEnabledTrue_ReflectsFlag() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .companionsEnabled(true)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of());
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.isCompanionsEnabled()).isTrue();
+    }
+
+    @Test
+    void getCharacterSheetById_WithActiveCompanions_SumsCompanionGrantedHopeSlots() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        CompanionTraining lightInTheDark = CompanionTraining.builder()
+                .option(CompanionTrainingOption.LIGHT_IN_THE_DARK)
+                .acquiredAtLevel(2)
+                .build();
+        Companion companion = Companion.builder()
+                .id(7L)
+                .characterSheet(sheet)
+                .name("Rufus")
+                .attackName("Bite")
+                .trainings(new HashSet<>(List.of(lightInTheDark)))
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(companion));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getCompanionGrantedHopeSlots()).isEqualTo(1);
+        // Not expanded, so the full companion list should not be populated even though active companions exist
+        assertThat(result.getCompanions()).isNull();
+    }
+
+    @Test
+    void getCharacterSheetById_WithCompanionsExpansion_IncludesFullCompanionObjects() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        Companion companion = Companion.builder()
+                .id(7L)
+                .characterSheet(sheet)
+                .name("Rufus")
+                .attackName("Bite")
+                .build();
+
+        CompanionResponse companionResponse = CompanionResponse.builder()
+                .id(7L)
+                .characterSheetId(1L)
+                .name("Rufus")
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(companion));
+        when(companionService.toResponse(eq(companion), anySet())).thenReturn(companionResponse);
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "companions");
+
+        // Assert
+        assertThat(result.getCompanions()).hasSize(1);
+        assertThat(result.getCompanions().get(0).getName()).isEqualTo("Rufus");
+        verify(companionService).toResponse(eq(companion), anySet());
+    }
+
+    @Test
+    void getCharacterSheetById_QueriesOnlyActiveCompanions_SoftDeletedExcludedByRepository() {
+        // Arrange -- the repository query itself excludes soft-deleted companions; this test
+        // asserts the service calls the "active" overload rather than the unfiltered one.
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of());
+
+        // Act
+        characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        verify(companionRepository).findActiveByCharacterSheetId(1L);
+        verify(companionRepository, never()).findByCharacterSheetId(anyLong());
     }
 }

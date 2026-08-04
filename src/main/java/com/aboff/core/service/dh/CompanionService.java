@@ -431,12 +431,20 @@ public class CompanionService {
      * {@code CompanionDerivationService}), and the full Training list. Optionally expands full
      * relationship objects based on the expand set.
      * </p>
+     * <p>
+     * Public so other services can delegate to this single mapping (e.g.
+     * {@code CharacterSheetService.toResponse} builds its {@code companions} expansion by
+     * calling this method per companion), the same delegate-and-pass-expand-down pattern
+     * {@code CharacterSheetService.toWeaponResponse} uses for weapons. Do not re-implement this
+     * mapping elsewhere -- a duplicated copy in {@code ExperienceService} already drifted out of
+     * sync with the real field names once.
+     * </p>
      *
      * @param companion The companion entity
      * @param expand Set of relationships to expand
      * @return CompanionResponse DTO
      */
-    private CompanionResponse toResponse(Companion companion, Set<String> expand) {
+    public CompanionResponse toResponse(Companion companion, Set<String> expand) {
         CompanionResponse.CompanionResponseBuilder builder = CompanionResponse.builder()
                 .id(companion.getId())
                 .characterSheetId(companion.getCharacterSheet().getId())
