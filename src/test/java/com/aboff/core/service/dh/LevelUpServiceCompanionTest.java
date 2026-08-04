@@ -982,6 +982,49 @@ class LevelUpServiceCompanionTest {
     }
 
     @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_TierTransitionSucceedsWithNoExperiencePayload() {
+        // The forced Experience grant flows from the same source as the Training pick -- the
+        // Companion feature is what puts a character's hands on the Ranger Companion sheet, and
+        // "whenever you gain a new Experience, your companion also gains one" (core-01:1319) is
+        // a build step on that sheet. Level 1 -> 2 is a tier transition, which is exactly the
+        // case that used to force a grant here.
+        CharacterSheet bareSheet = buildSheet(1);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(bareSheet));
+        Companion gmGrantedPet = buildCompanion(5L, bareSheet);
+        gmGrantedPet.setOrigin(CompanionOrigin.GM_GRANTED);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(gmGrantedPet));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest().toBuilder()
+                .newExperienceDescription("Survived the dragon attack")
+                .build(); // no companionExperiences submitted
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(gmGrantedPet.getExperiences()).isEmpty();
+        assertThat(bareSheet.getLevel()).isEqualTo(2);
+    }
+
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_SubmittingExperienceGrantAnywayThrows() {
+        CharacterSheet bareSheet = buildSheet(1);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(bareSheet));
+        Companion gmGrantedPet = buildCompanion(5L, bareSheet);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(gmGrantedPet));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest().toBuilder()
+                .newExperienceDescription("Survived the dragon attack")
+                .companionExperiences(List.of(CompanionExperienceGrant.builder()
+                        .companionId(5L).description("Loyal pet").build()))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("not eligible for an Experience grant");
+    }
+
+    @Test
     void getLevelUpOptions_NonBeastboundCharacterWithGmGrantedCompanion_ExcludesCompanionFromTrainingStep() {
         CharacterSheet bareSheet = buildSheet(2);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(bareSheet));

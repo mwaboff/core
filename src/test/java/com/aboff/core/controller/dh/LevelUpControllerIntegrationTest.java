@@ -335,9 +335,9 @@ class LevelUpControllerIntegrationTest {
      * {@code testSheet} here is the plain Pyromancer Wizard from {@code setUp()} -- no Companion
      * feature -- with a GM-granted companion attached; the level-up must succeed with zero
      * companion Training picks in the payload rather than demanding one. Uses a non-tier
-     * transition (2 -&gt; 3) so the unrelated, still-required "exactly 1 companion Experience
-     * grant per tier transition" rule (untouched by this fix -- only the Training gate is
-     * scoped to the Companion feature) doesn't also need satisfying here.
+     * transition (2 -&gt; 3) to isolate the Training gate; see the sibling test below for the
+     * tier-transition Experience-grant gate, which is scoped by the same Companion-feature
+     * condition.
      */
     @Test
     void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_SucceedsWithNoTrainingPayload() throws Exception {
@@ -358,6 +358,59 @@ class LevelUpControllerIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.characterSheet.level").value(3));
+    }
+
+    /**
+     * The case that actually mattered: a tier transition (1 -&gt; 2, {@code testSheet}'s default
+     * starting level) used to force exactly one companion Experience grant regardless of class.
+     * "Whenever you gain a new Experience, your companion also gains one" (core-01:1319) is a
+     * Ranger Companion sheet build step, gated by the same Companion feature as the Training
+     * pick -- a Wizard's GM-granted companion gets neither, and the level-up must succeed with
+     * no companion Experience in the payload.
+     */
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_TierTransitionSucceedsWithNoExperiencePayload() throws Exception {
+        createCompanion("Whiskers", testSheet);
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .newExperienceDescription("Survived the dragon attack")
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.characterSheet.level").value(2));
+    }
+
+    /**
+     * Submitting a companion Experience grant anyway, for a companion on a character without the
+     * Companion feature, must be rejected rather than silently accepted or silently ignored.
+     */
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_SubmittingExperienceGrantAnywayReturns400() throws Exception {
+        Companion companion = createCompanion("Whiskers", testSheet);
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .newExperienceDescription("Survived the dragon attack")
+                .companionExperiences(List.of(CompanionExperienceGrant.builder()
+                        .companionId(companion.getId()).description("Loyal pet").build()))
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
     }
 
     // ==================== BOOST NEW EXPERIENCE TESTS ====================
