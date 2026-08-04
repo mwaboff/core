@@ -1044,7 +1044,12 @@ public class CharacterSheetService {
                 .id(sheet.getId())
                 .name(sheet.getName())
                 .pronouns(sheet.getPronouns())
-                .notes(hasOwnerOrModeratorAccess(sheet, auth) ? sheet.getNotes() : null)
+                // Presence of this field is the client's authorization signal: an authorized
+                // viewer always receives it, as "" when nothing is written, so an owner with
+                // empty notes still gets an editor. NON_NULL strips null but keeps "".
+                .notes(hasOwnerOrModeratorAccess(sheet, auth)
+                        ? (sheet.getNotes() != null ? sheet.getNotes() : "")
+                        : null)
                 .level(sheet.getLevel())
                 .proficiency(sheet.getProficiency())
                 .evasion(sheet.getEvasion())
