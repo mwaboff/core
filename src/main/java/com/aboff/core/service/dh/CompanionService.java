@@ -45,11 +45,18 @@ import java.util.Set;
  * and relationship expansion.
  * </p>
  * <p>
- * Access control (owner-or-privileged, uniformly on every operation including reads):
- * a caller must be the owning character sheet's owner OR hold MODERATOR/ADMIN/OWNER role.
- * A companion previously leaked every user's companions -- including Experience text -- to
- * any logged-in visitor via an unauthenticated, unfiltered list/get; every method here is
- * scoped to a specific character sheet and access-checked against it.
+ * Access control:
+ * - Read ({@link #getAllCompanions}, {@link #getCompanionById}): any authenticated user. This
+ *   matches the character sheet the companion belongs to, which is itself a public read --
+ *   {@code CharacterSheetService.toResponse} embeds these same companion objects unconditionally
+ *   whenever {@code ?expand=companions} is requested, so gating the dedicated companion
+ *   endpoints more strictly than the sheet that already exposes them was an inconsistency, not
+ *   an extra protection. {@code characterSheetId} remains required on {@link #getAllCompanions}:
+ *   that scoping is what closed the original bug where an unfiltered {@code findAll()} leaked
+ *   every user's companions -- including Experience text -- to any logged-in visitor. Dropping
+ *   ownership is safe; dropping the scope requirement would not be.
+ * - Write (create, update, delete, both Training endpoints): the character sheet owner OR a
+ *   user with MODERATOR/ADMIN/OWNER role.
  * </p>
  */
 @Service
@@ -64,8 +71,9 @@ public class CompanionService {
     /**
      * Retrieves a paginated list of a character sheet's active (non-soft-deleted) companions.
      * <p>
-     * {@code characterSheetId} is required: this endpoint is scoped to one character sheet and
-     * access-checked against it, never a global unfiltered listing.
+     * {@code characterSheetId} is required: this endpoint is scoped to one character sheet,
+     * never a global unfiltered listing. Any authenticated user may call this, matching the
+     * public read on the character sheet that already embeds these same companions.
      * </p>
      *
      * @param page Zero-based page number
@@ -76,7 +84,6 @@ public class CompanionService {
      * @return Paginated response containing the character sheet's active companions
      * @throws IllegalStateException if {@code characterSheetId} is null
      * @throws EntityNotFoundException if the character sheet is not found or is deleted
-     * @throws InsufficientPermissionsException if the caller lacks permission to view the sheet's companions
      */
     @Transactional(readOnly = true)
     public PagedResponse<CompanionResponse> getAllCompanions(
@@ -90,9 +97,8 @@ public class CompanionService {
             throw new IllegalStateException("characterSheetId is required");
         }
 
-        CharacterSheet characterSheet = characterSheetRepository.findActiveById(characterSheetId)
+        characterSheetRepository.findActiveById(characterSheetId)
                 .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + characterSheetId));
-        validateSheetAccess(characterSheet, auth, "view companions for");
 
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
@@ -113,18 +119,20 @@ public class CompanionService {
 
     /**
      * Retrieves a single active (non-soft-deleted) companion by ID.
+     * <p>
+     * Any authenticated user may call this, matching the public read on the character sheet
+     * that already embeds this same companion.
+     * </p>
      *
      * @param id The companion ID
      * @param expand Comma-separated list of relationships to expand (characterSheet, experiences)
      * @param auth The authentication object containing the current user
      * @return CompanionResponse containing the companion details
      * @throws EntityNotFoundException if the companion is not found or is soft-deleted
-     * @throws InsufficientPermissionsException if the caller lacks permission to view the companion
      */
     @Transactional(readOnly = true)
     public CompanionResponse getCompanionById(Long id, String expand, Authentication auth) {
         Companion companion = findActiveCompanionOrThrow(id);
-        validateAccess(companion, auth, "view");
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
         return toResponse(companion, expandSet);

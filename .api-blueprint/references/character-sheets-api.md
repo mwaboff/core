@@ -715,7 +715,7 @@ curl -X DELETE -b "AUTH_TOKEN=<token>" \
 GET /api/dh/character-sheets/{id}/notes
 ```
 
-**Authorization:** Any authenticated user.
+**Authorization:** Character sheet owner OR MODERATOR/ADMIN/OWNER role -- the same rule enforced by `PATCH .../notes` below. Notes are a private field; unlike the rest of the character sheet, they are not visible to other viewers.
 
 Returns a slim response containing only the character sheet ID, current notes, and the last modified timestamp. Useful for fetching notes without loading the full character sheet.
 
@@ -746,10 +746,11 @@ curl -b "AUTH_TOKEN=<token>" \
 
 **Error Status Codes:**
 
-| Status | Condition                               |
-|--------|-----------------------------------------|
-| `401`  | Missing or invalid authentication token |
-| `404`  | Character sheet not found or soft-deleted |
+| Status | Condition                                    |
+|--------|-----------------------------------------------|
+| `401`  | Missing or invalid authentication token       |
+| `403`  | Not the character owner and not MODERATOR+    |
+| `404`  | Character sheet not found or soft-deleted     |
 
 ---
 
@@ -1124,7 +1125,7 @@ Returned by `GET /api/dh/character-sheets/{id}/notes`.
 | `activeMartialStance`    | MartialStanceResponse     | No             | Only with `?expand=activeMartialStance`.   |
 | `ownerId`                | long                      | Yes            | --                                         |
 | `ownerName`              | string                    | Yes            | Username of the owner                      |
-| `owner`                  | UserResponse              | No             | Only with `?expand=owner`                  |
+| `owner`                  | UserResponse              | No             | Only with `?expand=owner`. `email`/`timezone`/`lastModifiedAt` are redacted (omitted) unless the viewer is the owner themself or MODERATOR+, same as `GET /api/users/{id}`. `username`/`avatarUrl` stay visible either way -- needed to show whose sheet it is. |
 | `communityCardIds`       | long[]                    | Yes            | --                                         |
 | `communityCards`         | CommunityCardResponse[]   | No             | Only with `?expand=communityCards`         |
 | `ancestryCardIds`        | long[]                    | Yes            | --                                         |
@@ -1151,7 +1152,7 @@ Returned by `GET /api/dh/character-sheets/{id}/notes`.
 | `companionsEnabled`      | boolean                   | Yes            | Whether a GM has granted this character access to **creating new** companions. `false` by default. Unlike `transformationEnabled`, this never hides a companion that already exists — see `references/companions-api.md`. |
 | `companionGrantedHopeSlots` | integer                | Yes            | Bonus Hope slots granted by this character's active companions' "Light in the Dark" Training picks. Derived fresh on every read, never stored; `0` if none. |
 | `companions`             | CompanionResponse[]       | No             | Only with `?expand=companions`. Active (non-soft-deleted) companions only. See `references/companions-api.md`. |
-| `notes`                  | string                    | No             | Free-text markdown notes about the character. Server sanitizes embedded HTML and neutralizes dangerous URI schemes. Omitted if null. Max 10,000 chars. |
+| `notes`                  | string                    | No             | Free-text markdown notes about the character. Server sanitizes embedded HTML and neutralizes dangerous URI schemes. **Private field**: omitted for a viewer who is neither the owner nor MODERATOR+, in addition to being omitted whenever the stored value is null. Max 10,000 chars. |
 | `createdAt`              | datetime                  | Yes            | ISO 8601 format                            |
 | `lastModifiedAt`         | datetime                  | Yes            | ISO 8601 format                            |
 | `deletedAt`              | datetime                  | No             | Omitted if null (not soft-deleted)         |

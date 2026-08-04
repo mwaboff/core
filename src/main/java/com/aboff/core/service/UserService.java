@@ -228,6 +228,39 @@ public class UserService {
     }
 
     /**
+     * Maps a User entity to a redacted UserResponse DTO for a given viewer.
+     * <p>
+     * This is the single source of truth for hiding a user's private profile fields
+     * ({@code email}, {@code avatarUrl}, {@code timezone}) from other users. Callers outside
+     * this service that need to embed a {@link UserResponse} in another response
+     * (e.g. a character sheet's {@code expand=owner} or a campaign's
+     * {@code expand=creator,gameMasters,players}) must route through this method rather than
+     * building a {@code UserResponse} directly, so a non-self, non-privileged viewer never
+     * receives another user's private fields.
+     * </p>
+     * <p>
+     * Full profile fields are included when the viewer is the target user themself or holds
+     * MODERATOR/ADMIN/OWNER role. A {@code null} viewer authentication (unauthenticated context)
+     * is treated as neither, so the response is fully redacted.
+     * </p>
+     *
+     * @param targetUser the user entity being mapped
+     * @param viewerAuth the authentication object for the viewer; may be null
+     * @return the target user's response DTO, redacted unless the viewer is self or privileged
+     */
+    public UserResponse mapToUserResponse(User targetUser, Authentication viewerAuth) {
+        boolean isOwnProfile = false;
+        boolean hasPrivilegedRole = false;
+
+        if (viewerAuth != null && viewerAuth.getPrincipal() instanceof CustomUserDetails viewerDetails) {
+            isOwnProfile = viewerDetails.getUserId().equals(targetUser.getId());
+            hasPrivilegedRole = roleHierarchyService.hasModeratorOrHigher(viewerDetails);
+        }
+
+        return mapToUserResponse(targetUser, isOwnProfile || hasPrivilegedRole, hasPrivilegedRole);
+    }
+
+    /**
      * Extracts User entity from Spring Security Authentication.
      *
      * @param authentication the authentication object

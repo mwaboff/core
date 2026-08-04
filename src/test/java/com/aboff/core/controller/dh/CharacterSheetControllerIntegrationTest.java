@@ -301,12 +301,34 @@ class CharacterSheetControllerIntegrationTest {
 
     @Test
     void getCharacterSheetById_WithExpansion_IncludesAllRelationships() throws Exception {
-        // Act & Assert - Test owner expansion
+        // Act & Assert - Test owner expansion for the owner themself: full profile, email included
         mockMvc.perform(get("/api/dh/character-sheets/{id}", testSheet.getId())
                         .param("expand", "owner")
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.owner").exists())
+                .andExpect(jsonPath("$.owner.username").value("player1"))
+                .andExpect(jsonPath("$.owner.email").value("player1@example.com"));
+    }
+
+    @Test
+    void getCharacterSheetById_ExpandOwner_AsOtherUser_RedactsEmail() throws Exception {
+        // A non-owner, non-privileged viewer must not learn the owner's email just by knowing
+        // the sheet id -- username/avatar stay visible, private fields do not.
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .param("expand", "owner")
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.owner.username").value("player1"))
+                .andExpect(jsonPath("$.owner.email").doesNotExist());
+    }
+
+    @Test
+    void getCharacterSheetById_ExpandOwner_AsModerator_IncludesEmail() throws Exception {
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .param("expand", "owner")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.owner.username").value("player1"))
                 .andExpect(jsonPath("$.owner.email").value("player1@example.com"));
     }
@@ -1017,16 +1039,30 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     @Test
-    void getNotes_AsOtherUser_Returns200WithNotes() throws Exception {
+    void getNotes_AsOtherUser_Returns403() throws Exception {
         // Arrange
         testSheet.setNotes("Some notes.");
         characterSheetRepository.save(testSheet);
 
-        // Act & Assert — non-owner authenticated user can read notes (same as GET by id)
+        // Act & Assert — notes are private: a non-owner, non-moderator viewer is rejected, unlike
+        // the general GET by id (which is intentionally public for game data but omits notes).
         mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId())
                         .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void getNotes_AsModerator_Returns200WithNotes() throws Exception {
+        // Arrange
+        testSheet.setNotes("Some notes.");
+        characterSheetRepository.save(testSheet);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/character-sheets/{id}/notes", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(testSheet.getId()));
+                .andExpect(jsonPath("$.id").value(testSheet.getId()))
+                .andExpect(jsonPath("$.notes").value("Some notes."));
     }
 
     @Test
@@ -1285,6 +1321,21 @@ class CharacterSheetControllerIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.notes").value("x"));
+    }
+
+    @Test
+    void getCharacterSheetById_AsOtherUser_OmitsNotes() throws Exception {
+        // Arrange
+        testSheet.setNotes("Private notes");
+        characterSheetRepository.save(testSheet);
+
+        // Act & Assert — the general GET is intentionally public game-data, but `notes` is a
+        // private field on it and must be withheld from a non-owner, non-moderator viewer, or the
+        // 403 on the dedicated /notes endpoint would be pointless.
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.notes").doesNotExist());
     }
 
     // ==================== HELPER METHODS ====================

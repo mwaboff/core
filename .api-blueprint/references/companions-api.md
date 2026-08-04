@@ -12,7 +12,7 @@ Companions are per-character entities in the Daggerheart TTRPG system, granted p
 
 **Authentication:** All endpoints require a valid JWT token in an `AUTH_TOKEN` HttpOnly cookie.
 
-**Access Control:** Ownership-based, uniformly on every endpoint including reads: the caller must be the owning character sheet's owner OR hold MODERATOR/ADMIN/OWNER role. This is enforced in the service layer, not via `@PreAuthorize`. `GET /api/dh/companions` always requires a `characterSheetId` filter -- there is no unfiltered global listing.
+**Access Control:** Reads (`GET /api/dh/companions`, `GET /api/dh/companions/{id}`) are open to any authenticated user -- this matches the character sheet that already embeds these same companions unconditionally via `?expand=companions`. `GET /api/dh/companions` always requires a `characterSheetId` filter; there is no unfiltered global listing. Writes (create, update, delete, both Training endpoints) remain ownership-based: the caller must be the owning character sheet's owner OR hold MODERATOR/ADMIN/OWNER role. This is enforced in the service layer, not via `@PreAuthorize`.
 
 ---
 
@@ -22,7 +22,7 @@ Companions are per-character entities in the Daggerheart TTRPG system, granted p
 
 Retrieves a paginated list of a character sheet's active (non-soft-deleted) companions.
 
-**Authorization:** Character sheet owner OR MODERATOR/ADMIN/OWNER role
+**Authorization:** Any authenticated user. `characterSheetId` is required and scopes the read to one sheet; there is no unfiltered listing.
 
 **Query Parameters:**
 
@@ -40,7 +40,6 @@ Retrieves a paginated list of a character sheet's active (non-soft-deleted) comp
 **Error Responses:**
 - `400 Bad Request` -- `characterSheetId` missing
 - `401 Unauthorized` -- Missing or invalid JWT token
-- `403 Forbidden` -- Caller is not the sheet owner and does not have MODERATOR+ role
 - `404 Not Found` -- `characterSheetId` does not reference an existing, active character sheet
 
 ---
@@ -49,7 +48,7 @@ Retrieves a paginated list of a character sheet's active (non-soft-deleted) comp
 
 Retrieves a single active (non-soft-deleted) companion by ID.
 
-**Authorization:** Character sheet owner OR MODERATOR/ADMIN/OWNER role
+**Authorization:** Any authenticated user.
 
 **Path Parameters:**
 
@@ -116,7 +115,6 @@ Retrieves a single active (non-soft-deleted) companion by ID.
 
 **Error Responses:**
 - `401 Unauthorized` -- Missing or invalid JWT token
-- `403 Forbidden` -- Caller is not the sheet owner and does not have MODERATOR+ role
 - `404 Not Found` -- Companion does not exist or is soft-deleted
 
 ---

@@ -137,7 +137,7 @@ class CharacterSheetConditionServiceTest {
     // ==================== CREATE TESTS — the magnitude round-trip ====================
 
     @Test
-    void createCharacterSheetCondition_ValidRequest_RoundTripsMagnitude() {
+    void createCharacterSheetCondition_AsOwner_RoundTripsMagnitude() {
         setUpFixtures();
         CreateCharacterSheetConditionRequest request = CreateCharacterSheetConditionRequest.builder()
                 .characterSheetId(1L)
@@ -145,6 +145,8 @@ class CharacterSheetConditionServiceTest {
                 .magnitude(4)
                 .build();
 
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(conditionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(condition));
         when(characterSheetConditionRepository.save(any(CharacterSheetCondition.class)))
@@ -164,6 +166,51 @@ class CharacterSheetConditionServiceTest {
     }
 
     @Test
+    void createCharacterSheetCondition_AsModerator_Succeeds() {
+        setUpFixtures();
+        User moderator = User.builder().id(3L).username("moderator1").role(Role.MODERATOR).build();
+        CreateCharacterSheetConditionRequest request = CreateCharacterSheetConditionRequest.builder()
+                .characterSheetId(1L)
+                .conditionId(1L)
+                .magnitude(4)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(conditionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(condition));
+        when(characterSheetConditionRepository.save(any(CharacterSheetCondition.class)))
+                .thenAnswer(inv -> inv.getArgument(0));
+
+        CharacterSheetConditionResponse result =
+                characterSheetConditionService.createCharacterSheetCondition(request, authentication);
+
+        assertThat(result.getMagnitude()).isEqualTo(4);
+    }
+
+    @Test
+    void createCharacterSheetCondition_AsNonOwnerNonModerator_ThrowsInsufficientPermissionsException() {
+        setUpFixtures();
+        User otherUser = User.builder().id(4L).username("player2").role(Role.USER).build();
+        CreateCharacterSheetConditionRequest request = CreateCharacterSheetConditionRequest.builder()
+                .characterSheetId(1L)
+                .conditionId(1L)
+                .magnitude(4)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(otherUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> characterSheetConditionService.createCharacterSheetCondition(request, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class)
+                .hasMessageContaining("You do not have permission to attach a condition to this character sheet");
+
+        verify(characterSheetConditionRepository, never()).save(any());
+    }
+
+    @Test
     void createCharacterSheetCondition_WithNullMagnitude_AllowsNonStackingCondition() {
         setUpFixtures();
         CreateCharacterSheetConditionRequest request = CreateCharacterSheetConditionRequest.builder()
@@ -171,6 +218,8 @@ class CharacterSheetConditionServiceTest {
                 .conditionId(1L)
                 .build();
 
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(conditionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(condition));
         when(characterSheetConditionRepository.save(any(CharacterSheetCondition.class)))
@@ -204,6 +253,8 @@ class CharacterSheetConditionServiceTest {
                 .conditionId(999L)
                 .build();
 
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(conditionRepository.findByIdAndDeletedAtIsNull(999L)).thenReturn(Optional.empty());
 
