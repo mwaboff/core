@@ -78,10 +78,10 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .evasion(12)
-                .stressMax(3)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(12)
+                .baseStressMax(3)
                 .stressMarked(0)
                 .experiences(new HashSet<>())
                 .createdAt(LocalDateTime.now())
@@ -92,10 +92,10 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Hawk")
                 .attackName("Talons")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D4)
-                .evasion(15)
-                .stressMax(2)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D4)
+                .baseEvasion(15)
+                .baseStressMax(2)
                 .stressMarked(0)
                 .experiences(new HashSet<>())
                 .createdAt(LocalDateTime.now().minusDays(1))
@@ -133,8 +133,8 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
                 .experiences(new HashSet<>())
                 .build();
 
@@ -187,8 +187,8 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
                 .experiences(new HashSet<>())
                 .build();
 
@@ -254,10 +254,10 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .evasion(12)
-                .stressMax(3)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(12)
+                .baseStressMax(3)
                 .stressMarked(0)
                 .experiences(new HashSet<>())
                 .build();
@@ -311,8 +311,8 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
                 .experiences(new HashSet<>())
                 .build();
 
@@ -423,10 +423,10 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .evasion(12)
-                .stressMax(3)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(12)
+                .baseStressMax(3)
                 .stressMarked(0)
                 .experiences(new HashSet<>())
                 .build();
@@ -470,10 +470,10 @@ class CompanionServiceTest {
                 .name("Wolf")
                 .description("A loyal wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .evasion(12)
-                .stressMax(3)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(12)
+                .baseStressMax(3)
                 .stressMarked(0)
                 .experiences(new HashSet<>())
                 .build();
@@ -522,8 +522,8 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
                 .build();
 
         UpdateCompanionRequest request = UpdateCompanionRequest.builder()
@@ -565,8 +565,8 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
                 .build();
 
         when(companionRepository.findById(companionId)).thenReturn(Optional.of(companion));
@@ -603,8 +603,8 @@ class CompanionServiceTest {
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
                 .build();
 
         when(companionRepository.findById(companionId)).thenReturn(Optional.of(companion));

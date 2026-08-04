@@ -40,10 +40,11 @@ public class CreateCompanionRequest {
 
     /**
      * Evasion value (difficulty to hit the companion).
-     * Defaults to 0 if not provided.
+     * Defaults to 10 if not provided, per the printed rule that a companion's "Evasion...
+     * starts at 10."
      */
     @Builder.Default
-    private Integer evasion = 0;
+    private Integer evasion = 10;
 
     /**
      * Name of the companion's attack.

@@ -548,10 +548,10 @@ class CompanionControllerIntegrationTest {
                 .name(name)
                 .description("A " + name + " companion")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .evasion(12)
-                .stressMax(3)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(12)
+                .baseStressMax(3)
                 .stressMarked(0)
                 .build();
         return companionRepository.save(companion);

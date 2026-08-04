@@ -526,6 +526,17 @@ public class CharacterSheet extends BaseEntity {
     // ========== Companions ==========
 
     /**
+     * Whether the Game Master has granted this character access to creating new companions.
+     * False by default. Deliberately unlike {@link #transformationEnabled}: turning this
+     * flag off never hides or orphans a companion that already exists, it only stops a new
+     * one from being created. A companion granted by a subclass feature (e.g. Beastbound's
+     * Companion) does not require this flag to be set.
+     */
+    @Column(name = "companions_enabled", nullable = false)
+    @Builder.Default
+    private boolean companionsEnabled = false;
+
+    /**
      * Companions associated with this character.
      * Companions are allied creatures, familiars, or followers that accompany
      * the character. Each companion has its own combat capabilities, stress

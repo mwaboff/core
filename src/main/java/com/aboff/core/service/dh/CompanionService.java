@@ -154,11 +154,11 @@ public class CompanionService {
                 .characterSheet(characterSheet)
                 .name(request.getName())
                 .description(request.getDescription())
-                .evasion(request.getEvasion() != null ? request.getEvasion() : 0)
+                .baseEvasion(request.getEvasion() != null ? request.getEvasion() : 10)
                 .attackName(request.getAttackName())
-                .attackRange(request.getAttackRange())
-                .damageDice(request.getDamageDice())
-                .stressMax(request.getStressMax() != null ? request.getStressMax() : 3)
+                .baseAttackRange(request.getAttackRange())
+                .baseDamageDice(request.getDamageDice())
+                .baseStressMax(request.getStressMax() != null ? request.getStressMax() : 3)
                 .stressMarked(request.getStressMarked() != null ? request.getStressMarked() : 0)
                 .build();
 
@@ -203,19 +203,19 @@ public class CompanionService {
             companion.setDescription(request.getDescription());
         }
         if (request.getEvasion() != null) {
-            companion.setEvasion(request.getEvasion());
+            companion.setBaseEvasion(request.getEvasion());
         }
         if (request.getAttackName() != null) {
             companion.setAttackName(request.getAttackName());
         }
         if (request.getAttackRange() != null) {
-            companion.setAttackRange(request.getAttackRange());
+            companion.setBaseAttackRange(request.getAttackRange());
         }
         if (request.getDamageDice() != null) {
-            companion.setDamageDice(request.getDamageDice());
+            companion.setBaseDamageDice(request.getDamageDice());
         }
         if (request.getStressMax() != null) {
-            companion.setStressMax(request.getStressMax());
+            companion.setBaseStressMax(request.getStressMax());
         }
         if (request.getStressMarked() != null) {
             companion.setStressMarked(request.getStressMarked());
@@ -301,11 +301,11 @@ public class CompanionService {
                 .characterSheetId(companion.getCharacterSheet().getId())
                 .name(companion.getName())
                 .description(companion.getDescription())
-                .evasion(companion.getEvasion())
+                .evasion(companion.getBaseEvasion())
                 .attackName(companion.getAttackName())
-                .attackRange(companion.getAttackRange())
-                .damageDice(companion.getDamageDice())
-                .stressMax(companion.getStressMax())
+                .attackRange(companion.getBaseAttackRange())
+                .damageDice(companion.getBaseDamageDice())
+                .stressMax(companion.getBaseStressMax())
                 .stressMarked(companion.getStressMarked())
                 .createdAt(companion.getCreatedAt())
                 .lastModifiedAt(companion.getLastModifiedAt());
