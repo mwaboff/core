@@ -34,6 +34,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Comparator;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -263,6 +264,13 @@ public class CompanionService {
         companion.softDelete();
         companionRepository.save(companion);
 
+        // A deleted companion's LIGHT_IN_THE_DARK Training (if any) no longer grants its bonus
+        // Hope slot -- clamp the owning sheet's hopeMarked back down if it now overflows.
+        CharacterSheet characterSheet = companion.getCharacterSheet();
+        List<Companion> remainingActive = companionRepository.findActiveByCharacterSheetId(characterSheet.getId());
+        CompanionDerivationService.clampHopeMarked(characterSheet, remainingActive);
+        characterSheetRepository.save(characterSheet);
+
         auditLogger.log(AuditAction.COMPANION_DELETED,
                 AuditContext.forUser(auth).withCharacterSheetId(companion.getCharacterSheet().getId()).build(),
                 "companion_id: " + id);
@@ -350,6 +358,13 @@ public class CompanionService {
         companion.setStressMarked(Math.min(companion.getStressMarked(), CompanionDerivationService.stressMax(companion)));
 
         Companion savedCompanion = companionRepository.save(companion);
+
+        // A removed LIGHT_IN_THE_DARK Training no longer grants its bonus Hope slot -- clamp the
+        // owning sheet's hopeMarked back down if it now overflows.
+        CharacterSheet characterSheet = savedCompanion.getCharacterSheet();
+        List<Companion> activeCompanions = companionRepository.findActiveByCharacterSheetId(characterSheet.getId());
+        CompanionDerivationService.clampHopeMarked(characterSheet, activeCompanions);
+        characterSheetRepository.save(characterSheet);
 
         auditLogger.log(AuditAction.COMPANION_TRAINING_REMOVED,
                 AuditContext.forUser(auth).withCharacterSheetId(companion.getCharacterSheet().getId()).build(),

@@ -648,6 +648,29 @@ class CompanionServiceTest {
                 .isInstanceOf(EntityNotFoundException.class);
     }
 
+    @Test
+    void deleteCompanion_ClampsSheetHopeMarkedWhenGrantedSlotLost() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        sheet.setHopeMax(3);
+        sheet.setHopeMarked(4); // only legal because this companion's LIGHT_IN_THE_DARK grants +1
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+        companion.getTrainings().add(CompanionTraining.builder()
+                .id(400L).companion(companion).option(CompanionTrainingOption.LIGHT_IN_THE_DARK).acquiredAtLevel(1).build());
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenReturn(companion);
+        // The deleted companion is gone, so no active companion still grants the bonus slot.
+        when(companionRepository.findActiveByCharacterSheetId(SHEET_ID)).thenReturn(List.of());
+
+        companionService.deleteCompanion(COMPANION_ID, authentication);
+
+        assertThat(sheet.getHopeMarked()).isEqualTo(3);
+        verify(characterSheetRepository).save(sheet);
+    }
+
     // ==================== ADD TRAINING ====================
 
     @Test
@@ -870,6 +893,29 @@ class CompanionServiceTest {
         companionService.removeTraining(COMPANION_ID, 300L, authentication);
 
         assertThat(companion.getStressMarked()).isEqualTo(3); // clamped to the new derived max
+    }
+
+    @Test
+    void removeTraining_ClampsSheetHopeMarkedWhenGrantedSlotLost() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        sheet.setHopeMax(3);
+        sheet.setHopeMarked(4); // only legal because this companion's LIGHT_IN_THE_DARK grants +1
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+        CompanionTraining training = CompanionTraining.builder()
+                .id(300L).companion(companion).option(CompanionTrainingOption.LIGHT_IN_THE_DARK).acquiredAtLevel(1).build();
+        companion.getTrainings().add(training);
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(companionRepository.findActiveByCharacterSheetId(SHEET_ID)).thenReturn(List.of(companion));
+
+        companionService.removeTraining(COMPANION_ID, 300L, authentication);
+
+        assertThat(sheet.getHopeMarked()).isEqualTo(3);
+        verify(characterSheetRepository).save(sheet);
     }
 
     @Test
