@@ -93,6 +93,9 @@ class LevelUpControllerIntegrationTest {
     private CompanionTrainingRepository companionTrainingRepository;
 
     @Autowired
+    private FeatureRepository featureRepository;
+
+    @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
     private User player1;
@@ -279,6 +282,9 @@ class LevelUpControllerIntegrationTest {
     @Test
     void levelUpThenUndo_CompanionTrainingAndExperience_RoundTripsThroughRealDatabase() throws Exception {
         Companion companion = createCompanion("Rufus", testSheet);
+        // A Training pick is only available to a character with the Companion feature itself
+        // (core-01:1249) -- see the rules-fidelity gate in LevelUpService.hasCompanionFeature.
+        grantCompanionFeature(testSheet);
 
         LevelUpRequest request = LevelUpRequest.builder()
                 .advancements(List.of(
@@ -321,6 +327,37 @@ class LevelUpControllerIntegrationTest {
         // in-memory collection.
         assertThat(companionTrainingRepository.findById(trainingId)).isEmpty();
         assertThat(experienceRepository.findById(experienceId)).isEmpty();
+    }
+
+    /**
+     * Rules-fidelity regression: the right to a companion Training pick comes from the
+     * Companion feature itself (core-01:1249), not from merely owning an active companion.
+     * {@code testSheet} here is the plain Pyromancer Wizard from {@code setUp()} -- no Companion
+     * feature -- with a GM-granted companion attached; the level-up must succeed with zero
+     * companion Training picks in the payload rather than demanding one. Uses a non-tier
+     * transition (2 -&gt; 3) so the unrelated, still-required "exactly 1 companion Experience
+     * grant per tier transition" rule (untouched by this fix -- only the Training gate is
+     * scoped to the Companion feature) doesn't also need satisfying here.
+     */
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_SucceedsWithNoTrainingPayload() throws Exception {
+        createCompanion("Whiskers", testSheet);
+        testSheet.setLevel(2);
+        testSheet = characterSheetRepository.save(testSheet);
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.characterSheet.level").value(3));
     }
 
     // ==================== BOOST NEW EXPERIENCE TESTS ====================
@@ -449,6 +486,31 @@ class LevelUpControllerIntegrationTest {
                 .owner(owner)
                 .build();
         return characterSheetRepository.save(sheet);
+    }
+
+    /**
+     * Grants the Companion feature (core-01:1249, Beastbound's foundation feature) to a
+     * character sheet by attaching a Feature named "Companion" (type {@code SUBCLASS}) to a new
+     * subclass card and adding that card to the sheet -- the only thing
+     * {@code LevelUpService.hasCompanionFeature} actually checks for, independent of any
+     * specific class/path.
+     */
+    private void grantCompanionFeature(CharacterSheet characterSheet) {
+        Feature companionFeature = featureRepository.save(Feature.builder()
+                .name("Companion")
+                .featureType(FeatureType.SUBCLASS)
+                .expansion(testExpansion)
+                .build());
+        SubclassCard companionCard = subclassCardRepository.save(SubclassCard.builder()
+                .name("Beastbound Foundation")
+                .level(SubclassLevel.SPECIALIZATION)
+                .subclassPath(testPath)
+                .expansion(testExpansion)
+                .isOfficial(true)
+                .features(Set.of(companionFeature))
+                .build());
+        characterSheet.getSubclassCards().add(companionCard);
+        characterSheetRepository.save(characterSheet);
     }
 
     private Companion createCompanion(String name, CharacterSheet characterSheet) {

@@ -113,9 +113,12 @@ public class LevelUpService {
         long equippedCount = characterSheetDomainCardRepository.countEquippedByCharacterSheetId(characterSheetId);
 
         List<Companion> eligibleCompanions = getEligibleCompanions(sheet);
-        List<CompanionLevelUpOptionsResponse> companionTraining = eligibleCompanions.stream()
-                .map(companion -> toCompanionLevelUpOption(companion, 1))
-                .toList();
+        // Only a character with the Companion feature itself (Beastbound's foundation feature,
+        // core-01:1249) gets a Training-pick step -- a GM-granted companion on, say, a Wizard
+        // does not, regardless of advancesOnLevelUp.
+        List<CompanionLevelUpOptionsResponse> companionTraining = hasCompanionFeature(sheet)
+                ? eligibleCompanions.stream().map(companion -> toCompanionLevelUpOption(companion, 1)).toList()
+                : List.of();
 
         List<Companion> restorableCompanions = companionRepository.findByCharacterSheetId(characterSheetId).stream()
                 .filter(Companion::isDeleted)
@@ -828,7 +831,7 @@ public class LevelUpService {
         }
 
         // Validate companion Training picks
-        int picksAvailable = computeCompanionPicksAvailable(playerEntries);
+        int picksAvailable = computeCompanionPicksAvailable(sheet, playerEntries);
         validateCompanionTrainingChoices(request.getCompanionTrainings(), eligibleCompanions, picksAvailable);
 
         // Validate companion Experience grants (tier transitions only, silently ignored otherwise)
@@ -887,19 +890,50 @@ public class LevelUpService {
     }
 
     /**
-     * Computes how many companion Training picks are available this level-up.
+     * Determines whether a character actually has the Companion feature -- Beastbound's
+     * foundation feature (core-01:1249), which is what grants the right to "choose a level-up
+     * option for your companion" each level-up, not merely owning an active companion (e.g. a
+     * GM-granted pet on a Wizard).
      * <p>
-     * Baseline 1, +1 if an {@code UPGRADE_SUBCLASS} choice this request targets a card
-     * carrying "Expert Training", +2 for "Advanced Training". Only {@code UPGRADE_SUBCLASS} is
-     * scanned -- {@code MULTICLASS} only ever grants a foundation card
-     * ({@link #validateMulticlass}), and these are Specialization/Mastery features, so they can
-     * never appear there. Applied identically to every eligible companion.
+     * Detection is by feature name + {@code featureType == SUBCLASS}, mirroring
+     * {@link #findCompanionGrantingCard} -- there is a same-named {@code BEASTFORM} feature in
+     * production data, so the type check is load-bearing, not redundant.
      * </p>
      *
+     * @param sheet the character sheet to inspect
+     * @return true if any of the character's subclass cards carries the Companion feature
+     */
+    private boolean hasCompanionFeature(CharacterSheet sheet) {
+        for (SubclassCard card : sheet.getSubclassCards()) {
+            if (hasFeatureNamed(card, COMPANION_FEATURE_NAME)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Computes how many companion Training picks are available this level-up.
+     * <p>
+     * Zero if the character does not have the Companion feature (see
+     * {@link #hasCompanionFeature}) -- otherwise baseline 1, +1 if an {@code UPGRADE_SUBCLASS}
+     * choice this request targets a card carrying "Expert Training", +2 for "Advanced Training".
+     * Only {@code UPGRADE_SUBCLASS} is scanned -- {@code MULTICLASS} only ever grants a
+     * foundation card ({@link #validateMulticlass}), and these are Specialization/Mastery
+     * features, so they can never appear there. Applied identically to every eligible companion;
+     * an individual companion's own {@code advancesOnLevelUp} opt-out is enforced separately by
+     * {@link #getEligibleCompanions} -- the two conditions are ANDed, not substitutes for each
+     * other.
+     * </p>
+     *
+     * @param sheet the character sheet, used only to gate on {@link #hasCompanionFeature}
      * @param playerEntries this request's player-chosen advancement choices
      * @return the number of Training picks available this level-up, per eligible companion
      */
-    private int computeCompanionPicksAvailable(List<AdvancementChoice> playerEntries) {
+    private int computeCompanionPicksAvailable(CharacterSheet sheet, List<AdvancementChoice> playerEntries) {
+        if (!hasCompanionFeature(sheet)) {
+            return 0;
+        }
         int picks = 1;
         for (AdvancementChoice choice : playerEntries) {
             if (choice.getType() != AdvancementType.UPGRADE_SUBCLASS || choice.getSubclassCardId() == null) {

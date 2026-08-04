@@ -116,6 +116,11 @@ class LevelUpServiceCompanionTest {
         lenient().when(authentication.getPrincipal()).thenReturn(userDetails);
 
         sheet = buildSheet(2);
+        // Every test in this file is about a Beastbound Ranger's companion, so the default sheet
+        // carries the Companion feature (core-01:1249) that actually grants the Training-pick
+        // step -- see hasCompanionFeature. Tests for a *non*-Beastbound character with a
+        // GM-granted companion build their own bare sheet instead.
+        sheet.getSubclassCards().add(buildCompanionGrantingFoundationCard(500000L));
         lenient().when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         lenient().when(characterSheetRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         lenient().when(characterAdvancementLogRepository.save(any())).thenAnswer(i -> {
@@ -897,6 +902,97 @@ class LevelUpServiceCompanionTest {
         // The bonus slot is gone; hopeMarked must be clamped back down to the base hopeMax (3),
         // not left overflowing it.
         assertThat(sheet.getHopeMarked()).isEqualTo(3);
+    }
+
+    // ==================== Companion feature gate (rules-fidelity finding) ==================
+    // The right to a companion Training pick comes from the Beastbound Companion feature itself
+    // (core-01:1249: "When you level up your character, choose a level-up option for your
+    // companion"), not from merely owning an active, advancesOnLevelUp companion. Without this
+    // gate, a GM-granted pet on any class forces a Training pick every level-up and blocks
+    // leveling up entirely if the player doesn't submit one.
+
+    @Test
+    void levelUp_BeastboundCharacterWithCompanion_GrantsExactlyOnePick() {
+        // sheet already carries the Companion feature by default (see setUp).
+        Companion companion = buildCompanion(5L, sheet);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(companion));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest().toBuilder()
+                .companionTrainings(List.of(CompanionTrainingChoice.builder()
+                        .companionId(5L).option(CompanionTrainingOption.AWARE).build()))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(companion.getTrainings()).hasSize(1);
+    }
+
+    @Test
+    void levelUp_BeastboundCharacterWithNonAdvancingCompanion_StaysExcludedFromTrainingStep() {
+        // advancesOnLevelUp=false is a separate, additional opt-out (e.g. a GM excluding one of
+        // several companions on an otherwise-eligible Beastbound character) -- it must keep
+        // working even though the character does have the Companion feature.
+        Companion flavorPet = buildCompanion(6L, sheet);
+        flavorPet.setAdvancesOnLevelUp(false);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(flavorPet));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest(); // no companionTrainings submitted
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(flavorPet.getTrainings()).isEmpty();
+    }
+
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_SucceedsWithNoTrainingPayload() {
+        CharacterSheet bareSheet = buildSheet(2); // no subclass cards at all -- not Beastbound
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(bareSheet));
+        Companion gmGrantedPet = buildCompanion(5L, bareSheet);
+        gmGrantedPet.setOrigin(CompanionOrigin.GM_GRANTED);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(gmGrantedPet));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest(); // no companionTrainings submitted
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        assertThat(gmGrantedPet.getTrainings()).isEmpty();
+        assertThat(bareSheet.getLevel()).isEqualTo(3);
+    }
+
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_SubmittingATrainingPickStillThrows() {
+        // The character has no picks to spend at all -- not "spend 0 or however many you like."
+        CharacterSheet bareSheet = buildSheet(2);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(bareSheet));
+        Companion gmGrantedPet = buildCompanion(5L, bareSheet);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(gmGrantedPet));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest().toBuilder()
+                .companionTrainings(List.of(CompanionTrainingChoice.builder()
+                        .companionId(5L).option(CompanionTrainingOption.AWARE).build()))
+                .build();
+
+        assertThatThrownBy(() -> levelUpService.levelUp(1L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("requires exactly 0 Training pick");
+    }
+
+    @Test
+    void getLevelUpOptions_NonBeastboundCharacterWithGmGrantedCompanion_ExcludesCompanionFromTrainingStep() {
+        CharacterSheet bareSheet = buildSheet(2);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(bareSheet));
+        Companion gmGrantedPet = buildCompanion(5L, bareSheet);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(gmGrantedPet));
+        when(companionRepository.findByCharacterSheetId(1L)).thenReturn(List.of(gmGrantedPet));
+
+        LevelUpOptionsResponse response = levelUpService.getLevelUpOptions(1L, authentication);
+
+        assertThat(response.getCompanionTraining()).isEmpty();
     }
 
     // ==================== Helpers ====================
