@@ -30,8 +30,9 @@ All endpoints require authentication via `AUTH_TOKEN` HttpOnly cookie unless oth
 20. [Update Fear](#20-update-fear)
 21. [Update GM Notes](#21-update-gm-notes)
 22. [Update Transformation Access](#22-update-transformation-access)
-23. [Models](#models)
-24. [Enums](#enums)
+23. [Update Companion Access](#23-update-companion-access)
+24. [Models](#models)
+25. [Enums](#enums)
 
 ---
 
@@ -1312,6 +1313,86 @@ curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/tran
 
 ---
 
+## 23. Update Companion Access
+
+Grants or revokes a character's access to **creating new** companions.
+
+Unlike transformations, companions have no card/token state to assign or clear, and no player-side write gate to enforce: disabling this flag never hides, disables, or orphans a companion the character already has -- it only stops a new one from being created. See `references/companions-api.md` for the companion CRUD/training endpoints themselves.
+
+- **Method:** `PUT`
+- **Path:** `/api/dh/campaigns/{campaignId}/character-sheets/{sheetId}/companions`
+- **Auth:** Campaign creator/GM or MODERATOR/ADMIN/OWNER
+
+### Path Parameters
+
+| Parameter  | Type | Required | Description                                          |
+|------------|------|----------|-------------------------------------------------------|
+| campaignId | long | Yes      | The campaign ID                                      |
+| sheetId    | long | Yes      | The character sheet ID; must belong to the campaign  |
+
+### Request Body
+
+| Field   | Type    | Required | Constraints |
+|---------|---------|----------|--------------|
+| enabled | boolean | Yes      | `@NotNull`   |
+
+### Request Examples
+
+```json
+{
+  "enabled": true
+}
+```
+
+```json
+{
+  "enabled": false
+}
+```
+
+### Response: `200 OK`
+
+Returns the updated CharacterSheetResponse (full character sheet, no expansions).
+
+```json
+{
+  "id": 10,
+  "name": "Roster Hero",
+  "level": 1,
+  "companionsEnabled": true,
+  "ownerId": 3,
+  "createdAt": "2026-03-13T10:00:00",
+  "lastModifiedAt": "2026-08-04T12:00:00"
+}
+```
+
+### Error Responses
+
+| Status | Condition                                                       | Error Body Type         |
+|--------|-----------------------------------------------------------------|-------------------------|
+| 400    | `enabled` null/missing, or the campaign has ended                | ValidationErrorResponse / ErrorResponse |
+| 401    | No AUTH_TOKEN cookie                                            | ErrorResponse           |
+| 403    | User is not a creator/GM and not MODERATOR+                     | ErrorResponse           |
+| 404    | Campaign not found, or sheet not in the campaign                | ErrorResponse           |
+
+### curl Examples
+
+```bash
+# Let this player create companions
+curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/companions \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"enabled": true}'
+
+# Stop new companions from being created (existing companions are unaffected)
+curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/companions \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"enabled": false}'
+```
+
+---
+
 ## Models
 
 ### CampaignResponse
@@ -1458,6 +1539,7 @@ Lightweight character summary used in campaign GET with `?expand=characterSummar
 | transformationEnabled  | boolean  | Yes            | Whether a GM has enabled transformations         |
 | transformationCardId   | long     | No             | Assigned transformation card ID (absent if none) |
 | transformationCardName | string   | No             | Assigned transformation card name (absent if none) |
+| companionsEnabled      | boolean  | Yes            | Whether a GM has enabled **creating new** companions. Never implies an existing companion is hidden. |
 
 The three transformation fields let a GM roster render the current transformation state without an extra fetch per character; the assigned card is loaded in a single batched query.
 
@@ -1572,7 +1654,8 @@ Campaigns have two distinct lifecycle states beyond active:
 | Reject character sheet     | Yes     | Yes               | No      | Yes        | Yes       |
 | Add NPC                    | Yes     | Yes               | No      | Yes        | No        |
 | Remove character sheet     | Yes     | Yes               | Yes***  | Yes        | Yes       |
-| Update transformation access | Yes   | Yes               | No      | Yes        | Yes       |
+| Update transformation access | Yes   | Yes               | No      | Yes        | No        |
+| Update companion access    | Yes     | Yes               | No      | Yes        | No        |
 
 \* Must also be the character sheet owner. Character sheet must not already be in an active campaign.
 \*\* Returns error if already ended.

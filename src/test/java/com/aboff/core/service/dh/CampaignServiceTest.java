@@ -3,6 +3,7 @@ package com.aboff.core.service.dh;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCompanionAccessRequest;
 import com.aboff.core.model.dto.dh.request.UpdateTransformationAccessRequest;
 import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
@@ -15,6 +16,7 @@ import com.aboff.core.model.entity.dh.CampaignInvite;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.TransformationCard;
+import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CampaignInviteRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
@@ -1605,6 +1607,178 @@ class CampaignServiceTest {
                 .build();
 
         assertThatThrownBy(() -> campaignService.updateTransformationAccess(99L, 10L, request, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("Campaign not found");
+    }
+
+    // ==================== COMPANION ACCESS TESTS ====================
+
+    @Test
+    void updateCompanionAccess_AsCreator_EnablesCompanions() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+                .thenReturn(CharacterSheetResponse.builder().id(10L).companionsEnabled(true).build());
+
+        UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        CharacterSheetResponse result = campaignService.updateCompanionAccess(1L, 10L, request, authentication);
+
+        assertThat(result.isCompanionsEnabled()).isTrue();
+        assertThat(sheet.isCompanionsEnabled()).isTrue();
+    }
+
+    @Test
+    void updateCompanionAccess_AsGameMaster_EnablesCompanions() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        User gm2 = User.builder().id(2L).username("gm2").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getGameMasters().add(gm2);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(gm2);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+                .thenReturn(CharacterSheetResponse.builder().id(10L).companionsEnabled(true).build());
+
+        UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        campaignService.updateCompanionAccess(1L, 10L, request, authentication);
+
+        assertThat(sheet.isCompanionsEnabled()).isTrue();
+    }
+
+    @Test
+    void updateCompanionAccess_WritesAuditRecord() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+                .thenReturn(CharacterSheetResponse.builder().id(10L).companionsEnabled(true).build());
+
+        UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        campaignService.updateCompanionAccess(1L, 10L, request, authentication);
+
+        verify(auditLogger).log(
+                eq(AuditAction.CAMPAIGN_COMPANION_ACCESS_UPDATED), any(), anyString());
+    }
+
+    @Test
+    void updateCompanionAccess_Disable_DoesNotTouchExistingCompanions() {
+        // Companions never gate a player-side write and are never orphaned by disabling this
+        // flag -- unlike transformations there is nothing here to preserve/clear, the flag is
+        // the only piece of state this endpoint touches.
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", creator);
+        sheet.setCompanionsEnabled(true);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+        when(characterSheetRepository.save(any(CharacterSheet.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(characterSheetService.toResponse(any(CharacterSheet.class), anySet()))
+                .thenReturn(CharacterSheetResponse.builder().id(10L).companionsEnabled(false).build());
+
+        UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
+                .enabled(false)
+                .build();
+
+        campaignService.updateCompanionAccess(1L, 10L, request, authentication);
+
+        assertThat(sheet.isCompanionsEnabled()).isFalse();
+        verify(characterSheetRepository).save(sheet);
+    }
+
+    @Test
+    void updateCompanionAccess_EndedCampaign_ThrowsIllegalState() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getPlayerCharacters().add(createTestCharacterSheet(10L, "Hero", creator));
+        campaign.setEndedAt(LocalDateTime.now());
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateCompanionAccess(1L, 10L, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("ended campaign");
+
+        verify(characterSheetRepository, never()).save(any(CharacterSheet.class));
+    }
+
+    @Test
+    void updateCompanionAccess_SheetNotInCampaign_ThrowsEntityNotFound() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+
+        mockAuthenticatedUser(creator);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateCompanionAccess(1L, 99L, request, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("CharacterSheet not found with id: 99");
+    }
+
+    @Test
+    void updateCompanionAccess_AsUnrelatedPlayer_ThrowsInsufficientPermissions() {
+        User creator = User.builder().id(1L).username("gm1").role(Role.USER).build();
+        User player = User.builder().id(2L).username("player1").role(Role.USER).build();
+        Campaign campaign = createTestCampaign(1L, "Test Campaign", creator);
+        campaign.getPlayers().add(player);
+        CharacterSheet sheet = createTestCharacterSheet(10L, "Hero", player);
+        campaign.getPlayerCharacters().add(sheet);
+
+        mockAuthenticatedUser(player);
+        when(campaignRepository.findActiveById(1L)).thenReturn(Optional.of(campaign));
+
+        UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateCompanionAccess(1L, 10L, request, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
+
+        verify(characterSheetRepository, never()).save(any(CharacterSheet.class));
+    }
+
+    @Test
+    void updateCompanionAccess_CampaignNotFound_ThrowsEntityNotFound() {
+        when(campaignRepository.findActiveById(99L)).thenReturn(Optional.empty());
+
+        UpdateCompanionAccessRequest request = UpdateCompanionAccessRequest.builder()
+                .enabled(true)
+                .build();
+
+        assertThatThrownBy(() -> campaignService.updateCompanionAccess(99L, 10L, request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("Campaign not found");
     }

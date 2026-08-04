@@ -5,6 +5,7 @@ import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignFearRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignGmNotesRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCompanionAccessRequest;
 import com.aboff.core.model.dto.dh.request.UpdateTransformationAccessRequest;
 import com.aboff.core.model.dto.dh.response.CampaignInviteResponse;
 import com.aboff.core.model.dto.dh.response.CampaignResponse;
@@ -677,6 +678,40 @@ public class CampaignController {
 
         CharacterSheetResponse response =
                 campaignService.updateTransformationAccess(id, sheetId, request, authentication);
+
+        auditLogger.requestCompleted(ctx, "PUT", path, startTime);
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Grants or revokes a character's access to <strong>creating new</strong> companions.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can change
+     * companion access. Disabling access only stops a new companion from being created; it
+     * never hides, disables, or orphans a companion the character already has.
+     * </p>
+     *
+     * @param id The campaign ID
+     * @param sheetId The character sheet ID, which must belong to the campaign
+     * @param request The request containing the new access flag
+     * @param authentication The authentication object containing the current user
+     * @return Updated character sheet response with 200 OK status
+     */
+    @PutMapping("/{id}/character-sheets/{sheetId}/companions")
+    public ResponseEntity<CharacterSheetResponse> updateCompanionAccess(
+            @PathVariable Long id,
+            @PathVariable Long sheetId,
+            @Valid @RequestBody UpdateCompanionAccessRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        String path = "/api/dh/campaigns/" + id + "/character-sheets/" + sheetId + "/companions";
+        AuditContext ctx = AuditContext.forUser(authentication).withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "PUT", path);
+
+        CharacterSheetResponse response =
+                campaignService.updateCompanionAccess(id, sheetId, request, authentication);
 
         auditLogger.requestCompleted(ctx, "PUT", path, startTime);
         return ResponseEntity.ok(response);

@@ -77,4 +77,12 @@ public class CampaignCharacterSummaryResponse {
      * Name of the transformation card assigned to this character, or null if none.
      */
     private String transformationCardName;
+
+    /**
+     * Whether the Game Master has granted this character access to creating new companions.
+     * Lets the GM roster render the current gate state without fetching each sheet. Unlike
+     * {@link #transformationEnabled}, this never implies an existing companion is hidden --
+     * it only gates whether a new one can be created.
+     */
+    private boolean companionsEnabled;
 }

@@ -3,6 +3,7 @@ package com.aboff.core.service.dh;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCompanionAccessRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignFearRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignGmNotesRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
@@ -1049,6 +1050,52 @@ public class CampaignService {
     }
 
     /**
+     * Grants or revokes a character's access to <strong>creating new</strong> companions.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can change
+     * companion access. Follows the same authorization and ended-campaign checks as
+     * {@link #updateTransformationAccess}, but is otherwise much simpler: there is no card to
+     * assign or clear, and -- deliberately, unlike transformations -- no player-side write gate
+     * to enforce. Disabling this flag only stops a new companion from being created; it must
+     * never hide, disable, or orphan a companion the character already has (see the companions
+     * implementation plan, section 3.4).
+     * </p>
+     *
+     * @param campaignId The campaign ID
+     * @param sheetId The character sheet ID, which must belong to the campaign
+     * @param request The request containing the new access flag
+     * @param auth The authentication object containing the current user
+     * @return The updated character sheet
+     * @throws EntityNotFoundException if the campaign or the sheet within that campaign is not found
+     * @throws InsufficientPermissionsException if the user lacks game master access
+     * @throws IllegalStateException if the campaign has ended
+     */
+    @Transactional
+    public CharacterSheetResponse updateCompanionAccess(
+            Long campaignId, Long sheetId, UpdateCompanionAccessRequest request, Authentication auth) {
+
+        Campaign campaign = campaignRepository.findActiveById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
+
+        validateGameMasterAccess(campaign, auth, "update companion access for");
+        validateNotEnded(campaign, "update companion access for");
+
+        CharacterSheet sheet = findCharacterSheetInCampaign(campaign, sheetId);
+
+        sheet.setCompanionsEnabled(Boolean.TRUE.equals(request.getEnabled()));
+
+        CharacterSheet updatedSheet = characterSheetRepository.save(sheet);
+
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withCharacterSheetId(sheetId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_COMPANION_ACCESS_UPDATED, ctx,
+                String.format("companions %s for \"%s\" (character_sheet_id: %d, campaign_id: %d)",
+                        updatedSheet.isCompanionsEnabled() ? "enabled" : "disabled",
+                        updatedSheet.getName(), sheetId, campaignId));
+
+        return characterSheetService.toResponse(updatedSheet, Set.of());
+    }
+
+    /**
      * Finds a character sheet that belongs to the campaign, in any of its roster collections.
      *
      * @param campaign The campaign to search
@@ -1401,6 +1448,7 @@ public class CampaignService {
                 .transformationEnabled(sheet.isTransformationEnabled())
                 .transformationCardId(transformationCard != null ? transformationCard.getId() : null)
                 .transformationCardName(transformationCard != null ? transformationCard.getName() : null)
+                .companionsEnabled(sheet.isCompanionsEnabled())
                 .build();
     }
 
