@@ -1,5 +1,6 @@
 package com.aboff.core.service.dh;
 
+import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Companion;
 import com.aboff.core.model.entity.dh.CompanionTraining;
 import com.aboff.core.model.enums.CompanionTrainingOption;
@@ -159,6 +160,27 @@ public final class CompanionDerivationService {
                 .filter(companion -> !companion.isDeleted())
                 .mapToInt(companion -> countOption(companion, CompanionTrainingOption.LIGHT_IN_THE_DARK))
                 .sum();
+    }
+
+    /**
+     * Clamps a character sheet's marked Hope down to fit within its total Hope capacity --
+     * {@code hopeMax} plus any bonus slots granted by its active companions'
+     * {@code LIGHT_IN_THE_DARK} trainings -- mutating the sheet in place.
+     * <p>
+     * This is the single formula for that capacity check; every call site that can shrink a
+     * companion's granted Hope slots (a Training reversal, a companion soft-delete, or a manual
+     * Training removal) must route through this method rather than re-deriving the sum locally,
+     * so the two never drift apart.
+     * </p>
+     *
+     * @param sheet the character sheet to clamp, mutated in place if over capacity
+     * @param activeCompanions the sheet's current active (non-soft-deleted) companions
+     */
+    public static void clampHopeMarked(CharacterSheet sheet, Collection<Companion> activeCompanions) {
+        int capacity = sheet.getHopeMax() + companionGrantedHopeSlots(activeCompanions);
+        if (sheet.getHopeMarked() > capacity) {
+            sheet.setHopeMarked(capacity);
+        }
     }
 
     /**

@@ -1,6 +1,8 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.dto.dh.request.AdvancementChoice;
+import com.aboff.core.model.dto.dh.request.CompanionExperienceGrant;
+import com.aboff.core.model.dto.dh.request.CompanionTrainingChoice;
 import com.aboff.core.model.dto.dh.request.LevelUpRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
@@ -84,6 +86,11 @@ class LevelUpControllerIntegrationTest {
     @Autowired
     private CharacterAdvancementLogRepository characterAdvancementLogRepository;
 
+    @Autowired
+    private CompanionRepository companionRepository;
+
+    @Autowired
+    private CompanionTrainingRepository companionTrainingRepository;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -261,6 +268,61 @@ class LevelUpControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * Exercises the two companion-reversal failure modes a Mockito-only test cannot catch
+     * (WP5's round-trip tests all stub {@code companionRepository.save} and never touch a real
+     * database): that {@code companion.getTrainings()}/{@code getExperiences()}
+     * {@code removeIf(...)} actually deletes the child row via {@code orphanRemoval} rather than
+     * merely orphaning it, and that the tier-transition companion Experience grant satisfies the
+     * {@code chk_experience_single_owner} CHECK constraint (companion set, characterSheet null).
+     */
+    @Test
+    void levelUpThenUndo_CompanionTrainingAndExperience_RoundTripsThroughRealDatabase() throws Exception {
+        Companion companion = createCompanion("Rufus", testSheet);
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .newExperienceDescription("Survived the dragon attack")
+                .companionTrainings(List.of(CompanionTrainingChoice.builder()
+                        .companionId(companion.getId()).option(CompanionTrainingOption.AWARE).build()))
+                .companionExperiences(List.of(CompanionExperienceGrant.builder()
+                        .companionId(companion.getId()).description("Loyal tracker").build()))
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.characterSheet.level").value(2));
+
+        Companion afterLevelUp = companionRepository.findById(companion.getId()).orElseThrow();
+        assertThat(afterLevelUp.getTrainings()).hasSize(1);
+        assertThat(afterLevelUp.getExperiences()).hasSize(1);
+        Experience grantedExp = afterLevelUp.getExperiences().iterator().next();
+        assertThat(grantedExp.getCharacterSheet()).isNull();
+        assertThat(grantedExp.getCompanion().getId()).isEqualTo(companion.getId());
+        Long trainingId = afterLevelUp.getTrainings().iterator().next().getId();
+        Long experienceId = grantedExp.getId();
+
+        mockMvc.perform(delete("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.level").value(1));
+
+        Companion afterUndo = companionRepository.findById(companion.getId()).orElseThrow();
+        assertThat(afterUndo.getTrainings()).isEmpty();
+        assertThat(afterUndo.getExperiences()).isEmpty();
+
+        // Prove the rows are actually gone from the database, not just dropped from the
+        // in-memory collection.
+        assertThat(companionTrainingRepository.findById(trainingId)).isEmpty();
+        assertThat(experienceRepository.findById(experienceId)).isEmpty();
+    }
+
     // ==================== BOOST NEW EXPERIENCE TESTS ====================
 
     @Test
@@ -387,5 +449,21 @@ class LevelUpControllerIntegrationTest {
                 .owner(owner)
                 .build();
         return characterSheetRepository.save(sheet);
+    }
+
+    private Companion createCompanion(String name, CharacterSheet characterSheet) {
+        Companion companion = Companion.builder()
+                .characterSheet(characterSheet)
+                .name(name)
+                .attackName("Bite")
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(10)
+                .baseStressMax(3)
+                .stressMarked(0)
+                .origin(CompanionOrigin.SUBCLASS_FEATURE)
+                .advancesOnLevelUp(true)
+                .build();
+        return companionRepository.save(companion);
     }
 }

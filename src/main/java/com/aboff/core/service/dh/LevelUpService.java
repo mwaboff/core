@@ -431,7 +431,7 @@ public class LevelUpService {
 
         // Reverse companion state -- its own top-level step, not folded into reverseAdvancement's
         // switch (which has no default case and would silently no-op an unhandled entry).
-        reverseCompanionChanges(data, previousValues);
+        reverseCompanionChanges(sheet, data, previousValues);
 
         CharacterSheet savedSheet = characterSheetRepository.save(sheet);
         characterAdvancementLogRepository.delete(logEntry);
@@ -1550,10 +1550,18 @@ public class LevelUpService {
 
     /**
      * Associates {@code newCompanionId} with the Companion-granting subclass card taken this
-     * level-up, either promoting a freshly created companion or restoring a soft-deleted one.
+     * level-up, either restoring a soft-deleted companion or adopting an already-active one
+     * (created earlier via the manual companion-creation endpoint, per
+     * {@link #validateNewCompanionId}'s {@code freshCase}) into the granting subclass.
      * <p>
      * {@code validateNewCompanionId} has already confirmed a granting card exists and the
-     * companion is in a valid state for one of the two cases before this method runs.
+     * companion is in a valid state for one of the two cases before this method runs. The prior
+     * {@code origin}/{@code originSubclassCard} and whether this call restored a soft-deleted row
+     * are recorded in the returned log entry so {@link #reverseCompanionChanges} can put the
+     * companion back exactly where it was -- including <strong>not</strong> soft-deleting an
+     * adopted companion that predates this level-up (see the companions reversibility fix design
+     * notes: a player-authored companion must never become unreachable just because it was later
+     * multiclassed into).
      * </p>
      *
      * @param sheet the character sheet
@@ -1567,7 +1575,11 @@ public class LevelUpService {
         Companion companion = companionRepository.findById(request.getNewCompanionId())
                 .orElseThrow(() -> new EntityNotFoundException("Companion not found with id: " + request.getNewCompanionId()));
 
-        if (companion.isDeleted()) {
+        boolean wasRestore = companion.isDeleted();
+        CompanionOrigin previousOrigin = companion.getOrigin();
+        SubclassCard previousOriginSubclassCard = companion.getOriginSubclassCard();
+
+        if (wasRestore) {
             companion.restore();
             appliedChanges.add("Restored companion '" + companion.getName() + "'");
         } else {
@@ -1580,6 +1592,10 @@ public class LevelUpService {
         Map<String, Object> entry = new LinkedHashMap<>();
         entry.put("companionId", companion.getId());
         entry.put("originSubclassCardId", grantingCard.getId());
+        entry.put("wasRestore", wasRestore);
+        entry.put("previousOrigin", previousOrigin.name());
+        entry.put("previousOriginSubclassCardId",
+                previousOriginSubclassCard != null ? previousOriginSubclassCard.getId() : null);
         return entry;
     }
 
@@ -1616,8 +1632,9 @@ public class LevelUpService {
                 continue; // already rejected by validateCompanionTrainingChoices; defensive only
             }
 
+            Experience targetExperience = null;
             if (choice.getOption() == CompanionTrainingOption.INTELLIGENT) {
-                Experience targetExperience = companion.getExperiences().stream()
+                targetExperience = companion.getExperiences().stream()
                         .filter(e -> e.getId().equals(choice.getTargetExperienceId()))
                         .findFirst()
                         .orElseThrow(() -> new EntityNotFoundException("Experience not found on companion "
@@ -1635,6 +1652,7 @@ public class LevelUpService {
                     .companion(companion)
                     .option(choice.getOption())
                     .viciousAxis(choice.getViciousAxis())
+                    .targetExperience(targetExperience)
                     .acquiredAtLevel(nextLevel)
                     .build();
             companion.getTrainings().add(training);
@@ -1823,11 +1841,13 @@ public class LevelUpService {
      * missing {@link java.util.Optional} or a no-op {@code removeIf} is never an error here.
      * </p>
      *
+     * @param sheet the character sheet the level-up being undone belongs to, used only to clamp
+     *              {@code hopeMarked} against the post-reversal companion-granted Hope slots
      * @param data the deserialized {@code advancementData} for the log entry being undone
      * @param previousValues the log entry's {@code previousValues} block, may be null
      */
     @SuppressWarnings("unchecked")
-    private void reverseCompanionChanges(Map<String, Object> data, Map<String, Object> previousValues) {
+    private void reverseCompanionChanges(CharacterSheet sheet, Map<String, Object> data, Map<String, Object> previousValues) {
         Map<Long, Companion> touched = new LinkedHashMap<>();
 
         // Delete Training rows -- mutate through the parent collection only, never
@@ -1872,18 +1892,31 @@ public class LevelUpService {
             }
         }
 
-        // Soft-delete a companion created or restored by this level-up -- undo takes back
-        // whatever brought it into active, subclass-granted existence, regardless of whether it
-        // was a brand-new row or a restored archive.
+        // Undo whatever applyCompanionCreationOrRestore did: put origin/originSubclassCard back
+        // to their pre-level-up values, and only soft-delete the companion if this level-up is
+        // what restored it from an archive -- a companion that was already active (adopted from
+        // a manual creation) must stay active, or it becomes unreachable (no restore endpoint
+        // exists for a MANUAL-origin companion; only findActiveCompanionOrThrow-gated endpoints).
         Map<String, Object> companionCreated = (Map<String, Object>) data.get("companionCreated");
         if (companionCreated != null) {
             Long companionId = toLong(companionCreated.get("companionId"));
-            Optional<Companion> created = companionRepository.findById(companionId);
-            if (created.isPresent()) {
-                Companion companion = created.get();
-                companion.softDelete();
+            companionRepository.findById(companionId).ifPresent(companion -> {
+                Object prevOriginObj = companionCreated.get("previousOrigin");
+                if (prevOriginObj != null) {
+                    companion.setOrigin(CompanionOrigin.valueOf((String) prevOriginObj));
+                }
+                Long previousOriginSubclassCardId = toLong(companionCreated.get("previousOriginSubclassCardId"));
+                companion.setOriginSubclassCard(previousOriginSubclassCardId != null
+                        ? subclassCardRepository.findById(previousOriginSubclassCardId).orElse(null)
+                        : null);
+
+                boolean wasRestore = Boolean.TRUE.equals(companionCreated.get("wasRestore"));
+                if (wasRestore) {
+                    companion.softDelete();
+                }
                 companionRepository.save(companion);
-            }
+                touched.put(companion.getId(), companion);
+            });
         }
 
         // Clamp stressMarked against the (possibly shrunk) derived stress max for every
@@ -1893,6 +1926,14 @@ public class LevelUpService {
             companion.setStressMarked(Math.min(companion.getStressMarked(), CompanionDerivationService.stressMax(companion)));
             companionRepository.save(companion);
         }
+
+        // Clamp hopeMarked against the (possibly shrunk) total Hope capacity -- a reversed
+        // LIGHT_IN_THE_DARK Training or a companion that was re-archived above can shrink it.
+        // Re-fetches the sheet's active companions rather than reusing `touched`, since
+        // `touched` only holds companions with a Training/Experience/origin change, and the
+        // capacity calculation needs every active companion's current state either way.
+        List<Companion> activeCompanions = companionRepository.findActiveByCharacterSheetId(sheet.getId());
+        CompanionDerivationService.clampHopeMarked(sheet, activeCompanions);
     }
 
     /**

@@ -545,8 +545,15 @@ class LevelUpServiceCompanionTest {
 
     // ==================== The priority deliverable: full round-trip ====================
 
+    /**
+     * Covers {@code AWARE} + {@code INTELLIGENT} plus the tier-transition companion Experience
+     * grant. Named for exactly what it covers -- see the sibling round trips below (and
+     * {@link #assertTrainingRoundTripRestoresDerivedStats}) for the other 6 Training options and
+     * the remaining two derived stats ({@code damageDice}, {@code attackRange}) this test alone
+     * doesn't touch.
+     */
     @Test
-    void levelUpThenUndo_RestoresCompanionExactly() {
+    void levelUpThenUndo_AwareAndIntelligentWithTierExperience_RestoresCompanionExactly() {
         sheet.setLevel(1); // tier transition
         Companion companion = buildCompanion(5L, sheet);
         Experience preExistingExp = Experience.builder().id(55L).companion(companion)
@@ -657,6 +664,239 @@ class LevelUpServiceCompanionTest {
 
         assertThat(companion.getTrainings()).isEmpty();
         assertThat(companion.getStressMarked()).isEqualTo(3); // clamped to the new derived max
+    }
+
+    // ==================== Full round-trip: the other 6 Training options ====================
+    // Finding 4 of the reversibility audit: the "priority deliverable" round-trip test above
+    // only ever exercised AWARE + INTELLIGENT. These siblings drive every remaining option
+    // through the real levelUp()/undoLevelUp() flow and assert all four derived stats plus
+    // stressMarked land back on their base values.
+
+    @Test
+    void levelUpThenUndo_ViciousDamageDie_RestoresDerivedStats() {
+        assertTrainingRoundTripRestoresDerivedStats(CompanionTrainingOption.VICIOUS, ViciousAxis.DAMAGE_DIE);
+    }
+
+    @Test
+    void levelUpThenUndo_ViciousRange_RestoresDerivedStats() {
+        assertTrainingRoundTripRestoresDerivedStats(CompanionTrainingOption.VICIOUS, ViciousAxis.RANGE);
+    }
+
+    @Test
+    void levelUpThenUndo_Resilient_RestoresDerivedStats() {
+        assertTrainingRoundTripRestoresDerivedStats(CompanionTrainingOption.RESILIENT, null);
+    }
+
+    @Test
+    void levelUpThenUndo_Armored_RestoresDerivedStats() {
+        assertTrainingRoundTripRestoresDerivedStats(CompanionTrainingOption.ARMORED, null);
+    }
+
+    @Test
+    void levelUpThenUndo_Bonded_RestoresDerivedStats() {
+        assertTrainingRoundTripRestoresDerivedStats(CompanionTrainingOption.BONDED, null);
+    }
+
+    @Test
+    void levelUpThenUndo_CreatureComfort_RestoresDerivedStats() {
+        assertTrainingRoundTripRestoresDerivedStats(CompanionTrainingOption.CREATURE_COMFORT, null);
+    }
+
+    @Test
+    void levelUpThenUndo_LightInTheDark_RestoresDerivedStats() {
+        assertTrainingRoundTripRestoresDerivedStats(CompanionTrainingOption.LIGHT_IN_THE_DARK, null);
+    }
+
+    /**
+     * Drives a single Training pick through the real {@code levelUp()}/{@code undoLevelUp()}
+     * flow and asserts every derived stat -- Evasion, Stress max, damage dice, attack range --
+     * plus {@code stressMarked}, is back to its base value after undo. Shared by every sibling
+     * test above rather than copy-pasted per option (coding-standards.md's DRY rule), since the
+     * only thing that varies between them is which option (and, for VICIOUS, which axis) is
+     * picked.
+     */
+    private void assertTrainingRoundTripRestoresDerivedStats(CompanionTrainingOption option, ViciousAxis axis) {
+        Companion companion = buildCompanion(5L, sheet);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(companion));
+        when(companionRepository.findById(5L)).thenReturn(Optional.of(companion));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest().toBuilder()
+                .companionTrainings(List.of(CompanionTrainingChoice.builder()
+                        .companionId(5L).option(option).viciousAxis(axis).build()))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+        assertThat(companion.getTrainings()).hasSize(1);
+
+        String advancementDataJson = capturedLogJson();
+        CharacterAdvancementLog logEntry = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2)
+                .advancementData(advancementDataJson).build();
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(logEntry));
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(companion.getTrainings()).isEmpty();
+        assertThat(CompanionDerivationService.evasion(companion)).isEqualTo(10);
+        assertThat(CompanionDerivationService.stressMax(companion)).isEqualTo(3);
+        assertThat(CompanionDerivationService.damageDice(companion)).isEqualTo(DiceType.D6);
+        assertThat(CompanionDerivationService.attackRange(companion)).isEqualTo(Range.MELEE);
+        assertThat(companion.getStressMarked()).isEqualTo(0);
+    }
+
+    // ==================== Finding 3: INTELLIGENT persists targetExperience via level-up ====
+
+    @Test
+    void levelUp_IntelligentPick_PersistsTargetExperienceOnTraining() {
+        Companion companion = buildCompanion(5L, sheet);
+        Experience experience = Experience.builder().id(55L).companion(companion)
+                .createdBy(testOwner).description("Tracking").modifier(2).build();
+        companion.getExperiences().add(experience);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(companion));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest().toBuilder()
+                .companionTrainings(List.of(CompanionTrainingChoice.builder()
+                        .companionId(5L).option(CompanionTrainingOption.INTELLIGENT).targetExperienceId(55L).build()))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        // CompanionService.addTraining (the manual path) already sets targetExperience; this
+        // asserts the level-up path does the same, rather than leaving the column null while
+        // still recording the +1 on the Experience itself (finding 3 of the reversibility audit).
+        CompanionTraining added = companion.getTrainings().iterator().next();
+        assertThat(added.getTargetExperience()).isNotNull();
+        assertThat(added.getTargetExperience().getId()).isEqualTo(55L);
+    }
+
+    // ==================== Finding 1: origin/originSubclassCard reversal ====================
+
+    @Test
+    void undoLevelUp_AdoptedManualCompanion_StaysActiveWithOriginRestoredToManual() {
+        // A companion created via the manual endpoint (origin MANUAL, never soft-deleted) that
+        // is later multiclassed into must NOT be soft-deleted on undo -- it predates this
+        // level-up and has no restore endpoint once archived (only findActiveCompanionOrThrow-
+        // gated endpoints exist for a MANUAL companion).
+        sheet.setLevel(4); // MULTICLASS requires tier 3+ (nextLevel 5 -> nextTier 3)
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of());
+
+        SubclassCard companionGrantingCard = buildCompanionGrantingFoundationCard(20L);
+        Companion manualCompanion = buildCompanion(9L, sheet);
+        manualCompanion.setOrigin(CompanionOrigin.MANUAL);
+        manualCompanion.setOriginSubclassCard(null);
+        when(subclassCardRepository.findById(20L)).thenReturn(Optional.of(companionGrantingCard));
+        when(companionRepository.findById(9L)).thenReturn(Optional.of(manualCompanion));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.MULTICLASS).subclassCardId(20L).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .newExperienceDescription("Tier 3 experience")
+                .newCompanionId(9L)
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+        assertThat(manualCompanion.getOrigin()).isEqualTo(CompanionOrigin.SUBCLASS_FEATURE);
+
+        String advancementDataJson = capturedLogJson();
+        CharacterAdvancementLog logEntry = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(4).toLevel(5).tier(3)
+                .advancementData(advancementDataJson).build();
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(logEntry));
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(manualCompanion.isDeleted()).isFalse();
+        assertThat(manualCompanion.getOrigin()).isEqualTo(CompanionOrigin.MANUAL);
+        assertThat(manualCompanion.getOriginSubclassCard()).isNull();
+    }
+
+    @Test
+    void undoLevelUp_RestoredCompanion_ReSoftDeletedWithOriginRestored() {
+        // A restored companion can only be restored by re-taking the exact card that archived
+        // it -- validateNewCompanionId's restoreCase requires originSubclassCard to match the
+        // granting card -- so previousOrigin/previousOriginSubclassCard necessarily equal what
+        // this level-up sets them to. What this test actually proves is the other half of
+        // finding 1: unlike the adopt case above, a *restored* companion must go back into the
+        // archive on undo (it was genuinely inactive before this level-up granted it back).
+        sheet.setLevel(4); // MULTICLASS requires tier 3+ (nextLevel 5 -> nextTier 3)
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 3)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of());
+
+        SubclassCard grantingCard = buildCompanionGrantingFoundationCard(30L);
+        Companion archived = buildCompanion(9L, sheet);
+        archived.setOrigin(CompanionOrigin.SUBCLASS_FEATURE);
+        archived.setOriginSubclassCard(grantingCard);
+        archived.softDelete();
+        when(subclassCardRepository.findById(30L)).thenReturn(Optional.of(grantingCard));
+        when(companionRepository.findById(9L)).thenReturn(Optional.of(archived));
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.MULTICLASS).subclassCardId(30L).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build()
+                ))
+                .newExperienceDescription("Tier 3 experience")
+                .newCompanionId(9L)
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+        assertThat(archived.isDeleted()).isFalse();
+        assertThat(archived.getOriginSubclassCard()).isEqualTo(grantingCard);
+
+        String advancementDataJson = capturedLogJson();
+        CharacterAdvancementLog logEntry = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(4).toLevel(5).tier(3)
+                .advancementData(advancementDataJson).build();
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(logEntry));
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        assertThat(archived.isDeleted()).isTrue();
+        assertThat(archived.getOrigin()).isEqualTo(CompanionOrigin.SUBCLASS_FEATURE);
+        assertThat(archived.getOriginSubclassCard()).isEqualTo(grantingCard);
+    }
+
+    // ==================== Finding 2: hopeMarked clamp on companion reversal ================
+
+    @Test
+    void undoLevelUp_LightInTheDarkRemoved_ClampsHopeMarked() {
+        sheet.setHopeMax(3);
+        Companion companion = buildCompanion(5L, sheet);
+        when(characterAdvancementLogRepository.findByCharacterSheetIdAndTier(1L, 2)).thenReturn(List.of());
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(companion));
+        when(companionRepository.findById(5L)).thenReturn(Optional.of(companion));
+
+        LevelUpRequest request = twoBasicAdvancementsRequest().toBuilder()
+                .companionTrainings(List.of(CompanionTrainingChoice.builder()
+                        .companionId(5L).option(CompanionTrainingOption.LIGHT_IN_THE_DARK).build()))
+                .build();
+
+        levelUpService.levelUp(1L, request, authentication);
+
+        // The bonus Hope slot is now live (hopeMax 3 + 1 companion-granted slot = capacity 4);
+        // the player marks it.
+        sheet.setHopeMarked(4);
+
+        String advancementDataJson = capturedLogJson();
+        CharacterAdvancementLog logEntry = CharacterAdvancementLog.builder()
+                .id(1L).characterSheet(sheet).fromLevel(2).toLevel(3).tier(2)
+                .advancementData(advancementDataJson).build();
+        when(characterAdvancementLogRepository.findTopByCharacterSheetIdOrderByToLevelDesc(1L))
+                .thenReturn(Optional.of(logEntry));
+
+        levelUpService.undoLevelUp(1L, authentication);
+
+        // The bonus slot is gone; hopeMarked must be clamped back down to the base hopeMax (3),
+        // not left overflowing it.
+        assertThat(sheet.getHopeMarked()).isEqualTo(3);
     }
 
     // ==================== Helpers ====================
