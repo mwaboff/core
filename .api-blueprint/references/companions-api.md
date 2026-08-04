@@ -138,6 +138,7 @@ Creates a new companion for a character.
   "attackName": "Bite",
   "attackRange": "CLOSE",
   "damageDice": "D6",
+  "damageType": "PHYSICAL",
   "stressMax": 3,
   "stressMarked": 0
 }
@@ -145,22 +146,23 @@ Creates a new companion for a character.
 
 **Field Validation:**
 
-| Field            | Type     | Required | Default | Constraints                          |
-|-----------------|----------|----------|---------|----------------------------------------|
-| characterSheetId| Long     | Yes      | -       | Must reference an existing, active sheet |
-| name            | String   | Yes      | -       | Max 200 characters, not blank          |
-| description     | String   | No       | -       | Max 5000 characters                    |
-| evasion         | Integer  | No       | 10      | 0-50                                   |
-| attackName      | String   | Yes      | -       | Max 200 characters, not blank          |
-| attackRange     | Range    | Yes      | -       | Valid Range enum value                 |
-| damageDice      | DiceType | Yes      | -       | Valid DiceType enum value              |
-| stressMax       | Integer  | No       | 3       | 1-20                                   |
-| stressMarked    | Integer  | No       | 0       | 0-20, and must not exceed `stressMax`  |
+| Field            | Type       | Required | Default   | Constraints                          |
+|-----------------|------------|----------|-----------|-----------------------------------------|
+| characterSheetId| Long       | Yes      | -         | Must reference an existing, active sheet |
+| name            | String     | Yes      | -         | Max 200 characters, not blank          |
+| description     | String     | No       | -         | Max 5000 characters                    |
+| evasion         | Integer    | No       | 10        | 0-50                                   |
+| attackName      | String     | Yes      | -         | Max 200 characters, not blank          |
+| attackRange     | Range      | Yes      | -         | Valid Range enum value                 |
+| damageDice      | DiceType   | Yes      | -         | Valid DiceType enum value              |
+| damageType      | DamageType | No       | PHYSICAL  | `PHYSICAL` or `MAGIC` only -- `PHYSICAL_AND_MAGIC` is rejected (it's a per-attack weapon mechanic, not a companion's one-time choice) |
+| stressMax       | Integer    | No       | 3         | 1-20                                   |
+| stressMarked    | Integer    | No       | 0         | 0-20, and must not exceed `stressMax`  |
 
 **Response:** `201 Created` -- `CompanionResponse` (see `GET /{id}` above)
 
 **Error Responses:**
-- `400 Bad Request` -- Missing/invalid required fields, out-of-bounds values, or `stressMarked > stressMax`
+- `400 Bad Request` -- Missing/invalid required fields, out-of-bounds values, `stressMarked > stressMax`, or `damageType: "PHYSICAL_AND_MAGIC"`
 - `401 Unauthorized` -- Missing or invalid JWT token
 - `403 Forbidden` -- Caller is not the sheet owner and does not have MODERATOR+ role
 - `404 Not Found` -- Referenced character sheet does not exist or is deleted
@@ -188,12 +190,12 @@ Updates an existing companion's base stats. Supports partial updates -- only non
 }
 ```
 
-**Field Validation:** Same bounds as `POST` above (evasion 0-50, stressMax 1-20, stressMarked 0-20 and must not exceed the companion's **Training-adjusted** stress max).
+**Field Validation:** Same bounds as `POST` above (evasion 0-50, stressMax 1-20, stressMarked 0-20 and must not exceed the companion's **Training-adjusted** stress max). `damageType`, if provided, is `PHYSICAL` or `MAGIC` only -- `PHYSICAL_AND_MAGIC` is rejected. Omitting `damageType` leaves the companion's existing choice unchanged.
 
 **Response:** `200 OK` -- Updated `CompanionResponse`
 
 **Error Responses:**
-- `400 Bad Request` -- Out-of-bounds values, or resulting `stressMarked` exceeds the derived stress max
+- `400 Bad Request` -- Out-of-bounds values, resulting `stressMarked` exceeds the derived stress max, or `damageType: "PHYSICAL_AND_MAGIC"`
 - `401 Unauthorized` -- Missing or invalid JWT token
 - `403 Forbidden` -- Caller is not the sheet owner and does not have MODERATOR+ role
 - `404 Not Found` -- Companion does not exist or is soft-deleted
@@ -323,6 +325,16 @@ Removes a single Training selection from a companion via the manual/GM path.
 | FAR          | Standard ranged weapon distance, 30-100 feet              |
 | VERY_FAR     | Long-range projectile distance, 100-300 feet               |
 | OUT_OF_RANGE | Extreme distance beyond normal effectiveness, 300+ ft      |
+
+### DamageType
+
+3 values, but only 2 are valid for a companion:
+
+| Value               | Code    | Valid for companions? |
+|----------------------|---------|-------------------------|
+| PHYSICAL             | phy     | Yes (default)           |
+| MAGIC                | mag     | Yes                     |
+| PHYSICAL_AND_MAGIC   | phy/mag | **No** -- rejected with `400 Bad Request`. This is the "Otherworldly" per-attack weapon mechanic (choose physical or magic on each hit); a companion's damage type is a one-time either/or choice made at creation, never both. |
 
 ### DiceType
 

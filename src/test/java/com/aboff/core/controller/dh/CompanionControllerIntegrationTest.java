@@ -9,6 +9,7 @@ import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Companion;
 import com.aboff.core.model.entity.dh.CompanionTraining;
 import com.aboff.core.model.enums.CompanionTrainingOption;
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Role;
@@ -351,6 +352,63 @@ class CompanionControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    @Test
+    void createCompanion_WithoutDamageType_DefaultsToPhysical() throws Exception {
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(testSheet.getId())
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .build();
+
+        mockMvc.perform(post("/api/dh/companions")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.damageType").value("PHYSICAL"));
+    }
+
+    @Test
+    void createCompanion_WithExplicitMagicDamageType_Returns201() throws Exception {
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(testSheet.getId())
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .damageType(DamageType.MAGIC)
+                .build();
+
+        mockMvc.perform(post("/api/dh/companions")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.damageType").value("MAGIC"));
+    }
+
+    @Test
+    void createCompanion_WithPhysicalAndMagicDamageType_Returns400() throws Exception {
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(testSheet.getId())
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .damageType(DamageType.PHYSICAL_AND_MAGIC)
+                .build();
+
+        mockMvc.perform(post("/api/dh/companions")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        assertThat(companionRepository.countByCharacterSheetId(testSheet.getId())).isEqualTo(0);
+    }
+
     // ==================== UPDATE COMPANION ====================
 
     @Test
@@ -393,6 +451,39 @@ class CompanionControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateCompanion_WithDamageType_Returns200AndUpdatesDamageType() throws Exception {
+        Companion companion = createCompanion("Wolf", testSheet);
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder().damageType(DamageType.MAGIC).build();
+
+        mockMvc.perform(put("/api/dh/companions/{id}", companion.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.damageType").value("MAGIC"));
+
+        Companion updated = companionRepository.findById(companion.getId()).orElseThrow();
+        assertThat(updated.getDamageType()).isEqualTo(DamageType.MAGIC);
+    }
+
+    @Test
+    void updateCompanion_WithPhysicalAndMagicDamageType_Returns400() throws Exception {
+        Companion companion = createCompanion("Wolf", testSheet);
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder()
+                .damageType(DamageType.PHYSICAL_AND_MAGIC)
+                .build();
+
+        mockMvc.perform(put("/api/dh/companions/{id}", companion.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        Companion unchanged = companionRepository.findById(companion.getId()).orElseThrow();
+        assertThat(unchanged.getDamageType()).isEqualTo(DamageType.PHYSICAL);
     }
 
     // ==================== DELETE COMPANION (SOFT DELETE) ====================

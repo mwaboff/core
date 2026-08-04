@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.Range;
 import jakarta.validation.constraints.Max;
@@ -54,6 +55,15 @@ public class UpdateCompanionRequest {
      * Damage dice type for the companion's attack.
      */
     private DiceType damageDice;
+
+    /**
+     * Whether the companion's attack deals physical or magic damage.
+     * Left {@code null} to leave the existing choice unchanged. Per the printed rule this is a
+     * one-time either/or choice (core-01:1327) -- {@code CompanionService} rejects
+     * {@link DamageType#PHYSICAL_AND_MAGIC}, which is a per-attack weapon mechanic, not a
+     * companion concept.
+     */
+    private DamageType damageType;
 
     /**
      * Maximum stress the companion can take.

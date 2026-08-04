@@ -16,6 +16,7 @@ import com.aboff.core.model.entity.dh.CompanionTraining;
 import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.model.enums.CompanionTrainingOption;
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.security.CustomUserDetails;
@@ -140,7 +141,8 @@ public class CompanionService {
      * @return CompanionResponse containing the created companion
      * @throws EntityNotFoundException if the character sheet is not found or is deleted
      * @throws InsufficientPermissionsException if the user lacks permission to create
-     * @throws IllegalStateException if {@code stressMarked} would exceed the companion's stress max
+     * @throws IllegalStateException if {@code stressMarked} would exceed the companion's stress max,
+     *         or if {@code damageType} is {@link DamageType#PHYSICAL_AND_MAGIC}
      */
     @Transactional
     public CompanionResponse createCompanion(CreateCompanionRequest request, Authentication auth) {
@@ -148,6 +150,9 @@ public class CompanionService {
                 .orElseThrow(() -> new EntityNotFoundException(
                         "CharacterSheet not found with id: " + request.getCharacterSheetId()));
         validateSheetAccess(characterSheet, auth, "create a companion for");
+
+        DamageType damageType = request.getDamageType() != null ? request.getDamageType() : DamageType.PHYSICAL;
+        validateDamageType(damageType);
 
         Companion companion = Companion.builder()
                 .characterSheet(characterSheet)
@@ -157,6 +162,7 @@ public class CompanionService {
                 .attackName(request.getAttackName())
                 .baseAttackRange(request.getAttackRange())
                 .baseDamageDice(request.getDamageDice())
+                .damageType(damageType)
                 .baseStressMax(request.getStressMax() != null ? request.getStressMax() : 3)
                 .stressMarked(request.getStressMarked() != null ? request.getStressMarked() : 0)
                 .build();
@@ -187,7 +193,8 @@ public class CompanionService {
      * @return CompanionResponse containing the updated companion
      * @throws EntityNotFoundException if the companion is not found or is soft-deleted
      * @throws InsufficientPermissionsException if the user lacks permission to update
-     * @throws IllegalStateException if the resulting {@code stressMarked} would exceed the companion's derived stress max
+     * @throws IllegalStateException if the resulting {@code stressMarked} would exceed the companion's
+     *         derived stress max, or if {@code damageType} is {@link DamageType#PHYSICAL_AND_MAGIC}
      */
     @Transactional
     public CompanionResponse updateCompanion(Long id, UpdateCompanionRequest request, Authentication auth) {
@@ -211,6 +218,10 @@ public class CompanionService {
         }
         if (request.getDamageDice() != null) {
             companion.setBaseDamageDice(request.getDamageDice());
+        }
+        if (request.getDamageType() != null) {
+            validateDamageType(request.getDamageType());
+            companion.setDamageType(request.getDamageType());
         }
         if (request.getStressMax() != null) {
             companion.setBaseStressMax(request.getStressMax());
@@ -377,6 +388,27 @@ public class CompanionService {
         if (companion.getStressMarked() > derivedStressMax) {
             throw new IllegalStateException(
                     "stressMarked (" + companion.getStressMarked() + ") must not exceed stressMax (" + derivedStressMax + ")");
+        }
+    }
+
+    /**
+     * Validates that a damage type is a valid choice for a companion's attack.
+     * <p>
+     * Per the printed rule, a companion's attack deals either physical or magic damage -- a
+     * one-time either/or choice made when the companion is created (core-01:1327).
+     * {@link DamageType#PHYSICAL_AND_MAGIC} is the "Otherworldly" per-attack weapon mechanic
+     * (see its Javadoc), not a companion concept, so it is rejected here before anything is
+     * persisted.
+     * </p>
+     *
+     * @param damageType the damage type to validate
+     * @throws IllegalStateException if {@code damageType} is {@link DamageType#PHYSICAL_AND_MAGIC}
+     */
+    private void validateDamageType(DamageType damageType) {
+        if (damageType == DamageType.PHYSICAL_AND_MAGIC) {
+            throw new IllegalStateException(
+                    "Companion damage type must be PHYSICAL or MAGIC, not PHYSICAL_AND_MAGIC "
+                            + "(a companion's attack is always one or the other, not a per-attack choice)");
         }
     }
 

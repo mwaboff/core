@@ -12,6 +12,7 @@ import com.aboff.core.model.entity.dh.Companion;
 import com.aboff.core.model.entity.dh.CompanionTraining;
 import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.enums.CompanionTrainingOption;
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.ViciousAxis;
@@ -367,6 +368,103 @@ class CompanionServiceTest {
         verifyNoInteractions(companionRepository);
     }
 
+    @Test
+    void createCompanion_WithExplicitPhysicalDamageType_PersistsPhysical() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .damageType(DamageType.PHYSICAL)
+                .build();
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.createCompanion(request, authentication);
+
+        assertThat(result.getDamageType()).isEqualTo(DamageType.PHYSICAL);
+    }
+
+    @Test
+    void createCompanion_WithExplicitMagicDamageType_PersistsMagic() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .damageType(DamageType.MAGIC)
+                .build();
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.createCompanion(request, authentication);
+
+        assertThat(result.getDamageType()).isEqualTo(DamageType.MAGIC);
+    }
+
+    @Test
+    void createCompanion_WithoutDamageType_DefaultsToPhysical() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+
+        // Simulate JSON deserialization without a damageType field, which bypasses the
+        // builder default: set it explicitly to null rather than relying on the builder.
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .build();
+        request.setDamageType(null);
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.createCompanion(request, authentication);
+
+        assertThat(result.getDamageType()).isEqualTo(DamageType.PHYSICAL);
+    }
+
+    @Test
+    void createCompanion_WithPhysicalAndMagicDamageType_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OWNER_ID, false);
+
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .damageType(DamageType.PHYSICAL_AND_MAGIC)
+                .build();
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> companionService.createCompanion(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PHYSICAL_AND_MAGIC");
+
+        verifyNoInteractions(companionRepository);
+    }
+
     // ==================== UPDATE COMPANION ====================
 
     @Test
@@ -452,6 +550,44 @@ class CompanionServiceTest {
         assertThatThrownBy(() -> companionService.updateCompanion(COMPANION_ID, request, authentication))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("stressMarked");
+
+        verify(companionRepository, never()).save(any(Companion.class));
+    }
+
+    @Test
+    void updateCompanion_WithDamageType_UpdatesDamageType() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+        companion.setDamageType(DamageType.PHYSICAL);
+
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder().damageType(DamageType.MAGIC).build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.updateCompanion(COMPANION_ID, request, authentication);
+
+        assertThat(result.getDamageType()).isEqualTo(DamageType.MAGIC);
+    }
+
+    @Test
+    void updateCompanion_WithPhysicalAndMagicDamageType_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
+
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder()
+                .damageType(DamageType.PHYSICAL_AND_MAGIC)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.updateCompanion(COMPANION_ID, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PHYSICAL_AND_MAGIC");
 
         verify(companionRepository, never()).save(any(Companion.class));
     }
