@@ -41,9 +41,25 @@ import java.util.Set;
  * </p>
  * <p>
  * Access control:
- * - Create: Any authenticated user
- * - Read: Any authenticated user
- * - Update/Delete: Character sheet owner OR users with MODERATOR/ADMIN/OWNER role
+ * - Read, filtered (ID lookup, and the {@code characterSheetId}/{@code companionId} filters):
+ *   any authenticated user. Character sheets -- and everything attached to them, including
+ *   Experiences -- are intentionally public; a filtered read here is deliberately unscoped to
+ *   match {@code CharacterSheetService.getCharacterSheetById}, which already embeds the same
+ *   rows unconditionally via {@code ?expand=experiences}. A soft-deleted companion is still
+ *   excluded from the {@code expand=companion} response, since a soft-deleted record should not
+ *   be readable through a side door even where the owning data is otherwise public.
+ * - Read, unfiltered: scoped to the caller's own experiences for a non-privileged caller (via
+ *   {@link ExperienceRepository#findByOwnerId}), same as
+ *   {@code CharacterSheetService.getAllCharacterSheets}. This isn't about hiding any single
+ *   experience -- any of them is readable by ID or by filter -- it's about not letting an
+ *   unfiltered list enumerate every user's experiences in one call. A privileged caller still
+ *   sees everything unfiltered.
+ * - Create: Any authenticated user, but the target character sheet/companion's owner
+ *   requirement is checked (see {@link #requireOwnerOrModerator}), and a companion experience is
+ *   additionally capped at {@link Companion#MAX_EXPERIENCES}.
+ * - Update/Delete: Character sheet owner OR users with MODERATOR/ADMIN/OWNER role. For a
+ *   companion experience, "owning character sheet" is the companion's own
+ *   {@code characterSheet}.
  * </p>
  */
 @Service
@@ -60,8 +76,13 @@ public class ExperienceService {
     /**
      * Retrieves a paginated list of experiences.
      * <p>
-     * Optionally filters by character sheet ID or companion ID. All authenticated users can
-     * view experiences.
+     * Optionally filters by character sheet ID or companion ID; either filter is open to any
+     * authenticated user (character sheets, and everything attached to them, are intentionally
+     * public). A {@code companionId} filter targeting a soft-deleted companion 404s the same way
+     * {@code GET /api/dh/companions/{id}} does, since a soft-deleted record should not be
+     * readable through a side door. An <strong>unfiltered</strong> request is scoped to the
+     * caller's own experiences unless the caller is privileged, so it can't be used to enumerate
+     * every user's experiences in one call -- see {@link ExperienceRepository#findByOwnerId}.
      * </p>
      *
      * @param page Zero-based page number
@@ -69,7 +90,9 @@ public class ExperienceService {
      * @param characterSheetId Optional filter for character sheet ID
      * @param companionId Optional filter for companion ID
      * @param expand Comma-separated list of relationships to expand (characterSheet, companion, createdBy)
+     * @param auth The authentication object containing the current user
      * @return Paginated response containing experiences
+     * @throws EntityNotFoundException if a filtered character sheet or companion is not found
      */
     @Transactional(readOnly = true)
     public PagedResponse<ExperienceResponse> getAllExperiences(
@@ -77,7 +100,8 @@ public class ExperienceService {
             int size,
             Long characterSheetId,
             Long companionId,
-            String expand) {
+            String expand,
+            Authentication auth) {
 
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
@@ -91,14 +115,18 @@ public class ExperienceService {
             // Filter by character sheet
             experiencePage = experienceRepository.findByCharacterSheetId(characterSheetId, pageable);
         } else if (companionId != null) {
-            // Verify companion exists
-            companionRepository.findById(companionId)
-                    .orElseThrow(() -> new EntityNotFoundException("Companion not found with id: " + companionId));
+            // Verify companion exists and is not soft-deleted
+            findActiveCompanionOrThrow(companionId);
 
             // Filter by companion
             experiencePage = experienceRepository.findByCompanionId(companionId, pageable);
         } else {
-            experiencePage = experienceRepository.findAll(pageable);
+            CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+            if (roleHierarchyService.hasModeratorOrHigher(userDetails)) {
+                experiencePage = experienceRepository.findAll(pageable);
+            } else {
+                experiencePage = experienceRepository.findByOwnerId(userDetails.getUserId(), pageable);
+            }
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -146,6 +174,7 @@ public class ExperienceService {
      * @throws EntityNotFoundException if the character sheet or companion is not found
      * @throws IllegalArgumentException if both or neither characterSheetId and companionId are provided
      * @throws InsufficientPermissionsException if the user lacks permission to create
+     * @throws IllegalStateException if the target companion is already at {@link Companion#MAX_EXPERIENCES}
      */
     @Transactional
     public ExperienceResponse createExperience(CreateExperienceRequest request, Authentication auth) {
@@ -175,6 +204,17 @@ public class ExperienceService {
 
             requireOwnerOrModerator(companion.getCharacterSheet().getOwner().getId(), userDetails,
                     "create an experience for this companion");
+
+            // The printed companion sheet has exactly MAX_EXPERIENCES Experience lines -- shared
+            // with LevelUpService.validateCompanionExperienceGrants so both the manual/GM path
+            // here and the level-up path enforce the same cap. Uncapped, this path also creates
+            // a level-up deadlock: a tier transition requires exactly one grant per eligible
+            // companion but rejects one already at the cap, so a companion pushed past 5 here
+            // could never level up again.
+            if (companion.getExperiences().size() >= Companion.MAX_EXPERIENCES) {
+                throw new IllegalStateException("Companion " + companion.getId() +
+                        " is already at the maximum of " + Companion.MAX_EXPERIENCES + " Experiences");
+            }
         } else {
             // Handle character sheet experience
             characterSheet = characterSheetRepository.findActiveById(request.getCharacterSheetId())
@@ -277,6 +317,25 @@ public class ExperienceService {
     }
 
     /**
+     * Loads a companion by id, treating a soft-deleted companion the same as a missing one --
+     * mirrors {@code CompanionService.findActiveCompanionOrThrow} so a companion that
+     * {@code GET /api/dh/companions/{id}} 404s on cannot be reached indirectly through the
+     * {@code companionId} filter here.
+     *
+     * @param id the companion ID
+     * @return the active companion
+     * @throws EntityNotFoundException if no active companion exists with that id
+     */
+    private Companion findActiveCompanionOrThrow(Long id) {
+        Companion companion = companionRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Companion not found with id: " + id));
+        if (companion.isDeleted()) {
+            throw new EntityNotFoundException("Companion not found with id: " + id);
+        }
+        return companion;
+    }
+
+    /**
      * Validates that the current user is the given owner or holds a MODERATOR/ADMIN/OWNER
      * role, throwing otherwise. Shared by both branches of {@link #createExperience}: the
      * character-sheet branch previously performed no check at all while the companion branch
@@ -376,8 +435,12 @@ public class ExperienceService {
                     .build());
         }
 
-        // Expand companion if requested
-        if (ExpandUtil.shouldExpand(expand, "companion") && experience.getCompanion() != null) {
+        // Expand companion if requested. A soft-deleted companion is excluded here the same way
+        // CompanionService.findActiveCompanionOrThrow excludes it from a direct GET -- otherwise
+        // its name, stats and Experience-adjacent data would be readable through this expansion
+        // even though it 404s everywhere else.
+        if (ExpandUtil.shouldExpand(expand, "companion") && experience.getCompanion() != null
+                && !experience.getCompanion().isDeleted()) {
             Companion comp = experience.getCompanion();
             builder.companion(com.aboff.core.model.dto.dh.response.CompanionResponse.builder()
                     .id(comp.getId())

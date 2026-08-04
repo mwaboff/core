@@ -60,9 +60,6 @@ public class LevelUpService {
     /** Name of the Beastbound mastery feature granting two extra companion Training picks. */
     private static final String ADVANCED_TRAINING_FEATURE_NAME = "Advanced Training";
 
-    /** Printed cap on a companion's Experience count (plan section 2.5 / 10.1). */
-    private static final int MAX_COMPANION_EXPERIENCES = 5;
-
     private final CharacterSheetRepository characterSheetRepository;
     private final CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
     private final CharacterAdvancementLogRepository characterAdvancementLogRepository;
@@ -1022,9 +1019,9 @@ public class LevelUpService {
                 throw new IllegalStateException("Companion " + companion.getId() +
                         " requires exactly 1 Experience grant on a tier transition, got " + companionGrants.size());
             }
-            if (companion.getExperiences().size() >= MAX_COMPANION_EXPERIENCES) {
+            if (companion.getExperiences().size() >= Companion.MAX_EXPERIENCES) {
                 throw new IllegalStateException("Companion " + companion.getId() +
-                        " is already at the maximum of " + MAX_COMPANION_EXPERIENCES + " Experiences");
+                        " is already at the maximum of " + Companion.MAX_EXPERIENCES + " Experiences");
             }
         }
     }

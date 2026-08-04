@@ -48,6 +48,16 @@ import java.util.Set;
 public class Companion extends BaseEntity {
 
     /**
+     * Printed cap on a companion's Experience count -- the companion sheet has exactly 5
+     * Experience lines (core-01 companion sheet artwork, p.353), independently verified twice
+     * from the PDF. Shared between every path that can add an Experience to a companion --
+     * {@code ExperienceService.createExperience}'s manual/GM path and
+     * {@code LevelUpService.validateCompanionExperienceGrants}'s level-up path -- so the rule
+     * is enforced identically everywhere rather than duplicated with its own constant.
+     */
+    public static final int MAX_EXPERIENCES = 5;
+
+    /**
      * The character sheet that owns this companion.
      * Each companion belongs to exactly one character.
      * When the character sheet is deleted, the companion is also deleted.
