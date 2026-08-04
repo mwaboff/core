@@ -1205,6 +1205,31 @@ Request body for the `POST /api/dh/character-sheets/{id}/level-up` endpoint.
 | `equipNewDomainCard`       | boolean                    | No       | Default `false`. Whether to equip the new domain card (equipped count must not exceed 5). |
 | `unequipDomainCardId`      | long                       | No       | ID of a currently equipped domain card to unequip, to make room when at 5 equipped. |
 | `trades`                   | DomainCardTradeRequest[]   | No       | Optional list of equal-swap domain card trades.                        |
+| `companionTrainings`       | CompanionTrainingChoice[]  | Cond.    | Training picks for eligible companions. Every eligible companion (active, `advancesOnLevelUp`, existed before this level-up) must have exactly as many entries here as its `picksAvailable` (see `CompanionLevelUpOptionsResponse`) — 1, plus a Beastbound Specialization/Mastery bonus if taken this same level-up. |
+| `companionExperiences`     | CompanionExperienceGrant[] | Cond.    | The automatic Experience each eligible companion gains on a tier transition. Only consulted when this level-up crosses a tier boundary; silently ignored otherwise. Exactly one entry required per eligible companion on a tier transition. |
+| `newCompanionId`           | long                       | No       | ID of a companion this level-up granted, set by the frontend's two-phase submit (create the companion via `POST /api/dh/companions` first, or reference an existing soft-deleted one to restore). Only valid when one of `advancements` is a `MULTICLASS` choice whose target subclass card's foundation carries the "Companion" feature. Covers both a fresh companion (`origin = MANUAL`, promoted to `SUBCLASS_FEATURE`) and a soft-deleted one being restored (`origin` already `SUBCLASS_FEATURE`, matching `originSubclassCardId`). |
+
+### CompanionTrainingChoice
+
+One companion Training pick, included in `LevelUpRequest.companionTrainings`.
+
+| Field                | Type                     | Required                        | Notes |
+|-----------------------|--------------------------|----------------------------------|-------|
+| `companionId`         | long                      | Yes                              | The companion this pick applies to. Must be eligible. |
+| `option`              | CompanionTrainingOption   | Yes                              | See `CompanionTrainingOption` in `companions-api.md`. |
+| `viciousAxis`         | ViciousAxis               | Required iff `option == VICIOUS` | `DAMAGE_DIE` or `RANGE`, and that axis must not already be at its ladder cap. |
+| `targetExperienceId`  | long                      | Required iff `option == INTELLIGENT` | Must belong to the target companion, and be an Experience that existed before this level-up (a companion's own brand-new tier Experience cannot be targeted in the same level-up). |
+
+Cap enforcement (`CompanionTrainingValidator.validatePick`, shared with the manual `POST /api/dh/companions/{id}/trainings` endpoint) is per-companion-lifetime, not per-tier, and accounts for every pick already made in the same request.
+
+### CompanionExperienceGrant
+
+The automatic Experience grant for one companion on a tier transition, included in `LevelUpRequest.companionExperiences`.
+
+| Field         | Type   | Required | Notes |
+|----------------|--------|----------|-------|
+| `companionId` | long   | Yes      | The companion gaining the new Experience. Must be eligible. |
+| `description` | string | Yes      | Not blank. Rejected if the companion already has 5 Experiences (the printed cap). |
 
 ### AdvancementChoice
 
@@ -1262,6 +1287,8 @@ Returned by `GET /api/dh/character-sheets/{id}/level-up-options`.
 | `accessibleDomainIds`    | long[]                    | IDs of domains accessible to the character (determined by subclass paths) |
 | `equippedDomainCardCount`| integer                   | Number of currently equipped domain cards                           |
 | `maxEquippedDomainCards` | integer                   | Maximum equipped domain cards (always 5)                            |
+| `companionTraining`      | CompanionLevelUpOptionsResponse[] | Training options for every eligible companion. Empty if the character has no eligible companions. |
+| `restorableCompanions`   | CompanionResponse[]       | Soft-deleted, `origin = SUBCLASS_FEATURE` companions on this sheet that could be restored if the granting subclass path is re-taken via a `MULTICLASS` advancement this level-up. The frontend matches these against whichever subclass card the player picks -- the backend does not enumerate available multiclass targets anywhere. See `CompanionResponse` in `companions-api.md`. |
 
 #### AvailableAdvancement (nested in LevelUpOptionsResponse)
 
@@ -1270,6 +1297,25 @@ Returned by `GET /api/dh/character-sheets/{id}/level-up-options`.
 | `type`                 | AdvancementType     | The advancement type                                               |
 | `remaining`            | integer             | How many more times this advancement can be chosen in this tier    |
 | `mutuallyExclusiveWith`| AdvancementType[]   | List of advancement types that are mutually exclusive with this one within a tier. Empty array if none. |
+
+#### CompanionLevelUpOptionsResponse (nested in LevelUpOptionsResponse)
+
+One entry per companion eligible to advance this level-up (active, `advancesOnLevelUp`, existed before this level-up).
+
+| Field              | Type                              | Description |
+|---------------------|------------------------------------|--------------|
+| `companionId`       | long                                | The companion's id |
+| `name`               | string                              | The companion's name |
+| `currentStats`       | CompanionResponse                   | The companion's current derived and base stats (see `companions-api.md`) |
+| `availableOptions`   | AvailableCompanionTrainingOption[]  | Every `CompanionTrainingOption` and how many times it can still be selected |
+| `picksAvailable`     | integer                             | **Always `1` here.** This endpoint runs before the player has chosen their two advancements for the level-up, so the `+1`/`+2` bonus from taking a Beastbound Specialization/Mastery card this same level-up cannot be known yet. The frontend recomputes this reactively once the Advancements step is filled in; `POST .../level-up`'s validation is the authoritative check on submit. |
+
+#### AvailableCompanionTrainingOption (nested in CompanionLevelUpOptionsResponse)
+
+| Field         | Type                     | Description |
+|----------------|---------------------------|--------------|
+| `option`       | CompanionTrainingOption   | The Training option |
+| `remaining`    | integer                    | How many more times this option can still be selected by this companion |
 
 ### LevelUpResponse
 

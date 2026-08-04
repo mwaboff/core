@@ -18,7 +18,7 @@ import java.util.List;
  * </p>
  */
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class LevelUpRequest {
@@ -66,4 +66,34 @@ public class LevelUpRequest {
      */
     @Valid
     private List<DomainCardTradeRequest> trades;
+
+    /**
+     * Training picks for eligible companions during this level-up.
+     * <p>
+     * Every eligible companion (active, {@code advancesOnLevelUp}, existed before this
+     * level-up) must have exactly as many entries here as its computed {@code picksAvailable}
+     * (1, plus a Beastbound Specialization/Mastery bonus if taken this same level-up).
+     * </p>
+     */
+    @Valid
+    private List<CompanionTrainingChoice> companionTrainings;
+
+    /**
+     * The automatic Experience each eligible companion gains on a tier transition.
+     * Only consulted when this level-up crosses a tier boundary; silently ignored otherwise.
+     */
+    @Valid
+    private List<CompanionExperienceGrant> companionExperiences;
+
+    /**
+     * The id of a companion this level-up granted, set by the frontend's two-phase submit.
+     * <p>
+     * Covers both "a brand-new companion was just created via {@code POST /api/dh/companions}"
+     * (active, {@code origin = MANUAL}) and "a previously soft-deleted companion is being
+     * restored" (soft-deleted, {@code origin = SUBCLASS_FEATURE}, matching
+     * {@code originSubclassCardId}) -- only valid when one of this request's advancements
+     * multiclasses into a subclass whose foundation card carries the "Companion" feature.
+     * </p>
+     */
+    private Long newCompanionId;
 }
