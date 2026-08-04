@@ -202,8 +202,15 @@ public class LevelUpService {
 
         // Step 1.5 - Companion Experience grants (tier transitions only)
         if (isTierTransition) {
+            // Both the forced Training pick and the forced Experience grant flow from the same
+            // source -- Beastbound's Companion feature (core-01:1249) is what puts a character's
+            // hands on the Ranger Companion sheet in the first place, and "whenever you gain a
+            // new Experience, your companion also gains one" (core-01:1319) is a build step on
+            // that sheet. A companionsEnabled flag with no Companion feature (a GM-granted pet on
+            // any other class) gets neither -- see companionExperienceEligibleCompanions(sheet).
+            List<Companion> companionExperienceEligible = companionExperienceEligibleCompanions(sheet, eligibleCompanions);
             List<Map<String, Object>> companionExperiencesLog =
-                    applyCompanionExperienceGrants(request, eligibleCompanions, appliedChanges, auth);
+                    applyCompanionExperienceGrants(request, companionExperienceEligible, appliedChanges, auth);
             if (!companionExperiencesLog.isEmpty()) {
                 advancementDataMap.put("companionExperiences", companionExperiencesLog);
             }
@@ -836,7 +843,8 @@ public class LevelUpService {
 
         // Validate companion Experience grants (tier transitions only, silently ignored otherwise)
         if (isTierTransition) {
-            validateCompanionExperienceGrants(request.getCompanionExperiences(), eligibleCompanions);
+            List<Companion> companionExperienceEligible = companionExperienceEligibleCompanions(sheet, eligibleCompanions);
+            validateCompanionExperienceGrants(request.getCompanionExperiences(), companionExperienceEligible);
         }
 
         // Validate newCompanionId (companion created/restored by a Companion-granting multiclass)
@@ -910,6 +918,24 @@ public class LevelUpService {
             }
         }
         return false;
+    }
+
+    /**
+     * Narrows a companion Experience-grant candidate list down to those actually eligible for
+     * the automatic tier-transition grant: the printed rule ("whenever you gain a new
+     * Experience, your companion also gains one", core-01:1319) is a build step on the Ranger
+     * Companion sheet, which only the Companion feature (see {@link #hasCompanionFeature}) puts
+     * in a character's hands -- same gate as the Training pick, reusing the same detection
+     * rather than a second one.
+     *
+     * @param sheet the character sheet, checked for the Companion feature
+     * @param eligibleCompanions companions otherwise eligible this level-up (active,
+     *                            {@code advancesOnLevelUp})
+     * @return {@code eligibleCompanions} unchanged if the character has the Companion feature,
+     *         otherwise an empty list
+     */
+    private List<Companion> companionExperienceEligibleCompanions(CharacterSheet sheet, List<Companion> eligibleCompanions) {
+        return hasCompanionFeature(sheet) ? eligibleCompanions : List.of();
     }
 
     /**
@@ -1032,7 +1058,12 @@ public class LevelUpService {
      * companions. Only called when this level-up is a tier transition.
      *
      * @param grants this request's companion Experience grants, may be null
-     * @param eligibleCompanions companions eligible to receive a grant this level-up
+     * @param eligibleCompanions companions eligible to receive a grant this level-up -- already
+     *                            narrowed by the caller via
+     *                            {@link #companionExperienceEligibleCompanions}, so a grant
+     *                            submitted for a companion on a character without the Companion
+     *                            feature is rejected here as "not eligible", same as any other
+     *                            unknown companion id
      * @throws IllegalStateException if a grant targets an ineligible/unknown companion, if any
      *         eligible companion doesn't have exactly one grant, or if a companion is already
      *         at the Experience cap
@@ -1538,7 +1569,8 @@ public class LevelUpService {
      * </p>
      *
      * @param request the level-up request, supplying each grant's description
-     * @param eligibleCompanions companions eligible for a grant this level-up
+     * @param eligibleCompanions companions eligible for a grant this level-up -- already narrowed
+     *                            by the caller via {@link #companionExperienceEligibleCompanions}
      * @param appliedChanges the running human-readable summary of changes
      * @param auth the authentication object, used to attribute the new Experience
      * @return one log entry per grant, for {@code advancementData.companionExperiences}
