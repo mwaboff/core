@@ -59,6 +59,8 @@ public enum AuditAction {
     COMPANION_CREATED("Companion created"),
     COMPANION_UPDATED("Companion updated"),
     COMPANION_DELETED("Companion deleted"),
+    COMPANION_TRAINING_ADDED("Companion training added"),
+    COMPANION_TRAINING_REMOVED("Companion training removed"),
 
     // Experience
     EXPERIENCE_CREATED("Experience created"),

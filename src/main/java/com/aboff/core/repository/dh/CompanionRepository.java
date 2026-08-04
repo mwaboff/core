@@ -48,6 +48,17 @@ public interface CompanionRepository extends JpaRepository<Companion, Long> {
     List<Companion> findActiveByCharacterSheetId(Long characterSheetId);
 
     /**
+     * Find a page of active (non-soft-deleted) companions associated with a specific character
+     * sheet.
+     *
+     * @param characterSheetId the ID of the character sheet
+     * @param pageable pagination information
+     * @return page of active companions for the character sheet
+     */
+    @Query("SELECT c FROM Companion c WHERE c.characterSheet.id = :characterSheetId AND c.deletedAt IS NULL")
+    Page<Companion> findActiveByCharacterSheetId(Long characterSheetId, Pageable pageable);
+
+    /**
      * Count companions associated with a specific character sheet.
      *
      * @param characterSheetId the ID of the character sheet
