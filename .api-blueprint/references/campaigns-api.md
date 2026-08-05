@@ -30,8 +30,9 @@ All endpoints require authentication via `AUTH_TOKEN` HttpOnly cookie unless oth
 20. [Update Fear](#20-update-fear)
 21. [Update GM Notes](#21-update-gm-notes)
 22. [Update Transformation Access](#22-update-transformation-access)
-23. [Models](#models)
-24. [Enums](#enums)
+23. [Update Companion Access](#23-update-companion-access)
+24. [Models](#models)
+25. [Enums](#enums)
 
 ---
 
@@ -1312,6 +1313,86 @@ curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/tran
 
 ---
 
+## 23. Update Companion Access
+
+Grants or revokes a character's access to **creating new** companions.
+
+Unlike transformations, companions have no card/token state to assign or clear, and no player-side write gate to enforce: disabling this flag never hides, disables, or orphans a companion the character already has -- it only stops a new one from being created. See `references/companions-api.md` for the companion CRUD/training endpoints themselves.
+
+- **Method:** `PUT`
+- **Path:** `/api/dh/campaigns/{campaignId}/character-sheets/{sheetId}/companions`
+- **Auth:** Campaign creator/GM or MODERATOR/ADMIN/OWNER
+
+### Path Parameters
+
+| Parameter  | Type | Required | Description                                          |
+|------------|------|----------|-------------------------------------------------------|
+| campaignId | long | Yes      | The campaign ID                                      |
+| sheetId    | long | Yes      | The character sheet ID; must belong to the campaign  |
+
+### Request Body
+
+| Field   | Type    | Required | Constraints |
+|---------|---------|----------|--------------|
+| enabled | boolean | Yes      | `@NotNull`   |
+
+### Request Examples
+
+```json
+{
+  "enabled": true
+}
+```
+
+```json
+{
+  "enabled": false
+}
+```
+
+### Response: `200 OK`
+
+Returns the updated CharacterSheetResponse (full character sheet, no expansions).
+
+```json
+{
+  "id": 10,
+  "name": "Roster Hero",
+  "level": 1,
+  "companionsEnabled": true,
+  "ownerId": 3,
+  "createdAt": "2026-03-13T10:00:00",
+  "lastModifiedAt": "2026-08-04T12:00:00"
+}
+```
+
+### Error Responses
+
+| Status | Condition                                                       | Error Body Type         |
+|--------|-----------------------------------------------------------------|-------------------------|
+| 400    | `enabled` null/missing, or the campaign has ended                | ValidationErrorResponse / ErrorResponse |
+| 401    | No AUTH_TOKEN cookie                                            | ErrorResponse           |
+| 403    | User is not a creator/GM and not MODERATOR+                     | ErrorResponse           |
+| 404    | Campaign not found, or sheet not in the campaign                | ErrorResponse           |
+
+### curl Examples
+
+```bash
+# Let this player create companions
+curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/companions \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"enabled": true}'
+
+# Stop new companions from being created (existing companions are unaffected)
+curl -s -X PUT http://localhost:8080/api/dh/campaigns/1/character-sheets/10/companions \
+  -H "Content-Type: application/json" \
+  --cookie "AUTH_TOKEN=<token>" \
+  -d '{"enabled": false}'
+```
+
+---
+
 ## Models
 
 ### CampaignResponse
@@ -1326,11 +1407,11 @@ Null fields are omitted from the JSON response (`@JsonInclude(NON_NULL)`).
 | fear                      | integer                   | Yes            | Current Fear counter (0-12), visible to all participants |
 | gmNotes                   | string                    | No             | **GM-only.** See visibility rule below               |
 | creatorId                 | long                      | Yes            | ID of the campaign creator                           |
-| creator                   | UserResponse              | No             | Expanded when `?expand=creator`                      |
+| creator                   | UserResponse              | No             | Expanded when `?expand=creator`. See redaction note below. |
 | gameMasterIds             | long[]                    | Yes            | IDs of all game masters                              |
-| gameMasters               | UserResponse[]            | No             | Expanded when `?expand=gameMasters`                  |
+| gameMasters               | UserResponse[]            | No             | Expanded when `?expand=gameMasters`. See redaction note below. |
 | playerIds                 | long[]                    | Yes            | IDs of all players                                   |
-| players                   | UserResponse[]            | No             | Expanded when `?expand=players`                      |
+| players                   | UserResponse[]            | No             | Expanded when `?expand=players`. See redaction note below. |
 | pendingCharacterSheetIds  | long[]                    | Yes            | IDs of pending character sheets                      |
 | pendingCharacterSheets    | CharacterSheetResponse[]  | No             | Expanded when `?expand=pendingCharacterSheets`       |
 | playerCharacterIds        | long[]                    | Yes            | IDs of approved player characters                    |
@@ -1351,6 +1432,10 @@ Null fields are omitted from the JSON response (`@JsonInclude(NON_NULL)`).
 This applies uniformly to every endpoint that returns a CampaignResponse: `GET /api/dh/campaigns/{id}`, `GET /api/dh/campaigns/mine`, `GET /api/dh/campaigns`, `GET /api/users/{userId}/campaigns`, and the two GM Screen PATCH endpoints.
 
 `fear`, by contrast, is always present -- it is a table-visible shared resource in Daggerheart and is returned to players as well.
+
+#### `creator`/`gameMasters`/`players` redaction rule
+
+Each expanded `UserResponse` is redacted the same way `GET /api/users/{id}` redacts another user's profile: `email`, `timezone`, and `lastModifiedAt` are included only when the requesting user **is** that participant or holds MODERATOR/ADMIN/OWNER role; otherwise those fields are omitted (`@JsonInclude(NON_NULL)`). `username`, `role`, and `avatarUrl` are always included -- they identify who a participant is without exposing contact details. This applies per-entry, so e.g. `?expand=players` on a request from a non-privileged player returns their own email but not any other player's.
 
 ### CreateCampaignRequest
 
@@ -1396,18 +1481,18 @@ Setting `enabled` to `false` preserves the character's existing transformation c
 
 ### UserResponse (expanded)
 
-When a user is expanded in a campaign response, these fields are included. Null fields are omitted.
+When a user is expanded in a campaign response, these fields are included, subject to the redaction rule above. Null and redacted fields are omitted.
 
-| Field           | Type     | Description                  |
-|-----------------|----------|------------------------------|
-| id              | long     | User ID                      |
-| username        | string   | Username                     |
-| role            | string   | User role (`USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
-| email           | string   | Email address                |
-| avatarUrl       | string   | Avatar image URL             |
-| timezone        | string   | User timezone                |
-| createdAt       | datetime | Account creation timestamp   |
-| lastModifiedAt  | datetime | Last modified timestamp      |
+| Field           | Type     | Always Present | Description                  |
+|-----------------|----------|-----------------|------------------------------|
+| id              | long     | Yes             | User ID                      |
+| username        | string   | Yes             | Username                     |
+| role            | string   | Yes             | User role (`USER`, `MODERATOR`, `ADMIN`, `OWNER`) |
+| avatarUrl       | string   | No              | Avatar image URL             |
+| createdAt       | datetime | Yes             | Account creation timestamp   |
+| email           | string   | No              | Email address -- redacted unless viewer is this participant or MODERATOR+ |
+| timezone        | string   | No              | User timezone -- redacted unless viewer is this participant or MODERATOR+ |
+| lastModifiedAt  | datetime | No              | Last modified timestamp -- redacted unless viewer is this participant or MODERATOR+ |
 
 ### CharacterSheetResponse (expanded, basic fields)
 
@@ -1458,6 +1543,7 @@ Lightweight character summary used in campaign GET with `?expand=characterSummar
 | transformationEnabled  | boolean  | Yes            | Whether a GM has enabled transformations         |
 | transformationCardId   | long     | No             | Assigned transformation card ID (absent if none) |
 | transformationCardName | string   | No             | Assigned transformation card name (absent if none) |
+| companionsEnabled      | boolean  | Yes            | Whether a GM has enabled **creating new** companions. Never implies an existing companion is hidden. |
 
 The three transformation fields let a GM roster render the current transformation state without an extra fetch per character; the assigned card is loaded in a single batched query.
 
@@ -1572,7 +1658,8 @@ Campaigns have two distinct lifecycle states beyond active:
 | Reject character sheet     | Yes     | Yes               | No      | Yes        | Yes       |
 | Add NPC                    | Yes     | Yes               | No      | Yes        | No        |
 | Remove character sheet     | Yes     | Yes               | Yes***  | Yes        | Yes       |
-| Update transformation access | Yes   | Yes               | No      | Yes        | Yes       |
+| Update transformation access | Yes   | Yes               | No      | Yes        | No        |
+| Update companion access    | Yes     | Yes               | No      | Yes        | No        |
 
 \* Must also be the character sheet owner. Character sheet must not already be in an active campaign.
 \*\* Returns error if already ended.

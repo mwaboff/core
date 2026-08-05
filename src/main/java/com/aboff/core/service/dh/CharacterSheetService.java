@@ -11,7 +11,6 @@ import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.util.MarkdownSanitizerUtil;
 import com.aboff.core.model.dto.response.PagedResponse;
-import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.entity.dh.Class;
@@ -23,6 +22,7 @@ import com.aboff.core.repository.dh.*;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.service.UserService;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -91,6 +91,9 @@ public class CharacterSheetService {
     private final MartialStanceRepository martialStanceRepository;
     private final TransformationCardService transformationCardService;
     private final MartialStanceService martialStanceService;
+    private final CompanionRepository companionRepository;
+    private final CompanionService companionService;
+    private final UserService userService;
 
     /**
      * Maximum value for Vampire "Feed" tokens ("You can hold up to 6 tokens at a time").
@@ -146,7 +149,7 @@ public class CharacterSheetService {
 
         return PagedResponse.<CharacterSheetResponse>builder()
                 .content(characterSheetPage.getContent().stream()
-                        .map(sheet -> toResponse(sheet, expandSet))
+                        .map(sheet -> toResponse(sheet, expandSet, auth))
                         .toList())
                 .totalElements(characterSheetPage.getTotalElements())
                 .totalPages(characterSheetPage.getTotalPages())
@@ -174,7 +177,7 @@ public class CharacterSheetService {
                 .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
-        CharacterSheetResponse response = toResponse(characterSheet, expandSet);
+        CharacterSheetResponse response = toResponse(characterSheet, expandSet, auth);
 
         // Populate campaign info if viewer has access
         if (auth != null) {
@@ -359,7 +362,7 @@ public class CharacterSheetService {
         auditLogger.log(AuditAction.CHARACTER_CREATED, AuditContext.forUser(auth).build(),
                 "\"" + savedSheet.getName() + "\" (character_sheet_id: " + savedSheet.getId() + ")");
 
-        return toResponse(savedSheet, Set.of());
+        return toResponse(savedSheet, Set.of(), auth);
     }
 
     /**
@@ -615,7 +618,7 @@ public class CharacterSheetService {
         auditLogger.log(AuditAction.CHARACTER_UPDATED, AuditContext.forUser(auth).build(),
                 "\"" + updatedSheet.getName() + "\" (character_sheet_id: " + updatedSheet.getId() + ")");
 
-        return toResponse(updatedSheet, Set.of());
+        return toResponse(updatedSheet, Set.of(), auth);
     }
 
     /**
@@ -662,19 +665,22 @@ public class CharacterSheetService {
     /**
      * Retrieves the notes for a character sheet without loading the full entity.
      * <p>
-     * Any authenticated user may call this endpoint; no ownership check is performed.
-     * Soft-deleted sheets return 404.
+     * Notes are a private field: the caller must be the character sheet owner or hold
+     * MODERATOR/ADMIN/OWNER role, the same rule enforced by {@link #updateNotes}. Soft-deleted
+     * sheets return 404.
      * </p>
      *
      * @param id   the character sheet ID
-     * @param auth the authentication context (required by the controller; not used for access checks)
+     * @param auth the authentication context used for ownership and role checks
      * @return a slim response containing the sheet ID, current notes, and last-modified timestamp
-     * @throws EntityNotFoundException if the character sheet is not found or is soft-deleted
+     * @throws EntityNotFoundException          if the character sheet is not found or is soft-deleted
+     * @throws InsufficientPermissionsException if the caller is neither the owner nor a MODERATOR+
      */
     @Transactional(readOnly = true)
     public CharacterSheetNotesResponse getNotes(Long id, Authentication auth) {
         CharacterSheet sheet = characterSheetRepository.findActiveById(id)
                 .orElseThrow(() -> new EntityNotFoundException("CharacterSheet not found with id: " + id));
+        validateAccess(sheet, auth, "view notes for");
         return CharacterSheetNotesResponse.builder()
                 .id(sheet.getId())
                 .notes(sheet.getNotes())
@@ -705,7 +711,7 @@ public class CharacterSheetService {
         validateAccess(sheet, auth, "update notes");
         log.info("Updating notes for character sheet id={}", id);
         sheet.setNotes(MarkdownSanitizerUtil.sanitize(rawNotes));
-        return toResponse(characterSheetRepository.save(sheet), Set.of());
+        return toResponse(characterSheetRepository.save(sheet), Set.of(), auth);
     }
 
     /**
@@ -721,17 +727,35 @@ public class CharacterSheetService {
      * @throws InsufficientPermissionsException if the user lacks permission
      */
     void validateAccess(CharacterSheet characterSheet, Authentication auth, String operation) {
-        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
-        Long userId = userDetails.getUserId();
-
-        Long ownerId = characterSheet.getOwner().getId();
-        boolean isOwner = ownerId.equals(userId);
-        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
-
-        if (!isOwner && !isModerator) {
+        if (!hasOwnerOrModeratorAccess(characterSheet, auth)) {
             throw new InsufficientPermissionsException(
                     "You do not have permission to " + operation + " this character sheet");
         }
+    }
+
+    /**
+     * Determines, without throwing, whether the current user is the character sheet's owner or
+     * holds MODERATOR/ADMIN/OWNER role.
+     * <p>
+     * Backs both {@link #validateAccess} (which throws) and the private-field gating in
+     * {@link #toResponse}, so notes visibility is defined in exactly one place. Fails closed for
+     * an absent or unrecognized principal, e.g. the unauthenticated overload of
+     * {@link #getCharacterSheetById(Long, String)}.
+     * </p>
+     *
+     * @param characterSheet The character sheet to check access against
+     * @param auth The authentication object containing the current user, may be null
+     * @return true if the user owns the sheet or is MODERATOR/ADMIN/OWNER
+     */
+    private boolean hasOwnerOrModeratorAccess(CharacterSheet characterSheet, Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof CustomUserDetails userDetails)) {
+            return false;
+        }
+
+        Long ownerId = characterSheet.getOwner().getId();
+        boolean isOwner = ownerId.equals(userDetails.getUserId());
+        boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
+        return isOwner || isModerator;
     }
 
     /**
@@ -987,17 +1011,45 @@ public class CharacterSheetService {
      * - knownMartialStances: Full martial stance objects for every known stance
      * - activeMartialStance: Full martial stance object for the currently active stance
      * </p>
+     * <p>
+     * {@code notes} is a private field, not an expansion: it is populated only when {@code auth}
+     * identifies the sheet owner or a MODERATOR+ viewer (see {@link #hasOwnerOrModeratorAccess}),
+     * and otherwise left {@code null} so it is dropped from the serialized JSON.
+     * </p>
      *
      * @param sheet The character sheet entity
      * @param expand Set of relationships to expand
-     * @return CharacterSheetResponse DTO
+     * @return CharacterSheetResponse DTO, with {@code notes} omitted for the unauthenticated caller
      */
     CharacterSheetResponse toResponse(CharacterSheet sheet, Set<String> expand) {
+        return toResponse(sheet, expand, null);
+    }
+
+    /**
+     * Converts a CharacterSheet entity to CharacterSheetResponse DTO for a specific viewer.
+     * <p>
+     * Identical to {@link #toResponse(CharacterSheet, Set)}, except {@code notes} and the
+     * {@code owner} expansion are resolved against {@code auth} rather than defaulting to the
+     * fully-redacted, unauthenticated view.
+     * </p>
+     *
+     * @param sheet  The character sheet entity
+     * @param expand Set of relationships to expand
+     * @param auth   The authentication object for the requesting viewer, or null to omit
+     *               {@code notes} and redact the {@code owner} expansion
+     * @return CharacterSheetResponse DTO
+     */
+    CharacterSheetResponse toResponse(CharacterSheet sheet, Set<String> expand, Authentication auth) {
         CharacterSheetResponse.CharacterSheetResponseBuilder builder = CharacterSheetResponse.builder()
                 .id(sheet.getId())
                 .name(sheet.getName())
                 .pronouns(sheet.getPronouns())
-                .notes(sheet.getNotes())
+                // Presence of this field is the client's authorization signal: an authorized
+                // viewer always receives it, as "" when nothing is written, so an owner with
+                // empty notes still gets an editor. NON_NULL strips null but keeps "".
+                .notes(hasOwnerOrModeratorAccess(sheet, auth)
+                        ? (sheet.getNotes() != null ? sheet.getNotes() : "")
+                        : null)
                 .level(sheet.getLevel())
                 .proficiency(sheet.getProficiency())
                 .evasion(sheet.getEvasion())
@@ -1137,18 +1189,12 @@ public class CharacterSheetService {
         // Always include IDs for experiences
         builder.experienceIds(sheet.getExperiences().stream().map(Experience::getId).collect(Collectors.toList()));
 
-        // Expand owner if requested
+        // Expand owner if requested. Routed through UserService.mapToUserResponse so the same
+        // email/avatarUrl/timezone redaction GET /api/users/{id} applies here too -- a non-self,
+        // non-privileged viewer must not see another user's private profile fields just because
+        // they know a character sheet ID.
         if (ExpandUtil.shouldExpand(expand, "owner")) {
-            User owner = sheet.getOwner();
-            builder.owner(UserResponse.builder()
-                    .id(owner.getId())
-                    .username(owner.getUsername())
-                    .email(owner.getEmail())
-                    .avatarUrl(owner.getAvatarUrl())
-                    .timezone(owner.getTimezone())
-                    .createdAt(owner.getCreatedAt())
-                    .lastModifiedAt(owner.getLastModifiedAt())
-                    .build());
+            builder.owner(userService.mapToUserResponse(sheet.getOwner(), auth));
         }
 
         // Expand experiences if requested
@@ -1217,6 +1263,18 @@ public class CharacterSheetService {
             builder.vaultDomainCards(sheet.getCharacterSheetDomainCards().stream()
                     .filter(csdc -> !csdc.getEquipped())
                     .map(csdc -> toDomainCardResponse(csdc.getDomainCard(), expand))
+                    .collect(Collectors.toList()));
+        }
+
+        // Companions: gate flag and derived Hope slots are always included; active companions
+        // are fetched once (soft-deleted ones are excluded by the repository query) since the
+        // Hope slot count needs them regardless of whether the full list is expanded.
+        List<Companion> activeCompanions = companionRepository.findActiveByCharacterSheetId(sheet.getId());
+        builder.companionsEnabled(sheet.isCompanionsEnabled());
+        builder.companionGrantedHopeSlots(CompanionDerivationService.companionGrantedHopeSlots(activeCompanions));
+        if (ExpandUtil.shouldExpand(expand, "companions")) {
+            builder.companions(activeCompanions.stream()
+                    .map(companion -> companionService.toResponse(companion, expand))
                     .collect(Collectors.toList()));
         }
 

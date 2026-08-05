@@ -11,9 +11,25 @@ An experience belongs to exactly one of: a character sheet OR a companion (enfor
 **Authentication:** All endpoints require a valid JWT token in an `AUTH_TOKEN` HttpOnly cookie.
 
 **Access Control:**
-- GET endpoints: Any authenticated user
-- POST: Any authenticated user (current user recorded as creator)
-- PUT/DELETE: Character sheet owner OR MODERATOR/ADMIN/OWNER role (enforced in service layer)
+- GET, filtered (ID lookup, and the `characterSheetId`/`companionId` filters): any authenticated
+  user. Character sheets -- and everything attached to them, including Experiences -- are
+  intentionally public, matching `GET /api/dh/character-sheets/{id}`. A `companionId` filter or
+  `?expand=companion` still excludes a soft-deleted companion, the same way
+  `GET /api/dh/companions/{id}` 404s it -- a soft-deleted record should not be reachable through
+  a side door even where the owning data is otherwise public.
+- GET, unfiltered list: scoped to the caller's own experiences unless the caller is privileged
+  (MODERATOR/ADMIN/OWNER), matching `GET /api/dh/character-sheets` (no `ownerId` filter). This
+  doesn't hide any individual experience -- every row here is still reachable by ID or by the
+  `characterSheetId`/`companionId` filters -- it only prevents an unfiltered call from
+  enumerating every user's experiences at once.
+- POST: Any authenticated user, but the target character sheet/companion's owner requirement is
+  checked in the service. A companion experience is additionally capped: a companion already at
+  `Companion.MAX_EXPERIENCES` (5, matching the printed companion sheet's 5 Experience lines)
+  rejects a new one.
+- PUT/DELETE: Character sheet owner OR MODERATOR/ADMIN/OWNER role.
+
+Public **read** does not mean public **write** -- only the owner (or MODERATOR/ADMIN/OWNER) may
+create, update, or delete an Experience.
 
 ---
 
@@ -23,7 +39,9 @@ An experience belongs to exactly one of: a character sheet OR a companion (enfor
 
 Retrieves a paginated list of experiences.
 
-**Authorization:** Any authenticated user
+**Authorization:** Any authenticated user. `characterSheetId`/`companionId` filters are open to
+any authenticated user; a `companionId` filter targeting a soft-deleted companion 404s. An
+unfiltered request is scoped to the caller's own experiences unless the caller is privileged.
 
 **Query Parameters:**
 
@@ -91,7 +109,7 @@ Retrieves a paginated list of experiences.
 
 **Error Responses:**
 - `401 Unauthorized` -- Missing or invalid JWT token
-- `404 Not Found` -- Invalid characterSheetId or companionId filter
+- `404 Not Found` -- Invalid `characterSheetId` or `companionId` filter, or the filtered companion is soft-deleted
 
 ---
 
@@ -99,7 +117,7 @@ Retrieves a paginated list of experiences.
 
 Retrieves a single experience by ID.
 
-**Authorization:** Any authenticated user
+**Authorization:** Any authenticated user.
 
 **Path Parameters:**
 
@@ -113,7 +131,9 @@ Retrieves a single experience by ID.
 |-----------|--------|------------------------------------------|
 | expand    | string | Comma-separated relationships to expand  |
 
-**Expand Options:** `characterSheet`, `companion`, `createdBy`
+**Expand Options:** `characterSheet`, `companion`, `createdBy`. `?expand=companion` omits the
+`companion` field entirely (rather than erroring) if the companion is soft-deleted -- the same
+data `GET /api/dh/companions/{id}` would 404 on is not exposed through this expansion either.
 
 **Response:** `200 OK`
 
@@ -139,7 +159,10 @@ Retrieves a single experience by ID.
 
 Creates a new experience. The authenticated user is recorded as the creator.
 
-**Authorization:** Any authenticated user
+**Authorization:** The owning character sheet's owner OR MODERATOR/ADMIN/OWNER role -- for a
+companion experience (`companionId`), "owning character sheet" is the companion's own
+`characterSheet`. (Previously the `characterSheetId` branch performed no check at all; fixed
+alongside the companions character-sheet integration work.)
 
 **Request Body:**
 
@@ -166,11 +189,16 @@ Or for a companion experience:
 | Field            | Type    | Required | Default | Constraints                          |
 |-----------------|---------|----------|---------|--------------------------------------|
 | characterSheetId| Long    | No*      | -       | Must reference existing sheet        |
-| companionId     | Long    | No*      | -       | Must reference existing companion    |
+| companionId     | Long    | No*      | -       | Must reference existing companion; that companion must have fewer than `Companion.MAX_EXPERIENCES` (5) Experiences |
 | description     | String  | Yes      | -       | Not blank, max 5000 characters       |
 | modifier        | Integer | No       | 2       | Standard Daggerheart experience bonus|
 
 *Exactly one of `characterSheetId` or `companionId` must be provided.
+
+**Companion Experience cap:** the printed companion sheet has exactly 5 Experience lines, so a
+companion already at 5 Experiences rejects a 6th. This is a companion-only rule -- a character's
+own Experiences (`characterSheetId`) have no such limit. The same cap is enforced identically on
+the level-up path (`LevelUpService`), sharing the `Companion.MAX_EXPERIENCES` constant.
 
 **Response:** `201 Created`
 
@@ -187,8 +215,9 @@ Or for a companion experience:
 ```
 
 **Error Responses:**
-- `400 Bad Request` -- Missing required fields (description blank)
+- `400 Bad Request` -- Missing required fields (description blank), or the target companion is already at the 5-Experience cap
 - `401 Unauthorized` -- Missing or invalid JWT token
+- `403 Forbidden` -- Caller is neither the owning character sheet's owner nor MODERATOR/ADMIN/OWNER
 - `404 Not Found` -- Referenced character sheet or companion does not exist
 
 ---

@@ -22,11 +22,17 @@ import org.springframework.web.bind.annotation.*;
  * Daggerheart TTRPG system.
  * </p>
  * <p>
- * Access control:
- * - GET endpoints: All authenticated users
- * - POST endpoint: All authenticated users
+ * Access control (enforced in service layer):
+ * - GET endpoints, filtered (ID lookup, {@code characterSheetId}/{@code companionId} filters):
+ *   any authenticated user -- character sheets, and everything attached to them (including
+ *   Experiences), are intentionally public. A {@code companionId} filter or
+ *   {@code expand=companion} still excludes a soft-deleted companion, matching
+ *   {@code GET /api/dh/companions/{id}}'s 404.
+ * - GET, unfiltered list: scoped to the caller's own experiences unless privileged, so it can't
+ *   enumerate every user's experiences in one call.
+ * - POST endpoint: Any authenticated user, but the target character sheet/companion's owner
+ *   requirement is checked in the service, and a companion experience is capped at 5
  * - PUT/DELETE endpoints: Character sheet owner OR MODERATOR/ADMIN/OWNER role
- *   (enforced in service layer)
  * </p>
  */
 @RestController
@@ -41,7 +47,8 @@ public class ExperienceController {
      * Retrieves a paginated list of experiences.
      * <p>
      * Optionally filters by character sheet ID or companion ID to show experiences for a
-     * specific character or companion.
+     * specific character or companion -- open to any authenticated user. An unfiltered request
+     * is scoped to the caller's own experiences unless the caller is privileged.
      * </p>
      *
      * @param page Zero-based page number (default: 0)
@@ -49,6 +56,7 @@ public class ExperienceController {
      * @param characterSheetId Optional filter for character sheet ID
      * @param companionId Optional filter for companion ID
      * @param expand Comma-separated list of relationships to expand (e.g., "characterSheet,companion,createdBy")
+     * @param authentication The authentication object containing the current user
      * @return Paginated response containing experiences
      */
     @GetMapping
@@ -57,10 +65,11 @@ public class ExperienceController {
             @RequestParam(defaultValue = "20") int size,
             @RequestParam(required = false) Long characterSheetId,
             @RequestParam(required = false) Long companionId,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) String expand,
+            Authentication authentication) {
 
         PagedResponse<ExperienceResponse> response = experienceService.getAllExperiences(
-                page, size, characterSheetId, companionId, expand);
+                page, size, characterSheetId, companionId, expand, authentication);
 
         return ResponseEntity.ok(response);
     }

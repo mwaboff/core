@@ -5,10 +5,14 @@ import com.aboff.core.model.dto.dh.request.UpdateExperienceRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CharacterSheet;
+import com.aboff.core.model.entity.dh.Companion;
 import com.aboff.core.model.entity.dh.Experience;
+import com.aboff.core.model.enums.DiceType;
+import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
@@ -58,6 +62,8 @@ class ExperienceControllerIntegrationTest {
     @Autowired
     private ExperienceRepository experienceRepository;
 
+    @Autowired
+    private CompanionRepository companionRepository;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -127,6 +133,46 @@ class ExperienceControllerIntegrationTest {
     }
 
     @Test
+    void getAllExperiences_FilterByCharacterSheetId_AsOtherUser_Returns200() throws Exception {
+        // Arrange -- character sheets, and their Experiences, are intentionally public: a
+        // filtered read is open to any authenticated user, not just the sheet's owner.
+        createExperience("Survived dragon attack", 2, testSheet, player1);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/experiences")
+                        .param("characterSheetId", testSheet.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void getAllExperiences_Unfiltered_AsNonPrivilegedUser_DoesNotReturnOtherUsersExperiences() throws Exception {
+        // Arrange -- an unfiltered list is scoped to the caller's own experiences so it can't be
+        // used to enumerate every user's experiences in one call. The row is still readable by
+        // player2 through the characterSheetId filter (see the test above) or by ID.
+        createExperience("SECRET-CHARACTER-EXPERIENCE", 2, testSheet, player1);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/experiences")
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.description == 'SECRET-CHARACTER-EXPERIENCE')]").isEmpty());
+    }
+
+    @Test
+    void getAllExperiences_Unfiltered_AsModerator_ReturnsEveryUsersExperiences() throws Exception {
+        // Arrange
+        createExperience("SECRET-CHARACTER-EXPERIENCE", 2, testSheet, player1);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/experiences")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.description == 'SECRET-CHARACTER-EXPERIENCE')]").isNotEmpty());
+    }
+
+    @Test
     void getAllExperiences_WithExpansion_IncludesExpandedEntities() throws Exception {
         // Arrange
         createExperience("Survived dragon attack", 2, testSheet, player1);
@@ -146,6 +192,41 @@ class ExperienceControllerIntegrationTest {
     void getAllExperiences_WithInvalidCharacterSheetFilter_Returns404() throws Exception {
         mockMvc.perform(get("/api/dh/experiences")
                         .param("characterSheetId", "99999")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isNotFound());
+    }
+
+    // ==================== SOFT-DELETE SIDE-DOOR TESTS ====================
+    // Reads are intentionally public (character sheets, and everything attached to them, are
+    // visible to any authenticated user) -- these do not gate on ownership. A soft-deleted
+    // companion, however, should not be reachable through the companionId filter side door even
+    // though the owning data is otherwise public, matching GET /api/dh/companions/{id}'s 404.
+
+    @Test
+    void getAllExperiences_FilterByCompanionId_ReturnsFiltered() throws Exception {
+        // Arrange
+        Companion companion = createCompanion("Wolf", testSheet);
+        createExperienceForCompanion("Learned to hunt", 2, companion, player1);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/experiences")
+                        .param("companionId", companion.getId().toString())
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.content[0].companionId").value(companion.getId()));
+    }
+
+    @Test
+    void getAllExperiences_FilterBySoftDeletedCompanionId_Returns404() throws Exception {
+        // Arrange
+        Companion companion = createCompanion("Wolf", testSheet);
+        companion.softDelete();
+        companionRepository.save(companion);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/experiences")
+                        .param("companionId", companion.getId().toString())
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isNotFound());
     }
@@ -197,6 +278,51 @@ class ExperienceControllerIntegrationTest {
 
         mockMvc.perform(get("/api/dh/experiences/{id}", exp.getId()))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void getExperienceById_AsOtherUser_Returns200() throws Exception {
+        // Arrange -- reads are intentionally public; any authenticated user may view any
+        // character's (or companion's) Experiences, matching character-sheet visibility.
+        Experience exp = createExperience("Survived dragon attack", 2, testSheet, player1);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/experiences/{id}", exp.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player2Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(exp.getId()));
+    }
+
+    @Test
+    void getExperienceById_ExpandCompanion_ReturnsCompanionStats() throws Exception {
+        // Arrange
+        Companion companion = createCompanion("Wolf", testSheet);
+        Experience exp = createExperienceForCompanion("Learned to hunt", 2, companion, player1);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/experiences/{id}", exp.getId())
+                        .param("expand", "companion")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.companion").exists())
+                .andExpect(jsonPath("$.companion.name").value("Wolf"));
+    }
+
+    @Test
+    void getExperienceById_ExpandCompanion_SoftDeletedCompanion_OmitsCompanionExpansion() throws Exception {
+        // Arrange -- closes the sub-bug where expand=companion read a soft-deleted companion's
+        // data even though GET /api/dh/companions/{id} 404s it.
+        Companion companion = createCompanion("Wolf", testSheet);
+        Experience exp = createExperienceForCompanion("Learned to hunt", 2, companion, player1);
+        companion.softDelete();
+        companionRepository.save(companion);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/experiences/{id}", exp.getId())
+                        .param("expand", "companion")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.companion").doesNotExist());
     }
 
     // ==================== CREATE EXPERIENCE TESTS ====================
@@ -289,6 +415,56 @@ class ExperienceControllerIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
+    }
+
+    // ==================== COMPANION EXPERIENCE CAP TESTS ====================
+    // The printed companion sheet has exactly Companion.MAX_EXPERIENCES (5) Experience lines.
+    // A character's own Experiences have no such limit -- see createExperience_AsAuthenticatedUser_Returns201
+    // above, which adds a character Experience with no cap check.
+
+    @Test
+    void createExperience_ForCompanion_FifthExperience_Returns201() throws Exception {
+        // Arrange
+        Companion companion = createCompanion("Wolf", testSheet);
+        for (int i = 0; i < 4; i++) {
+            createExperienceForCompanion("Filler " + i, 2, companion, player1);
+        }
+        CreateExperienceRequest request = CreateExperienceRequest.builder()
+                .companionId(companion.getId())
+                .description("The 5th Experience")
+                .modifier(2)
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/experiences")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.description").value("The 5th Experience"));
+    }
+
+    @Test
+    void createExperience_ForCompanion_SixthExperience_Returns400() throws Exception {
+        // Arrange
+        Companion companion = createCompanion("Wolf", testSheet);
+        for (int i = 0; i < 5; i++) {
+            createExperienceForCompanion("Filler " + i, 2, companion, player1);
+        }
+        CreateExperienceRequest request = CreateExperienceRequest.builder()
+                .companionId(companion.getId())
+                .description("A 6th Experience, past the printed cap")
+                .modifier(2)
+                .build();
+
+        // Act & Assert
+        mockMvc.perform(post("/api/dh/experiences")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+
+        assertThat(experienceRepository.findByCompanionId(companion.getId())).hasSize(5);
     }
 
     // ==================== UPDATE EXPERIENCE TESTS ====================
@@ -526,5 +702,40 @@ class ExperienceControllerIntegrationTest {
                 .createdBy(createdBy)
                 .build();
         return experienceRepository.save(exp);
+    }
+
+    private Companion createCompanion(String name, CharacterSheet sheet) {
+        Companion companion = Companion.builder()
+                .characterSheet(sheet)
+                .name(name)
+                .description("A " + name + " companion")
+                .attackName("Bite")
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(12)
+                .baseStressMax(3)
+                .stressMarked(0)
+                .build();
+        return companionRepository.save(companion);
+    }
+
+    private Experience createExperienceForCompanion(String description, Integer modifier, Companion companion, User createdBy) {
+        Experience exp = Experience.builder()
+                .description(description)
+                .modifier(modifier)
+                .companion(companion)
+                .createdBy(createdBy)
+                .build();
+        Experience saved = experienceRepository.save(exp);
+
+        // Mutate through the parent collection (not just the FK on the Experience side) so the
+        // already-loaded `companion` instance's in-memory experiences set stays consistent with
+        // the database within this test's single transaction/persistence context -- otherwise
+        // ExperienceService.createExperience's cap check reads a stale, empty collection off the
+        // same managed Companion instance instead of the rows just saved.
+        companion.getExperiences().add(saved);
+        companionRepository.save(companion);
+
+        return saved;
     }
 }

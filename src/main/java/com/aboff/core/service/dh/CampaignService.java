@@ -3,6 +3,7 @@ package com.aboff.core.service.dh;
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateCampaignRequest;
+import com.aboff.core.model.dto.dh.request.UpdateCompanionAccessRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignFearRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignGmNotesRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCampaignRequest;
@@ -13,7 +14,6 @@ import com.aboff.core.model.dto.dh.response.CampaignResponse;
 import com.aboff.core.model.dto.dh.response.CharacterSheetResponse;
 import com.aboff.core.model.dto.dh.response.JoinCampaignResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
-import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.CampaignInvite;
@@ -28,6 +28,7 @@ import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.service.UserService;
 import com.aboff.core.util.ExpandUtil;
 import com.aboff.core.util.MarkdownSanitizerUtil;
 import jakarta.persistence.EntityNotFoundException;
@@ -83,6 +84,7 @@ public class CampaignService {
     private final CharacterSheetService characterSheetService;
     private final RoleHierarchyService roleHierarchyService;
     private final AuditLogger auditLogger;
+    private final UserService userService;
 
     // ==================== CRUD OPERATIONS ====================
 
@@ -1045,7 +1047,53 @@ public class CampaignService {
                         updatedSheet.isTransformationEnabled() ? "enabled" : "disabled",
                         updatedSheet.getName(), sheetId, campaignId));
 
-        return characterSheetService.toResponse(updatedSheet, Set.of());
+        return characterSheetService.toResponse(updatedSheet, Set.of(), auth);
+    }
+
+    /**
+     * Grants or revokes a character's access to <strong>creating new</strong> companions.
+     * <p>
+     * Only the campaign creator/GM or users with MODERATOR/ADMIN/OWNER role can change
+     * companion access. Follows the same authorization and ended-campaign checks as
+     * {@link #updateTransformationAccess}, but is otherwise much simpler: there is no card to
+     * assign or clear, and -- deliberately, unlike transformations -- no player-side write gate
+     * to enforce. Disabling this flag only stops a new companion from being created; it must
+     * never hide, disable, or orphan a companion the character already has (see the companions
+     * implementation plan, section 3.4).
+     * </p>
+     *
+     * @param campaignId The campaign ID
+     * @param sheetId The character sheet ID, which must belong to the campaign
+     * @param request The request containing the new access flag
+     * @param auth The authentication object containing the current user
+     * @return The updated character sheet
+     * @throws EntityNotFoundException if the campaign or the sheet within that campaign is not found
+     * @throws InsufficientPermissionsException if the user lacks game master access
+     * @throws IllegalStateException if the campaign has ended
+     */
+    @Transactional
+    public CharacterSheetResponse updateCompanionAccess(
+            Long campaignId, Long sheetId, UpdateCompanionAccessRequest request, Authentication auth) {
+
+        Campaign campaign = campaignRepository.findActiveById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with id: " + campaignId));
+
+        validateGameMasterAccess(campaign, auth, "update companion access for");
+        validateNotEnded(campaign, "update companion access for");
+
+        CharacterSheet sheet = findCharacterSheetInCampaign(campaign, sheetId);
+
+        sheet.setCompanionsEnabled(Boolean.TRUE.equals(request.getEnabled()));
+
+        CharacterSheet updatedSheet = characterSheetRepository.save(sheet);
+
+        AuditContext ctx = AuditContext.forUser(auth).withCampaignId(campaignId).withCharacterSheetId(sheetId).build();
+        auditLogger.log(AuditAction.CAMPAIGN_COMPANION_ACCESS_UPDATED, ctx,
+                String.format("companions %s for \"%s\" (character_sheet_id: %d, campaign_id: %d)",
+                        updatedSheet.isCompanionsEnabled() ? "enabled" : "disabled",
+                        updatedSheet.getName(), sheetId, campaignId));
+
+        return characterSheetService.toResponse(updatedSheet, Set.of(), auth);
     }
 
     /**
@@ -1289,23 +1337,23 @@ public class CampaignService {
             builder.gmNotes(campaign.getGmNotes());
         }
 
-        // Expand creator if requested
+        // Expand creator/gameMasters/players if requested. Routed through
+        // UserService.mapToUserResponse so the same email/avatarUrl/timezone redaction
+        // GET /api/users/{id} applies here too -- a non-self, non-privileged participant must
+        // not see another participant's private profile fields just by expanding the campaign.
         if (ExpandUtil.shouldExpand(expand, "creator")) {
-            User creator = campaign.getCreator();
-            builder.creator(toUserResponse(creator));
+            builder.creator(userService.mapToUserResponse(campaign.getCreator(), auth));
         }
 
-        // Expand game masters if requested
         if (ExpandUtil.shouldExpand(expand, "gameMasters")) {
             builder.gameMasters(campaign.getGameMasters().stream()
-                    .map(this::toUserResponse)
+                    .map(gm -> userService.mapToUserResponse(gm, auth))
                     .collect(Collectors.toList()));
         }
 
-        // Expand players if requested
         if (ExpandUtil.shouldExpand(expand, "players")) {
             builder.players(campaign.getPlayers().stream()
-                    .map(this::toUserResponse)
+                    .map(player -> userService.mapToUserResponse(player, auth))
                     .collect(Collectors.toList()));
         }
 
@@ -1350,24 +1398,6 @@ public class CampaignService {
     }
 
     /**
-     * Converts a User entity to UserResponse DTO.
-     *
-     * @param user The user entity
-     * @return UserResponse DTO
-     */
-    private UserResponse toUserResponse(User user) {
-        return UserResponse.builder()
-                .id(user.getId())
-                .username(user.getUsername())
-                .email(user.getEmail())
-                .avatarUrl(user.getAvatarUrl())
-                .timezone(user.getTimezone())
-                .createdAt(user.getCreatedAt())
-                .lastModifiedAt(user.getLastModifiedAt())
-                .build();
-    }
-
-    /**
      * Builds a lightweight character summary for campaign context.
      *
      * @param sheet The character sheet entity
@@ -1401,6 +1431,7 @@ public class CampaignService {
                 .transformationEnabled(sheet.isTransformationEnabled())
                 .transformationCardId(transformationCard != null ? transformationCard.getId() : null)
                 .transformationCardName(transformationCard != null ? transformationCard.getName() : null)
+                .companionsEnabled(sheet.isCompanionsEnabled())
                 .build();
     }
 

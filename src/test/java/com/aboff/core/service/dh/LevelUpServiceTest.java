@@ -60,6 +60,10 @@ class LevelUpServiceTest {
     @Mock
     private SubclassPathRepository subclassPathRepository;
     @Mock
+    private CompanionRepository companionRepository;
+    @Mock
+    private CompanionService companionService;
+    @Mock
     private UserRepository userRepository;
     @Mock
     private RoleHierarchyService roleHierarchyService;
@@ -82,6 +86,7 @@ class LevelUpServiceTest {
                 characterSheetRepository, characterSheetDomainCardRepository,
                 characterAdvancementLogRepository, experienceRepository,
                 domainCardRepository, subclassCardRepository, subclassPathRepository,
+                companionRepository, companionService,
                 userRepository, roleHierarchyService, characterSheetService, auditLogger, objectMapper
         );
 

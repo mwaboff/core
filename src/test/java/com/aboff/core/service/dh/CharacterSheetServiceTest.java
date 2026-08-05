@@ -8,9 +8,11 @@ import com.aboff.core.model.dto.dh.request.InventoryWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.entity.dh.Class;
+import com.aboff.core.model.enums.CompanionTrainingOption;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
@@ -20,6 +22,7 @@ import com.aboff.core.repository.dh.*;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.service.UserService;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -138,6 +141,15 @@ class CharacterSheetServiceTest {
 
     @Mock
     private MartialStanceService martialStanceService;
+
+    @Mock
+    private CompanionRepository companionRepository;
+
+    @Mock
+    private CompanionService companionService;
+
+    @Mock
+    private UserService userService;
 
     @Mock
     private Authentication authentication;
@@ -462,6 +474,8 @@ class CharacterSheetServiceTest {
         exp.setCharacterSheet(sheet);
 
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(userService.mapToUserResponse(eq(owner), any()))
+                .thenReturn(UserResponse.builder().id(1L).username("player1").build());
 
         // Act
         CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "owner,experiences");
@@ -473,6 +487,116 @@ class CharacterSheetServiceTest {
         assertThat(result.getExperiences()).isNotNull();
         assertThat(result.getExperiences()).hasSize(1);
         assertThat(result.getExperiences().get(0).getDescription()).isEqualTo("Survived dragon attack");
+    }
+
+    @Test
+    void getCharacterSheetById_ExpandOwner_RoutesThroughUserServiceRedaction() {
+        // Arrange -- CharacterSheetService must never build the owner UserResponse itself; it has
+        // to delegate to UserService.mapToUserResponse so the email/avatarUrl/timezone redaction
+        // GET /api/users/{id} applies is reused here too (see UserServiceTest for the redaction
+        // rules themselves).
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        User viewer = User.builder().id(2L).username("player2").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(viewer);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        UserResponse redacted = UserResponse.builder().id(1L).username("player1").build();
+        when(userService.mapToUserResponse(owner, authentication)).thenReturn(redacted);
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "owner", authentication);
+
+        // Assert
+        assertThat(result.getOwner()).isSameAs(redacted);
+        verify(userService).mapToUserResponse(owner, authentication);
+    }
+
+    // ==================== NOTES VISIBILITY ON toResponse TESTS ====================
+    // The `notes` field on CharacterSheetResponse is a private field, not an expansion: it must
+    // be gated the same way the dedicated getNotes()/updateNotes() endpoints are, or leaking it
+    // through the general sheet response would make the getNotes() access check pointless.
+
+    private CharacterSheet sheetWithNotes(User owner, String notes) {
+        return CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .notes(notes)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+    }
+
+    @Test
+    void toResponse_NoAuthentication_OmitsNotes() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = sheetWithNotes(owner, "Secret notes");
+
+        CharacterSheetResponse result = characterSheetService.toResponse(sheet, Set.of());
+
+        assertThat(result.getNotes()).isNull();
+    }
+
+    @Test
+    void toResponse_AsOwner_IncludesNotes() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = sheetWithNotes(owner, "Secret notes");
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+
+        CharacterSheetResponse result = characterSheetService.toResponse(sheet, Set.of(), authentication);
+
+        assertThat(result.getNotes()).isEqualTo("Secret notes");
+    }
+
+    @Test
+    void toResponse_AsModerator_IncludesNotes() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        User moderator = User.builder().id(2L).username("mod1").role(Role.MODERATOR).build();
+        CharacterSheet sheet = sheetWithNotes(owner, "Secret notes");
+
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(true);
+
+        CharacterSheetResponse result = characterSheetService.toResponse(sheet, Set.of(), authentication);
+
+        assertThat(result.getNotes()).isEqualTo("Secret notes");
+    }
+
+    @Test
+    void toResponse_AsOtherNonPrivilegedUser_OmitsNotes() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        User otherUser = User.builder().id(2L).username("player2").role(Role.USER).build();
+        CharacterSheet sheet = sheetWithNotes(owner, "Secret notes");
+
+        CustomUserDetails userDetails = new CustomUserDetails(otherUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+
+        CharacterSheetResponse result = characterSheetService.toResponse(sheet, Set.of(), authentication);
+
+        assertThat(result.getNotes()).isNull();
     }
 
     // ==================== CREATE CHARACTER SHEET TESTS ====================
@@ -2649,6 +2773,8 @@ class CharacterSheetServiceTest {
                 .thenReturn(ArmorResponse.builder().id(1L).name("Plate Mail").build());
         when(communityCardService.toResponse(any(CommunityCard.class), anySet()))
                 .thenReturn(CommunityCardResponse.builder().id(1L).name("Nomad").build());
+        when(userService.mapToUserResponse(eq(owner), any()))
+                .thenReturn(UserResponse.builder().id(1L).username("player1").build());
 
         // Act
         CharacterSheetResponse result = characterSheetService.getCharacterSheetById(
@@ -3481,10 +3607,10 @@ class CharacterSheetServiceTest {
     // ==================== GET NOTES TESTS ====================
 
     @Test
-    void getNotes_ReturnsNotesAndTimestamp() {
+    void getNotes_AsOwner_ReturnsNotesAndTimestamp() {
         // Arrange
         LocalDateTime modified = LocalDateTime.of(2026, 5, 11, 10, 0, 0);
-        User owner = User.builder().id(1L).username("player1").build();
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
                 .name("Aragorn")
@@ -3493,6 +3619,8 @@ class CharacterSheetServiceTest {
                 .build();
         sheet.setLastModifiedAt(modified);
 
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
 
         // Act
@@ -3503,6 +3631,52 @@ class CharacterSheetServiceTest {
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getNotes()).isEqualTo("Some campaign notes");
         assertThat(result.getLastModifiedAt()).isEqualTo(modified);
+    }
+
+    @Test
+    void getNotes_AsModerator_ReturnsNotes() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        User moderator = User.builder().id(2L).username("moderator1").role(Role.MODERATOR).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .notes("Some campaign notes")
+                .owner(owner)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(roleHierarchyService.hasModeratorOrHigher(any(CustomUserDetails.class))).thenReturn(true);
+
+        // Act
+        CharacterSheetNotesResponse result = characterSheetService.getNotes(1L, authentication);
+
+        // Assert
+        assertThat(result.getNotes()).isEqualTo("Some campaign notes");
+    }
+
+    @Test
+    void getNotes_AsOtherUser_ThrowsInsufficientPermissionsException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        User otherUser = User.builder().id(2L).username("player2").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .notes("Some campaign notes")
+                .owner(owner)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(otherUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act & Assert
+        assertThatThrownBy(() -> characterSheetService.getNotes(1L, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class)
+                .hasMessageContaining("You do not have permission to view notes for this character sheet");
     }
 
     @Test
@@ -3743,5 +3917,183 @@ class CharacterSheetServiceTest {
         verify(characterSheetRepository).save(captor.capture());
         assertThat(captor.getValue().getNotes()).doesNotContain("javascript:");
         assertThat(captor.getValue().getNotes()).contains("unsafe:");
+    }
+
+    // ==================== COMPANIONS TESTS ====================
+
+    @Test
+    void getCharacterSheetById_CompanionsEnabledFalse_ReflectsFlag() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .companionsEnabled(false)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of());
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.isCompanionsEnabled()).isFalse();
+        assertThat(result.getCompanionGrantedHopeSlots()).isZero();
+        assertThat(result.getCompanions()).isNull();
+    }
+
+    @Test
+    void getCharacterSheetById_CompanionsEnabledTrue_ReflectsFlag() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .companionsEnabled(true)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of());
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.isCompanionsEnabled()).isTrue();
+    }
+
+    @Test
+    void getCharacterSheetById_WithActiveCompanions_SumsCompanionGrantedHopeSlots() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        CompanionTraining lightInTheDark = CompanionTraining.builder()
+                .option(CompanionTrainingOption.LIGHT_IN_THE_DARK)
+                .acquiredAtLevel(2)
+                .build();
+        Companion companion = Companion.builder()
+                .id(7L)
+                .characterSheet(sheet)
+                .name("Rufus")
+                .attackName("Bite")
+                .trainings(new HashSet<>(List.of(lightInTheDark)))
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(companion));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getCompanionGrantedHopeSlots()).isEqualTo(1);
+        // Not expanded, so the full companion list should not be populated even though active companions exist
+        assertThat(result.getCompanions()).isNull();
+    }
+
+    @Test
+    void getCharacterSheetById_WithCompanionsExpansion_IncludesFullCompanionObjects() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        Companion companion = Companion.builder()
+                .id(7L)
+                .characterSheet(sheet)
+                .name("Rufus")
+                .attackName("Bite")
+                .build();
+
+        CompanionResponse companionResponse = CompanionResponse.builder()
+                .id(7L)
+                .characterSheetId(1L)
+                .name("Rufus")
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of(companion));
+        when(companionService.toResponse(eq(companion), anySet())).thenReturn(companionResponse);
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "companions");
+
+        // Assert
+        assertThat(result.getCompanions()).hasSize(1);
+        assertThat(result.getCompanions().get(0).getName()).isEqualTo("Rufus");
+        verify(companionService).toResponse(eq(companion), anySet());
+    }
+
+    @Test
+    void getCharacterSheetById_QueriesOnlyActiveCompanions_SoftDeletedExcludedByRepository() {
+        // Arrange -- the repository query itself excludes soft-deleted companions; this test
+        // asserts the service calls the "active" overload rather than the unfiltered one.
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .communityCards(new HashSet<>())
+                .ancestryCards(new HashSet<>())
+                .subclassCards(new HashSet<>())
+                .characterSheetDomainCards(new HashSet<>())
+                .characterSheetWeapons(new HashSet<>())
+                .characterSheetArmors(new HashSet<>())
+                .characterSheetLoot(new HashSet<>())
+                .experiences(new HashSet<>())
+                .build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(1L)).thenReturn(List.of());
+
+        // Act
+        characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        verify(companionRepository).findActiveByCharacterSheetId(1L);
+        verify(companionRepository, never()).findByCharacterSheetId(anyLong());
     }
 }

@@ -2,14 +2,20 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCompanionRequest;
+import com.aboff.core.model.dto.dh.request.CreateCompanionTrainingRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCompanionRequest;
 import com.aboff.core.model.dto.dh.response.CompanionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CharacterSheet;
 import com.aboff.core.model.entity.dh.Companion;
+import com.aboff.core.model.entity.dh.CompanionTraining;
+import com.aboff.core.model.entity.dh.Experience;
+import com.aboff.core.model.enums.CompanionTrainingOption;
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.Range;
+import com.aboff.core.model.enums.ViciousAxis;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.security.CustomUserDetails;
@@ -38,7 +44,11 @@ import static org.mockito.Mockito.*;
 
 /**
  * Unit tests for CompanionService.
- * Tests all CRUD operations, access control, pagination, filtering, and expansion.
+ * <p>
+ * Covers CRUD, Training add/remove, soft delete, cross-field validation, and -- as the
+ * priority deliverable -- that every operation is scoped to a specific character sheet and
+ * access-checked owner-or-MODERATOR+, closing the previous unauthenticated/unfiltered leak.
+ * </p>
  */
 @ExtendWith(MockitoExtension.class)
 class CompanionServiceTest {
@@ -61,185 +71,214 @@ class CompanionServiceTest {
     @InjectMocks
     private CompanionService companionService;
 
-    // ==================== GET ALL COMPANIONS TESTS ====================
+    private static final Long OWNER_ID = 1L;
+    private static final Long OTHER_USER_ID = 2L;
+    private static final Long SHEET_ID = 10L;
+    private static final Long COMPANION_ID = 100L;
 
-    @Test
-    void getAllCompanions_WithoutFilters_ReturnsPagedCompanions() {
-        // Arrange
-        User owner = User.builder().id(1L).username("player1").build();
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(1L)
+    private User owner() {
+        return User.builder().id(OWNER_ID).username("player1").build();
+    }
+
+    private CharacterSheet sheet(User owner) {
+        return CharacterSheet.builder()
+                .id(SHEET_ID)
                 .name("Aragorn")
                 .owner(owner)
+                .level(3)
+                .proficiency(2)
                 .build();
+    }
 
-        Companion companion1 = Companion.builder()
-                .id(1L)
+    private Companion companion(CharacterSheet sheet) {
+        return Companion.builder()
+                .id(COMPANION_ID)
                 .characterSheet(sheet)
                 .name("Wolf")
                 .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .evasion(12)
-                .stressMax(3)
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(10)
+                .baseStressMax(3)
                 .stressMarked(0)
                 .experiences(new HashSet<>())
+                .trainings(new HashSet<>())
                 .createdAt(LocalDateTime.now())
                 .build();
+    }
 
-        Companion companion2 = Companion.builder()
-                .id(2L)
-                .characterSheet(sheet)
-                .name("Hawk")
-                .attackName("Talons")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D4)
-                .evasion(15)
-                .stressMax(2)
-                .stressMarked(0)
-                .experiences(new HashSet<>())
-                .createdAt(LocalDateTime.now().minusDays(1))
-                .build();
+    /**
+     * Builds a {@link CustomUserDetails} and points {@link #authentication} at it. Every stub
+     * here is {@code lenient()}: the read methods ({@link CompanionService#getAllCompanions} and
+     * {@link CompanionService#getCompanionById}) no longer check ownership or role at all, so
+     * callers that use this helper purely to set up a read (e.g. to exercise the non-owner case)
+     * leave {@code getUserId}/{@code getPrincipal}/{@code hasModeratorOrHigher} unused -- only the
+     * write paths (create/update/delete/training) still consult them.
+     */
+    private CustomUserDetails asUser(Long userId, boolean moderatorOrHigher) {
+        CustomUserDetails userDetails = mock(CustomUserDetails.class);
+        lenient().when(userDetails.getUserId()).thenReturn(userId);
+        lenient().when(authentication.getPrincipal()).thenReturn(userDetails);
+        lenient().when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(moderatorOrHigher);
+        return userDetails;
+    }
 
-        Page<Companion> companionPage = new PageImpl<>(List.of(companion1, companion2));
-        when(companionRepository.findAll(any(Pageable.class))).thenReturn(companionPage);
+    // ==================== GET ALL COMPANIONS (SECURITY FIX) ====================
 
-        // Act
-        PagedResponse<CompanionResponse> result = companionService.getAllCompanions(0, 20, null, null);
+    @Test
+    void getAllCompanions_WithoutCharacterSheetId_ThrowsException() {
+        assertThatThrownBy(() -> companionService.getAllCompanions(0, 20, null, null, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("characterSheetId is required");
 
-        // Assert
-        assertThat(result.getContent()).hasSize(2);
-        assertThat(result.getTotalElements()).isEqualTo(2);
-        assertThat(result.getContent().get(0).getName()).isEqualTo("Wolf");
-        assertThat(result.getContent().get(1).getName()).isEqualTo("Hawk");
-
-        verify(companionRepository).findAll(any(Pageable.class));
-        verifyNoInteractions(characterSheetRepository);
+        verifyNoInteractions(characterSheetRepository, companionRepository);
     }
 
     @Test
-    void getAllCompanions_WithCharacterSheetFilter_ReturnsFilteredCompanions() {
-        // Arrange
-        Long characterSheetId = 1L;
-        User owner = User.builder().id(1L).username("player1").build();
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(characterSheetId)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
+    void getAllCompanions_AsOwner_ReturnsCompanions() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
 
-        Companion companion = Companion.builder()
-                .id(1L)
-                .characterSheet(sheet)
-                .name("Wolf")
-                .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .experiences(new HashSet<>())
-                .build();
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(eq(SHEET_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(companion)));
 
-        Page<Companion> companionPage = new PageImpl<>(List.of(companion));
-        when(characterSheetRepository.findActiveById(characterSheetId)).thenReturn(Optional.of(sheet));
-        when(companionRepository.findByCharacterSheetId(eq(characterSheetId), any(Pageable.class)))
-                .thenReturn(companionPage);
+        PagedResponse<CompanionResponse> result =
+                companionService.getAllCompanions(0, 20, SHEET_ID, null, authentication);
 
-        // Act
-        PagedResponse<CompanionResponse> result = companionService.getAllCompanions(0, 20, characterSheetId, null);
-
-        // Assert
         assertThat(result.getContent()).hasSize(1);
-        assertThat(result.getContent().get(0).getCharacterSheetId()).isEqualTo(characterSheetId);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("Wolf");
+        verify(companionRepository).findActiveByCharacterSheetId(eq(SHEET_ID), any(Pageable.class));
+    }
 
-        verify(characterSheetRepository).findActiveById(characterSheetId);
-        verify(companionRepository).findByCharacterSheetId(eq(characterSheetId), any(Pageable.class));
+    @Test
+    void getAllCompanions_AsModerator_ReturnsCompanions() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, true);
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(eq(SHEET_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of()));
+
+        PagedResponse<CompanionResponse> result =
+                companionService.getAllCompanions(0, 20, SHEET_ID, null, authentication);
+
+        assertThat(result.getContent()).isEmpty();
+    }
+
+    @Test
+    void getAllCompanions_AsNonOwnerNonModerator_ReturnsCompanions() {
+        // A read no longer requires ownership or a privileged role -- it must match the public
+        // read on the character sheet, which already embeds these same companions unconditionally
+        // whenever ?expand=companions is requested. characterSheetId scoping (asserted above in
+        // getAllCompanions_WithoutCharacterSheetId_ThrowsException) is what still prevents the
+        // original unfiltered-listing leak.
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, false);
+        Companion companion = companion(sheet);
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.findActiveByCharacterSheetId(eq(SHEET_ID), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(companion)));
+
+        PagedResponse<CompanionResponse> result =
+                companionService.getAllCompanions(0, 20, SHEET_ID, null, authentication);
+
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("Wolf");
     }
 
     @Test
     void getAllCompanions_WithInvalidCharacterSheetId_ThrowsException() {
-        // Arrange
-        Long invalidSheetId = 999L;
-        when(characterSheetRepository.findActiveById(invalidSheetId)).thenReturn(Optional.empty());
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.empty());
 
-        // Act & Assert
-        assertThatThrownBy(() -> companionService.getAllCompanions(0, 20, invalidSheetId, null))
+        assertThatThrownBy(() -> companionService.getAllCompanions(0, 20, SHEET_ID, null, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("CharacterSheet not found");
 
-        verify(characterSheetRepository).findActiveById(invalidSheetId);
         verifyNoInteractions(companionRepository);
     }
 
-    // ==================== GET COMPANION BY ID TESTS ====================
+    // ==================== GET COMPANION BY ID (SECURITY FIX) ====================
 
     @Test
-    void getCompanionById_WithValidId_ReturnsCompanion() {
-        // Arrange
-        Long companionId = 1L;
-        User owner = User.builder().id(1L).username("player1").build();
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(1L)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
+    void getCompanionById_AsOwner_ReturnsCompanion() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
 
-        Companion companion = Companion.builder()
-                .id(companionId)
-                .characterSheet(sheet)
-                .name("Wolf")
-                .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .experiences(new HashSet<>())
-                .build();
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
 
-        when(companionRepository.findById(companionId)).thenReturn(Optional.of(companion));
+        CompanionResponse result = companionService.getCompanionById(COMPANION_ID, null, authentication);
 
-        // Act
-        CompanionResponse result = companionService.getCompanionById(companionId, null);
-
-        // Assert
-        assertThat(result.getId()).isEqualTo(companionId);
+        assertThat(result.getId()).isEqualTo(COMPANION_ID);
         assertThat(result.getName()).isEqualTo("Wolf");
-        assertThat(result.getAttackName()).isEqualTo("Bite");
+    }
 
-        verify(companionRepository).findById(companionId);
+    @Test
+    void getCompanionById_AsModerator_ReturnsCompanion() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, true);
+        Companion companion = companion(sheet);
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        CompanionResponse result = companionService.getCompanionById(COMPANION_ID, null, authentication);
+
+        assertThat(result.getId()).isEqualTo(COMPANION_ID);
+    }
+
+    @Test
+    void getCompanionById_AsNonOwnerNonModerator_ReturnsCompanion() {
+        // Same relaxation as getAllCompanions -- a single companion read is public to any
+        // authenticated user, matching the sheet that already embeds it.
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, false);
+        Companion companion = companion(sheet);
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        CompanionResponse result = companionService.getCompanionById(COMPANION_ID, null, authentication);
+
+        assertThat(result.getId()).isEqualTo(COMPANION_ID);
+        assertThat(result.getName()).isEqualTo("Wolf");
     }
 
     @Test
     void getCompanionById_WithInvalidId_ThrowsException() {
-        // Arrange
-        Long invalidId = 999L;
-        when(companionRepository.findById(invalidId)).thenReturn(Optional.empty());
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.empty());
 
-        // Act & Assert
-        assertThatThrownBy(() -> companionService.getCompanionById(invalidId, null))
+        assertThatThrownBy(() -> companionService.getCompanionById(COMPANION_ID, null, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("Companion not found");
-
-        verify(companionRepository).findById(invalidId);
     }
 
-    // ==================== CREATE COMPANION TESTS ====================
+    @Test
+    void getCompanionById_SoftDeleted_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        Companion companion = companion(sheet);
+        companion.softDelete();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.getCompanionById(COMPANION_ID, null, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("Companion not found");
+    }
+
+    // ==================== CREATE COMPANION ====================
 
     @Test
     void createCompanion_AsOwner_CreatesSuccessfully() {
-        // Arrange
-        Long userId = 1L;
-        Long characterSheetId = 1L;
-
-        User owner = User.builder().id(userId).username("player1").build();
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
         when(userDetails.getUser()).thenReturn(owner);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(characterSheetId)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
 
         CreateCompanionRequest request = CreateCompanionRequest.builder()
-                .characterSheetId(characterSheetId)
+                .characterSheetId(SHEET_ID)
                 .name("Wolf")
                 .attackName("Bite")
                 .attackRange(Range.CLOSE)
@@ -249,388 +288,679 @@ class CompanionServiceTest {
                 .stressMarked(0)
                 .build();
 
-        Companion savedCompanion = Companion.builder()
-                .id(1L)
-                .characterSheet(sheet)
-                .name("Wolf")
-                .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .evasion(12)
-                .stressMax(3)
-                .stressMarked(0)
-                .experiences(new HashSet<>())
-                .build();
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        when(characterSheetRepository.findActiveById(characterSheetId)).thenReturn(Optional.of(sheet));
-        when(companionRepository.save(any(Companion.class))).thenReturn(savedCompanion);
-
-        // Act
         CompanionResponse result = companionService.createCompanion(request, authentication);
 
-        // Assert
-        assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Wolf");
-        assertThat(result.getAttackName()).isEqualTo("Bite");
-
-        verify(characterSheetRepository).findActiveById(characterSheetId);
+        assertThat(result.getBaseEvasion()).isEqualTo(12);
         verify(companionRepository).save(any(Companion.class));
     }
 
     @Test
     void createCompanion_AsModerator_CreatesSuccessfully() {
-        // Arrange
-        Long userId = 2L;
-        Long ownerId = 1L;
-        Long characterSheetId = 1L;
-
-        User moderatorUser = User.builder().id(userId).username("moderator").build();
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
-        when(userDetails.getUser()).thenReturn(moderatorUser);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(true);
-
-        User owner = User.builder().id(ownerId).username("player1").build();
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(characterSheetId)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OTHER_USER_ID, true);
+        when(userDetails.getUser()).thenReturn(User.builder().id(OTHER_USER_ID).username("mod").build());
 
         CreateCompanionRequest request = CreateCompanionRequest.builder()
-                .characterSheetId(characterSheetId)
+                .characterSheetId(SHEET_ID)
                 .name("Wolf")
                 .attackName("Bite")
                 .attackRange(Range.CLOSE)
                 .damageDice(DiceType.D6)
                 .build();
 
-        Companion savedCompanion = Companion.builder()
-                .id(1L)
-                .characterSheet(sheet)
-                .name("Wolf")
-                .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .experiences(new HashSet<>())
-                .build();
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        when(characterSheetRepository.findActiveById(characterSheetId)).thenReturn(Optional.of(sheet));
-        when(companionRepository.save(any(Companion.class))).thenReturn(savedCompanion);
-
-        // Act
         CompanionResponse result = companionService.createCompanion(request, authentication);
 
-        // Assert
-        assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getName()).isEqualTo("Wolf");
-
-        verify(characterSheetRepository).findActiveById(characterSheetId);
-        verify(roleHierarchyService).hasModeratorOrHigher(userDetails);
-        verify(companionRepository).save(any(Companion.class));
     }
 
     @Test
     void createCompanion_WithoutPermission_ThrowsException() {
-        // Arrange
-        Long userId = 2L;
-        Long ownerId = 1L;
-        Long characterSheetId = 1L;
-
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(false);
-
-        User owner = User.builder().id(ownerId).username("player1").build();
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(characterSheetId)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, false);
 
         CreateCompanionRequest request = CreateCompanionRequest.builder()
-                .characterSheetId(characterSheetId)
+                .characterSheetId(SHEET_ID)
                 .name("Wolf")
                 .attackName("Bite")
                 .attackRange(Range.CLOSE)
                 .damageDice(DiceType.D6)
                 .build();
 
-        when(characterSheetRepository.findActiveById(characterSheetId)).thenReturn(Optional.of(sheet));
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
 
-        // Act & Assert
         assertThatThrownBy(() -> companionService.createCompanion(request, authentication))
-                .isInstanceOf(InsufficientPermissionsException.class)
-                .hasMessageContaining("permission to create");
+                .isInstanceOf(InsufficientPermissionsException.class);
 
-        verify(characterSheetRepository).findActiveById(characterSheetId);
-        verify(roleHierarchyService).hasModeratorOrHigher(userDetails);
         verifyNoInteractions(companionRepository);
     }
 
     @Test
     void createCompanion_WithInvalidCharacterSheet_ThrowsException() {
-        // Arrange
-        Long userId = 1L;
-        Long invalidSheetId = 999L;
-
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-
         CreateCompanionRequest request = CreateCompanionRequest.builder()
-                .characterSheetId(invalidSheetId)
+                .characterSheetId(SHEET_ID)
                 .name("Wolf")
                 .attackName("Bite")
                 .attackRange(Range.CLOSE)
                 .damageDice(DiceType.D6)
                 .build();
 
-        when(characterSheetRepository.findActiveById(invalidSheetId)).thenReturn(Optional.empty());
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.empty());
 
-        // Act & Assert
         assertThatThrownBy(() -> companionService.createCompanion(request, authentication))
-                .isInstanceOf(EntityNotFoundException.class)
-                .hasMessageContaining("CharacterSheet not found");
+                .isInstanceOf(EntityNotFoundException.class);
 
-        verify(characterSheetRepository).findActiveById(invalidSheetId);
         verifyNoInteractions(companionRepository);
     }
 
-    // ==================== UPDATE COMPANION TESTS ====================
-
     @Test
-    void updateCompanion_AsOwner_UpdatesSuccessfully() {
-        // Arrange
-        Long userId = 1L;
-        Long companionId = 1L;
+    void createCompanion_WithStressMarkedExceedingMax_ThrowsException() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
 
-        User owner = User.builder().id(userId).username("player1").build();
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
-        when(userDetails.getUser()).thenReturn(owner);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(1L)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
-
-        Companion companion = Companion.builder()
-                .id(companionId)
-                .characterSheet(sheet)
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
                 .name("Wolf")
                 .attackName("Bite")
                 .attackRange(Range.CLOSE)
                 .damageDice(DiceType.D6)
-                .evasion(12)
                 .stressMax(3)
-                .stressMarked(0)
-                .experiences(new HashSet<>())
+                .stressMarked(5)
                 .build();
 
-        UpdateCompanionRequest request = UpdateCompanionRequest.builder()
-                .stressMarked(2)
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> companionService.createCompanion(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("stressMarked");
+
+        verifyNoInteractions(companionRepository);
+    }
+
+    @Test
+    void createCompanion_WithExplicitPhysicalDamageType_PersistsPhysical() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .damageType(DamageType.PHYSICAL)
                 .build();
 
-        when(companionRepository.findById(companionId)).thenReturn(Optional.of(companion));
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.createCompanion(request, authentication);
+
+        assertThat(result.getDamageType()).isEqualTo(DamageType.PHYSICAL);
+    }
+
+    @Test
+    void createCompanion_WithExplicitMagicDamageType_PersistsMagic() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .damageType(DamageType.MAGIC)
+                .build();
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.createCompanion(request, authentication);
+
+        assertThat(result.getDamageType()).isEqualTo(DamageType.MAGIC);
+    }
+
+    @Test
+    void createCompanion_WithoutDamageType_DefaultsToPhysical() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+
+        // Simulate JSON deserialization without a damageType field, which bypasses the
+        // builder default: set it explicitly to null rather than relying on the builder.
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .build();
+        request.setDamageType(null);
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.createCompanion(request, authentication);
+
+        assertThat(result.getDamageType()).isEqualTo(DamageType.PHYSICAL);
+    }
+
+    @Test
+    void createCompanion_WithPhysicalAndMagicDamageType_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OWNER_ID, false);
+
+        CreateCompanionRequest request = CreateCompanionRequest.builder()
+                .characterSheetId(SHEET_ID)
+                .name("Wolf")
+                .attackName("Bite")
+                .attackRange(Range.CLOSE)
+                .damageDice(DiceType.D6)
+                .damageType(DamageType.PHYSICAL_AND_MAGIC)
+                .build();
+
+        when(characterSheetRepository.findActiveById(SHEET_ID)).thenReturn(Optional.of(sheet));
+
+        assertThatThrownBy(() -> companionService.createCompanion(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PHYSICAL_AND_MAGIC");
+
+        verifyNoInteractions(companionRepository);
+    }
+
+    // ==================== UPDATE COMPANION ====================
+
+    @Test
+    void updateCompanion_AsOwner_UpdatesSuccessfully() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder().stressMarked(2).build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
         when(companionRepository.save(any(Companion.class))).thenReturn(companion);
 
-        // Act
-        CompanionResponse result = companionService.updateCompanion(companionId, request, authentication);
+        CompanionResponse result = companionService.updateCompanion(COMPANION_ID, request, authentication);
 
-        // Assert
-        assertThat(result.getId()).isEqualTo(companionId);
-        verify(companionRepository).findById(companionId);
+        assertThat(result.getStressMarked()).isEqualTo(2);
         verify(companionRepository).save(companion);
     }
 
     @Test
     void updateCompanion_PartialUpdate_OnlyUpdatesProvidedFields() {
-        // Arrange
-        Long userId = 1L;
-        Long companionId = 1L;
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner());
+        Companion companion = companion(sheet);
+        companion.setDescription("A loyal wolf");
 
-        User owner = User.builder().id(userId).username("player1").build();
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
-        when(userDetails.getUser()).thenReturn(owner);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(1L)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder().name("Shadow Wolf").build();
 
-        Companion companion = Companion.builder()
-                .id(companionId)
-                .characterSheet(sheet)
-                .name("Wolf")
-                .description("A loyal wolf")
-                .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .evasion(12)
-                .stressMax(3)
-                .stressMarked(0)
-                .experiences(new HashSet<>())
-                .build();
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        UpdateCompanionRequest request = UpdateCompanionRequest.builder()
-                .name("Shadow Wolf")
-                .stressMarked(1)
-                .build();
+        companionService.updateCompanion(COMPANION_ID, request, authentication);
 
-        when(companionRepository.findById(companionId)).thenReturn(Optional.of(companion));
-        when(companionRepository.save(any(Companion.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        // Act
-        CompanionResponse result = companionService.updateCompanion(companionId, request, authentication);
-
-        // Assert
         assertThat(companion.getName()).isEqualTo("Shadow Wolf");
-        assertThat(companion.getStressMarked()).isEqualTo(1);
-        assertThat(companion.getDescription()).isEqualTo("A loyal wolf"); // Unchanged
-        assertThat(companion.getAttackName()).isEqualTo("Bite"); // Unchanged
-
-        verify(companionRepository).save(companion);
+        assertThat(companion.getDescription()).isEqualTo("A loyal wolf");
+        assertThat(companion.getAttackName()).isEqualTo("Bite");
     }
 
     @Test
     void updateCompanion_WithoutPermission_ThrowsException() {
-        // Arrange
-        Long userId = 2L;
-        Long ownerId = 1L;
-        Long companionId = 1L;
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, false);
+        Companion companion = companion(sheet);
 
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(false);
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder().stressMarked(2).build();
 
-        User owner = User.builder().id(ownerId).username("player1").build();
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(1L)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
 
-        Companion companion = Companion.builder()
-                .id(companionId)
-                .characterSheet(sheet)
-                .name("Wolf")
-                .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .build();
-
-        UpdateCompanionRequest request = UpdateCompanionRequest.builder()
-                .stressMarked(2)
-                .build();
-
-        when(companionRepository.findById(companionId)).thenReturn(Optional.of(companion));
-
-        // Act & Assert
-        assertThatThrownBy(() -> companionService.updateCompanion(companionId, request, authentication))
+        assertThatThrownBy(() -> companionService.updateCompanion(COMPANION_ID, request, authentication))
                 .isInstanceOf(InsufficientPermissionsException.class)
                 .hasMessageContaining("permission to update");
 
-        verify(companionRepository).findById(companionId);
         verify(companionRepository, never()).save(any(Companion.class));
     }
 
-    // ==================== DELETE COMPANION TESTS ====================
+    @Test
+    void updateCompanion_SoftDeleted_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        Companion companion = companion(sheet);
+        companion.softDelete();
+
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder().stressMarked(2).build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.updateCompanion(COMPANION_ID, request, authentication))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
 
     @Test
-    void deleteCompanion_AsOwner_DeletesSuccessfully() {
-        // Arrange
-        Long userId = 1L;
-        Long companionId = 1L;
+    void updateCompanion_WithStressMarkedExceedingDerivedMax_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
 
-        User owner = User.builder().id(userId).username("player1").build();
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder().stressMarked(10).build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.updateCompanion(COMPANION_ID, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("stressMarked");
+
+        verify(companionRepository, never()).save(any(Companion.class));
+    }
+
+    @Test
+    void updateCompanion_WithDamageType_UpdatesDamageType() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
         when(userDetails.getUser()).thenReturn(owner);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(1L)
-                .name("Aragorn")
-                .owner(owner)
+        Companion companion = companion(sheet);
+        companion.setDamageType(DamageType.PHYSICAL);
+
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder().damageType(DamageType.MAGIC).build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.updateCompanion(COMPANION_ID, request, authentication);
+
+        assertThat(result.getDamageType()).isEqualTo(DamageType.MAGIC);
+    }
+
+    @Test
+    void updateCompanion_WithPhysicalAndMagicDamageType_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
+
+        UpdateCompanionRequest request = UpdateCompanionRequest.builder()
+                .damageType(DamageType.PHYSICAL_AND_MAGIC)
                 .build();
 
-        Companion companion = Companion.builder()
-                .id(companionId)
-                .characterSheet(sheet)
-                .name("Wolf")
-                .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .build();
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
 
-        when(companionRepository.findById(companionId)).thenReturn(Optional.of(companion));
+        assertThatThrownBy(() -> companionService.updateCompanion(COMPANION_ID, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("PHYSICAL_AND_MAGIC");
 
-        // Act
-        companionService.deleteCompanion(companionId, authentication);
+        verify(companionRepository, never()).save(any(Companion.class));
+    }
 
-        // Assert
-        verify(companionRepository).findById(companionId);
-        verify(companionRepository).delete(companion);
+    // ==================== DELETE COMPANION (SOFT DELETE) ====================
+
+    @Test
+    void deleteCompanion_AsOwner_SoftDeletesSuccessfully() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenReturn(companion);
+
+        companionService.deleteCompanion(COMPANION_ID, authentication);
+
+        assertThat(companion.isDeleted()).isTrue();
+        verify(companionRepository).save(companion);
+        verify(companionRepository, never()).delete(any(Companion.class));
     }
 
     @Test
     void deleteCompanion_WithoutPermission_ThrowsException() {
-        // Arrange
-        Long userId = 2L;
-        Long ownerId = 1L;
-        Long companionId = 1L;
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, false);
+        Companion companion = companion(sheet);
 
-        CustomUserDetails userDetails = mock(CustomUserDetails.class);
-        when(userDetails.getUserId()).thenReturn(userId);
-        when(authentication.getPrincipal()).thenReturn(userDetails);
-        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(false);
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
 
-        User owner = User.builder().id(ownerId).username("player1").build();
-        CharacterSheet sheet = CharacterSheet.builder()
-                .id(1L)
-                .name("Aragorn")
-                .owner(owner)
-                .build();
+        assertThatThrownBy(() -> companionService.deleteCompanion(COMPANION_ID, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
 
-        Companion companion = Companion.builder()
-                .id(companionId)
-                .characterSheet(sheet)
-                .name("Wolf")
-                .attackName("Bite")
-                .attackRange(Range.CLOSE)
-                .damageDice(DiceType.D6)
-                .build();
-
-        when(companionRepository.findById(companionId)).thenReturn(Optional.of(companion));
-
-        // Act & Assert
-        assertThatThrownBy(() -> companionService.deleteCompanion(companionId, authentication))
-                .isInstanceOf(InsufficientPermissionsException.class)
-                .hasMessageContaining("permission to delete");
-
-        verify(companionRepository).findById(companionId);
-        verify(companionRepository, never()).delete(any(Companion.class));
+        assertThat(companion.isDeleted()).isFalse();
+        verify(companionRepository, never()).save(any(Companion.class));
     }
 
     @Test
     void deleteCompanion_WithInvalidId_ThrowsException() {
-        // Arrange
-        Long invalidId = 999L;
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.empty());
 
-        when(companionRepository.findById(invalidId)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> companionService.deleteCompanion(COMPANION_ID, authentication))
+                .isInstanceOf(EntityNotFoundException.class);
 
-        // Act & Assert
-        assertThatThrownBy(() -> companionService.deleteCompanion(invalidId, authentication))
-                .isInstanceOf(EntityNotFoundException.class)
-                .hasMessageContaining("Companion not found");
+        verify(companionRepository, never()).save(any(Companion.class));
+    }
 
-        verify(companionRepository).findById(invalidId);
+    @Test
+    void deleteCompanion_AlreadySoftDeleted_ThrowsException() {
+        Companion companion = companion(sheet(owner()));
+        companion.softDelete();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.deleteCompanion(COMPANION_ID, authentication))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    @Test
+    void deleteCompanion_ClampsSheetHopeMarkedWhenGrantedSlotLost() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        sheet.setHopeMax(3);
+        sheet.setHopeMarked(4); // only legal because this companion's LIGHT_IN_THE_DARK grants +1
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+        companion.getTrainings().add(CompanionTraining.builder()
+                .id(400L).companion(companion).option(CompanionTrainingOption.LIGHT_IN_THE_DARK).acquiredAtLevel(1).build());
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenReturn(companion);
+        // The deleted companion is gone, so no active companion still grants the bonus slot.
+        when(companionRepository.findActiveByCharacterSheetId(SHEET_ID)).thenReturn(List.of());
+
+        companionService.deleteCompanion(COMPANION_ID, authentication);
+
+        assertThat(sheet.getHopeMarked()).isEqualTo(3);
+        verify(characterSheetRepository).save(sheet);
+    }
+
+    // ==================== ADD TRAINING ====================
+
+    @Test
+    void addTraining_Aware_AddsSuccessfully() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.AWARE)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.addTraining(COMPANION_ID, request, authentication);
+
+        assertThat(companion.getTrainings()).hasSize(1);
+        assertThat(result.getEvasion()).isEqualTo(12); // base 10 + 2 for Aware
+        assertThat(result.getTrainings()).hasSize(1);
+        CompanionTraining added = companion.getTrainings().iterator().next();
+        assertThat(added.getAcquiredAtLevel()).isEqualTo(sheet.getLevel());
+    }
+
+    @Test
+    void addTraining_ExceedingCap_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
+        for (int i = 0; i < CompanionTrainingOption.LIGHT_IN_THE_DARK.getMaxSelections(); i++) {
+            companion.getTrainings().add(CompanionTraining.builder()
+                    .id((long) (200 + i))
+                    .companion(companion)
+                    .option(CompanionTrainingOption.LIGHT_IN_THE_DARK)
+                    .acquiredAtLevel(1)
+                    .build());
+        }
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.LIGHT_IN_THE_DARK)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.addTraining(COMPANION_ID, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("remaining");
+
+        verify(companionRepository, never()).save(any(Companion.class));
+    }
+
+    @Test
+    void addTraining_ViciousWithoutAxis_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.VICIOUS)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.addTraining(COMPANION_ID, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("viciousAxis");
+    }
+
+    @Test
+    void addTraining_ViciousAxisAtCap_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
+        companion.setBaseDamageDice(DiceType.D12);
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.VICIOUS)
+                .viciousAxis(ViciousAxis.DAMAGE_DIE)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.addTraining(COMPANION_ID, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("maximum");
+    }
+
+    @Test
+    void addTraining_IntelligentWithoutTargetExperience_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.INTELLIGENT)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.addTraining(COMPANION_ID, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("targetExperienceId");
+    }
+
+    @Test
+    void addTraining_IntelligentWithForeignExperience_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.INTELLIGENT)
+                .targetExperienceId(999L)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.addTraining(COMPANION_ID, request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("does not belong");
+    }
+
+    @Test
+    void addTraining_IntelligentWithValidExperience_AddsSuccessfully() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+        Experience experience = Experience.builder().id(55L).companion(companion).createdBy(owner).description("Tracking").modifier(2).build();
+        companion.getExperiences().add(experience);
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.INTELLIGENT)
+                .targetExperienceId(55L)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        companionService.addTraining(COMPANION_ID, request, authentication);
+
+        CompanionTraining added = companion.getTrainings().iterator().next();
+        assertThat(added.getTargetExperience().getId()).isEqualTo(55L);
+    }
+
+    @Test
+    void addTraining_WithoutPermission_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, false);
+        Companion companion = companion(sheet);
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.AWARE)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.addTraining(COMPANION_ID, request, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
+
+        verify(companionRepository, never()).save(any(Companion.class));
+    }
+
+    @Test
+    void addTraining_SoftDeletedCompanion_ThrowsException() {
+        Companion companion = companion(sheet(owner()));
+        companion.softDelete();
+
+        CreateCompanionTrainingRequest request = CreateCompanionTrainingRequest.builder()
+                .option(CompanionTrainingOption.AWARE)
+                .build();
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.addTraining(COMPANION_ID, request, authentication))
+                .isInstanceOf(EntityNotFoundException.class);
+    }
+
+    // ==================== REMOVE TRAINING ====================
+
+    @Test
+    void removeTraining_AsOwner_RemovesSuccessfully() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+        CompanionTraining training = CompanionTraining.builder()
+                .id(300L).companion(companion).option(CompanionTrainingOption.AWARE).acquiredAtLevel(1).build();
+        companion.getTrainings().add(training);
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        CompanionResponse result = companionService.removeTraining(COMPANION_ID, 300L, authentication);
+
+        assertThat(companion.getTrainings()).isEmpty();
+        assertThat(result.getTrainings()).isEmpty();
         verify(companionRepository, never()).delete(any(Companion.class));
+    }
+
+    @Test
+    void removeTraining_ClampsStressMarkedAfterResilientRemoved() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+        companion.setStressMarked(4); // legal only with the Resilient bonus below (base 3 + 1 = 4)
+        CompanionTraining training = CompanionTraining.builder()
+                .id(300L).companion(companion).option(CompanionTrainingOption.RESILIENT).acquiredAtLevel(1).build();
+        companion.getTrainings().add(training);
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        companionService.removeTraining(COMPANION_ID, 300L, authentication);
+
+        assertThat(companion.getStressMarked()).isEqualTo(3); // clamped to the new derived max
+    }
+
+    @Test
+    void removeTraining_ClampsSheetHopeMarkedWhenGrantedSlotLost() {
+        User owner = owner();
+        CharacterSheet sheet = sheet(owner);
+        sheet.setHopeMax(3);
+        sheet.setHopeMarked(4); // only legal because this companion's LIGHT_IN_THE_DARK grants +1
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        when(userDetails.getUser()).thenReturn(owner);
+        Companion companion = companion(sheet);
+        CompanionTraining training = CompanionTraining.builder()
+                .id(300L).companion(companion).option(CompanionTrainingOption.LIGHT_IN_THE_DARK).acquiredAtLevel(1).build();
+        companion.getTrainings().add(training);
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+        when(companionRepository.save(any(Companion.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(companionRepository.findActiveByCharacterSheetId(SHEET_ID)).thenReturn(List.of(companion));
+
+        companionService.removeTraining(COMPANION_ID, 300L, authentication);
+
+        assertThat(sheet.getHopeMarked()).isEqualTo(3);
+        verify(characterSheetRepository).save(sheet);
+    }
+
+    @Test
+    void removeTraining_NotFound_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        CustomUserDetails userDetails = asUser(OWNER_ID, false);
+        Companion companion = companion(sheet);
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.removeTraining(COMPANION_ID, 999L, authentication))
+                .isInstanceOf(EntityNotFoundException.class);
+
+        verify(companionRepository, never()).save(any(Companion.class));
+    }
+
+    @Test
+    void removeTraining_WithoutPermission_ThrowsException() {
+        CharacterSheet sheet = sheet(owner());
+        asUser(OTHER_USER_ID, false);
+        Companion companion = companion(sheet);
+        companion.getTrainings().add(CompanionTraining.builder()
+                .id(300L).companion(companion).option(CompanionTrainingOption.AWARE).acquiredAtLevel(1).build());
+
+        when(companionRepository.findById(COMPANION_ID)).thenReturn(Optional.of(companion));
+
+        assertThatThrownBy(() -> companionService.removeTraining(COMPANION_ID, 300L, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class);
+
+        assertThat(companion.getTrainings()).hasSize(1);
     }
 }

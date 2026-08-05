@@ -7,9 +7,11 @@ import com.aboff.core.model.dto.dh.response.ExperienceResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CharacterSheet;
+import com.aboff.core.model.entity.dh.Companion;
 import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
+import com.aboff.core.repository.dh.CompanionRepository;
 import com.aboff.core.repository.dh.ExperienceRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.CustomUserDetails;
@@ -50,6 +52,9 @@ class ExperienceServiceTest {
     private CharacterSheetRepository characterSheetRepository;
 
     @Mock
+    private CompanionRepository companionRepository;
+
+    @Mock
     private UserRepository userRepository;
 
     @Mock
@@ -65,12 +70,17 @@ class ExperienceServiceTest {
     private ExperienceService experienceService;
 
     // ==================== GET ALL EXPERIENCES TESTS ====================
+    // Reads are intentionally public (character sheets, and everything attached to them, are
+    // visible to any authenticated user) -- these do not gate on ownership. The soft-deleted
+    // companion cases stand on their own: a soft-deleted record should not be reachable through
+    // a side door even where the owning data is otherwise public.
 
     @Test
-    void getAllExperiences_WithoutFilters_ReturnsPagedExperiences() {
+    void getAllExperiences_AsModeratorWithoutFilters_ReturnsEveryUsersExperiences() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").build();
         User creator = User.builder().id(2L).username("gm1").build();
+        User moderator = User.builder().id(3L).username("moderator1").role(Role.MODERATOR).build();
         CharacterSheet sheet = CharacterSheet.builder()
                 .id(1L)
                 .name("Aragorn")
@@ -96,10 +106,14 @@ class ExperienceServiceTest {
                 .build();
 
         Page<Experience> experiencePage = new PageImpl<>(List.of(exp1, exp2));
+        CustomUserDetails userDetails = new CustomUserDetails(moderator);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(true);
         when(experienceRepository.findAll(any(Pageable.class))).thenReturn(experiencePage);
 
         // Act
-        PagedResponse<ExperienceResponse> result = experienceService.getAllExperiences(0, 20, null, null, null);
+        PagedResponse<ExperienceResponse> result =
+                experienceService.getAllExperiences(0, 20, null, null, null, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -110,8 +124,45 @@ class ExperienceServiceTest {
     }
 
     @Test
+    void getAllExperiences_AsNonPrivilegedWithoutFilters_ScopesToOwnExperiences() {
+        // Arrange -- an unfiltered list is scoped to the caller's own experiences so it can't be
+        // used to enumerate every user's experiences in one call. Any single experience is still
+        // readable individually or via a characterSheetId/companionId filter -- see the filtered
+        // tests below, which are deliberately caller-agnostic.
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        Experience exp = Experience.builder()
+                .id(1L)
+                .characterSheet(sheet)
+                .createdBy(owner)
+                .description("Survived dragon attack")
+                .modifier(2)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Experience> experiencePage = new PageImpl<>(List.of(exp));
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(experienceRepository.findByOwnerId(eq(1L), any(Pageable.class))).thenReturn(experiencePage);
+
+        // Act
+        PagedResponse<ExperienceResponse> result =
+                experienceService.getAllExperiences(0, 20, null, null, null, authentication);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        verify(experienceRepository, never()).findAll(any(Pageable.class));
+        verify(experienceRepository).findByOwnerId(eq(1L), any(Pageable.class));
+    }
+
+    @Test
     void getAllExperiences_WithCharacterSheetFilter_ReturnsFilteredExperiences() {
-        // Arrange
+        // Arrange -- filtered reads are open to any authenticated user; no auth stub needed.
         User owner = User.builder().id(1L).username("player1").build();
         User creator = User.builder().id(2L).username("gm1").build();
         CharacterSheet sheet = CharacterSheet.builder()
@@ -134,7 +185,8 @@ class ExperienceServiceTest {
         when(experienceRepository.findByCharacterSheetId(eq(1L), any(Pageable.class))).thenReturn(experiencePage);
 
         // Act
-        PagedResponse<ExperienceResponse> result = experienceService.getAllExperiences(0, 20, 1L, null, null);
+        PagedResponse<ExperienceResponse> result =
+                experienceService.getAllExperiences(0, 20, 1L, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -149,9 +201,56 @@ class ExperienceServiceTest {
         when(characterSheetRepository.findActiveById(999L)).thenReturn(Optional.empty());
 
         // Act & Assert
-        assertThatThrownBy(() -> experienceService.getAllExperiences(0, 20, 999L, null, null))
+        assertThatThrownBy(() -> experienceService.getAllExperiences(0, 20, 999L, null, null, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("CharacterSheet not found with id: 999");
+    }
+
+    @Test
+    void getAllExperiences_WithCompanionFilter_ReturnsFilteredExperiences() {
+        // Arrange -- filtered reads are open to any authenticated user; no auth stub needed.
+        User owner = User.builder().id(1L).username("player1").build();
+        User creator = User.builder().id(2L).username("gm1").build();
+        CharacterSheet sheet = CharacterSheet.builder().id(1L).name("Aragorn").owner(owner).build();
+        Companion companion = Companion.builder().id(10L).characterSheet(sheet).name("Wolf").build();
+
+        Experience exp = Experience.builder()
+                .id(1L)
+                .companion(companion)
+                .createdBy(creator)
+                .description("Learned to hunt")
+                .modifier(2)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        Page<Experience> experiencePage = new PageImpl<>(List.of(exp));
+        when(companionRepository.findById(10L)).thenReturn(Optional.of(companion));
+        when(experienceRepository.findByCompanionId(eq(10L), any(Pageable.class))).thenReturn(experiencePage);
+
+        // Act
+        PagedResponse<ExperienceResponse> result =
+                experienceService.getAllExperiences(0, 20, null, 10L, null, authentication);
+
+        // Assert
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getCompanionId()).isEqualTo(10L);
+    }
+
+    @Test
+    void getAllExperiences_WithSoftDeletedCompanionFilter_ThrowsEntityNotFoundException() {
+        // Arrange -- a soft-deleted companion should not be reachable through this side door,
+        // even though reads are otherwise public; matches GET /api/dh/companions/{id}'s 404.
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder().id(1L).name("Aragorn").owner(owner).build();
+        Companion companion = Companion.builder().id(10L).characterSheet(sheet).name("Wolf")
+                .deletedAt(LocalDateTime.now()).build();
+
+        when(companionRepository.findById(10L)).thenReturn(Optional.of(companion));
+
+        // Act & Assert
+        assertThatThrownBy(() -> experienceService.getAllExperiences(0, 20, null, 10L, null, authentication))
+                .isInstanceOf(EntityNotFoundException.class)
+                .hasMessageContaining("Companion not found with id: 10");
     }
 
     // ==================== GET EXPERIENCE BY ID TESTS ====================
@@ -186,6 +285,37 @@ class ExperienceServiceTest {
         assertThat(result.getId()).isEqualTo(1L);
         assertThat(result.getDescription()).isEqualTo("Survived dragon attack");
         assertThat(result.getModifier()).isEqualTo(2);
+    }
+
+    @Test
+    void getExperienceById_ExpandCompanion_SoftDeletedCompanion_OmitsCompanionExpansion() {
+        // Arrange -- expand=companion should not resurrect a soft-deleted companion's data.
+        User creator = User.builder().id(2L).username("gm1").build();
+        CharacterSheet sheet = CharacterSheet.builder().id(1L).name("Aragorn")
+                .owner(User.builder().id(1L).username("player1").build()).build();
+        Companion companion = Companion.builder()
+                .id(10L)
+                .characterSheet(sheet)
+                .name("Wolf")
+                .deletedAt(LocalDateTime.now())
+                .build();
+
+        Experience exp = Experience.builder()
+                .id(1L)
+                .companion(companion)
+                .createdBy(creator)
+                .description("SECRET-COMPANION-EXPERIENCE")
+                .modifier(2)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(experienceRepository.findById(1L)).thenReturn(Optional.of(exp));
+
+        // Act
+        ExperienceResponse result = experienceService.getExperienceById(1L, "companion");
+
+        // Assert
+        assertThat(result.getCompanion()).isNull();
     }
 
     @Test
@@ -231,6 +361,7 @@ class ExperienceServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(userRepository.findById(2L)).thenReturn(Optional.of(creator));
+        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(true);
         when(experienceRepository.save(any(Experience.class))).thenReturn(savedExp);
 
         // Act
@@ -242,6 +373,76 @@ class ExperienceServiceTest {
         assertThat(result.getDescription()).isEqualTo("Survived dragon attack");
         assertThat(result.getModifier()).isEqualTo(2);
         verify(experienceRepository).save(any(Experience.class));
+    }
+
+    @Test
+    void createExperience_AsCharacterSheetOwner_CreatesExperience() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CreateExperienceRequest request = CreateExperienceRequest.builder()
+                .characterSheetId(1L)
+                .description("Survived dragon attack")
+                .modifier(2)
+                .build();
+
+        Experience savedExp = Experience.builder()
+                .id(1L)
+                .characterSheet(sheet)
+                .createdBy(owner)
+                .description("Survived dragon attack")
+                .modifier(2)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(experienceRepository.save(any(Experience.class))).thenReturn(savedExp);
+
+        // Act
+        ExperienceResponse result = experienceService.createExperience(request, authentication);
+
+        // Assert
+        assertThat(result).isNotNull();
+        assertThat(result.getDescription()).isEqualTo("Survived dragon attack");
+        verify(experienceRepository).save(any(Experience.class));
+    }
+
+    @Test
+    void createExperience_CharacterSheetOwnedByOtherUser_ThrowsInsufficientPermissionsException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        User otherUser = User.builder().id(3L).username("player2").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder()
+                .id(1L)
+                .name("Aragorn")
+                .owner(owner)
+                .build();
+
+        CreateExperienceRequest request = CreateExperienceRequest.builder()
+                .characterSheetId(1L)
+                .description("Trying to add an experience to someone else's sheet")
+                .modifier(2)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(otherUser);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(otherUser));
+
+        // Act & Assert
+        assertThatThrownBy(() -> experienceService.createExperience(request, authentication))
+                .isInstanceOf(InsufficientPermissionsException.class)
+                .hasMessageContaining("You do not have permission to create an experience for this character sheet");
+
+        verify(experienceRepository, never()).save(any(Experience.class));
     }
 
     @Test
@@ -273,6 +474,7 @@ class ExperienceServiceTest {
         when(authentication.getPrincipal()).thenReturn(userDetails);
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
         when(userRepository.findById(2L)).thenReturn(Optional.of(creator));
+        when(roleHierarchyService.hasModeratorOrHigher(userDetails)).thenReturn(true);
         when(experienceRepository.save(any(Experience.class))).thenReturn(savedExp);
 
         // Act
@@ -301,6 +503,95 @@ class ExperienceServiceTest {
         assertThatThrownBy(() -> experienceService.createExperience(request, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessageContaining("CharacterSheet not found with id: 999");
+    }
+
+    // ==================== COMPANION EXPERIENCE CAP TESTS ====================
+    // The printed companion sheet has exactly Companion.MAX_EXPERIENCES (5) Experience lines.
+    // This cap is a companion-only rule -- a character's own Experiences have no such limit and
+    // are unaffected (see createExperience_WithValidData_CreatesExperience etc. above, which all
+    // use the characterSheetId branch with no cap check).
+
+    @Test
+    void createExperience_ForCompanion_BelowCap_CreatesSuccessfully() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder().id(1L).name("Aragorn").owner(owner).build();
+        Companion companion = Companion.builder()
+                .id(10L)
+                .characterSheet(sheet)
+                .name("Wolf")
+                .experiences(fakeExperiences(4))
+                .build();
+
+        CreateExperienceRequest request = CreateExperienceRequest.builder()
+                .companionId(10L)
+                .description("Learned to track prey")
+                .modifier(2)
+                .build();
+
+        Experience savedExp = Experience.builder()
+                .id(5L)
+                .companion(companion)
+                .createdBy(owner)
+                .description("Learned to track prey")
+                .modifier(2)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(companionRepository.findById(10L)).thenReturn(Optional.of(companion));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+        when(experienceRepository.save(any(Experience.class))).thenReturn(savedExp);
+
+        // Act
+        ExperienceResponse result = experienceService.createExperience(request, authentication);
+
+        // Assert -- the 5th Experience (companion already has 4) is allowed
+        assertThat(result.getDescription()).isEqualTo("Learned to track prey");
+        verify(experienceRepository).save(any(Experience.class));
+    }
+
+    @Test
+    void createExperience_ForCompanion_AtCap_ThrowsIllegalStateException() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = CharacterSheet.builder().id(1L).name("Aragorn").owner(owner).build();
+        Companion companion = Companion.builder()
+                .id(10L)
+                .characterSheet(sheet)
+                .name("Wolf")
+                .experiences(fakeExperiences(5))
+                .build();
+
+        CreateExperienceRequest request = CreateExperienceRequest.builder()
+                .companionId(10L)
+                .description("A 6th Experience, past the printed cap")
+                .modifier(2)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(companionRepository.findById(10L)).thenReturn(Optional.of(companion));
+        when(userRepository.findById(1L)).thenReturn(Optional.of(owner));
+
+        // Act & Assert
+        assertThatThrownBy(() -> experienceService.createExperience(request, authentication))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("maximum of 5 Experiences");
+
+        verify(experienceRepository, never()).save(any(Experience.class));
+    }
+
+    /**
+     * Builds a set of {@code count} placeholder Experiences for cap-boundary tests -- only the
+     * set's size matters to {@code createExperience}'s cap check, not the entries' content.
+     */
+    private java.util.Set<Experience> fakeExperiences(int count) {
+        java.util.Set<Experience> experiences = new java.util.HashSet<>();
+        for (int i = 0; i < count; i++) {
+            experiences.add(Experience.builder().id((long) (100 + i)).description("Filler " + i).modifier(2).build());
+        }
+        return experiences;
     }
 
     // ==================== UPDATE EXPERIENCE TESTS ====================

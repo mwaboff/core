@@ -2,15 +2,21 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.AdvancementChoice;
+import com.aboff.core.model.dto.dh.request.CompanionExperienceGrant;
+import com.aboff.core.model.dto.dh.request.CompanionTrainingChoice;
 import com.aboff.core.model.dto.dh.request.DomainCardTradeRequest;
 import com.aboff.core.model.dto.dh.request.LevelUpRequest;
 import com.aboff.core.model.dto.dh.response.*;
 import com.aboff.core.model.entity.dh.*;
 import com.aboff.core.model.enums.AdvancementType;
 import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.model.enums.CompanionOrigin;
+import com.aboff.core.model.enums.CompanionTrainingOption;
 import com.aboff.core.model.enums.DiceType;
+import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
+import com.aboff.core.model.enums.ViciousAxis;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.repository.dh.*;
 import com.aboff.core.service.AuditLogger;
@@ -45,6 +51,15 @@ public class LevelUpService {
     /** Name of the Brawler class feature that grants the Combo Die. */
     private static final String COMBO_STRIKE_FEATURE_NAME = "Combo Strike";
 
+    /** Name of the Beastbound foundation feature that grants a companion. */
+    private static final String COMPANION_FEATURE_NAME = "Companion";
+
+    /** Name of the Beastbound specialization feature granting one extra companion Training pick. */
+    private static final String EXPERT_TRAINING_FEATURE_NAME = "Expert Training";
+
+    /** Name of the Beastbound mastery feature granting two extra companion Training picks. */
+    private static final String ADVANCED_TRAINING_FEATURE_NAME = "Advanced Training";
+
     private final CharacterSheetRepository characterSheetRepository;
     private final CharacterSheetDomainCardRepository characterSheetDomainCardRepository;
     private final CharacterAdvancementLogRepository characterAdvancementLogRepository;
@@ -52,6 +67,8 @@ public class LevelUpService {
     private final DomainCardRepository domainCardRepository;
     private final SubclassCardRepository subclassCardRepository;
     private final SubclassPathRepository subclassPathRepository;
+    private final CompanionRepository companionRepository;
+    private final CompanionService companionService;
     private final UserRepository userRepository;
     private final RoleHierarchyService roleHierarchyService;
     private final CharacterSheetService characterSheetService;
@@ -92,6 +109,19 @@ public class LevelUpService {
 
         long equippedCount = characterSheetDomainCardRepository.countEquippedByCharacterSheetId(characterSheetId);
 
+        List<Companion> eligibleCompanions = getEligibleCompanions(sheet);
+        // Only a character with the Companion feature itself (Beastbound's foundation feature,
+        // core-01:1249) gets a Training-pick step -- a GM-granted companion on, say, a Wizard
+        // does not, regardless of advancesOnLevelUp.
+        List<CompanionLevelUpOptionsResponse> companionTraining = hasCompanionFeature(sheet)
+                ? eligibleCompanions.stream().map(companion -> toCompanionLevelUpOption(companion, 1)).toList()
+                : List.of();
+
+        List<Companion> restorableCompanions = companionRepository.findByCharacterSheetId(characterSheetId).stream()
+                .filter(Companion::isDeleted)
+                .filter(companion -> companion.getOrigin() == CompanionOrigin.SUBCLASS_FEATURE)
+                .toList();
+
         log.debug("Retrieved level-up options for character sheet {} (level {} -> {})", characterSheetId, currentLevel, nextLevel);
 
         return LevelUpOptionsResponse.builder()
@@ -105,6 +135,10 @@ public class LevelUpService {
                 .accessibleDomainIds(getAccessibleDomainIds(sheet))
                 .equippedDomainCardCount(equippedCount)
                 .maxEquippedDomainCards(MAX_EQUIPPED_DOMAIN_CARDS)
+                .companionTraining(companionTraining)
+                .restorableCompanions(restorableCompanions.stream()
+                        .map(companion -> companionService.toResponse(companion, Set.of()))
+                        .toList())
                 .build();
     }
 
@@ -139,14 +173,19 @@ public class LevelUpService {
                 .findByCharacterSheetIdAndTier(characterSheetId, nextTier);
         Map<AdvancementType, Integer> usageMap = buildUsageMap(tierLogs);
 
+        // Snapshot eligible companions BEFORE any mutation -- this single snapshot is what gives
+        // a companion created or restored later in this same call no Training pick and no
+        // Experience grant this level-up (plan section 3.1).
+        List<Companion> eligibleCompanions = getEligibleCompanions(sheet);
+
         // Validate request
-        validateLevelUpRequest(request, sheet, nextTier, usageMap, isTierTransition, nextLevel);
+        validateLevelUpRequest(request, sheet, nextTier, usageMap, isTierTransition, nextLevel, eligibleCompanions);
 
         List<String> appliedChanges = new ArrayList<>();
         Map<String, Object> advancementDataMap = new LinkedHashMap<>();
 
         // Snapshot previous values
-        Map<String, Object> previousValues = snapshotPreviousValues(sheet, request);
+        Map<String, Object> previousValues = snapshotPreviousValues(sheet, request, eligibleCompanions);
         advancementDataMap.put("previousValues", previousValues);
 
         // Step 1 - Tier Achievements
@@ -158,6 +197,22 @@ public class LevelUpService {
             advancementDataMap.put("tierAchievements", tierAchievements);
         }
 
+        // Step 1.5 - Companion Experience grants (tier transitions only)
+        if (isTierTransition) {
+            // Both the forced Training pick and the forced Experience grant flow from the same
+            // source -- Beastbound's Companion feature (core-01:1249) is what puts a character's
+            // hands on the Ranger Companion sheet in the first place, and "whenever you gain a
+            // new Experience, your companion also gains one" (core-01:1319) is a build step on
+            // that sheet. A companionsEnabled flag with no Companion feature (a GM-granted pet on
+            // any other class) gets neither -- see companionExperienceEligibleCompanions(sheet).
+            List<Companion> companionExperienceEligible = companionExperienceEligibleCompanions(sheet, eligibleCompanions);
+            List<Map<String, Object>> companionExperiencesLog =
+                    applyCompanionExperienceGrants(request, companionExperienceEligible, appliedChanges, auth);
+            if (!companionExperiencesLog.isEmpty()) {
+                advancementDataMap.put("companionExperiences", companionExperiencesLog);
+            }
+        }
+
         // Step 2 - Apply 2 Advancements
         Long newTierExpId = tierAchievements.containsKey("experienceCreatedId") ?
                 toLong(tierAchievements.get("experienceCreatedId")) : null;
@@ -167,6 +222,20 @@ public class LevelUpService {
             advancementsList.add(advData);
         }
         advancementDataMap.put("advancements", advancementsList);
+
+        // Step 2.5 - Companion creation/restoration (multiclassing into a Companion-granting subclass)
+        if (request.getNewCompanionId() != null) {
+            Map<String, Object> companionCreatedLog =
+                    applyCompanionCreationOrRestore(sheet, request, appliedChanges);
+            advancementDataMap.put("companionCreated", companionCreatedLog);
+        }
+
+        // Step 2.6 - Companion Training picks
+        if (request.getCompanionTrainings() != null && !request.getCompanionTrainings().isEmpty()) {
+            List<Map<String, Object>> companionTrainingsLog =
+                    applyCompanionTrainings(request.getCompanionTrainings(), eligibleCompanions, nextLevel, appliedChanges);
+            advancementDataMap.put("companionTrainings", companionTrainingsLog);
+        }
 
         // Step 3 - Damage Thresholds
         int prevMajor = sheet.getMajorDamageThreshold();
@@ -366,6 +435,10 @@ public class LevelUpService {
         if (tierAchievements != null) {
             reverseTierAchievements(sheet, tierAchievements);
         }
+
+        // Reverse companion state -- its own top-level step, not folded into reverseAdvancement's
+        // switch (which has no default case and would silently no-op an unhandled entry).
+        reverseCompanionChanges(sheet, data, previousValues);
 
         CharacterSheet savedSheet = characterSheetRepository.save(sheet);
         characterAdvancementLogRepository.delete(logEntry);
@@ -622,7 +695,8 @@ public class LevelUpService {
      */
     private void validateLevelUpRequest(LevelUpRequest request, CharacterSheet sheet,
                                         int nextTier, Map<AdvancementType, Integer> usageMap,
-                                        boolean isTierTransition, int nextLevel) {
+                                        boolean isTierTransition, int nextLevel,
+                                        List<Companion> eligibleCompanions) {
         if (request.getAdvancements() == null) {
             throw new IllegalStateException("Advancements are required");
         }
@@ -759,7 +833,331 @@ public class LevelUpService {
                         MAX_EQUIPPED_DOMAIN_CARDS + ". Provide unequipDomainCardId.");
             }
         }
+
+        // Validate companion Training picks
+        int picksAvailable = computeCompanionPicksAvailable(sheet, playerEntries);
+        validateCompanionTrainingChoices(request.getCompanionTrainings(), eligibleCompanions, picksAvailable);
+
+        // Validate companion Experience grants (tier transitions only, silently ignored otherwise)
+        if (isTierTransition) {
+            List<Companion> companionExperienceEligible = companionExperienceEligibleCompanions(sheet, eligibleCompanions);
+            validateCompanionExperienceGrants(request.getCompanionExperiences(), companionExperienceEligible);
+        }
+
+        // Validate newCompanionId (companion created/restored by a Companion-granting multiclass)
+        validateNewCompanionId(request.getNewCompanionId(), sheet, playerEntries);
     }
+
+    // ==================== COMPANION HELPER METHODS ====================
+
+    /**
+     * Returns a character's companions eligible to advance this level-up: active
+     * (not soft-deleted) and with {@code advancesOnLevelUp} set.
+     * <p>
+     * Must be called before any mutation in {@link #levelUp} -- a companion this same
+     * level-up creates or restores is intentionally absent from this snapshot, which is what
+     * gives it no Training pick and no Experience grant on the level-up that granted it
+     * (plan section 3.1).
+     * </p>
+     *
+     * @param sheet the character sheet
+     * @return the character's eligible companions, empty if none
+     */
+    private List<Companion> getEligibleCompanions(CharacterSheet sheet) {
+        return companionRepository.findActiveByCharacterSheetId(sheet.getId()).stream()
+                .filter(companion -> Boolean.TRUE.equals(companion.getAdvancesOnLevelUp()))
+                .toList();
+    }
+
+    /**
+     * Checks whether a subclass card carries a subclass feature with a given name.
+     * <p>
+     * Detection is by feature name and type rather than by card/subclass id, so homebrew
+     * subclasses reprinting the same feature text work identically -- mirrors
+     * {@link #hasComboStrikeFeature(CharacterSheet)}'s existing name-based detection.
+     * </p>
+     *
+     * @param card the subclass card to inspect
+     * @param featureName the feature name to match, case/whitespace-insensitive
+     * @return true if the card has a {@code SUBCLASS}-type feature with that name
+     */
+    private boolean hasFeatureNamed(SubclassCard card, String featureName) {
+        if (card == null || card.getFeatures() == null) {
+            return false;
+        }
+        for (Feature feature : card.getFeatures()) {
+            if (feature != null && feature.getFeatureType() == FeatureType.SUBCLASS
+                    && feature.getName() != null && featureName.equalsIgnoreCase(feature.getName().trim())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Determines whether a character actually has the Companion feature -- Beastbound's
+     * foundation feature (core-01:1249), which is what grants the right to "choose a level-up
+     * option for your companion" each level-up, not merely owning an active companion (e.g. a
+     * GM-granted pet on a Wizard).
+     * <p>
+     * Detection is by feature name + {@code featureType == SUBCLASS}, mirroring
+     * {@link #findCompanionGrantingCard} -- there is a same-named {@code BEASTFORM} feature in
+     * production data, so the type check is load-bearing, not redundant.
+     * </p>
+     *
+     * @param sheet the character sheet to inspect
+     * @return true if any of the character's subclass cards carries the Companion feature
+     */
+    private boolean hasCompanionFeature(CharacterSheet sheet) {
+        for (SubclassCard card : sheet.getSubclassCards()) {
+            if (hasFeatureNamed(card, COMPANION_FEATURE_NAME)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Narrows a companion Experience-grant candidate list down to those actually eligible for
+     * the automatic tier-transition grant: the printed rule ("whenever you gain a new
+     * Experience, your companion also gains one", core-01:1319) is a build step on the Ranger
+     * Companion sheet, which only the Companion feature (see {@link #hasCompanionFeature}) puts
+     * in a character's hands -- same gate as the Training pick, reusing the same detection
+     * rather than a second one.
+     *
+     * @param sheet the character sheet, checked for the Companion feature
+     * @param eligibleCompanions companions otherwise eligible this level-up (active,
+     *                            {@code advancesOnLevelUp})
+     * @return {@code eligibleCompanions} unchanged if the character has the Companion feature,
+     *         otherwise an empty list
+     */
+    private List<Companion> companionExperienceEligibleCompanions(CharacterSheet sheet, List<Companion> eligibleCompanions) {
+        return hasCompanionFeature(sheet) ? eligibleCompanions : List.of();
+    }
+
+    /**
+     * Computes how many companion Training picks are available this level-up.
+     * <p>
+     * Zero if the character does not have the Companion feature (see
+     * {@link #hasCompanionFeature}) -- otherwise baseline 1, +1 if an {@code UPGRADE_SUBCLASS}
+     * choice this request targets a card carrying "Expert Training", +2 for "Advanced Training".
+     * Only {@code UPGRADE_SUBCLASS} is scanned -- {@code MULTICLASS} only ever grants a
+     * foundation card ({@link #validateMulticlass}), and these are Specialization/Mastery
+     * features, so they can never appear there. Applied identically to every eligible companion;
+     * an individual companion's own {@code advancesOnLevelUp} opt-out is enforced separately by
+     * {@link #getEligibleCompanions} -- the two conditions are ANDed, not substitutes for each
+     * other.
+     * </p>
+     *
+     * @param sheet the character sheet, used only to gate on {@link #hasCompanionFeature}
+     * @param playerEntries this request's player-chosen advancement choices
+     * @return the number of Training picks available this level-up, per eligible companion
+     */
+    private int computeCompanionPicksAvailable(CharacterSheet sheet, List<AdvancementChoice> playerEntries) {
+        if (!hasCompanionFeature(sheet)) {
+            return 0;
+        }
+        int picks = 1;
+        for (AdvancementChoice choice : playerEntries) {
+            if (choice.getType() != AdvancementType.UPGRADE_SUBCLASS || choice.getSubclassCardId() == null) {
+                continue;
+            }
+            SubclassCard card = subclassCardRepository.findById(choice.getSubclassCardId()).orElse(null);
+            if (hasFeatureNamed(card, ADVANCED_TRAINING_FEATURE_NAME)) {
+                picks += 2;
+            } else if (hasFeatureNamed(card, EXPERT_TRAINING_FEATURE_NAME)) {
+                picks += 1;
+            }
+        }
+        return picks;
+    }
+
+    /**
+     * Finds the subclass card, among this request's {@code MULTICLASS} choices, that grants
+     * the "Companion" feature.
+     *
+     * @param playerEntries this request's player-chosen advancement choices
+     * @return the Companion-granting foundation card, or null if none of this request's
+     *         multiclass choices grants one
+     */
+    private SubclassCard findCompanionGrantingCard(List<AdvancementChoice> playerEntries) {
+        for (AdvancementChoice choice : playerEntries) {
+            if (choice.getType() != AdvancementType.MULTICLASS || choice.getSubclassCardId() == null) {
+                continue;
+            }
+            SubclassCard card = subclassCardRepository.findById(choice.getSubclassCardId()).orElse(null);
+            if (hasFeatureNamed(card, COMPANION_FEATURE_NAME)) {
+                return card;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Validates the Training picks submitted for eligible companions.
+     * <p>
+     * Every eligible companion must have exactly {@code picksAvailable} picks; every pick's
+     * legality is checked by {@link CompanionTrainingValidator#validatePick} against a
+     * disposable "shadow" copy of the companion -- sharing the real base stats and Experience
+     * set, but a cloned {@code trainings} collection -- so that a cap check for the second pick
+     * in one request correctly accounts for the first, without mutating the real managed
+     * entity before the request is known to be fully valid.
+     * </p>
+     *
+     * @param choices this request's companion Training picks, may be null
+     * @param eligibleCompanions companions eligible to receive picks this level-up
+     * @param picksAvailable how many picks each eligible companion must have, from
+     *                        {@link #computeCompanionPicksAvailable}
+     * @throws IllegalStateException if a choice targets an ineligible/unknown companion, if any
+     *         eligible companion doesn't have exactly {@code picksAvailable} choices, or if any
+     *         individual pick is illegal
+     */
+    private void validateCompanionTrainingChoices(List<CompanionTrainingChoice> choices,
+                                                   List<Companion> eligibleCompanions, int picksAvailable) {
+        Map<Long, List<CompanionTrainingChoice>> byCompanion = choices == null ? Map.of() :
+                choices.stream().collect(Collectors.groupingBy(CompanionTrainingChoice::getCompanionId));
+
+        Set<Long> eligibleIds = eligibleCompanions.stream().map(Companion::getId).collect(Collectors.toSet());
+        for (Long companionId : byCompanion.keySet()) {
+            if (!eligibleIds.contains(companionId)) {
+                throw new IllegalStateException("Companion " + companionId + " is not eligible for Training this level-up");
+            }
+        }
+
+        for (Companion companion : eligibleCompanions) {
+            List<CompanionTrainingChoice> companionChoices = byCompanion.getOrDefault(companion.getId(), List.of());
+            if (companionChoices.size() != picksAvailable) {
+                throw new IllegalStateException("Companion " + companion.getId() + " requires exactly " +
+                        picksAvailable + " Training pick(s) this level-up, got " + companionChoices.size());
+            }
+
+            Companion shadow = Companion.builder()
+                    .baseEvasion(companion.getBaseEvasion())
+                    .baseDamageDice(companion.getBaseDamageDice())
+                    .baseAttackRange(companion.getBaseAttackRange())
+                    .baseStressMax(companion.getBaseStressMax())
+                    .stressMarked(companion.getStressMarked())
+                    .trainings(new HashSet<>(companion.getTrainings()))
+                    .experiences(companion.getExperiences())
+                    .build();
+            for (CompanionTrainingChoice choice : companionChoices) {
+                CompanionTrainingValidator.validatePick(shadow, choice.getOption(), choice.getViciousAxis(), choice.getTargetExperienceId());
+                shadow.getTrainings().add(CompanionTraining.builder()
+                        .option(choice.getOption())
+                        .viciousAxis(choice.getViciousAxis())
+                        .build());
+            }
+        }
+    }
+
+    /**
+     * Validates the automatic tier-transition Experience grants submitted for eligible
+     * companions. Only called when this level-up is a tier transition.
+     *
+     * @param grants this request's companion Experience grants, may be null
+     * @param eligibleCompanions companions eligible to receive a grant this level-up -- already
+     *                            narrowed by the caller via
+     *                            {@link #companionExperienceEligibleCompanions}, so a grant
+     *                            submitted for a companion on a character without the Companion
+     *                            feature is rejected here as "not eligible", same as any other
+     *                            unknown companion id
+     * @throws IllegalStateException if a grant targets an ineligible/unknown companion, if any
+     *         eligible companion doesn't have exactly one grant, or if a companion is already
+     *         at the Experience cap
+     */
+    private void validateCompanionExperienceGrants(List<CompanionExperienceGrant> grants,
+                                                    List<Companion> eligibleCompanions) {
+        Map<Long, List<CompanionExperienceGrant>> byCompanion = grants == null ? Map.of() :
+                grants.stream().collect(Collectors.groupingBy(CompanionExperienceGrant::getCompanionId));
+
+        Set<Long> eligibleIds = eligibleCompanions.stream().map(Companion::getId).collect(Collectors.toSet());
+        for (Long companionId : byCompanion.keySet()) {
+            if (!eligibleIds.contains(companionId)) {
+                throw new IllegalStateException(
+                        "Companion " + companionId + " is not eligible for an Experience grant this level-up");
+            }
+        }
+
+        for (Companion companion : eligibleCompanions) {
+            List<CompanionExperienceGrant> companionGrants = byCompanion.getOrDefault(companion.getId(), List.of());
+            if (companionGrants.size() != 1) {
+                throw new IllegalStateException("Companion " + companion.getId() +
+                        " requires exactly 1 Experience grant on a tier transition, got " + companionGrants.size());
+            }
+            if (companion.getExperiences().size() >= Companion.MAX_EXPERIENCES) {
+                throw new IllegalStateException("Companion " + companion.getId() +
+                        " is already at the maximum of " + Companion.MAX_EXPERIENCES + " Experiences");
+            }
+        }
+    }
+
+    /**
+     * Validates {@code newCompanionId}: the companion this level-up is associating with a
+     * newly-granted Companion feature, either a freshly created ({@code origin = MANUAL})
+     * companion or a previously soft-deleted ({@code origin = SUBCLASS_FEATURE}, matching
+     * {@code originSubclassCard}) one being restored.
+     *
+     * @param newCompanionId the submitted companion id, may be null
+     * @param sheet the character sheet
+     * @param playerEntries this request's player-chosen advancement choices
+     * @throws EntityNotFoundException if {@code newCompanionId} does not reference a companion
+     * @throws IllegalStateException if no advancement this request grants the Companion
+     *         feature, the companion belongs to a different sheet, or it is in neither the
+     *         fresh nor the restorable state for the granting card
+     */
+    private void validateNewCompanionId(Long newCompanionId, CharacterSheet sheet, List<AdvancementChoice> playerEntries) {
+        if (newCompanionId == null) {
+            return;
+        }
+        SubclassCard grantingCard = findCompanionGrantingCard(playerEntries);
+        if (grantingCard == null) {
+            throw new IllegalStateException(
+                    "newCompanionId was provided but no advancement this level-up grants the Companion feature");
+        }
+
+        Companion companion = companionRepository.findById(newCompanionId)
+                .orElseThrow(() -> new EntityNotFoundException("Companion not found with id: " + newCompanionId));
+        if (!companion.getCharacterSheet().getId().equals(sheet.getId())) {
+            throw new IllegalStateException("Companion " + newCompanionId + " does not belong to this character sheet");
+        }
+
+        boolean freshCase = !companion.isDeleted() && companion.getOrigin() == CompanionOrigin.MANUAL;
+        boolean restoreCase = companion.isDeleted() && companion.getOrigin() == CompanionOrigin.SUBCLASS_FEATURE
+                && companion.getOriginSubclassCard() != null
+                && companion.getOriginSubclassCard().getId().equals(grantingCard.getId());
+        if (!freshCase && !restoreCase) {
+            throw new IllegalStateException(
+                    "Companion " + newCompanionId + " is not eligible to be granted by this level-up");
+        }
+    }
+
+    /**
+     * Builds one companion's Training-options entry for {@link #getLevelUpOptions}.
+     *
+     * @param companion the eligible companion
+     * @param picksAvailable the baseline picks available (always 1 here; see
+     *                        {@link CompanionLevelUpOptionsResponse#getPicksAvailable()})
+     * @return the companion's Training options entry
+     */
+    private CompanionLevelUpOptionsResponse toCompanionLevelUpOption(Companion companion, int picksAvailable) {
+        Map<CompanionTrainingOption, Integer> remaining = CompanionDerivationService.remainingByOption(companion);
+        List<AvailableCompanionTrainingOption> availableOptions = Arrays.stream(CompanionTrainingOption.values())
+                .map(option -> AvailableCompanionTrainingOption.builder()
+                        .option(option)
+                        .remaining(remaining.getOrDefault(option, 0))
+                        .build())
+                .toList();
+
+        return CompanionLevelUpOptionsResponse.builder()
+                .companionId(companion.getId())
+                .name(companion.getName())
+                .currentStats(companionService.toResponse(companion, Set.of()))
+                .availableOptions(availableOptions)
+                .picksAvailable(picksAvailable)
+                .build();
+    }
+
+    // ==================== END COMPANION HELPER METHODS ====================
 
     private void validateBoostTraits(AdvancementChoice choice, CharacterSheet sheet, int nextLevel) {
         if (choice.getTraits() == null || choice.getTraits().size() != 2) {
@@ -957,7 +1355,8 @@ public class LevelUpService {
     /**
      * Snapshots previous values needed for undo.
      */
-    private Map<String, Object> snapshotPreviousValues(CharacterSheet sheet, LevelUpRequest request) {
+    private Map<String, Object> snapshotPreviousValues(CharacterSheet sheet, LevelUpRequest request,
+                                                         List<Companion> eligibleCompanions) {
         Map<String, Object> prev = new LinkedHashMap<>();
         prev.put("proficiency", sheet.getProficiency());
         prev.put("evasion", sheet.getEvasion());
@@ -987,6 +1386,25 @@ public class LevelUpService {
             }
         }
         prev.put("experienceModifiers", experienceModifiers);
+
+        // Snapshot companion experience modifiers for INTELLIGENT training picks (searches every
+        // eligible companion's own Experiences, since INTELLIGENT cannot target a different
+        // companion's Experience -- CompanionTrainingValidator enforces that at apply time).
+        Map<String, Integer> companionExperienceModifiers = new LinkedHashMap<>();
+        if (request.getCompanionTrainings() != null) {
+            for (CompanionTrainingChoice choice : request.getCompanionTrainings()) {
+                if (choice.getOption() != CompanionTrainingOption.INTELLIGENT || choice.getTargetExperienceId() == null) {
+                    continue;
+                }
+                for (Companion companion : eligibleCompanions) {
+                    companion.getExperiences().stream()
+                            .filter(e -> e.getId().equals(choice.getTargetExperienceId()))
+                            .findFirst()
+                            .ifPresent(exp -> companionExperienceModifiers.put(exp.getId().toString(), exp.getModifier()));
+                }
+            }
+        }
+        prev.put("companionExperienceModifiers", companionExperienceModifiers);
 
         return prev;
     }
@@ -1139,6 +1557,187 @@ public class LevelUpService {
     }
 
     /**
+     * Grants each eligible companion its automatic tier-transition Experience.
+     * <p>
+     * Mirrors {@code ExperienceService.createExperience}'s existing companion branch --
+     * {@code companion(companion)} set, {@code characterSheet} left null, per the
+     * {@code chk_experience_single_owner} CHECK constraint -- rather than the char-level
+     * {@code applyTierAchievements} path, which would violate it.
+     * </p>
+     *
+     * @param request the level-up request, supplying each grant's description
+     * @param eligibleCompanions companions eligible for a grant this level-up -- already narrowed
+     *                            by the caller via {@link #companionExperienceEligibleCompanions}
+     * @param appliedChanges the running human-readable summary of changes
+     * @param auth the authentication object, used to attribute the new Experience
+     * @return one log entry per grant, for {@code advancementData.companionExperiences}
+     */
+    private List<Map<String, Object>> applyCompanionExperienceGrants(LevelUpRequest request,
+                                                                       List<Companion> eligibleCompanions,
+                                                                       List<String> appliedChanges,
+                                                                       Authentication auth) {
+        List<Map<String, Object>> log = new ArrayList<>();
+        if (request.getCompanionExperiences() == null || eligibleCompanions.isEmpty()) {
+            return log;
+        }
+        com.aboff.core.security.CustomUserDetails userDetails =
+                (com.aboff.core.security.CustomUserDetails) auth.getPrincipal();
+        com.aboff.core.model.entity.User owner = userDetails.getUser();
+
+        Map<Long, CompanionExperienceGrant> byCompanionId = request.getCompanionExperiences().stream()
+                .collect(Collectors.toMap(CompanionExperienceGrant::getCompanionId, g -> g, (a, b) -> a));
+
+        for (Companion companion : eligibleCompanions) {
+            CompanionExperienceGrant grant = byCompanionId.get(companion.getId());
+            if (grant == null) {
+                continue;
+            }
+            Experience newExp = Experience.builder()
+                    .companion(companion)
+                    .createdBy(owner)
+                    .description(grant.getDescription())
+                    .modifier(2)
+                    .build();
+            Experience savedExp = experienceRepository.save(newExp);
+            companion.getExperiences().add(savedExp);
+            companionRepository.save(companion);
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("companionId", companion.getId());
+            entry.put("experienceId", savedExp.getId());
+            log.add(entry);
+            appliedChanges.add("Companion '" + companion.getName() + "' gained new experience: '" + grant.getDescription() + "' (+2)");
+        }
+        return log;
+    }
+
+    /**
+     * Associates {@code newCompanionId} with the Companion-granting subclass card taken this
+     * level-up, either restoring a soft-deleted companion or adopting an already-active one
+     * (created earlier via the manual companion-creation endpoint, per
+     * {@link #validateNewCompanionId}'s {@code freshCase}) into the granting subclass.
+     * <p>
+     * {@code validateNewCompanionId} has already confirmed a granting card exists and the
+     * companion is in a valid state for one of the two cases before this method runs. The prior
+     * {@code origin}/{@code originSubclassCard} and whether this call restored a soft-deleted row
+     * are recorded in the returned log entry so {@link #reverseCompanionChanges} can put the
+     * companion back exactly where it was -- including <strong>not</strong> soft-deleting an
+     * adopted companion that predates this level-up (see the companions reversibility fix design
+     * notes: a player-authored companion must never become unreachable just because it was later
+     * multiclassed into).
+     * </p>
+     *
+     * @param sheet the character sheet
+     * @param request the level-up request, supplying {@code newCompanionId}
+     * @param appliedChanges the running human-readable summary of changes
+     * @return the {@code advancementData.companionCreated} log entry
+     */
+    private Map<String, Object> applyCompanionCreationOrRestore(CharacterSheet sheet, LevelUpRequest request,
+                                                                  List<String> appliedChanges) {
+        SubclassCard grantingCard = findCompanionGrantingCard(request.getAdvancements());
+        Companion companion = companionRepository.findById(request.getNewCompanionId())
+                .orElseThrow(() -> new EntityNotFoundException("Companion not found with id: " + request.getNewCompanionId()));
+
+        boolean wasRestore = companion.isDeleted();
+        CompanionOrigin previousOrigin = companion.getOrigin();
+        SubclassCard previousOriginSubclassCard = companion.getOriginSubclassCard();
+
+        if (wasRestore) {
+            companion.restore();
+            appliedChanges.add("Restored companion '" + companion.getName() + "'");
+        } else {
+            appliedChanges.add("Companion '" + companion.getName() + "' granted by multiclassing into " + grantingCard.getName());
+        }
+        companion.setOrigin(CompanionOrigin.SUBCLASS_FEATURE);
+        companion.setOriginSubclassCard(grantingCard);
+        companionRepository.save(companion);
+
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("companionId", companion.getId());
+        entry.put("originSubclassCardId", grantingCard.getId());
+        entry.put("wasRestore", wasRestore);
+        entry.put("previousOrigin", previousOrigin.name());
+        entry.put("previousOriginSubclassCardId",
+                previousOriginSubclassCard != null ? previousOriginSubclassCard.getId() : null);
+        return entry;
+    }
+
+    /**
+     * Applies each submitted companion Training pick.
+     * <p>
+     * {@code validateCompanionTrainingChoices} has already confirmed every pick is legal
+     * against a shadow copy; this method performs the real mutation, one pick at a time,
+     * re-reading the saved companion after each save to resolve the new row's generated id --
+     * {@code companionRepository.save} on an already-managed companion merges the new child
+     * rather than persisting the original in-memory reference in place, so the id must be read
+     * back from the returned entity's collection rather than trusted on the local variable.
+     * </p>
+     *
+     * @param choices this request's companion Training picks
+     * @param eligibleCompanions companions eligible to receive picks this level-up
+     * @param nextLevel the level the character is levelling up to, recorded as
+     *                   {@code acquiredAtLevel}
+     * @param appliedChanges the running human-readable summary of changes
+     * @return one log entry per pick, for {@code advancementData.companionTrainings}
+     */
+    private List<Map<String, Object>> applyCompanionTrainings(List<CompanionTrainingChoice> choices,
+                                                                List<Companion> eligibleCompanions,
+                                                                int nextLevel, List<String> appliedChanges) {
+        Map<Long, Companion> byId = new LinkedHashMap<>();
+        for (Companion companion : eligibleCompanions) {
+            byId.put(companion.getId(), companion);
+        }
+
+        List<Map<String, Object>> log = new ArrayList<>();
+        for (CompanionTrainingChoice choice : choices) {
+            Companion companion = byId.get(choice.getCompanionId());
+            if (companion == null) {
+                continue; // already rejected by validateCompanionTrainingChoices; defensive only
+            }
+
+            Experience targetExperience = null;
+            if (choice.getOption() == CompanionTrainingOption.INTELLIGENT) {
+                targetExperience = companion.getExperiences().stream()
+                        .filter(e -> e.getId().equals(choice.getTargetExperienceId()))
+                        .findFirst()
+                        .orElseThrow(() -> new EntityNotFoundException("Experience not found on companion "
+                                + companion.getId() + " with id: " + choice.getTargetExperienceId()));
+                targetExperience.setModifier(targetExperience.getModifier() + 1);
+                experienceRepository.save(targetExperience);
+            }
+
+            Set<Long> knownTrainingIds = companion.getTrainings().stream()
+                    .map(CompanionTraining::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+
+            CompanionTraining training = CompanionTraining.builder()
+                    .companion(companion)
+                    .option(choice.getOption())
+                    .viciousAxis(choice.getViciousAxis())
+                    .targetExperience(targetExperience)
+                    .acquiredAtLevel(nextLevel)
+                    .build();
+            companion.getTrainings().add(training);
+            Companion saved = companionRepository.save(companion);
+            byId.put(saved.getId(), saved);
+
+            CompanionTraining savedTraining = saved.getTrainings().stream()
+                    .filter(t -> t.getId() != null && !knownTrainingIds.contains(t.getId()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("Failed to resolve saved companion training id"));
+
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("companionId", saved.getId());
+            entry.put("trainingId", savedTraining.getId());
+            entry.put("option", choice.getOption().name());
+            log.add(entry);
+            appliedChanges.add("Companion '" + saved.getName() + "' trained: " + choice.getOption());
+        }
+        return log;
+    }
+
+    /**
      * Processes domain card trades.
      */
     private List<Map<String, Object>> processTrades(CharacterSheet sheet, List<DomainCardTradeRequest> trades,
@@ -1288,6 +1887,116 @@ public class LevelUpService {
                 }
             }
         }
+    }
+
+    /**
+     * Reverses every companion change made by the level-up being undone.
+     * <p>
+     * Deliberately its own top-level step, called directly from {@link #undoLevelUp} -- companion
+     * state lives in its own {@code advancementData} keys ({@code companionTrainings},
+     * {@code companionExperiences}, {@code companionCreated}), not inside a per-advancement
+     * {@code type}, so it does not belong in {@link #reverseAdvancement}'s switch (which has no
+     * {@code default} case and would silently no-op an unhandled entry).
+     * </p>
+     * <p>
+     * Every step tolerates a missing companion or row (already hard-deleted, e.g. by a cascaded
+     * character sheet deletion, or already removed via the manual training endpoints) -- a
+     * missing {@link java.util.Optional} or a no-op {@code removeIf} is never an error here.
+     * </p>
+     *
+     * @param sheet the character sheet the level-up being undone belongs to, used only to clamp
+     *              {@code hopeMarked} against the post-reversal companion-granted Hope slots
+     * @param data the deserialized {@code advancementData} for the log entry being undone
+     * @param previousValues the log entry's {@code previousValues} block, may be null
+     */
+    @SuppressWarnings("unchecked")
+    private void reverseCompanionChanges(CharacterSheet sheet, Map<String, Object> data, Map<String, Object> previousValues) {
+        Map<Long, Companion> touched = new LinkedHashMap<>();
+
+        // Delete Training rows -- mutate through the parent collection only, never
+        // companionTrainingRepository.delete(), which would be resurrected by the next cascade
+        // save of an already-loaded parent (core/docs/agent-plans/2026-03-15-leveldown-domain-card-fix-design.md).
+        List<Map<String, Object>> companionTrainings = (List<Map<String, Object>>) data.get("companionTrainings");
+        if (companionTrainings != null) {
+            for (Map<String, Object> entry : companionTrainings) {
+                Long companionId = toLong(entry.get("companionId"));
+                Long trainingId = toLong(entry.get("trainingId"));
+                companionRepository.findById(companionId).ifPresent(companion -> {
+                    companion.getTrainings().removeIf(t -> t.getId().equals(trainingId));
+                    touched.put(companion.getId(), companion);
+                });
+            }
+        }
+
+        // Delete companion-granted Experiences from that tier transition.
+        List<Map<String, Object>> companionExperiences = (List<Map<String, Object>>) data.get("companionExperiences");
+        if (companionExperiences != null) {
+            for (Map<String, Object> entry : companionExperiences) {
+                Long companionId = toLong(entry.get("companionId"));
+                Long experienceId = toLong(entry.get("experienceId"));
+                companionRepository.findById(companionId).ifPresent(companion -> {
+                    companion.getExperiences().removeIf(e -> e.getId().equals(experienceId));
+                    touched.put(companion.getId(), companion);
+                });
+            }
+        }
+
+        // Restore INTELLIGENT-boosted Experience modifiers -- the map itself is the single
+        // source of truth for which experiences to restore, no cross-referencing the training
+        // entries above needed.
+        Map<String, Integer> prevCompanionExpModifiers = previousValues != null ?
+                (Map<String, Integer>) previousValues.get("companionExperienceModifiers") : null;
+        if (prevCompanionExpModifiers != null) {
+            for (Map.Entry<String, Integer> restore : prevCompanionExpModifiers.entrySet()) {
+                experienceRepository.findById(Long.valueOf(restore.getKey())).ifPresent(exp -> {
+                    exp.setModifier(restore.getValue());
+                    experienceRepository.save(exp);
+                });
+            }
+        }
+
+        // Undo whatever applyCompanionCreationOrRestore did: put origin/originSubclassCard back
+        // to their pre-level-up values, and only soft-delete the companion if this level-up is
+        // what restored it from an archive -- a companion that was already active (adopted from
+        // a manual creation) must stay active, or it becomes unreachable (no restore endpoint
+        // exists for a MANUAL-origin companion; only findActiveCompanionOrThrow-gated endpoints).
+        Map<String, Object> companionCreated = (Map<String, Object>) data.get("companionCreated");
+        if (companionCreated != null) {
+            Long companionId = toLong(companionCreated.get("companionId"));
+            companionRepository.findById(companionId).ifPresent(companion -> {
+                Object prevOriginObj = companionCreated.get("previousOrigin");
+                if (prevOriginObj != null) {
+                    companion.setOrigin(CompanionOrigin.valueOf((String) prevOriginObj));
+                }
+                Long previousOriginSubclassCardId = toLong(companionCreated.get("previousOriginSubclassCardId"));
+                companion.setOriginSubclassCard(previousOriginSubclassCardId != null
+                        ? subclassCardRepository.findById(previousOriginSubclassCardId).orElse(null)
+                        : null);
+
+                boolean wasRestore = Boolean.TRUE.equals(companionCreated.get("wasRestore"));
+                if (wasRestore) {
+                    companion.softDelete();
+                }
+                companionRepository.save(companion);
+                touched.put(companion.getId(), companion);
+            });
+        }
+
+        // Clamp stressMarked against the (possibly shrunk) derived stress max for every
+        // companion whose Training was reversed -- same Math.min precedent as
+        // reverseAdvancement's GAIN_HP/GAIN_STRESS cases.
+        for (Companion companion : touched.values()) {
+            companion.setStressMarked(Math.min(companion.getStressMarked(), CompanionDerivationService.stressMax(companion)));
+            companionRepository.save(companion);
+        }
+
+        // Clamp hopeMarked against the (possibly shrunk) total Hope capacity -- a reversed
+        // LIGHT_IN_THE_DARK Training or a companion that was re-archived above can shrink it.
+        // Re-fetches the sheet's active companions rather than reusing `touched`, since
+        // `touched` only holds companions with a Training/Experience/origin change, and the
+        // capacity calculation needs every active companion's current state either way.
+        List<Companion> activeCompanions = companionRepository.findActiveByCharacterSheetId(sheet.getId());
+        CompanionDerivationService.clampHopeMarked(sheet, activeCompanions);
     }
 
     /**

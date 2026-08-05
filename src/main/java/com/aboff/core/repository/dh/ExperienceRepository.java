@@ -87,6 +87,39 @@ public interface ExperienceRepository extends JpaRepository<Experience, Long> {
     Long countByCharacterSheetId(Long characterSheetId);
 
     /**
+     * Finds a page of experiences owned (directly or via a companion) by a specific user.
+     * <p>
+     * An Experience is owned by exactly one of {@code characterSheet} or {@code companion}
+     * (enforced by the {@code chk_experience_single_owner} CHECK constraint), so "owned by
+     * {@code ownerId}" means either the experience's own character sheet is owned by that user,
+     * or -- for a companion experience -- the companion's character sheet is. Used to scope an
+     * unfiltered list request for a non-privileged caller, so it never falls through to
+     * {@link #findAll(Pageable)} and enumerates every user's experiences in one call -- any
+     * single experience is still readable by ID or by the {@code characterSheetId}/
+     * {@code companionId} filters, since character sheets are public; this only bounds the
+     * unfiltered case.
+     * </p>
+     * <p>
+     * Uses explicit {@code LEFT JOIN}s rather than navigating {@code e.characterSheet.owner.id}
+     * and {@code e.companion.characterSheet.owner.id} directly in the WHERE clause: JPQL turns
+     * each such path expression into its own join, and since no {@code Experience} row ever has
+     * both {@code characterSheet} and {@code companion} set, combining two <em>inner</em> joins
+     * in one query would always return zero rows (a row would need to satisfy both joins
+     * simultaneously to appear at all). {@code LEFT JOIN} avoids that.
+     * </p>
+     *
+     * @param ownerId the ID of the user whose experiences to return
+     * @param pageable the pagination information
+     * @return page of experiences owned by the user
+     */
+    @Query("SELECT e FROM Experience e "
+            + "LEFT JOIN e.characterSheet cs "
+            + "LEFT JOIN e.companion co "
+            + "LEFT JOIN co.characterSheet ccs "
+            + "WHERE cs.owner.id = :ownerId OR ccs.owner.id = :ownerId")
+    Page<Experience> findByOwnerId(Long ownerId, Pageable pageable);
+
+    /**
      * Finds experiences by character sheet and created by user.
      * <p>
      * Useful for tracking which experiences a specific user has added to

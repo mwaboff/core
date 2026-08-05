@@ -41,8 +41,8 @@ import java.util.Set;
  * </p>
  * <p>
  * Access control:
- * - Create/Read: Any authenticated user
- * - Update/Delete: Character sheet owner OR users with MODERATOR/ADMIN/OWNER role
+ * - Read: Any authenticated user
+ * - Create/Update/Delete: Character sheet owner OR users with MODERATOR/ADMIN/OWNER role
  * </p>
  */
 @Service
@@ -109,12 +109,16 @@ public class CharacterSheetConditionService {
 
     /**
      * Attaches a condition instance to a character sheet.
-     * Any authenticated user can attach a condition.
+     * Only the character sheet owner or users with MODERATOR/ADMIN/OWNER role can attach a
+     * condition -- the sibling {@link #updateCharacterSheetCondition} and
+     * {@link #deleteCharacterSheetCondition} methods are already gated this way; without this
+     * check any authenticated user could attach a condition to someone else's sheet.
      *
      * @param request The creation request containing character sheet, condition, and magnitude
      * @param auth The authentication object containing the current user
      * @return CharacterSheetConditionResponse containing the created instance
      * @throws EntityNotFoundException if the character sheet or condition is not found
+     * @throws InsufficientPermissionsException if the user lacks permission to attach a condition
      */
     @Transactional
     public CharacterSheetConditionResponse createCharacterSheetCondition(
@@ -123,6 +127,7 @@ public class CharacterSheetConditionService {
         CharacterSheet characterSheet = characterSheetRepository.findActiveById(request.getCharacterSheetId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "CharacterSheet not found with id: " + request.getCharacterSheetId()));
+        validateSheetAccess(characterSheet, auth, "attach a condition to");
 
         Condition condition = conditionRepository.findByIdAndDeletedAtIsNull(request.getConditionId())
                 .orElseThrow(() -> new EntityNotFoundException(
@@ -200,8 +205,9 @@ public class CharacterSheetConditionService {
     }
 
     /**
-     * Validates that the current user has access to modify a condition instance.
-     * Access is granted if the user owns the character sheet or has a MODERATOR/ADMIN/OWNER role.
+     * Validates that the current user has access to modify a condition instance, by deferring to
+     * {@link #validateSheetAccess(CharacterSheet, Authentication, String)} on the instance's
+     * owning character sheet.
      *
      * @param instance The condition instance to validate access for
      * @param auth The authentication object containing the current user
@@ -209,16 +215,34 @@ public class CharacterSheetConditionService {
      * @throws InsufficientPermissionsException if the user lacks permission
      */
     private void validateAccess(CharacterSheetCondition instance, Authentication auth, String operation) {
+        try {
+            validateSheetAccess(instance.getCharacterSheet(), auth, operation);
+        } catch (InsufficientPermissionsException e) {
+            throw new InsufficientPermissionsException(
+                    "You do not have permission to " + operation + " this condition instance");
+        }
+    }
+
+    /**
+     * Validates that the current user has access to attach a condition to a character sheet.
+     * Access is granted if the user owns the character sheet or has a MODERATOR/ADMIN/OWNER role.
+     *
+     * @param characterSheet The character sheet to validate access for
+     * @param auth The authentication object containing the current user
+     * @param operation The operation being performed (for the error message)
+     * @throws InsufficientPermissionsException if the user lacks permission
+     */
+    private void validateSheetAccess(CharacterSheet characterSheet, Authentication auth, String operation) {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         Long userId = userDetails.getUserId();
 
-        Long ownerId = instance.getCharacterSheet().getOwner().getId();
+        Long ownerId = characterSheet.getOwner().getId();
         boolean isOwner = ownerId.equals(userId);
         boolean isModerator = roleHierarchyService.hasModeratorOrHigher(userDetails);
 
         if (!isOwner && !isModerator) {
             throw new InsufficientPermissionsException(
-                    "You do not have permission to " + operation + " this condition instance");
+                    "You do not have permission to " + operation + " this character sheet");
         }
     }
 

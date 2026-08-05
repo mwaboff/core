@@ -247,6 +247,100 @@ class UserServiceTest {
                                 .hasMessage("User not found");
         }
 
+        // ==================== MAP TO USER RESPONSE (VIEWER-AWARE) TESTS ====================
+
+        @Test
+        void mapToUserResponse_ViewerIsSelf_IncludesEmail() {
+                // Arrange
+                User target = User.builder()
+                                .id(2L)
+                                .username("player2")
+                                .email("player2@example.com")
+                                .avatarUrl("https://avatar.url")
+                                .timezone("UTC")
+                                .role(com.aboff.core.model.enums.Role.USER)
+                                .build();
+
+                CustomUserDetails viewerDetails = new CustomUserDetails(target);
+                when(authentication.getPrincipal()).thenReturn(viewerDetails);
+                when(roleHierarchyService.hasModeratorOrHigher(viewerDetails)).thenReturn(false);
+
+                // Act
+                UserResponse result = userService.mapToUserResponse(target, authentication);
+
+                // Assert
+                assertThat(result.getUsername()).isEqualTo("player2");
+                assertThat(result.getEmail()).isEqualTo("player2@example.com");
+                assertThat(result.getAvatarUrl()).isEqualTo("https://avatar.url");
+                assertThat(result.getTimezone()).isEqualTo("UTC");
+        }
+
+        @Test
+        void mapToUserResponse_ViewerIsPrivileged_IncludesEmail() {
+                // Arrange
+                User target = User.builder()
+                                .id(2L)
+                                .username("player2")
+                                .email("player2@example.com")
+                                .role(com.aboff.core.model.enums.Role.USER)
+                                .build();
+                User moderator = User.builder().id(3L).role(com.aboff.core.model.enums.Role.MODERATOR).build();
+
+                CustomUserDetails viewerDetails = new CustomUserDetails(moderator);
+                when(authentication.getPrincipal()).thenReturn(viewerDetails);
+                when(roleHierarchyService.hasModeratorOrHigher(viewerDetails)).thenReturn(true);
+
+                // Act
+                UserResponse result = userService.mapToUserResponse(target, authentication);
+
+                // Assert
+                assertThat(result.getEmail()).isEqualTo("player2@example.com");
+        }
+
+        @Test
+        void mapToUserResponse_ViewerIsOtherNonPrivilegedUser_RedactsEmail() {
+                // Arrange
+                User target = User.builder()
+                                .id(2L)
+                                .username("player2")
+                                .email("player2@example.com")
+                                .avatarUrl("https://avatar.url")
+                                .role(com.aboff.core.model.enums.Role.USER)
+                                .build();
+                User viewer = User.builder().id(3L).role(com.aboff.core.model.enums.Role.USER).build();
+
+                CustomUserDetails viewerDetails = new CustomUserDetails(viewer);
+                when(authentication.getPrincipal()).thenReturn(viewerDetails);
+                when(roleHierarchyService.hasModeratorOrHigher(viewerDetails)).thenReturn(false);
+
+                // Act
+                UserResponse result = userService.mapToUserResponse(target, authentication);
+
+                // Assert -- username/avatar stay visible, private fields are redacted
+                assertThat(result.getUsername()).isEqualTo("player2");
+                assertThat(result.getAvatarUrl()).isEqualTo("https://avatar.url");
+                assertThat(result.getEmail()).isNull();
+                assertThat(result.getTimezone()).isNull();
+        }
+
+        @Test
+        void mapToUserResponse_NullViewerAuthentication_RedactsEmail() {
+                // Arrange
+                User target = User.builder()
+                                .id(2L)
+                                .username("player2")
+                                .email("player2@example.com")
+                                .role(com.aboff.core.model.enums.Role.USER)
+                                .build();
+
+                // Act
+                UserResponse result = userService.mapToUserResponse(target, null);
+
+                // Assert
+                assertThat(result.getUsername()).isEqualTo("player2");
+                assertThat(result.getEmail()).isNull();
+        }
+
         // ==================== UPDATE USER TESTS ====================
 
         @Test

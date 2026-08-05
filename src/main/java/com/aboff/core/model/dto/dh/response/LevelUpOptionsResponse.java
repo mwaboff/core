@@ -70,4 +70,18 @@ public class LevelUpOptionsResponse {
      * Maximum number of equipped domain cards allowed.
      */
     private int maxEquippedDomainCards;
+
+    /**
+     * Training options for every companion eligible to advance this level-up. Empty if the
+     * character has no eligible companions.
+     */
+    private List<CompanionLevelUpOptionsResponse> companionTraining;
+
+    /**
+     * Soft-deleted, subclass-feature-granted companions on this sheet that could be restored if
+     * the granting subclass path is re-taken via a {@code MULTICLASS} advancement this level-up.
+     * The frontend matches these against whichever subclass card the player picks -- the
+     * backend does not enumerate available multiclass targets anywhere today.
+     */
+    private List<CompanionResponse> restorableCompanions;
 }

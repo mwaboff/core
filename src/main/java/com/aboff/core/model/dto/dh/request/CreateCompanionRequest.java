@@ -1,7 +1,10 @@
 package com.aboff.core.model.dto.dh.request;
 
+import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.Range;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
@@ -40,10 +43,13 @@ public class CreateCompanionRequest {
 
     /**
      * Evasion value (difficulty to hit the companion).
-     * Defaults to 0 if not provided.
+     * Defaults to 10 if not provided, per the printed rule that a companion's "Evasion...
+     * starts at 10."
      */
+    @Min(value = 0, message = "Evasion must be zero or positive")
+    @Max(value = 50, message = "Evasion must not exceed 50")
     @Builder.Default
-    private Integer evasion = 0;
+    private Integer evasion = 10;
 
     /**
      * Name of the companion's attack.
@@ -65,16 +71,32 @@ public class CreateCompanionRequest {
     private DiceType damageDice;
 
     /**
+     * Whether the companion's attack deals physical or magic damage.
+     * Defaults to {@link DamageType#PHYSICAL} if not provided. Per the printed rule, this is a
+     * one-time choice made when the companion is created (core-01:1327) -- {@code CompanionService}
+     * rejects {@link DamageType#PHYSICAL_AND_MAGIC}, which is a per-attack weapon mechanic, not a
+     * companion concept.
+     */
+    @Builder.Default
+    private DamageType damageType = DamageType.PHYSICAL;
+
+    /**
      * Maximum stress the companion can take.
      * Defaults to 3 if not provided.
      */
+    @Min(value = 1, message = "Stress max must be at least 1")
+    @Max(value = 20, message = "Stress max must not exceed 20")
     @Builder.Default
     private Integer stressMax = 3;
 
     /**
      * Current stress marked on the companion.
-     * Defaults to 0 if not provided.
+     * Defaults to 0 if not provided. Must not exceed {@link #stressMax}; that cross-field rule
+     * is enforced in {@code CompanionService}, not here, since Bean Validation cannot compare
+     * two fields on this annotation alone.
      */
+    @Min(value = 0, message = "Stress marked must be zero or positive")
+    @Max(value = 20, message = "Stress marked must not exceed 20")
     @Builder.Default
     private Integer stressMarked = 0;
 }

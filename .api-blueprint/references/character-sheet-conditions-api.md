@@ -19,8 +19,7 @@ magnitude) beyond a bare foreign-key link, so it gets its own dedicated CRUD sur
 
 **Access Control:**
 - GET endpoints: Any authenticated user
-- POST: Any authenticated user
-- PUT/DELETE: Character sheet owner OR MODERATOR/ADMIN/OWNER role (enforced in service layer)
+- POST/PUT/DELETE: Character sheet owner OR MODERATOR/ADMIN/OWNER role (enforced in service layer)
 
 ---
 
@@ -84,7 +83,9 @@ Retrieves a single condition instance by ID.
 
 ### POST /api/dh/character-sheet-conditions
 
-Attaches a condition instance to a character sheet. Any authenticated user can attach a condition.
+Attaches a condition instance to a character sheet.
+
+**Authorization:** Character sheet owner OR MODERATOR/ADMIN/OWNER role
 
 **Request Body:**
 
@@ -109,6 +110,7 @@ Attaches a condition instance to a character sheet. Any authenticated user can a
 **Error Responses:**
 - `400 Bad Request` — missing required fields
 - `401 Unauthorized`
+- `403 Forbidden` — caller is not the sheet owner and does not have MODERATOR+ role
 - `404 Not Found` — referenced character sheet or condition does not exist
 
 ---

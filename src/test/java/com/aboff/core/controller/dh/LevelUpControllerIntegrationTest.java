@@ -1,6 +1,8 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.dto.dh.request.AdvancementChoice;
+import com.aboff.core.model.dto.dh.request.CompanionExperienceGrant;
+import com.aboff.core.model.dto.dh.request.CompanionTrainingChoice;
 import com.aboff.core.model.dto.dh.request.LevelUpRequest;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
@@ -84,6 +86,14 @@ class LevelUpControllerIntegrationTest {
     @Autowired
     private CharacterAdvancementLogRepository characterAdvancementLogRepository;
 
+    @Autowired
+    private CompanionRepository companionRepository;
+
+    @Autowired
+    private CompanionTrainingRepository companionTrainingRepository;
+
+    @Autowired
+    private FeatureRepository featureRepository;
 
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -261,6 +271,148 @@ class LevelUpControllerIntegrationTest {
                 .andExpect(status().isBadRequest());
     }
 
+    /**
+     * Exercises the two companion-reversal failure modes a Mockito-only test cannot catch
+     * (WP5's round-trip tests all stub {@code companionRepository.save} and never touch a real
+     * database): that {@code companion.getTrainings()}/{@code getExperiences()}
+     * {@code removeIf(...)} actually deletes the child row via {@code orphanRemoval} rather than
+     * merely orphaning it, and that the tier-transition companion Experience grant satisfies the
+     * {@code chk_experience_single_owner} CHECK constraint (companion set, characterSheet null).
+     */
+    @Test
+    void levelUpThenUndo_CompanionTrainingAndExperience_RoundTripsThroughRealDatabase() throws Exception {
+        Companion companion = createCompanion("Rufus", testSheet);
+        // A Training pick is only available to a character with the Companion feature itself
+        // (core-01:1249) -- see the rules-fidelity gate in LevelUpService.hasCompanionFeature.
+        grantCompanionFeature(testSheet);
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .newExperienceDescription("Survived the dragon attack")
+                .companionTrainings(List.of(CompanionTrainingChoice.builder()
+                        .companionId(companion.getId()).option(CompanionTrainingOption.AWARE).build()))
+                .companionExperiences(List.of(CompanionExperienceGrant.builder()
+                        .companionId(companion.getId()).description("Loyal tracker").build()))
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.characterSheet.level").value(2));
+
+        Companion afterLevelUp = companionRepository.findById(companion.getId()).orElseThrow();
+        assertThat(afterLevelUp.getTrainings()).hasSize(1);
+        assertThat(afterLevelUp.getExperiences()).hasSize(1);
+        Experience grantedExp = afterLevelUp.getExperiences().iterator().next();
+        assertThat(grantedExp.getCharacterSheet()).isNull();
+        assertThat(grantedExp.getCompanion().getId()).isEqualTo(companion.getId());
+        Long trainingId = afterLevelUp.getTrainings().iterator().next().getId();
+        Long experienceId = grantedExp.getId();
+
+        mockMvc.perform(delete("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.level").value(1));
+
+        Companion afterUndo = companionRepository.findById(companion.getId()).orElseThrow();
+        assertThat(afterUndo.getTrainings()).isEmpty();
+        assertThat(afterUndo.getExperiences()).isEmpty();
+
+        // Prove the rows are actually gone from the database, not just dropped from the
+        // in-memory collection.
+        assertThat(companionTrainingRepository.findById(trainingId)).isEmpty();
+        assertThat(experienceRepository.findById(experienceId)).isEmpty();
+    }
+
+    /**
+     * Rules-fidelity regression: the right to a companion Training pick comes from the
+     * Companion feature itself (core-01:1249), not from merely owning an active companion.
+     * {@code testSheet} here is the plain Pyromancer Wizard from {@code setUp()} -- no Companion
+     * feature -- with a GM-granted companion attached; the level-up must succeed with zero
+     * companion Training picks in the payload rather than demanding one. Uses a non-tier
+     * transition (2 -&gt; 3) to isolate the Training gate; see the sibling test below for the
+     * tier-transition Experience-grant gate, which is scoped by the same Companion-feature
+     * condition.
+     */
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_SucceedsWithNoTrainingPayload() throws Exception {
+        createCompanion("Whiskers", testSheet);
+        testSheet.setLevel(2);
+        testSheet = characterSheetRepository.save(testSheet);
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.characterSheet.level").value(3));
+    }
+
+    /**
+     * The case that actually mattered: a tier transition (1 -&gt; 2, {@code testSheet}'s default
+     * starting level) used to force exactly one companion Experience grant regardless of class.
+     * "Whenever you gain a new Experience, your companion also gains one" (core-01:1319) is a
+     * Ranger Companion sheet build step, gated by the same Companion feature as the Training
+     * pick -- a Wizard's GM-granted companion gets neither, and the level-up must succeed with
+     * no companion Experience in the payload.
+     */
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_TierTransitionSucceedsWithNoExperiencePayload() throws Exception {
+        createCompanion("Whiskers", testSheet);
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .newExperienceDescription("Survived the dragon attack")
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.characterSheet.level").value(2));
+    }
+
+    /**
+     * Submitting a companion Experience grant anyway, for a companion on a character without the
+     * Companion feature, must be rejected rather than silently accepted or silently ignored.
+     */
+    @Test
+    void levelUp_NonBeastboundCharacterWithGmGrantedCompanion_SubmittingExperienceGrantAnywayReturns400() throws Exception {
+        Companion companion = createCompanion("Whiskers", testSheet);
+
+        LevelUpRequest request = LevelUpRequest.builder()
+                .advancements(List.of(
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_HP).build(),
+                        AdvancementChoice.builder().type(AdvancementType.GAIN_STRESS).build()
+                ))
+                .newExperienceDescription("Survived the dragon attack")
+                .companionExperiences(List.of(CompanionExperienceGrant.builder()
+                        .companionId(companion.getId()).description("Loyal pet").build()))
+                .build();
+
+        mockMvc.perform(post("/api/dh/character-sheets/{id}/level-up", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
+    }
+
     // ==================== BOOST NEW EXPERIENCE TESTS ====================
 
     @Test
@@ -387,5 +539,46 @@ class LevelUpControllerIntegrationTest {
                 .owner(owner)
                 .build();
         return characterSheetRepository.save(sheet);
+    }
+
+    /**
+     * Grants the Companion feature (core-01:1249, Beastbound's foundation feature) to a
+     * character sheet by attaching a Feature named "Companion" (type {@code SUBCLASS}) to a new
+     * subclass card and adding that card to the sheet -- the only thing
+     * {@code LevelUpService.hasCompanionFeature} actually checks for, independent of any
+     * specific class/path.
+     */
+    private void grantCompanionFeature(CharacterSheet characterSheet) {
+        Feature companionFeature = featureRepository.save(Feature.builder()
+                .name("Companion")
+                .featureType(FeatureType.SUBCLASS)
+                .expansion(testExpansion)
+                .build());
+        SubclassCard companionCard = subclassCardRepository.save(SubclassCard.builder()
+                .name("Beastbound Foundation")
+                .level(SubclassLevel.SPECIALIZATION)
+                .subclassPath(testPath)
+                .expansion(testExpansion)
+                .isOfficial(true)
+                .features(Set.of(companionFeature))
+                .build());
+        characterSheet.getSubclassCards().add(companionCard);
+        characterSheetRepository.save(characterSheet);
+    }
+
+    private Companion createCompanion(String name, CharacterSheet characterSheet) {
+        Companion companion = Companion.builder()
+                .characterSheet(characterSheet)
+                .name(name)
+                .attackName("Bite")
+                .baseAttackRange(Range.CLOSE)
+                .baseDamageDice(DiceType.D6)
+                .baseEvasion(10)
+                .baseStressMax(3)
+                .stressMarked(0)
+                .origin(CompanionOrigin.SUBCLASS_FEATURE)
+                .advancesOnLevelUp(true)
+                .build();
+        return companionRepository.save(companion);
     }
 }
