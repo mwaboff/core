@@ -8,6 +8,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -110,6 +111,11 @@ public abstract class BaseItem extends BaseEntity {
      * empty set — copying an item, counting its features — fail with a
      * {@link NullPointerException}.
      * </p>
+     * <p>
+     * {@code @BatchSize} exists because every item response reads this collection, so browsing
+     * a page of 100 items issued 100 separate loads. See the note on {@link #campaigns} for why
+     * a fetch join is the wrong tool here.
+     * </p>
      */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -117,6 +123,7 @@ public abstract class BaseItem extends BaseEntity {
         joinColumns = @JoinColumn(name = "item_id"),
         inverseJoinColumns = @JoinColumn(name = "feature_id")
     )
+    @BatchSize(size = 25)
     @Builder.Default
     private Set<Feature> features = new HashSet<>();
 
@@ -128,6 +135,15 @@ public abstract class BaseItem extends BaseEntity {
      * stays private to its creator. Subclasses override the join table name via
      * {@code @AssociationOverride}.
      * </p>
+     * <p>
+     * {@code @BatchSize} rather than a fetch join or an entity graph, deliberately. The item
+     * browse queries already carry a {@code LEFT JOIN} onto this table as a visibility
+     * <em>predicate</em>, which does not populate the collection, together with
+     * {@code DISTINCT} and pagination. Adding a fetch join on top makes Hibernate apply
+     * {@code firstResult}/{@code maxResults} in memory (HHH000104) and paging silently breaks.
+     * Batching leaves the query shape untouched and collapses the per-row loads into one
+     * {@code IN} per 25 rows.
+     * </p>
      */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -135,6 +151,7 @@ public abstract class BaseItem extends BaseEntity {
         joinColumns = @JoinColumn(name = "item_id"),
         inverseJoinColumns = @JoinColumn(name = "campaign_id")
     )
+    @BatchSize(size = 25)
     @Builder.Default
     private Set<Campaign> campaigns = new HashSet<>();
 
