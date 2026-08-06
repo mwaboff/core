@@ -710,4 +710,84 @@ class FeatureControllerIntegrationTest {
                 .build();
         return featureModifierRepository.save(modifier);
     }
+
+    // ==================== READING BACK A FEATURE WITH NO SOURCEBOOK ====================
+    //
+    // This branch made features.expansion_id nullable and started minting expansion-less rows
+    // through /api/dh/weapons/custom, which any logged-in user may call. Building a feature's
+    // response dereferenced the expansion unconditionally, so one such row broke the shared
+    // feature browser: GET /api/dh/features 500'd on every page containing it, for every caller
+    // including ADMIN, and GET /api/dh/features/{id} 500'd on the row itself -- which meant the
+    // row could not even be read in order to delete it. Cleanup required direct SQL.
+    //
+    // These go through the response mapping. HomebrewFeatureDedupeIntegrationTest asserts on
+    // Feature entities and never calls it, so it walks straight past the code that broke.
+
+    private Feature createExpansionlessFeature(String name) {
+        return featureRepository.save(Feature.builder()
+                .name(name)
+                .description("Authored alongside a custom item.")
+                .featureType(FeatureType.ITEM)
+                .expansion(null)
+                .build());
+    }
+
+    @Test
+    void getFeatureById_WithNoSourcebook_ReturnsNullExpansionIdRatherThanFailing() throws Exception {
+        Feature homebrew = createExpansionlessFeature("Homebrew Serrated");
+
+        mockMvc.perform(get("/api/dh/features/" + homebrew.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Homebrew Serrated"))
+                .andExpect(jsonPath("$.expansionId").doesNotExist());
+    }
+
+    @Test
+    void getFeatureById_WithNoSourcebookAndExpandExpansion_OmitsTheExpansionObject() throws Exception {
+        Feature homebrew = createExpansionlessFeature("Homebrew Weightless");
+
+        mockMvc.perform(get("/api/dh/features/" + homebrew.getId())
+                        .param("expand", "expansion")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.expansion").doesNotExist());
+    }
+
+    @Test
+    void getAllFeatures_WithAnExpansionlessRowOnThePage_StillReturnsThePage() throws Exception {
+        // The row poisons the page, not just its own lookup: one expansion-less feature took the
+        // whole browse endpoint down for everyone.
+        createExpansionlessFeature("Homebrew Balanced");
+
+        mockMvc.perform(get("/api/dh/features")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Homebrew Balanced')]").exists());
+    }
+
+    @Test
+    void getAllFeatures_WithExpandExpansionAndAnExpansionlessRow_StillReturnsThePage() throws Exception {
+        createExpansionlessFeature("Homebrew Hooked");
+
+        mockMvc.perform(get("/api/dh/features")
+                        .param("size", "100")
+                        .param("expand", "expansion")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Homebrew Hooked')]").exists());
+    }
+
+    @Test
+    void getAllFeatures_IncludeDeletedWithAnExpansionlessRow_StillReturnsThePage() throws Exception {
+        createExpansionlessFeature("Homebrew Gilded");
+
+        mockMvc.perform(get("/api/dh/features")
+                        .param("size", "100")
+                        .param("includeDeleted", "true")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Homebrew Gilded')]").exists());
+    }
 }
