@@ -74,7 +74,7 @@ public interface CharacterSheetRepository extends JpaRepository<CharacterSheet, 
      * @param name the name to search for (partial match supported)
      * @return list of character sheets matching the name
      */
-    @Query("SELECT cs FROM CharacterSheet cs WHERE LOWER(cs.name) LIKE LOWER(CONCAT('%', :name, '%')) AND cs.deletedAt IS NULL")
+    @Query("SELECT cs FROM CharacterSheet cs WHERE LOWER(cs.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')) AND cs.deletedAt IS NULL")
     List<CharacterSheet> findByNameContainingIgnoreCaseAndDeletedAtIsNull(String name);
 
     /**
