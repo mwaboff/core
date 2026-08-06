@@ -19,6 +19,8 @@ import com.aboff.core.repository.dh.WeaponRepository;
 import jakarta.persistence.EntityNotFoundException;
 import com.aboff.core.service.AuditLogger;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -61,10 +63,24 @@ class WeaponServiceTest {
     @Mock
     private AuditLogger auditLogger;
 
+    @Mock
+    private ItemAccessService itemAccessService;
+
+    @Mock
+    private Authentication authentication;
+
     @InjectMocks
     private WeaponService weaponService;
 
     // ==================== GET ALL WEAPONS TESTS ====================
+
+    @BeforeEach
+    void stubDefaultVisibility() {
+        // Every list call resolves the caller's visibility scope first. Default to a
+        // non-privileged user who belongs to no campaigns; tests that care override it.
+        lenient().when(itemAccessService.visibilityScope(any()))
+                .thenReturn(new ItemAccessService.VisibilityScope(1L, List.of(-1L), false));
+    }
 
     @Test
     void getAllWeapons_WithoutFilters_ReturnsPagedWeapons() {
@@ -77,11 +93,11 @@ class WeaponServiceTest {
         weapon2.setTrait(Trait.FINESSE);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon1, weapon2));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, null, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, null, null, null, null, null, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -99,16 +115,16 @@ class WeaponServiceTest {
         Weapon weapon = createTestWeapon(1L, "Longsword", expansion);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, Trait.STRENGTH, null, null, null, null, null, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, Trait.STRENGTH, null, null, null, null, null, null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getTrait()).isEqualTo(Trait.STRENGTH);
-        verify(weaponRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
@@ -120,11 +136,11 @@ class WeaponServiceTest {
         weapon.setRange(Range.FAR);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(Range.FAR), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(Range.FAR), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, Range.FAR, null, null, null, null, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, Range.FAR, null, null, null, null, null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -135,17 +151,14 @@ class WeaponServiceTest {
     void getAllWeapons_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Weapon> weaponPage = new PageImpl<>(List.of());
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        weaponService.getAllWeapons(0, 500, false, null, null, null, null, null, null, null, null, null);
+        weaponService.getAllWeapons(0, 500, false, null, null, null, null, null, null, null, null, null, null, null, null, authentication);
 
         // Assert
-        verify(weaponRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                argThat(pageable -> pageable.getPageSize() == 100)
-        );
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
@@ -158,7 +171,7 @@ class WeaponServiceTest {
         weapon.setFeatures(Set.of(feature));
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(weaponPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -189,7 +202,7 @@ class WeaponServiceTest {
         });
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, null, "expansion,features");
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, null, null, null, null, "expansion,features", authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -206,16 +219,16 @@ class WeaponServiceTest {
         Weapon weapon = createTestWeapon(1L, "Longsword", expansion);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, DamageType.PHYSICAL, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, DamageType.PHYSICAL, null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDamage().getDamageType()).isEqualTo(DamageType.PHYSICAL);
-        verify(weaponRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class));
     }
 
     @Test
@@ -232,16 +245,16 @@ class WeaponServiceTest {
                 .build());
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.MAGIC), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.MAGIC), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, DamageType.MAGIC, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, null, null, null, null, null, DamageType.MAGIC, null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDamage().getDamageType()).isEqualTo(DamageType.MAGIC);
-        verify(weaponRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.MAGIC), any(Pageable.class));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.MAGIC), any(Pageable.class));
     }
 
     @Test
@@ -252,17 +265,17 @@ class WeaponServiceTest {
         Weapon weapon = createTestWeapon(1L, "Longsword", expansion);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
-        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, Trait.STRENGTH, null, null, null, null, DamageType.PHYSICAL, null);
+        PagedResponse<WeaponResponse> result = weaponService.getAllWeapons(0, 20, false, null, null, Trait.STRENGTH, null, null, null, null, DamageType.PHYSICAL, null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getTrait()).isEqualTo(Trait.STRENGTH);
         assertThat(result.getContent().get(0).getDamage().getDamageType()).isEqualTo(DamageType.PHYSICAL);
-        verify(weaponRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class));
     }
 
     // ==================== GET WEAPON BY ID TESTS ====================

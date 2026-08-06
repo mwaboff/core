@@ -3,6 +3,16 @@
 **Base URL:** `http://localhost:8080`
 **Prefix:** `/api/dh/weapons`
 **Authentication:** JWT token in `AUTH_TOKEN` HttpOnly cookie (all endpoints)
+
+**Visibility:** list endpoints return only what the caller may see: official content, public
+content, content they authored, content with no author (every imported row), or content
+explicitly tagged to a campaign they are involved in. MODERATOR+ bypasses this filter.
+There is no derived "we share a campaign so you see my things" rule — sharing is always a
+deliberate act by the author.
+
+`GET /{id}` is deliberately **not** filtered: any authenticated user can fetch any record by ID.
+Custom items have to render on other people's character sheets and profiles, and they carry no
+secrets. Restricting it would silently blank those pages.
 **Content-Type:** `application/json`
 
 ---
@@ -15,9 +25,11 @@
 | 2 | GET | `/api/dh/weapons/{id}` | Authenticated | Get weapon by ID |
 | 3 | POST | `/api/dh/weapons` | ADMIN, OWNER | Create a weapon |
 | 4 | POST | `/api/dh/weapons/bulk` | ADMIN, OWNER | Create multiple weapons |
-| 5 | PUT | `/api/dh/weapons/{id}` | ADMIN, OWNER | Update a weapon |
-| 6 | DELETE | `/api/dh/weapons/{id}` | ADMIN, OWNER | Soft-delete a weapon |
-| 7 | POST | `/api/dh/weapons/{id}/restore` | ADMIN, OWNER | Restore a soft-deleted weapon |
+| 5 | PUT | `/api/dh/weapons/{id}` | Author, MODERATOR+, or ADMIN+ for official | Update a weapon |
+| 6 | DELETE | `/api/dh/weapons/{id}` | Author, MODERATOR+, or ADMIN+ for official | Soft-delete a weapon |
+| 7 | POST | `/api/dh/weapons/{id}/restore` | Author, MODERATOR+, or ADMIN+ for official | Restore a soft-deleted weapon |
+| 8 | POST | `/api/dh/weapons/custom` | Authenticated | Create custom weapon owned by the caller |
+| 9 | POST | `/api/dh/weapons/{id}/copy` | Authenticated | Copy any weapon into a new custom one |
 
 ---
 
@@ -31,7 +43,7 @@ List all active weapons with optional filters and pagination.
 |-----------|------|---------|----------|-------------|
 | `page` | int | `0` | No | Zero-based page number |
 | `size` | int | `20` | No | Items per page (max: 100; values >100 are clamped) |
-| `includeDeleted` | boolean | `false` | No | Include soft-deleted weapons (ADMIN+ only) |
+| `includeDeleted` | boolean | `false` | No | Include soft-deleted weapons (MODERATOR+ only; 403 otherwise) |
 | `expansionId` | Long | -- | No | Filter by expansion ID |
 | `isOfficial` | Boolean | -- | No | Filter by official status |
 | `trait` | Trait | -- | No | Filter by weapon trait |
@@ -40,6 +52,9 @@ List all active weapons with optional filters and pagination.
 | `isPrimary` | Boolean | -- | No | Filter by primary/secondary |
 | `tier` | Integer | -- | No | Filter by tier (1-4) |
 | `damageType` | DamageType | -- | No | Filter by damage type (PHYSICAL, MAGIC) |
+| `createdByUserId` | Long | -- | No | Narrow to one author. Filters within visibility; never widens it |
+| `name` | String | -- | No | Case-insensitive substring match on the name. Filters within visibility; never widens it |
+| `sort` | ItemSort | `ID` | No | Ordering: `ID` (insertion), `NAME`, `TIER`, `NEWEST`. `ID` puts official content first, so lists people read should ask for `NAME` |
 | `expand` | String | -- | No | Comma-separated relationships to expand (see [Expand Parameter](#expand-parameter)) |
 
 ### Response: `200 OK`
@@ -323,6 +338,76 @@ Returns the restored `WeaponResponse`.
 
 ---
 
+## 8. POST `/api/dh/weapons/custom`
+
+Create weapon authored by the calling user. Open to **any authenticated user**.
+
+Distinct from `POST /api/dh/weapons`, which remains the admin import path and takes the stricter
+`CreateWeaponRequest`. Keeping the two separate means an import payload that omits `isOfficial`
+still fails loudly rather than silently landing as un-attributed homebrew.
+
+### Request Body: `CreateCustomWeaponRequest`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | String | Yes | Max 200 characters |
+| `tier` | Integer | Yes | 1-4 |
+| `isPublic` | Boolean | No | Visible to everyone. **Honoured only for MODERATOR+; silently coerced to false otherwise** |
+| `campaignIds` | Long[] | No | Campaigns to share with. The caller must be involved in each; 403 otherwise |
+| `isPrimary` | Boolean | Yes | Primary (true) or secondary (false) |
+| `trait` | Trait | Yes | AGILITY, STRENGTH, FINESSE, INSTINCT, PRESENCE, KNOWLEDGE |
+| `range` | Range | Yes | MELEE, VERY_CLOSE, CLOSE, FAR, VERY_FAR, OUT_OF_RANGE |
+| `burden` | Burden | Yes | ONE_HANDED, TWO_HANDED |
+| `damage` | DamageRollRequest | Yes | Dice type, optional modifier, damage type. Omit `diceCount` — it comes from Proficiency |
+| `features` | FeatureInput[] | No | Inline features, max 20 |
+
+**Fields deliberately absent:** `isOfficial` and `expansionId` (custom content is never canon and
+belongs to no sourcebook) and `originalWeaponId` (set only by the copy endpoint, so a caller cannot
+claim their creation derives from something it does not).
+
+### Response: `201 Created`
+
+`WeaponResponse` with `isOfficial: false`, `expansionId: null`, and `createdByUserId` set to the
+caller.
+
+### Error Responses
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Validation failure (missing required field, tier out of range, >20 features) |
+| 401 | Missing or invalid AUTH_TOKEN cookie |
+| 403 | `campaignIds` names a campaign the caller is not involved in |
+| 404 | A named campaign does not exist or has been deleted |
+
+---
+
+## 9. POST `/api/dh/weapons/{id}/copy`
+
+Copy any existing record into new custom content owned by the caller. Open to **any
+authenticated user**, including copies of official content — records are already readable by ID,
+so restricting this would protect nothing.
+
+The copy is always private and unofficial regardless of its source, carries no sourcebook, and
+inherits **no** campaign tags: sharing is a decision the new owner makes for themselves. Features
+are carried over. The name gains a `" (Copy)"` suffix and `originalWeaponId` points at the source.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | Long | ID of the record to copy |
+
+### Response: `201 Created`
+
+### Error Responses
+
+| Status | Condition |
+|--------|-----------|
+| 401 | Missing or invalid AUTH_TOKEN cookie |
+| 404 | Source not found or soft-deleted |
+
+---
+
 ## Expand Parameter
 
 The `?expand=` query parameter controls which related objects are embedded in the response. By default, only foreign-key IDs are returned. Pass a comma-separated list of relationship names to include full objects.
@@ -423,10 +508,13 @@ GET /api/dh/weapons/1?expand=expansion,features,originalWeapon
 |-------|------|----------------|-------------|
 | `id` | Long | Yes | Unique identifier |
 | `name` | String | Yes | Weapon name |
-| `expansionId` | Long | Yes | Owning expansion ID |
+| `expansionId` | Long | If non-null | Sourcebook ID. **Null for custom content**, which came from no book |
 | `expansion` | ExpansionResponse | Only with `?expand=expansion` | Full expansion object |
 | `tier` | Integer | Yes | Power tier (1-4) |
 | `isOfficial` | Boolean | Yes | Official game content flag |
+| `isPublic` | Boolean | Yes | Visible to every user (custom content only) |
+| `createdByUserId` | Long | If non-null | Author. Null for imports; non-null with `isOfficial: false` marks homebrew |
+| `campaignIds` | List\<Long\> | If non-empty | Campaigns this record is explicitly shared with |
 | `isPrimary` | Boolean | Yes | Primary vs secondary weapon |
 | `trait` | Trait | Yes | Attack trait |
 | `range` | Range | Yes | Effective range |
@@ -508,6 +596,18 @@ GET /api/dh/weapons/1?expand=expansion,features,originalWeapon
 ---
 
 ## Enums
+
+### ItemSort
+
+| Value | Ordering |
+|-------|----------|
+| `ID` | Insertion order (default). Official content holds the low ids, so user-authored content sorts last |
+| `NAME` | Alphabetical. The sensible choice for pickers and browse screens |
+| `TIER` | Lowest tier first, alphabetical within a tier |
+| `NEWEST` | Most recently created first |
+
+An allowlist rather than a free-text Spring `sort` parameter: binding an arbitrary property path
+from a query string would let a caller order by, and so infer, fields the response never exposes.
 
 ### Trait
 

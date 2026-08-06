@@ -2,7 +2,20 @@
 
 Base path: `/api/dh/loot`
 
-Authentication: JWT token via `AUTH_TOKEN` HttpOnly cookie. All endpoints require authentication; GET endpoints are accessible to any authenticated user. POST/PUT/DELETE endpoints require ADMIN or OWNER role.
+Authentication: JWT token via `AUTH_TOKEN` HttpOnly cookie. All endpoints require authentication;
+GET endpoints are accessible to any authenticated user. Admin and bulk create require ADMIN or
+OWNER; custom creation and copying are open to any authenticated user; update, delete, and
+restore are ownership-aware (author, MODERATOR+, or ADMIN+ for official).
+
+Visibility: list endpoints return only what the caller may see — official content, public
+content, content they authored, content with no author (every imported row), or content
+explicitly tagged to a campaign they are involved in. MODERATOR+ bypasses this filter. There is
+no derived "we share a campaign so you see my things" rule; sharing is always a deliberate act
+by the author.
+
+`GET /{id}` is deliberately not filtered: any authenticated user can fetch any record by ID.
+Custom items have to render on other people's character sheets and profiles, and they carry no
+secrets. Restricting it would silently blank those pages.
 
 ---
 
@@ -728,3 +741,86 @@ Extracted from integration and unit tests for use in development/testing.
   }
 ]
 ```
+
+## 8. POST `/api/dh/loot/custom`
+
+Create loot authored by the calling user. Open to **any authenticated user**.
+
+Distinct from `POST /api/dh/loot`, which remains the admin import path and takes the stricter
+`CreateLootRequest`. Keeping the two separate means an import payload that omits `isOfficial`
+still fails loudly rather than silently landing as un-attributed homebrew.
+
+### Request Body: `CreateCustomLootRequest`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | String | Yes | Max 200 characters |
+| `tier` | Integer | Yes | 1-4 |
+| `createdByUserId` | `Long` | No | - | Narrow to one author. Filters within visibility; never widens it |
+| `name` | `String` | No | - | Case-insensitive substring match on the name |
+| `sort` | `ItemSort` | No | `ID` | Ordering: `ID` (insertion), `NAME`, `TIER`, `NEWEST`. `ID` puts official content first, so lists people read should ask for `NAME` |
+| `isPublic` | Boolean | No | Visible to everyone. **Honoured only for MODERATOR+; silently coerced to false otherwise** |
+| `campaignIds` | Long[] | No | Campaigns to share with. The caller must be involved in each; 403 otherwise |
+| `isConsumable` | Boolean | Yes | Whether the item is consumed on use |
+| `description` | String | No | What the item is and does (max 5000) |
+| `features` | FeatureInput[] | No | Inline features, max 20 |
+
+**Fields deliberately absent:** `isOfficial` and `expansionId` (custom content is never canon and
+belongs to no sourcebook) and `originalLootId` (set only by the copy endpoint, so a caller cannot
+claim their creation derives from something it does not).
+
+### Response: `201 Created`
+
+`LootResponse` with `isOfficial: false`, `expansionId: null`, and `createdByUserId` set to the
+caller.
+
+### Error Responses
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Validation failure (missing required field, tier out of range, >20 features) |
+| 401 | Missing or invalid AUTH_TOKEN cookie |
+| 403 | `campaignIds` names a campaign the caller is not involved in |
+| 404 | A named campaign does not exist or has been deleted |
+
+---
+
+## 9. POST `/api/dh/loot/{id}/copy`
+
+Copy any existing record into new custom content owned by the caller. Open to **any
+authenticated user**, including copies of official content — records are already readable by ID,
+so restricting this would protect nothing.
+
+The copy is always private and unofficial regardless of its source, carries no sourcebook, and
+inherits **no** campaign tags: sharing is a decision the new owner makes for themselves. Features
+are carried over. The name gains a `" (Copy)"` suffix and `originalLootId` points at the source.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | Long | ID of the record to copy |
+
+### Response: `201 Created`
+
+### Error Responses
+
+| Status | Condition |
+|--------|-----------|
+| 401 | Missing or invalid AUTH_TOKEN cookie |
+| 404 | Source not found or soft-deleted |
+
+---
+
+
+### ItemSort
+
+| Value | Ordering |
+|-------|----------|
+| `ID` | Insertion order (default). Official content holds the low ids, so user-authored content sorts last |
+| `NAME` | Alphabetical. The sensible choice for pickers and browse screens |
+| `TIER` | Lowest tier first, alphabetical within a tier |
+| `NEWEST` | Most recently created first |
+
+An allowlist rather than a free-text Spring `sort` parameter: binding an arbitrary property path
+from a query string would let a caller order by, and so infer, fields the response never exposes.
