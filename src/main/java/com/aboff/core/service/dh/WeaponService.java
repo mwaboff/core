@@ -141,9 +141,9 @@ public class WeaponService {
      * Open to any authenticated user. Everything that could make the weapon canon is resolved
      * server-side rather than taken from the request: the author is always the caller, the
      * official and public flags are honoured only for moderators, and a custom weapon never
-     * carries a sourcebook. The request type has no field for an original weapon, so a caller
-     * cannot claim their creation derives from something it does not — that is set only by
-     * {@link #copyWeapon}.
+     * carries a sourcebook. Neither this request type nor the update one has a field for an
+     * original weapon, so a caller cannot claim their creation derives from something it does
+     * not, at creation or afterwards — provenance is set only by {@link #copyWeapon}.
      * </p>
      *
      * @param request The creation request containing weapon details
@@ -422,13 +422,6 @@ public class WeaponService {
                 FeatureService.FeatureOrigin.forItem(user, isOfficial));
         if (resolvedUpdateFeatures != null) {
             weapon.setFeatures(resolvedUpdateFeatures);
-        }
-
-        if (request.getOriginalWeaponId() != null) {
-            Weapon originalWeapon = weaponRepository.findByIdAndDeletedAtIsNull(request.getOriginalWeaponId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Original weapon not found with id: " + request.getOriginalWeaponId()));
-            weapon.setOriginalWeapon(originalWeapon);
         }
 
         Weapon updatedWeapon = weaponRepository.save(weapon);

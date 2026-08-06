@@ -96,8 +96,4 @@ public class UpdateArmorRequest {
     @Valid
     private List<FeatureInput> features;
 
-    /**
-     * Optional ID of the original armor if this is a custom copy.
-     */
-    private Long originalArmorId;
 }

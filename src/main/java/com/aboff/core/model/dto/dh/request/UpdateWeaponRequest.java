@@ -108,10 +108,6 @@ public class UpdateWeaponRequest {
     @Valid
     private List<FeatureInput> features;
 
-    /**
-     * Optional ID of the original weapon if this is a custom copy.
-     */
-    private Long originalWeaponId;
 
     /**
      * Nested DTO for damage roll information.

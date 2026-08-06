@@ -127,9 +127,9 @@ public class ArmorService {
      * Open to any authenticated user. Everything that could make it canon is resolved
      * server-side rather than taken from the request: the author is always the caller, the
      * official and public flags are honoured only for moderators, and custom content never
-     * carries a sourcebook. The request type has no field for an original, so a caller cannot
-     * claim their creation derives from something it does not — that is set only by
-     * {@link #copyArmor}.
+     * carries a sourcebook. Neither this request type nor the update one has a field for an
+     * original, so a caller cannot claim their creation derives from something it does not, at
+     * creation or afterwards — provenance is set only by {@link #copyArmor}.
      * </p>
      *
      * @param request The creation request
@@ -396,13 +396,6 @@ public class ArmorService {
             if (resolvedUpdateFeatures != null) {
                 armor.setFeatures(resolvedUpdateFeatures);
             }
-        }
-
-        if (request.getOriginalArmorId() != null) {
-            Armor originalArmor = armorRepository.findByIdAndDeletedAtIsNull(request.getOriginalArmorId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Original armor not found with id: " + request.getOriginalArmorId()));
-            armor.setOriginalArmor(originalArmor);
         }
 
         Armor updatedArmor = armorRepository.save(armor);

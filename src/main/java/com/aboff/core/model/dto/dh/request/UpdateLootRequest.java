@@ -86,8 +86,4 @@ public class UpdateLootRequest {
     @Valid
     private List<FeatureInput> features;
 
-    /**
-     * Optional ID of the original loot if this is a custom copy.
-     */
-    private Long originalLootId;
 }

@@ -127,9 +127,9 @@ public class LootService {
      * Open to any authenticated user. Everything that could make it canon is resolved
      * server-side rather than taken from the request: the author is always the caller, the
      * official and public flags are honoured only for moderators, and custom content never
-     * carries a sourcebook. The request type has no field for an original, so a caller cannot
-     * claim their creation derives from something it does not — that is set only by
-     * {@link #copyLoot}.
+     * carries a sourcebook. Neither this request type nor the update one has a field for an
+     * original, so a caller cannot claim their creation derives from something it does not, at
+     * creation or afterwards — provenance is set only by {@link #copyLoot}.
      * </p>
      *
      * @param request The creation request
@@ -389,13 +389,6 @@ public class LootService {
             if (resolvedUpdateFeatures != null) {
                 loot.setFeatures(resolvedUpdateFeatures);
             }
-        }
-
-        if (request.getOriginalLootId() != null) {
-            Loot originalLoot = lootRepository.findByIdAndDeletedAtIsNull(request.getOriginalLootId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Original loot not found with id: " + request.getOriginalLootId()));
-            loot.setOriginalLoot(originalLoot);
         }
 
         Loot updatedLoot = lootRepository.save(loot);

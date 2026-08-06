@@ -835,4 +835,91 @@ class CustomItemAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$.content[?(@.name == 'Findable Trinket')]").exists())
                 .andExpect(jsonPath("$.content[?(@.name == 'Unrelated Bauble')]").isEmpty());
     }
+
+    // ==================== PROVENANCE IS NOT SETTABLE AFTER THE FACT ====================
+
+    @Test
+    void updatingAWeaponCannotClaimItWasCopiedFromSomethingElse() throws Exception {
+        // createCustomWeapon's javadoc promised a caller "cannot claim their creation derives
+        // from something it does not". That held on create and not on update: a PUT carrying
+        // originalWeaponId set provenance on a weapon authored from scratch.
+        Weapon authored = persistWeapon("Authored From Scratch", false, false, author);
+        Weapon unrelated = persistWeapon("Never Copied From", true, false, null);
+
+        mockMvc.perform(put("/api/dh/weapons/" + authored.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"originalWeaponId\":" + unrelated.getId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.originalWeaponId").doesNotExist());
+
+        Weapon reloaded = weaponRepository.findByIdAndDeletedAtIsNull(authored.getId()).orElseThrow();
+        assertThat(reloaded.getOriginalWeapon()).isNull();
+    }
+
+    @Test
+    void updatingAnArmorCannotClaimItWasCopiedFromSomethingElse() throws Exception {
+        Armor authored = armorRepository.save(Armor.builder()
+                .name("Authored Plate").tier(1).isOfficial(false).isPublic(false).createdBy(author)
+                .baseMajorThreshold(7).baseSevereThreshold(14).baseScore(4).build());
+        Armor unrelated = armorRepository.save(Armor.builder()
+                .name("Never Copied Plate").tier(1).isOfficial(false).isPublic(true).createdBy(otherUser)
+                .baseMajorThreshold(7).baseSevereThreshold(14).baseScore(4).build());
+
+        mockMvc.perform(put("/api/dh/armors/" + authored.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"originalArmorId\":" + unrelated.getId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.originalArmorId").doesNotExist());
+
+        assertThat(armorRepository.findByIdAndDeletedAtIsNull(authored.getId()).orElseThrow()
+                .getOriginalArmor()).isNull();
+    }
+
+    @Test
+    void updatingALootCannotClaimItWasCopiedFromSomethingElse() throws Exception {
+        Loot authored = lootRepository.save(Loot.builder()
+                .name("Authored Trinket").tier(1).isOfficial(false).isPublic(false).createdBy(author)
+                .isConsumable(false).description("A trinket.").build());
+        Loot unrelated = lootRepository.save(Loot.builder()
+                .name("Never Copied Trinket").tier(1).isOfficial(false).isPublic(true).createdBy(otherUser)
+                .isConsumable(false).description("A bauble.").build());
+
+        mockMvc.perform(put("/api/dh/loot/" + authored.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"originalLootId\":" + unrelated.getId() + "}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.originalLootId").doesNotExist());
+
+        assertThat(lootRepository.findByIdAndDeletedAtIsNull(authored.getId()).orElseThrow()
+                .getOriginalLoot()).isNull();
+    }
+
+    @Test
+    void anUnknownFieldOnUpdateIsIgnoredRatherThanRejected() throws Exception {
+        // Why dropping the field is safe rather than a breaking change: the deployed
+        // ObjectMapper ignores unknown properties, so a client still sending originalWeaponId
+        // gets it ignored instead of a 400. Verified live on the running app as well.
+        Weapon weapon = persistWeapon("Tolerant", false, false, author);
+
+        mockMvc.perform(put("/api/dh/weapons/" + weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"Tolerant Renamed\",\"thisFieldDoesNotExist\":123}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.name").value("Tolerant Renamed"));
+    }
+
+    @Test
+    void copyingStillRecordsProvenance() throws Exception {
+        // The one path that legitimately sets it must keep working.
+        Weapon original = persistWeapon("Copy Me", true, false, null);
+
+        mockMvc.perform(post("/api/dh/weapons/" + original.getId() + "/copy")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.originalWeaponId").value(original.getId()));
+    }
 }
