@@ -46,6 +46,28 @@ public class UpdateArmorRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this armor should be visible to every user. Honoured only for MODERATOR+;
+     * coerced to false otherwise.
+     */
+    private Boolean isPublic;
+
+    /**
+     * Clears the expansion, marking the armor as belonging to no sourcebook.
+     * <p>
+     * A JSON {@code null} for {@code expansionId} is indistinguishable from the field being
+     * omitted, and omitted means "leave unchanged". This flag is the only way to actually
+     * remove an expansion.
+     * </p>
+     */
+    private Boolean clearExpansion;
+
+    /**
+     * Campaigns to share this armor with, replacing any existing tags. Null leaves tags
+     * untouched; an empty list removes them all.
+     */
+    private List<Long> campaignIds;
+
+    /**
      * The minimum damage required to inflict a major injury.
      */
     @Positive(message = "Base major threshold must be positive")

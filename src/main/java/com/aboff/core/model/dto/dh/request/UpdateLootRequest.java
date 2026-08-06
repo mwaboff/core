@@ -44,6 +44,28 @@ public class UpdateLootRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this loot should be visible to every user. Honoured only for MODERATOR+;
+     * coerced to false otherwise.
+     */
+    private Boolean isPublic;
+
+    /**
+     * Clears the expansion, marking the loot as belonging to no sourcebook.
+     * <p>
+     * A JSON {@code null} for {@code expansionId} is indistinguishable from the field being
+     * omitted, and omitted means "leave unchanged". This flag is the only way to actually
+     * remove an expansion.
+     * </p>
+     */
+    private Boolean clearExpansion;
+
+    /**
+     * Campaigns to share this loot with, replacing any existing tags. Null leaves tags
+     * untouched; an empty list removes them all.
+     */
+    private List<Long> campaignIds;
+
+    /**
      * Whether this loot item is consumable (e.g., potions, scrolls, food).
      */
     private Boolean isConsumable;

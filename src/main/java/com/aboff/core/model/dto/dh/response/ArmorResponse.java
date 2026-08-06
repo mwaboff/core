@@ -40,7 +40,10 @@ public class ArmorResponse {
     private String name;
 
     /**
-     * ID of the expansion this armor belongs to (always included).
+     * ID of the sourcebook this armor was published in (always included).
+     * <p>
+     * Null for custom items, which came from no book.
+     * </p>
      */
     private Long expansionId;
 
@@ -58,6 +61,25 @@ public class ArmorResponse {
      * Whether this armor is from official game content.
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this armor is visible to every user.
+     */
+    private Boolean isPublic;
+
+    /**
+     * ID of the user who authored this armor.
+     * <p>
+     * Null for official imports and for any row created before user authoring existed.
+     * A non-null value alongside {@code isOfficial=false} is what marks a armor as homebrew.
+     * </p>
+     */
+    private Long createdByUserId;
+
+    /**
+     * IDs of the campaigns this armor has been explicitly shared with.
+     */
+    private List<Long> campaignIds;
 
     /**
      * The minimum damage required to inflict a major injury.

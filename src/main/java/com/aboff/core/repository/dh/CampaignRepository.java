@@ -81,6 +81,26 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
     List<Campaign> findActiveByUserInvolvement(@Param("userId") Long userId);
 
     /**
+     * Finds the IDs of all active campaigns where the user is involved in any role
+     * (creator, game master, or player).
+     * <p>
+     * An IDs-only projection of {@link #findActiveByUserInvolvement}. The custom-item
+     * visibility queries bind these as a parameter to decide which campaign-shared items the
+     * caller may see, and never touch the campaigns themselves, so hydrating full entities
+     * would load three collections per campaign for nothing.
+     * </p>
+     *
+     * @param userId the ID of the user
+     * @return IDs of active campaigns where the user is involved; empty if none
+     */
+    @Query("SELECT DISTINCT c.id FROM Campaign c " +
+           "LEFT JOIN c.gameMasters gm " +
+           "LEFT JOIN c.players p " +
+           "WHERE c.deletedAt IS NULL AND " +
+           "(c.creator.id = :userId OR gm.id = :userId OR p.id = :userId)")
+    List<Long> findActiveCampaignIdsByUserInvolvement(@Param("userId") Long userId);
+
+    /**
      * Finds all active campaigns that contain a specific character sheet
      * in any collection (pending, player characters, or NPCs).
      *
@@ -133,7 +153,7 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long> {
      * @param name the name to search for (partial match supported)
      * @return list of campaigns matching the name
      */
-    @Query("SELECT c FROM Campaign c WHERE LOWER(c.name) LIKE LOWER(CONCAT('%', :name, '%')) AND c.deletedAt IS NULL")
+    @Query("SELECT c FROM Campaign c WHERE LOWER(c.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')) AND c.deletedAt IS NULL")
     List<Campaign> findByNameContainingIgnoreCaseAndDeletedAtIsNull(@Param("name") String name);
 
     /**
