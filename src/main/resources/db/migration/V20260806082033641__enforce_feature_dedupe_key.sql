@@ -45,8 +45,13 @@
 -- referenced from a second connection) or a new spring-retry dependency.
 
 -- Defensive: fold any pre-existing duplicates onto the lowest id so the index cannot fail
--- to build. This is a no-op on both the local and production databases today (0 rows) and
--- exists only so a deploy is not blocked if content diverged. Soft-deleting rather than
+-- to build. Verified a no-op on the local dev database (0 duplicate groups). NOT verified
+-- against production -- if the two content imports left duplicate rows on this key, this
+-- will soft-delete them, so check before deploying:
+--   SELECT count(*) FROM (SELECT LOWER(name), COALESCE(expansion_id,-1), feature_type,
+--     MD5(COALESCE(description,'')) FROM features WHERE deleted_at IS NULL
+--     AND name IS NOT NULL AND BTRIM(name) <> '' GROUP BY 1,2,3,4 HAVING COUNT(*) > 1) d;
+-- Soft-deleting rather than
 -- deleting keeps all 13 foreign keys into features intact; items still render the feature
 -- they point at, they simply stop being re-selectable by id on a later edit.
 WITH duplicates AS (
