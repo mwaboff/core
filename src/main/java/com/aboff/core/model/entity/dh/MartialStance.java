@@ -32,14 +32,24 @@ import lombok.experimental.SuperBuilder;
 @Entity
 @SearchIndexed(type = SearchableEntityType.MARTIAL_STANCE)
 @Table(name = "martial_stances")
-@AssociationOverride(
-    name = "features",
-    joinTable = @JoinTable(
-        name = "martial_stance_features",
-        joinColumns = @JoinColumn(name = "martial_stance_id"),
-        inverseJoinColumns = @JoinColumn(name = "feature_id")
+@AssociationOverrides({
+    @AssociationOverride(
+        name = "features",
+        joinTable = @JoinTable(
+            name = "martial_stance_features",
+            joinColumns = @JoinColumn(name = "martial_stance_id"),
+            inverseJoinColumns = @JoinColumn(name = "feature_id")
+        )
+    ),
+    @AssociationOverride(
+        name = "campaigns",
+        joinTable = @JoinTable(
+            name = "martial_stance_campaigns",
+            joinColumns = @JoinColumn(name = "martial_stance_id"),
+            inverseJoinColumns = @JoinColumn(name = "campaign_id")
+        )
     )
-)
+})
 @Data
 @EqualsAndHashCode(callSuper = true, onlyExplicitlyIncluded = true)
 @SuperBuilder

@@ -2,6 +2,7 @@ package com.aboff.core.model.entity.dh;
 
 import com.aboff.core.model.annotation.SearchIndexed;
 import com.aboff.core.model.entity.BaseEntity;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.FeatureTiming;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.SearchableEntityType;
@@ -62,11 +63,26 @@ public class Feature extends BaseEntity {
     private FeatureTiming timing;
 
     /**
-     * The expansion this feature belongs to.
+     * The sourcebook this feature was published in.
+     * <p>
+     * Null for features authored by users alongside their custom items, which came
+     * from no book.
+     * </p>
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "expansion_id", nullable = false)
+    @JoinColumn(name = "expansion_id")
     private Expansion expansion;
+
+    /**
+     * The user who authored this feature.
+     * <p>
+     * Null for official content and for features created before user authoring
+     * existed. Populated when a user creates a feature inline on a custom item.
+     * </p>
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_user_id")
+    private User createdBy;
 
     /**
      * The cost/limitation tags associated with this feature.
