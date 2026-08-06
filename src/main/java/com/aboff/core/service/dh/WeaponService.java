@@ -387,7 +387,8 @@ public class WeaponService {
         } else if (request.getExpansionId() != null) {
             weapon.setExpansion(itemAccessService.resolveExpansion(user, request.getExpansionId(), isOfficial));
         }
-        itemAccessService.validateOfficialHasExpansion(weapon, "weapon");
+        itemAccessService.validateOfficialHasExpansion(
+                weapon, "weapon", Boolean.TRUE.equals(request.getClearExpansion()));
 
         if (request.getTier() != null) {
             weapon.setTier(request.getTier());

@@ -361,7 +361,8 @@ public class LootService {
         } else if (request.getExpansionId() != null) {
             loot.setExpansion(itemAccessService.resolveExpansion(user, request.getExpansionId(), isOfficial));
         }
-        itemAccessService.validateOfficialHasExpansion(loot, "loot");
+        itemAccessService.validateOfficialHasExpansion(
+                loot, "loot", Boolean.TRUE.equals(request.getClearExpansion()));
 
         if (request.getTier() != null) {
             loot.setTier(request.getTier());

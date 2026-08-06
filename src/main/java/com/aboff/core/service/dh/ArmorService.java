@@ -365,7 +365,8 @@ public class ArmorService {
         } else if (request.getExpansionId() != null) {
             armor.setExpansion(itemAccessService.resolveExpansion(user, request.getExpansionId(), isOfficial));
         }
-        itemAccessService.validateOfficialHasExpansion(armor, "armor");
+        itemAccessService.validateOfficialHasExpansion(
+                armor, "armor", Boolean.TRUE.equals(request.getClearExpansion()));
 
         if (request.getTier() != null) {
             armor.setTier(request.getTier());

@@ -162,10 +162,14 @@ public class ItemAccessService {
     /**
      * Rejects an item that claims official status without naming the sourcebook it was printed in.
      * <p>
-     * The database enforces the same rule as a check constraint, but reaching it produces an
-     * opaque 500: promoting a custom item to official is a moderator's deliberate act, and the
-     * only useful response is to tell them which field is missing. The migration that added
-     * {@code chk_*_official_has_expansion} says the service is where this rule lives.
+     * This one invariant is reachable from two directions, and both produced an opaque 500 by
+     * hitting {@code chk_*_official_has_expansion} instead. Promoting a custom item to official
+     * left the expansion null, which made the {@code isOfficial} flag useless for the one thing
+     * it exists for. Clearing the expansion of an already-official item failed the same way —
+     * and since official rows are the only ones that carry an expansion, that made
+     * {@code clearExpansion} fail on precisely the content it was added for. The migration that
+     * added the constraint says the service is where this rule lives, so it is checked once
+     * here, where the request context needed to explain it exists.
      * </p>
      * <p>
      * Call this after both the official flag and the expansion have been resolved, since either
@@ -174,14 +178,21 @@ public class ItemAccessService {
      *
      * @param item the item about to be saved
      * @param label the item type name, used in the error message (e.g. "weapon")
+     * @param expansionCleared whether this request asked to remove the expansion; decides only
+     *                         which of the two remedies the message suggests
      * @throws IllegalStateException if the item is official but has no expansion; surfaces as a
      *         400 through {@code GlobalExceptionHandler}
      */
-    public void validateOfficialHasExpansion(BaseItem item, String label) {
-        if (Boolean.TRUE.equals(item.getIsOfficial()) && item.getExpansion() == null) {
-            throw new IllegalStateException("An official " + label
-                    + " must name the sourcebook it was printed in; set expansionId to a sourcebook");
+    public void validateOfficialHasExpansion(BaseItem item, String label, boolean expansionCleared) {
+        if (!Boolean.TRUE.equals(item.getIsOfficial()) || item.getExpansion() != null) {
+            return;
         }
+
+        String remedy = expansionCleared
+                ? "set isOfficial to false in the same request to make it custom content"
+                : "set expansionId to a sourcebook";
+        throw new IllegalStateException("An official " + label
+                + " must name the sourcebook it was printed in; " + remedy);
     }
 
     /**

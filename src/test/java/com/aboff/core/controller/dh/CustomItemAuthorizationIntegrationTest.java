@@ -724,7 +724,10 @@ class CustomItemAuthorizationIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", adminToken))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                // telling someone who asked to remove a sourcebook to supply one is not actionable
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("set isOfficial to false")));
     }
 
     @Test

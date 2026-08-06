@@ -365,7 +365,7 @@ class ItemAccessServiceTest {
         Weapon promoted = weapon(true, regularUser);
         promoted.setExpansion(null);
 
-        assertThatThrownBy(() -> itemAccessService.validateOfficialHasExpansion(promoted, "weapon"))
+        assertThatThrownBy(() -> itemAccessService.validateOfficialHasExpansion(promoted, "weapon", false))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("must name the sourcebook");
     }
@@ -375,7 +375,7 @@ class ItemAccessServiceTest {
         Weapon promoted = weapon(true, regularUser);
         promoted.setExpansion(Expansion.builder().id(1L).name("Core Rulebook").build());
 
-        assertThatCode(() -> itemAccessService.validateOfficialHasExpansion(promoted, "weapon"))
+        assertThatCode(() -> itemAccessService.validateOfficialHasExpansion(promoted, "weapon", false))
                 .doesNotThrowAnyException();
     }
 
@@ -385,7 +385,41 @@ class ItemAccessServiceTest {
         Weapon custom = weapon(false, regularUser);
         custom.setExpansion(null);
 
-        assertThatCode(() -> itemAccessService.validateOfficialHasExpansion(custom, "weapon"))
+        assertThatCode(() -> itemAccessService.validateOfficialHasExpansion(custom, "weapon", false))
                 .doesNotThrowAnyException();
+    }
+
+    @Test
+    void validateOfficialHasExpansion_ClearingTheSourcebookOfOfficialContent_Throws() {
+        // The other direction into the same invariant. clearExpansion exists so an admin can
+        // remove a sourcebook, but official rows are the only ones that have one, so the flag
+        // failed on exactly the content it was added for -- as an opaque 500.
+        Weapon official = weapon(true, null);
+        official.setExpansion(null);
+
+        assertThatThrownBy(() -> itemAccessService.validateOfficialHasExpansion(official, "weapon", true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must name the sourcebook");
+    }
+
+    @Test
+    void validateOfficialHasExpansion_ClearingTheSourcebook_SuggestsDemotingRatherThanSettingOne() {
+        // Telling someone who asked to remove a sourcebook to supply one is not actionable.
+        Weapon official = weapon(true, null);
+        official.setExpansion(null);
+
+        assertThatThrownBy(() -> itemAccessService.validateOfficialHasExpansion(official, "weapon", true))
+                .hasMessageContaining("set isOfficial to false")
+                .hasMessageNotContaining("set expansionId");
+    }
+
+    @Test
+    void validateOfficialHasExpansion_PromotingWithoutASourcebook_SuggestsSettingOne() {
+        Weapon promoted = weapon(true, regularUser);
+        promoted.setExpansion(null);
+
+        assertThatThrownBy(() -> itemAccessService.validateOfficialHasExpansion(promoted, "weapon", false))
+                .hasMessageContaining("set expansionId")
+                .hasMessageNotContaining("set isOfficial");
     }
 }
