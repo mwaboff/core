@@ -343,9 +343,12 @@ public class FeatureService {
     private Feature createFeatureFromInput(FeatureInput input) {
         log.debug("Creating new feature with name '{}', type '{}', expansion '{}'",
                 input.getName(), input.getFeatureType(), input.getExpansionId());
-        Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
-                .orElseThrow(() -> new EntityNotFoundException(
-                        "Expansion not found with id: " + input.getExpansionId()));
+        // A null expansion is legitimate: features authored alongside a custom item come from
+        // no sourcebook. Only resolve when one was actually named.
+        Expansion expansion = input.getExpansionId() == null ? null
+                : expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
+                        .orElseThrow(() -> new EntityNotFoundException(
+                                "Expansion not found with id: " + input.getExpansionId()));
         Feature feature = Feature.builder()
                 .name(input.getName())
                 .description(input.getDescription())

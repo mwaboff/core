@@ -37,8 +37,12 @@ public class FeatureInput {
     /** Timing tag for the feature (e.g. Action, Reaction). Optional; omit for features with no timing. */
     private FeatureTiming timing;
 
-    /** ID of the expansion this feature belongs to. */
-    @NotNull(message = "Expansion ID is required")
+    /**
+     * ID of the sourcebook this feature was published in.
+     * <p>
+     * Optional: features authored alongside a custom item came from no book and leave this null.
+     * </p>
+     */
     private Long expansionId;
 
     /** IDs of cost tags associated with this feature. */
