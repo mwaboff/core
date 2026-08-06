@@ -355,4 +355,37 @@ class ItemAccessServiceTest {
 
         assertThat(itemAccessService.currentUser(authentication)).isEqualTo(regularUser);
     }
+
+    // ==================== OFFICIAL IMPLIES A SOURCEBOOK ====================
+
+    @Test
+    void validateOfficialHasExpansion_OfficialWithoutASourcebook_Throws() {
+        // This is the whole point of the isOfficial flag and it was unreachable: promoting a
+        // custom item hit chk_weapons_official_has_expansion and returned an opaque 500.
+        Weapon promoted = weapon(true, regularUser);
+        promoted.setExpansion(null);
+
+        assertThatThrownBy(() -> itemAccessService.validateOfficialHasExpansion(promoted, "weapon"))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("must name the sourcebook");
+    }
+
+    @Test
+    void validateOfficialHasExpansion_OfficialWithASourcebook_IsAllowed() {
+        Weapon promoted = weapon(true, regularUser);
+        promoted.setExpansion(Expansion.builder().id(1L).name("Core Rulebook").build());
+
+        assertThatCode(() -> itemAccessService.validateOfficialHasExpansion(promoted, "weapon"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    void validateOfficialHasExpansion_CustomWithoutASourcebook_IsAllowed() {
+        // The rule runs one direction only. Custom content having no sourcebook is the norm.
+        Weapon custom = weapon(false, regularUser);
+        custom.setExpansion(null);
+
+        assertThatCode(() -> itemAccessService.validateOfficialHasExpansion(custom, "weapon"))
+                .doesNotThrowAnyException();
+    }
 }

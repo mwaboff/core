@@ -351,21 +351,24 @@ public class ArmorService {
         if (request.getName() != null && !request.getName().isBlank()) {
             armor.setName(request.getName());
         }
+        // The official flag is applied before the expansion because it decides whether an
+        // expansion may be kept at all. Create resolves them in this order too.
+        if (request.getIsOfficial() != null) {
+            armor.setIsOfficial(itemAccessService.resolveIsOfficial(user, request.getIsOfficial()));
+        }
+        boolean isOfficial = Boolean.TRUE.equals(armor.getIsOfficial());
+
         if (Boolean.TRUE.equals(request.getClearExpansion())) {
             // A JSON null for expansionId is indistinguishable from an omitted field, so
             // removing a sourcebook needs its own explicit flag.
             armor.setExpansion(null);
         } else if (request.getExpansionId() != null) {
-            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Expansion not found with id: " + request.getExpansionId()));
-            armor.setExpansion(expansion);
+            armor.setExpansion(itemAccessService.resolveExpansion(user, request.getExpansionId(), isOfficial));
         }
+        itemAccessService.validateOfficialHasExpansion(armor, "armor");
+
         if (request.getTier() != null) {
             armor.setTier(request.getTier());
-        }
-        if (request.getIsOfficial() != null) {
-            armor.setIsOfficial(itemAccessService.resolveIsOfficial(user, request.getIsOfficial()));
         }
         if (request.getIsPublic() != null) {
             armor.setIsPublic(itemAccessService.resolveIsPublic(user, request.getIsPublic()));
@@ -388,7 +391,7 @@ public class ArmorService {
         if (request.getFeatureIds() != null || request.getFeatures() != null) {
             Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(
                     request.getFeatureIds(), request.getFeatures(),
-                    FeatureService.FeatureOrigin.forItem(user, Boolean.TRUE.equals(armor.getIsOfficial())));
+                    FeatureService.FeatureOrigin.forItem(user, isOfficial));
             if (resolvedUpdateFeatures != null) {
                 armor.setFeatures(resolvedUpdateFeatures);
             }

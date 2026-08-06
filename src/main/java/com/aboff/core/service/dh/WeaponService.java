@@ -373,21 +373,24 @@ public class WeaponService {
         if (request.getName() != null && !request.getName().isBlank()) {
             weapon.setName(request.getName());
         }
+        // The official flag is applied before the expansion because it decides whether an
+        // expansion may be kept at all. Create resolves them in this order too.
+        if (request.getIsOfficial() != null) {
+            weapon.setIsOfficial(itemAccessService.resolveIsOfficial(user, request.getIsOfficial()));
+        }
+        boolean isOfficial = Boolean.TRUE.equals(weapon.getIsOfficial());
+
         if (Boolean.TRUE.equals(request.getClearExpansion())) {
             // A JSON null for expansionId is indistinguishable from an omitted field, so
             // removing a sourcebook needs its own explicit flag.
             weapon.setExpansion(null);
         } else if (request.getExpansionId() != null) {
-            Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
-                    .orElseThrow(() -> new EntityNotFoundException(
-                            "Expansion not found with id: " + request.getExpansionId()));
-            weapon.setExpansion(expansion);
+            weapon.setExpansion(itemAccessService.resolveExpansion(user, request.getExpansionId(), isOfficial));
         }
+        itemAccessService.validateOfficialHasExpansion(weapon, "weapon");
+
         if (request.getTier() != null) {
             weapon.setTier(request.getTier());
-        }
-        if (request.getIsOfficial() != null) {
-            weapon.setIsOfficial(itemAccessService.resolveIsOfficial(user, request.getIsOfficial()));
         }
         if (request.getIsPublic() != null) {
             weapon.setIsPublic(itemAccessService.resolveIsPublic(user, request.getIsPublic()));
@@ -415,7 +418,7 @@ public class WeaponService {
 
         Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(
                 request.getFeatureIds(), request.getFeatures(),
-                FeatureService.FeatureOrigin.forItem(user, Boolean.TRUE.equals(weapon.getIsOfficial())));
+                FeatureService.FeatureOrigin.forItem(user, isOfficial));
         if (resolvedUpdateFeatures != null) {
             weapon.setFeatures(resolvedUpdateFeatures);
         }

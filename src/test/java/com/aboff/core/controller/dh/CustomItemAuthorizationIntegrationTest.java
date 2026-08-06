@@ -577,4 +577,172 @@ class CustomItemAuthorizationIntegrationTest {
         assertThat(onlyFeatureOf(weapon.getId()).getExpansion()).isNull();
     }
 
+    // ==================== SOURCEBOOK PROVENANCE: UPDATING AN ITEM ====================
+
+    @Test
+    void updatingACustomWeaponCannotClaimASourcebook() throws Exception {
+        // Create dropped a stray expansionId; update took it at face value, so a PUT to one's
+        // own weapon made it answer ?expansionId=<core set> as if it were printed there.
+        Weapon weapon = persistWeapon("Aspiring Canon", false, false, author);
+        UpdateWeaponRequest request = new UpdateWeaponRequest();
+        request.setExpansionId(expansion.getId());
+
+        mockMvc.perform(put("/api/dh/weapons/" + weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(false))
+                .andExpect(jsonPath("$.expansionId").doesNotExist());
+    }
+
+    @Test
+    void updatingACustomArmorCannotClaimASourcebook() throws Exception {
+        Armor armor = armorRepository.save(Armor.builder()
+                .name("Aspiring Plate").tier(1).isOfficial(false).isPublic(false).createdBy(author)
+                .baseMajorThreshold(7).baseSevereThreshold(14).baseScore(4).build());
+        UpdateArmorRequest request = new UpdateArmorRequest();
+        request.setExpansionId(expansion.getId());
+
+        mockMvc.perform(put("/api/dh/armors/" + armor.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(false))
+                .andExpect(jsonPath("$.expansionId").doesNotExist());
+    }
+
+    @Test
+    void updatingACustomLootCannotClaimASourcebook() throws Exception {
+        Loot loot = lootRepository.save(Loot.builder()
+                .name("Aspiring Trinket").tier(1).isOfficial(false).isPublic(false).createdBy(author)
+                .isConsumable(false).description("A trinket.").build());
+        UpdateLootRequest request = new UpdateLootRequest();
+        request.setExpansionId(expansion.getId());
+
+        mockMvc.perform(put("/api/dh/loot/" + loot.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(false))
+                .andExpect(jsonPath("$.expansionId").doesNotExist());
+    }
+
+    @Test
+    void anAdminEditingOfficialContentCanStillSetItsSourcebook() throws Exception {
+        Weapon official = persistWeapon("Canon Blade", true, false, null);
+        Expansion other = expansionRepository.save(
+                Expansion.builder().name("Second Book").isPublished(true).build());
+        UpdateWeaponRequest request = new UpdateWeaponRequest();
+        request.setExpansionId(other.getId());
+
+        mockMvc.perform(put("/api/dh/weapons/" + official.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(true))
+                .andExpect(jsonPath("$.expansionId").value(other.getId()));
+    }
+
+    // ==================== PROMOTION TO OFFICIAL ====================
+
+    @Test
+    void promotingAWeaponToOfficialWithoutASourcebookIsRejected() throws Exception {
+        // Reaching the database check constraint produced a 500 with nothing to act on. The one
+        // thing isOfficial exists for was therefore unreachable.
+        Weapon weapon = persistWeapon("Candidate", false, false, author);
+        UpdateWeaponRequest request = new UpdateWeaponRequest();
+        request.setIsOfficial(true);
+
+        mockMvc.perform(put("/api/dh/weapons/" + weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("must name the sourcebook")));
+    }
+
+    @Test
+    void promotingAWeaponToOfficialWithASourcebookSucceeds() throws Exception {
+        Weapon weapon = persistWeapon("Candidate", false, false, author);
+        UpdateWeaponRequest request = new UpdateWeaponRequest();
+        request.setIsOfficial(true);
+        request.setExpansionId(expansion.getId());
+
+        mockMvc.perform(put("/api/dh/weapons/" + weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(true))
+                .andExpect(jsonPath("$.expansionId").value(expansion.getId()));
+    }
+
+    @Test
+    void promotingAnArmorToOfficialWithoutASourcebookIsRejected() throws Exception {
+        Armor armor = armorRepository.save(Armor.builder()
+                .name("Candidate Plate").tier(1).isOfficial(false).isPublic(false).createdBy(author)
+                .baseMajorThreshold(7).baseSevereThreshold(14).baseScore(4).build());
+        UpdateArmorRequest request = new UpdateArmorRequest();
+        request.setIsOfficial(true);
+
+        mockMvc.perform(put("/api/dh/armors/" + armor.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void promotingALootToOfficialWithoutASourcebookIsRejected() throws Exception {
+        Loot loot = lootRepository.save(Loot.builder()
+                .name("Candidate Trinket").tier(1).isOfficial(false).isPublic(false).createdBy(author)
+                .isConsumable(false).description("A trinket.").build());
+        UpdateLootRequest request = new UpdateLootRequest();
+        request.setIsOfficial(true);
+
+        mockMvc.perform(put("/api/dh/loot/" + loot.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void clearExpansionOnAnOfficialWeaponIsRejectedRatherThanBreakingTheConstraint() throws Exception {
+        // clearExpansion exists because a JSON null is indistinguishable from an omitted field.
+        // It still cannot leave an official row without a book.
+        Weapon official = persistWeapon("Canon Blade", true, false, null);
+        UpdateWeaponRequest request = new UpdateWeaponRequest();
+        request.setClearExpansion(true);
+
+        mockMvc.perform(put("/api/dh/weapons/" + official.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void clearExpansionStillWorksWhenDemotingToCustomInTheSameRequest() throws Exception {
+        // The flag's original purpose has to keep working: dropping a book while the row stops
+        // being official is a legitimate single request.
+        Weapon official = persistWeapon("Canon Blade", true, false, null);
+        UpdateWeaponRequest request = new UpdateWeaponRequest();
+        request.setIsOfficial(false);
+        request.setClearExpansion(true);
+
+        mockMvc.perform(put("/api/dh/weapons/" + official.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.isOfficial").value(false))
+                .andExpect(jsonPath("$.expansionId").doesNotExist());
+    }
+
 }

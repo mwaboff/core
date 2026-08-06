@@ -347,7 +347,10 @@ class LootServiceTest {
                 .build();
 
         when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingLoot));
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        // The update path resolves the official flag first, then asks ItemAccessService which
+        // sourcebook that flag permits, rather than trusting the request's expansionId.
+        when(itemAccessService.resolveIsOfficial(any(), eq(true))).thenReturn(true);
+        when(itemAccessService.resolveExpansion(any(), eq(1L), eq(true))).thenReturn(expansion);
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
@@ -564,7 +567,10 @@ class LootServiceTest {
                 .build();
 
         when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingLoot));
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        // The update path resolves the official flag first, then asks ItemAccessService which
+        // sourcebook that flag permits, rather than trusting the request's expansionId.
+        when(itemAccessService.resolveIsOfficial(any(), eq(true))).thenReturn(true);
+        when(itemAccessService.resolveExpansion(any(), eq(1L), eq(true))).thenReturn(expansion);
         when(featureService.resolveFeatures(eq(List.of(1L)), isNull(), any())).thenReturn(Set.of(feature));
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> {
             Loot saved = invocation.getArgument(0);
@@ -597,7 +603,10 @@ class LootServiceTest {
                 .build();
 
         when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingLoot));
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        // The update path resolves the official flag first, then asks ItemAccessService which
+        // sourcebook that flag permits, rather than trusting the request's expansionId.
+        when(itemAccessService.resolveIsOfficial(any(), eq(true))).thenReturn(true);
+        when(itemAccessService.resolveExpansion(any(), eq(1L), eq(true))).thenReturn(expansion);
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act

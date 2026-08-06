@@ -374,7 +374,10 @@ class ArmorServiceTest {
                 .build();
 
         when(armorRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingArmor));
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        // The update path resolves the official flag first, then asks ItemAccessService which
+        // sourcebook that flag permits, rather than trusting the request's expansionId.
+        when(itemAccessService.resolveIsOfficial(any(), eq(true))).thenReturn(true);
+        when(itemAccessService.resolveExpansion(any(), eq(1L), eq(true))).thenReturn(expansion);
         when(armorRepository.save(any(Armor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act

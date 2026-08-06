@@ -160,6 +160,31 @@ public class ItemAccessService {
     }
 
     /**
+     * Rejects an item that claims official status without naming the sourcebook it was printed in.
+     * <p>
+     * The database enforces the same rule as a check constraint, but reaching it produces an
+     * opaque 500: promoting a custom item to official is a moderator's deliberate act, and the
+     * only useful response is to tell them which field is missing. The migration that added
+     * {@code chk_*_official_has_expansion} says the service is where this rule lives.
+     * </p>
+     * <p>
+     * Call this after both the official flag and the expansion have been resolved, since either
+     * one can be the field that changed.
+     * </p>
+     *
+     * @param item the item about to be saved
+     * @param label the item type name, used in the error message (e.g. "weapon")
+     * @throws IllegalStateException if the item is official but has no expansion; surfaces as a
+     *         400 through {@code GlobalExceptionHandler}
+     */
+    public void validateOfficialHasExpansion(BaseItem item, String label) {
+        if (Boolean.TRUE.equals(item.getIsOfficial()) && item.getExpansion() == null) {
+            throw new IllegalStateException("An official " + label
+                    + " must name the sourcebook it was printed in; set expansionId to a sourcebook");
+        }
+    }
+
+    /**
      * Resolves the campaigns an item may be shared with, rejecting any the user is not part of.
      * <p>
      * Distinguishes "not mentioned" from "cleared": a null list means leave existing tags
