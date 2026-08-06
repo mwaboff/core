@@ -1,6 +1,7 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.dto.dh.request.CreateCustomWeaponRequest;
 import com.aboff.core.model.dto.dh.request.CreateWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
@@ -8,10 +9,13 @@ import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
+import com.aboff.core.model.entity.User;
+import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.model.enums.ItemSort;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.Range;
@@ -34,6 +38,7 @@ import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -52,6 +57,7 @@ public class WeaponService {
     private final FeatureService featureService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ItemAccessService itemAccessService;
 
     /**
      * Retrieves a paginated list of weapons.
@@ -67,8 +73,14 @@ public class WeaponService {
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param tier Optional filter for weapon tier (1–4)
      * @param damageType Optional filter for damage type (PHYSICAL, MAGIC, PHYSICAL_AND_MAGIC)
+     * @param createdByUserId Optional filter narrowing results to one author
+     * @param name Optional case-insensitive substring match on the name
+     * @param sort Requested ordering; defaults to {@link ItemSort#ID}
      * @param expand Comma-separated list of relationships to expand
+     * @param authentication The current authentication, used to resolve what the caller may see
      * @return Paginated response containing weapons
+     * @throws com.aboff.core.exception.InsufficientPermissionsException if a non-moderator
+     *         requests soft-deleted weapons
      */
     @Transactional(readOnly = true)
     public PagedResponse<WeaponResponse> getAllWeapons(
@@ -83,16 +95,31 @@ public class WeaponService {
             Boolean isPrimary,
             Integer tier,
             DamageType damageType,
-            String expand) {
+            Long createdByUserId,
+            String name,
+            ItemSort sort,
+            String expand,
+            Authentication authentication) {
 
         size = Math.min(size, 100);
-        Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
+        Pageable pageable = PageRequest.of(page, size,
+                (sort == null ? ItemSort.ID : sort).toSort());
+        ItemAccessService.VisibilityScope scope = itemAccessService.visibilityScope(authentication);
         Page<Weapon> weaponPage;
 
         if (includeDeleted) {
+            // Soft-deleted rows are a moderation surface, not a browse surface. This was
+            // previously ungated, which was harmless while every weapon was official but would
+            // expose other users' private homebrew now that anyone can author one.
+            itemAccessService.requireModerator(authentication);
             weaponPage = weaponRepository.findAllWithFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
         } else {
-            weaponPage = weaponRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
+            // Moderators are not branched to a separate query: findAccessibleWithFilters
+            // short-circuits on isPrivileged, and routing them elsewhere would silently drop
+            // the createdByUserId filter, which only this query supports.
+            weaponPage = weaponRepository.findAccessibleWithFilters(
+                    scope.userId(), scope.memberCampaignIds(), scope.privileged(),
+                    expansionId, createdByUserId, name, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -106,6 +133,107 @@ public class WeaponService {
                 .currentPage(weaponPage.getNumber())
                 .pageSize(weaponPage.getSize())
                 .build();
+    }
+
+    /**
+     * Creates a weapon authored by the calling user.
+     * <p>
+     * Open to any authenticated user. Everything that could make the weapon canon is resolved
+     * server-side rather than taken from the request: the author is always the caller, the
+     * official and public flags are honoured only for moderators, and a custom weapon never
+     * carries a sourcebook. The request type has no field for an original weapon, so a caller
+     * cannot claim their creation derives from something it does not — that is set only by
+     * {@link #copyWeapon}.
+     * </p>
+     *
+     * @param request The creation request containing weapon details
+     * @param authentication The authentication of the current user
+     * @return WeaponResponse containing the created weapon
+     * @throws com.aboff.core.exception.InsufficientPermissionsException if the request tags a
+     *         campaign the user is not part of
+     */
+    @Transactional
+    public WeaponResponse createCustomWeapon(CreateCustomWeaponRequest request, Authentication authentication) {
+        User user = itemAccessService.currentUser(authentication);
+        boolean isOfficial = itemAccessService.resolveIsOfficial(user, false);
+        Set<Campaign> campaigns = itemAccessService.resolveCampaigns(user, request.getCampaignIds());
+
+        Weapon weapon = Weapon.builder()
+                .name(request.getName())
+                .expansion(itemAccessService.resolveExpansion(user, null, isOfficial))
+                .tier(request.getTier())
+                .isOfficial(isOfficial)
+                .isPublic(itemAccessService.resolveIsPublic(user, request.getIsPublic()))
+                .createdBy(user)
+                .isPrimary(request.getIsPrimary())
+                .trait(request.getTrait())
+                .range(request.getRange())
+                .burden(request.getBurden())
+                .damage(toDamageRoll(request.getDamage()))
+                .build();
+
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(null, request.getFeatures());
+        if (resolvedFeatures != null) {
+            weapon.setFeatures(resolvedFeatures);
+        }
+        if (campaigns != null) {
+            weapon.setCampaigns(campaigns);
+        }
+
+        Weapon savedWeapon = weaponRepository.save(weapon);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedWeapon, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
+                "custom weapon_id: " + savedWeapon.getId());
+
+        return toResponse(savedWeapon, Set.of());
+    }
+
+    /**
+     * Copies an existing weapon into a new custom weapon owned by the calling user.
+     * <p>
+     * This is the primary way players customise equipment: the rules describe reflavouring an
+     * existing statline rather than authoring from a blank form. Any weapon may be copied,
+     * including official ones — {@code GET} is unrestricted, so there is nothing to protect.
+     * </p>
+     * <p>
+     * The copy is always private and unofficial regardless of its source, carries no sourcebook,
+     * and inherits no campaign tags: sharing is a decision the new owner makes for themselves.
+     * </p>
+     *
+     * @param id The ID of the weapon to copy
+     * @param authentication The authentication of the current user
+     * @return WeaponResponse containing the newly created copy
+     * @throws EntityNotFoundException if the source weapon is not found or is deleted
+     */
+    @Transactional
+    public WeaponResponse copyWeapon(Long id, Authentication authentication) {
+        Weapon original = weaponRepository.findByIdAndDeletedAtIsNull(id)
+                .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + id));
+
+        User user = itemAccessService.currentUser(authentication);
+
+        Weapon copy = Weapon.builder()
+                .name(original.getName() + " (Copy)")
+                .expansion(null)
+                .tier(original.getTier())
+                .isOfficial(false)
+                .isPublic(false)
+                .createdBy(user)
+                .originalWeapon(original)
+                .isPrimary(original.getIsPrimary())
+                .trait(original.getTrait())
+                .range(original.getRange())
+                .burden(original.getBurden())
+                .damage(original.getDamage())
+                .features(new HashSet<>(original.getFeatures()))
+                .build();
+
+        Weapon savedCopy = weaponRepository.save(copy);
+        eventPublisher.publishEvent(new EntityChangeEvent(this, savedCopy, EntityChangeEvent.ChangeType.CREATED));
+        auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
+                "copied weapon_id: " + id + " to weapon_id: " + savedCopy.getId());
+
+        return toResponse(savedCopy, Set.of());
     }
 
     /**
@@ -238,10 +366,17 @@ public class WeaponService {
         Weapon weapon = weaponRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + id));
 
+        itemAccessService.validateModifyPermission(weapon, "weapon", authentication);
+        User user = itemAccessService.currentUser(authentication);
+
         if (request.getName() != null && !request.getName().isBlank()) {
             weapon.setName(request.getName());
         }
-        if (request.getExpansionId() != null) {
+        if (Boolean.TRUE.equals(request.getClearExpansion())) {
+            // A JSON null for expansionId is indistinguishable from an omitted field, so
+            // removing a sourcebook needs its own explicit flag.
+            weapon.setExpansion(null);
+        } else if (request.getExpansionId() != null) {
             Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Expansion not found with id: " + request.getExpansionId()));
@@ -251,7 +386,15 @@ public class WeaponService {
             weapon.setTier(request.getTier());
         }
         if (request.getIsOfficial() != null) {
-            weapon.setIsOfficial(request.getIsOfficial());
+            weapon.setIsOfficial(itemAccessService.resolveIsOfficial(user, request.getIsOfficial()));
+        }
+        if (request.getIsPublic() != null) {
+            weapon.setIsPublic(itemAccessService.resolveIsPublic(user, request.getIsPublic()));
+        }
+
+        Set<Campaign> resolvedCampaigns = itemAccessService.resolveCampaigns(user, request.getCampaignIds());
+        if (resolvedCampaigns != null) {
+            weapon.setCampaigns(resolvedCampaigns);
         }
         if (request.getIsPrimary() != null) {
             weapon.setIsPrimary(request.getIsPrimary());
@@ -301,6 +444,8 @@ public class WeaponService {
         Weapon weapon = weaponRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Weapon not found with id: " + id));
 
+        itemAccessService.validateModifyPermission(weapon, "weapon", authentication);
+
         weapon.softDelete();
         weaponRepository.save(weapon);
         eventPublisher.publishEvent(new EntityChangeEvent(this, weapon, EntityChangeEvent.ChangeType.SOFT_DELETED));
@@ -325,6 +470,10 @@ public class WeaponService {
         if (!weapon.isDeleted()) {
             throw new IllegalStateException("Weapon with id " + id + " is not deleted");
         }
+
+        // Authors can undo their own deletions; without this a user could delete a weapon they
+        // made and have no way to get it back.
+        itemAccessService.validateModifyPermission(weapon, "weapon", authentication);
 
         weapon.restore();
         Weapon restoredWeapon = weaponRepository.save(weapon);
@@ -376,9 +525,11 @@ public class WeaponService {
         WeaponResponse.WeaponResponseBuilder builder = WeaponResponse.builder()
                 .id(weapon.getId())
                 .name(weapon.getName())
-                .expansionId(weapon.getExpansion().getId())
+                .expansionId(weapon.getExpansion() != null ? weapon.getExpansion().getId() : null)
                 .tier(weapon.getTier())
                 .isOfficial(weapon.getIsOfficial())
+                .isPublic(weapon.getIsPublic())
+                .createdByUserId(weapon.getCreatedBy() != null ? weapon.getCreatedBy().getId() : null)
                 .isPrimary(weapon.getIsPrimary())
                 .trait(weapon.getTrait())
                 .range(weapon.getRange())
@@ -407,7 +558,7 @@ public class WeaponService {
             builder.originalWeaponId(weapon.getOriginalWeapon().getId());
         }
 
-        if (ExpandUtil.shouldExpand(expand, "expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion") && weapon.getExpansion() != null) {
             Expansion expansion = weapon.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())
@@ -427,6 +578,12 @@ public class WeaponService {
 
         if (ExpandUtil.shouldExpand(expand, "originalWeapon") && weapon.getOriginalWeapon() != null) {
             builder.originalWeapon(toResponse(weapon.getOriginalWeapon(), Set.of()));
+        }
+
+        if (weapon.getCampaigns() != null && !weapon.getCampaigns().isEmpty()) {
+            builder.campaignIds(weapon.getCampaigns().stream()
+                    .map(Campaign::getId)
+                    .collect(Collectors.toList()));
         }
 
         return builder.build();
