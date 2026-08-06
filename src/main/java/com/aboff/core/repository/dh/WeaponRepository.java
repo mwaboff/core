@@ -148,19 +148,30 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
 
     /**
      * Finds all weapons with optional filters, including soft-deleted ones.
+     * <p>
+     * Supports the same filter set as {@link #findAccessibleWithFilters} so that switching a
+     * request to {@code includeDeleted=true} narrows the result set rather than silently
+     * widening it: this query previously took no {@code name} or {@code createdByUserId} and
+     * returned the whole catalogue with a 200 when either was supplied.
+     * </p>
      *
      * @param expansionId Optional filter for expansion ID
+     * @param createdByUserId Optional filter narrowing results to one author
+     * @param name Optional case-insensitive substring match on the name
      * @param isOfficial Optional filter for official status
      * @param trait Optional filter for weapon trait
      * @param range Optional filter for weapon range
      * @param burden Optional filter for weapon burden
      * @param isPrimary Optional filter for primary/secondary weapon
+     * @param tier Optional filter for tier
      * @param damageType Optional filter for damage type (PHYSICAL, MAGIC, PHYSICAL_AND_MAGIC)
      * @param pageable Pagination information
      * @return Page of all weapons matching the criteria
      */
     @Query("SELECT w FROM Weapon w WHERE " +
            "(:expansionId IS NULL OR w.expansion.id = :expansionId) " +
+           "AND (:createdByUserId IS NULL OR w.createdBy.id = :createdByUserId) " +
+           "AND (:name IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
            "AND (:isOfficial IS NULL OR w.isOfficial = :isOfficial) " +
            "AND (:trait IS NULL OR w.trait = :trait) " +
            "AND (:range IS NULL OR w.range = :range) " +
@@ -170,6 +181,8 @@ public interface WeaponRepository extends JpaRepository<Weapon, Long> {
            "AND (:damageType IS NULL OR w.damage.damageType = :damageType)")
     Page<Weapon> findAllWithFilters(
             @Param("expansionId") Long expansionId,
+            @Param("createdByUserId") Long createdByUserId,
+            @Param("name") String name,
             @Param("isOfficial") Boolean isOfficial,
             @Param("trait") Trait trait,
             @Param("range") Range range,

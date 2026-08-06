@@ -108,18 +108,31 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
 
     /**
      * Finds all armors with optional filters, including soft-deleted ones.
+     * <p>
+     * Supports the same filter set as {@link #findAccessibleWithFilters} so that switching a
+     * request to {@code includeDeleted=true} narrows the result set rather than silently
+     * widening it: this query previously took no {@code name} or {@code createdByUserId} and
+     * returned the whole catalogue with a 200 when either was supplied.
+     * </p>
      *
      * @param expansionId Optional filter for expansion ID
+     * @param createdByUserId Optional filter narrowing results to one author
+     * @param name Optional case-insensitive substring match on the name
      * @param isOfficial Optional filter for official status
+     * @param tier Optional filter for tier
      * @param pageable Pagination information
      * @return Page of all armors matching the criteria
      */
     @Query("SELECT a FROM Armor a WHERE " +
            "(:expansionId IS NULL OR a.expansion.id = :expansionId) " +
+           "AND (:createdByUserId IS NULL OR a.createdBy.id = :createdByUserId) " +
+           "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
            "AND (:tier IS NULL OR a.tier = :tier)")
     Page<Armor> findAllWithFilters(
             @Param("expansionId") Long expansionId,
+            @Param("createdByUserId") Long createdByUserId,
+            @Param("name") String name,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
             Pageable pageable);

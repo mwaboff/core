@@ -112,11 +112,11 @@ public class WeaponService {
             // previously ungated, which was harmless while every weapon was official but would
             // expose other users' private homebrew now that anyone can author one.
             itemAccessService.requireModerator(authentication);
-            weaponPage = weaponRepository.findAllWithFilters(expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
+            weaponPage = weaponRepository.findAllWithFilters(expansionId, createdByUserId, name, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
         } else {
             // Moderators are not branched to a separate query: findAccessibleWithFilters
-            // short-circuits on isPrivileged, and routing them elsewhere would silently drop
-            // the createdByUserId filter, which only this query supports.
+            // short-circuits on isPrivileged, so routing them elsewhere would buy nothing and
+            // duplicate the filter list a second time.
             weaponPage = weaponRepository.findAccessibleWithFilters(
                     scope.userId(), scope.memberCampaignIds(), scope.privileged(),
                     expansionId, createdByUserId, name, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);

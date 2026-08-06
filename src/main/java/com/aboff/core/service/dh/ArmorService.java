@@ -98,11 +98,11 @@ public class ArmorService {
             // previously ungated, which was harmless while every armor was official but would
             // expose other users' private homebrew now that anyone can author one.
             itemAccessService.requireModerator(authentication);
-            armorPage = armorRepository.findAllWithFilters(expansionId, isOfficial, tier, pageable);
+            armorPage = armorRepository.findAllWithFilters(expansionId, createdByUserId, name, isOfficial, tier, pageable);
         } else {
             // Moderators are not branched to a separate query: findAccessibleWithFilters
-            // short-circuits on isPrivileged, and routing them elsewhere would silently drop
-            // the createdByUserId filter, which only this query supports.
+            // short-circuits on isPrivileged, so routing them elsewhere would buy nothing and
+            // duplicate the filter list a second time.
             armorPage = armorRepository.findAccessibleWithFilters(
                     scope.userId(), scope.memberCampaignIds(), scope.privileged(),
                     expansionId, createdByUserId, name, isOfficial, tier, pageable);

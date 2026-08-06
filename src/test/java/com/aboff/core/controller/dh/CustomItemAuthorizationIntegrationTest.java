@@ -745,4 +745,91 @@ class CustomItemAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$.expansionId").doesNotExist());
     }
 
+    // ==================== FILTERS SURVIVE includeDeleted ====================
+
+    @Test
+    void includeDeletedStillAppliesTheNameFilter() throws Exception {
+        // The soft-deleted branch took neither name nor createdByUserId, so a moderator
+        // narrowing a search got the entire catalogue back with a 200 and no hint of it.
+        persistWeapon("Findable Blade", false, true, author);
+        persistWeapon("Unrelated Cudgel", false, true, author);
+
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("includeDeleted", "true")
+                        .param("name", "Findable")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Findable Blade')]").exists())
+                .andExpect(jsonPath("$.content[?(@.name == 'Unrelated Cudgel')]").isEmpty());
+    }
+
+    @Test
+    void includeDeletedStillAppliesTheAuthorFilter() throws Exception {
+        persistWeapon("Mine To Find", false, true, author);
+        persistWeapon("Theirs To Find", false, true, otherUser);
+
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("includeDeleted", "true")
+                        .param("createdByUserId", String.valueOf(author.getId()))
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Mine To Find')]").exists())
+                .andExpect(jsonPath("$.content[?(@.name == 'Theirs To Find')]").isEmpty());
+    }
+
+    @Test
+    void includeDeletedWithANameFilterStillReturnsSoftDeletedRows() throws Exception {
+        // The point of the branch: the filters must narrow without losing the deleted rows.
+        Weapon deleted = persistWeapon("Deleted Findable", false, true, author);
+        deleted.softDelete();
+        weaponRepository.save(deleted);
+
+        mockMvc.perform(get("/api/dh/weapons")
+                        .param("includeDeleted", "true")
+                        .param("name", "Deleted Findable")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Deleted Findable')]").exists());
+    }
+
+    @Test
+    void includeDeletedOnArmorStillAppliesTheNameFilter() throws Exception {
+        armorRepository.save(Armor.builder()
+                .name("Findable Plate").tier(1).isOfficial(false).isPublic(true).createdBy(author)
+                .baseMajorThreshold(7).baseSevereThreshold(14).baseScore(4).build());
+        armorRepository.save(Armor.builder()
+                .name("Unrelated Mail").tier(1).isOfficial(false).isPublic(true).createdBy(author)
+                .baseMajorThreshold(7).baseSevereThreshold(14).baseScore(4).build());
+
+        mockMvc.perform(get("/api/dh/armors")
+                        .param("includeDeleted", "true")
+                        .param("name", "Findable")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Findable Plate')]").exists())
+                .andExpect(jsonPath("$.content[?(@.name == 'Unrelated Mail')]").isEmpty());
+    }
+
+    @Test
+    void includeDeletedOnLootStillAppliesTheNameFilter() throws Exception {
+        lootRepository.save(Loot.builder()
+                .name("Findable Trinket").tier(1).isOfficial(false).isPublic(true).createdBy(author)
+                .isConsumable(false).description("A trinket.").build());
+        lootRepository.save(Loot.builder()
+                .name("Unrelated Bauble").tier(1).isOfficial(false).isPublic(true).createdBy(author)
+                .isConsumable(false).description("A bauble.").build());
+
+        mockMvc.perform(get("/api/dh/loot")
+                        .param("includeDeleted", "true")
+                        .param("name", "Findable")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Findable Trinket')]").exists())
+                .andExpect(jsonPath("$.content[?(@.name == 'Unrelated Bauble')]").isEmpty());
+    }
 }
