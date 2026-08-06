@@ -179,7 +179,10 @@ public class ItemAccessService {
             return null;
         }
         if (campaignIds.isEmpty()) {
-            return Set.of();
+            // Mutable on purpose. Hibernate calls clear() on this collection while merging an
+            // item that currently has tags, so an immutable empty set throws
+            // UnsupportedOperationException and the update fails with a 500.
+            return new LinkedHashSet<>();
         }
 
         boolean privileged = roleHierarchyService.hasModeratorOrHigher(user);
