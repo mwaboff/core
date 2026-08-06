@@ -6,7 +6,9 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.dh.ItemAccessService;
 import com.aboff.core.service.search.SearchTypeRegistry;
+import com.aboff.core.util.PostgresArrayUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -27,7 +29,8 @@ import java.util.List;
  * game-content services.
  *
  * <p>Access control is enforced at the search index level: non-privileged users only
- * receive results they are permitted to view (official, public, or their own content).
+ * receive results they are permitted to view (official, public, their own content, or
+ * content shared with a campaign they are involved in).
  * Privileged users (MODERATOR and above) bypass these restrictions.
  */
 @Service
@@ -38,18 +41,20 @@ public class SearchService {
     // -------------------------------------------------------------------------
     // Column indices in the Object[] row returned by SearchIndexRepository.search()
     // The native query selects si.* (all columns in migration order) then appends relevance_score.
+    // Only the leading columns are addressed by a fixed index; the score is read from the end of
+    // the row, because every column added to search_index shifts its position.
     // -------------------------------------------------------------------------
     private static final int COL_ID = 0;
     private static final int COL_ENTITY_TYPE = 1;
     private static final int COL_ENTITY_ID = 2;
     private static final int COL_NAME = 3;
     // COL_SEARCH_VECTOR = 4  (not needed at application layer)
-    // ... filter columns follow ...
-    private static final int COL_RELEVANCE_SCORE = 27;
+    // ... filter columns follow, then relevance_score last ...
 
     private final SearchIndexRepository searchIndexRepository;
     private final RoleHierarchyService roleHierarchyService;
     private final SearchTypeRegistry searchTypeRegistry;
+    private final ItemAccessService itemAccessService;
 
     /**
      * Performs a paginated full-text search across all indexed game content.
@@ -120,6 +125,16 @@ public class SearchService {
                 ? types.stream().map(SearchableEntityType::name).toList()
                 : List.of("");
 
+        // Build an Authentication token once — used to resolve the caller's campaign
+        // memberships below, and by services that require it during entity expansion.
+        Authentication auth = buildAuthentication(user);
+
+        // Campaign-shared custom items are visible to everyone involved in a tagged campaign,
+        // so the caller's memberships widen what search may return. Resolved through the same
+        // service the item list endpoints use, so search and browse agree on who sees what.
+        String memberCampaignIds = PostgresArrayUtil.toBigintArrayLiteral(
+                itemAccessService.visibilityScope(auth).memberCampaignIds());
+
         log.debug("Executing search: query='{}', types={}, tier={}, page={}, size={}, privileged={}",
                 query, filterByEntityTypes ? entityTypeStrings : "(none)", tier, page, size, isPrivileged);
 
@@ -140,13 +155,11 @@ public class SearchService {
                 burden,
                 isConsumable,
                 user.getId(),
+                memberCampaignIds,
                 isPrivileged,
                 PageRequest.of(page, size));
 
         boolean expandEntity = expand != null && (expand.contains("entity") || expand.contains("all"));
-
-        // Build an Authentication token once (used by services that require it)
-        Authentication auth = buildAuthentication(user);
 
         List<SearchResultResponse> results = resultPage.getContent().stream()
                 .map(row -> mapRow(row, expandEntity, expand, auth))
@@ -178,7 +191,7 @@ public class SearchService {
         String entityTypeStr = (String) row[COL_ENTITY_TYPE];
         Long entityId = toLong(row[COL_ENTITY_ID]);
         String name = (String) row[COL_NAME];
-        Double relevanceScore = toDouble(row[COL_RELEVANCE_SCORE]);
+        Double relevanceScore = toDouble(row[row.length - 1]);
 
         SearchableEntityType type;
         try {

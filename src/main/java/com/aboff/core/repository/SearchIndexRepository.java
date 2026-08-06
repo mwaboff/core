@@ -32,6 +32,8 @@ import java.util.Optional;
  *   <li>Public content ({@code is_public = true})</li>
  *   <li>Content created by the requesting user ({@code created_by_user_id = :userId})</li>
  *   <li>System content with no owner ({@code created_by_user_id IS NULL})</li>
+ *   <li>Content shared with a campaign the requesting user is involved in
+ *       ({@code shared_campaign_ids && :memberCampaignIds})</li>
  *   <li>Privileged users (MODERATOR or above) bypass access control entirely</li>
  * </ul>
  *
@@ -79,6 +81,12 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
      * @param burden           optional burden filter; {@code null} disables
      * @param isConsumable     optional consumable flag filter; {@code null} disables
      * @param userId           the ID of the requesting user, used for access control
+     * @param memberCampaignIds PostgreSQL {@code bigint[]} literal of the campaigns the requesting
+     *                         user is involved in, e.g. {@code "{3,7}"}. Unlike the filter
+     *                         parameters this one <em>grants</em> access rather than narrowing it,
+     *                         so {@code "{}"} must be passed for a user in no campaigns —
+     *                         an empty array overlaps nothing. See
+     *                         {@link com.aboff.core.util.PostgresArrayUtil}
      * @param isPrivileged     {@code true} if the requesting user is MODERATOR or above,
      *                         bypassing ownership-based access restrictions
      * @param pageable         pagination and sort parameters
@@ -96,6 +104,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                     OR si.is_public = true
                     OR si.created_by_user_id = :userId
                     OR si.created_by_user_id IS NULL
+                    OR si.shared_campaign_ids && CAST(:memberCampaignIds AS bigint[])
                     OR :isPrivileged = true
               )
               AND (:filterByEntityTypes = false OR si.entity_type IN (:entityTypes))
@@ -123,6 +132,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                     OR si.is_public = true
                     OR si.created_by_user_id = :userId
                     OR si.created_by_user_id IS NULL
+                    OR si.shared_campaign_ids && CAST(:memberCampaignIds AS bigint[])
                     OR :isPrivileged = true
               )
               AND (:filterByEntityTypes = false OR si.entity_type IN (:entityTypes))
@@ -158,6 +168,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
             @Param("burden") String burden,
             @Param("isConsumable") Boolean isConsumable,
             @Param("userId") Long userId,
+            @Param("memberCampaignIds") String memberCampaignIds,
             @Param("isPrivileged") boolean isPrivileged,
             Pageable pageable
     );
@@ -257,6 +268,12 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
      * @param isMixed            optional mixed-type flag; may be {@code null}
      * @param subclassLevel      optional subclass level string; may be {@code null}
      * @param costTagCategory    optional cost tag category string; may be {@code null}
+     * @param sharedCampaignIds  PostgreSQL {@code bigint[]} literal of the campaigns the item is
+     *                           shared with, e.g. {@code "{3,7}"}; pass {@code "{}"} when there
+     *                           are none. Bound as text and cast rather than as a collection,
+     *                           because Hibernate expands a bound collection into one placeholder
+     *                           per element — see
+     *                           {@link com.aboff.core.util.PostgresArrayUtil}
      */
     @Modifying
     @Query(value = """
@@ -265,7 +282,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                 card_type, feature_type, adversary_type, domain_card_type,
                 associated_domain_id, trait, range, burden, is_primary,
                 damage_type, is_consumable, is_mixed, subclass_level,
-                cost_tag_category, created_at, last_modified_at)
+                cost_tag_category, shared_campaign_ids, created_at, last_modified_at)
             VALUES (:entityType, :entityId, :name,
                 setweight(to_tsvector('english', :nameText), 'A') ||
                 setweight(to_tsvector('english', COALESCE(:descriptionText, '')), 'B') ||
@@ -274,7 +291,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                 :cardType, :featureType, :adversaryType, :domainCardType,
                 :associatedDomainId, :trait, :range, :burden, :isPrimary,
                 :damageType, :isConsumable, :isMixed, :subclassLevel,
-                :costTagCategory, NOW(), NOW())
+                :costTagCategory, CAST(:sharedCampaignIds AS bigint[]), NOW(), NOW())
             ON CONFLICT (entity_type, entity_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 search_vector = EXCLUDED.search_vector,
@@ -297,6 +314,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                 is_mixed = EXCLUDED.is_mixed,
                 subclass_level = EXCLUDED.subclass_level,
                 cost_tag_category = EXCLUDED.cost_tag_category,
+                shared_campaign_ids = EXCLUDED.shared_campaign_ids,
                 deleted_at = NULL,
                 last_modified_at = NOW()
             """, nativeQuery = true)
@@ -325,6 +343,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
             @Param("isConsumable") Boolean isConsumable,
             @Param("isMixed") Boolean isMixed,
             @Param("subclassLevel") String subclassLevel,
-            @Param("costTagCategory") String costTagCategory
+            @Param("costTagCategory") String costTagCategory,
+            @Param("sharedCampaignIds") String sharedCampaignIds
     );
 }

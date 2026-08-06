@@ -2,13 +2,17 @@ package com.aboff.core.config;
 
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.dh.AncestryCard;
+import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.Beastform;
+import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.Loot;
+import com.aboff.core.model.entity.dh.MartialStance;
 import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.entity.dh.TransformationCard;
@@ -27,6 +31,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -234,6 +240,158 @@ class SearchFieldMappingTest {
 
         // Assert
         assertThat(data.getDamageType()).isNull();
+    }
+
+    // ==================== CAMPAIGN SHARING TESTS ====================
+
+    /**
+     * Builds a campaign with only the ID set, which is all the mapping reads.
+     */
+    private Campaign campaignWithId(Long id) {
+        Campaign campaign = Campaign.builder().name("Campaign " + id).build();
+        campaign.setId(id);
+        return campaign;
+    }
+
+    @Test
+    void buildSearchIndexData_Weapon_WithCampaigns_SetsSortedSharedCampaignIds() {
+        // Arrange — insertion order deliberately unsorted; the mapping sorts so that
+        // re-indexing an unchanged item produces an identical array.
+        Weapon weapon = Weapon.builder()
+                .name("Shared Blade")
+                .tier(1)
+                .isOfficial(false)
+                .isPrimary(true)
+                .trait(Trait.STRENGTH)
+                .range(Range.MELEE)
+                .burden(Burden.ONE_HANDED)
+                .campaigns(new LinkedHashSet<>(List.of(
+                        campaignWithId(7L), campaignWithId(3L))))
+                .build();
+        weapon.setId(30L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(weapon, SearchableEntityType.WEAPON);
+
+        // Assert
+        assertThat(data.getSharedCampaignIds()).containsExactly(3L, 7L);
+    }
+
+    @Test
+    void buildSearchIndexData_Weapon_WithNoCampaigns_SetsEmptySharedCampaignIds() {
+        // Arrange
+        Weapon weapon = Weapon.builder()
+                .name("Private Blade")
+                .tier(1)
+                .isOfficial(false)
+                .isPrimary(true)
+                .trait(Trait.STRENGTH)
+                .range(Range.MELEE)
+                .burden(Burden.ONE_HANDED)
+                .build();
+        weapon.setId(31L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(weapon, SearchableEntityType.WEAPON);
+
+        // Assert — empty rather than null: an untagged item must overlap nobody's campaigns
+        assertThat(data.getSharedCampaignIds()).isEmpty();
+    }
+
+    @Test
+    void buildSearchIndexData_Armor_WithCampaigns_SetsSharedCampaignIds() {
+        // Arrange
+        Armor armor = Armor.builder()
+                .name("Shared Plate")
+                .tier(2)
+                .isOfficial(false)
+                .baseMajorThreshold(7)
+                .baseSevereThreshold(15)
+                .baseScore(4)
+                .campaigns(new LinkedHashSet<>(List.of(campaignWithId(11L))))
+                .build();
+        armor.setId(32L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(armor, SearchableEntityType.ARMOR);
+
+        // Assert
+        assertThat(data.getSharedCampaignIds()).containsExactly(11L);
+    }
+
+    @Test
+    void buildSearchIndexData_Loot_WithCampaigns_SetsSharedCampaignIds() {
+        // Arrange
+        Loot loot = Loot.builder()
+                .name("Shared Trinket")
+                .tier(1)
+                .isOfficial(false)
+                .campaigns(new LinkedHashSet<>(List.of(campaignWithId(5L))))
+                .build();
+        loot.setId(33L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(loot, SearchableEntityType.LOOT);
+
+        // Assert
+        assertThat(data.getSharedCampaignIds()).containsExactly(5L);
+    }
+
+    @Test
+    void buildSearchIndexData_MartialStance_WithCampaigns_SetsSharedCampaignIds() {
+        // Arrange — martial stances extend BaseItem and are indexed, so they carry tags too
+        MartialStance stance = MartialStance.builder()
+                .name("Shared Stance")
+                .tier(1)
+                .isOfficial(false)
+                .campaigns(new LinkedHashSet<>(List.of(campaignWithId(9L))))
+                .build();
+        stance.setId(34L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(stance, SearchableEntityType.MARTIAL_STANCE);
+
+        // Assert
+        assertThat(data.getSharedCampaignIds()).containsExactly(9L);
+    }
+
+    @Test
+    void buildSearchIndexData_MartialStance_SetsIsPublic() {
+        // Arrange — the flag was never mapped, so is_public stayed NULL and the
+        // `is_public = true` branch of the access clause never fired for stances
+        MartialStance stance = MartialStance.builder()
+                .name("Published Stance")
+                .tier(1)
+                .isOfficial(false)
+                .isPublic(true)
+                .build();
+        stance.setId(35L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(stance, SearchableEntityType.MARTIAL_STANCE);
+
+        // Assert
+        assertThat(data.getIsPublic()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Domain_HasNoSharedCampaignIds() {
+        // Arrange — only BaseItem subclasses carry campaign tags
+        Domain domain = Domain.builder().name("Blade").description("The domain of blades").build();
+        domain.setId(36L);
+
+        // Act
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(domain, SearchableEntityType.DOMAIN);
+
+        // Assert
+        assertThat(data.getSharedCampaignIds()).isNull();
     }
 
     // ==================== BEASTFORM TESTS ====================
