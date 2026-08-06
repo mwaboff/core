@@ -155,7 +155,8 @@ public class LootService {
                 .description(request.getDescription())
                 .build();
 
-        Set<Feature> resolvedFeatures = featureService.resolveFeatures(null, request.getFeatures());
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(
+                null, request.getFeatures(), FeatureService.FeatureOrigin.forItem(user, isOfficial));
         if (resolvedFeatures != null) {
             loot.setFeatures(resolvedFeatures);
         }
@@ -378,7 +379,9 @@ public class LootService {
         }
 
         if (request.getFeatureIds() != null || request.getFeatures() != null) {
-            Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+            Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(
+                    request.getFeatureIds(), request.getFeatures(),
+                    FeatureService.FeatureOrigin.forItem(user, Boolean.TRUE.equals(loot.getIsOfficial())));
             if (resolvedUpdateFeatures != null) {
                 loot.setFeatures(resolvedUpdateFeatures);
             }

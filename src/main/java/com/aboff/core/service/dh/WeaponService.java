@@ -172,7 +172,8 @@ public class WeaponService {
                 .damage(toDamageRoll(request.getDamage()))
                 .build();
 
-        Set<Feature> resolvedFeatures = featureService.resolveFeatures(null, request.getFeatures());
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(
+                null, request.getFeatures(), FeatureService.FeatureOrigin.forItem(user, isOfficial));
         if (resolvedFeatures != null) {
             weapon.setFeatures(resolvedFeatures);
         }
@@ -412,7 +413,9 @@ public class WeaponService {
             weapon.setDamage(toDamageRoll(request.getDamage()));
         }
 
-        Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+        Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(
+                request.getFeatureIds(), request.getFeatures(),
+                FeatureService.FeatureOrigin.forItem(user, Boolean.TRUE.equals(weapon.getIsOfficial())));
         if (resolvedUpdateFeatures != null) {
             weapon.setFeatures(resolvedUpdateFeatures);
         }

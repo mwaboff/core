@@ -1,24 +1,36 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.dto.dh.request.CreateCustomArmorRequest;
+import com.aboff.core.model.dto.dh.request.CreateCustomLootRequest;
 import com.aboff.core.model.dto.dh.request.CreateCustomWeaponRequest;
 import com.aboff.core.model.dto.dh.request.CreateWeaponRequest;
+import com.aboff.core.model.dto.dh.request.FeatureInput;
+import com.aboff.core.model.dto.dh.request.UpdateArmorRequest;
+import com.aboff.core.model.dto.dh.request.UpdateLootRequest;
 import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
 import com.aboff.core.model.embeddable.DamageRoll;
 import com.aboff.core.model.entity.ActiveToken;
 import com.aboff.core.model.entity.User;
+import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.dh.Loot;
 import com.aboff.core.model.entity.dh.Weapon;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.DiceType;
+import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.UserRepository;
+import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.CampaignRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.FeatureRepository;
+import com.aboff.core.repository.dh.LootRepository;
 import com.aboff.core.repository.dh.WeaponRepository;
 import com.aboff.core.security.JwtTokenProvider;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -37,6 +49,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -81,6 +94,15 @@ class CustomItemAuthorizationIntegrationTest {
 
     @Autowired
     private CampaignRepository campaignRepository;
+
+    @Autowired
+    private ArmorRepository armorRepository;
+
+    @Autowired
+    private LootRepository lootRepository;
+
+    @Autowired
+    private FeatureRepository featureRepository;
 
     private User author;
     private User otherUser;
@@ -427,4 +449,132 @@ class CustomItemAuthorizationIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.campaignIds").doesNotExist());
     }
+
+    // ==================== SOURCEBOOK PROVENANCE: INLINE FEATURES ====================
+    //
+    // An expansion identifies the book a piece of content was printed in, so only official
+    // content may hold one. These cover the three places a caller could get one onto a row
+    // they do not own: an inline feature at create, an inline feature at update, and the
+    // item's own expansionId at update.
+
+    private FeatureInput inlineFeature(String name, Long expansionId) {
+        return FeatureInput.builder()
+                .name(name)
+                .description("Inline rules text for " + name)
+                .featureType(FeatureType.ITEM)
+                .expansionId(expansionId)
+                .build();
+    }
+
+    private Feature onlyFeatureOf(Long weaponId) {
+        Weapon saved = weaponRepository.findByIdAndDeletedAtIsNull(weaponId).orElseThrow();
+        assertThat(saved.getFeatures()).hasSize(1);
+        return saved.getFeatures().iterator().next();
+    }
+
+    private Long createdIdFrom(String responseBody) throws Exception {
+        return objectMapper.readTree(responseBody).get("id").asLong();
+    }
+
+    @Test
+    void anInlineFeatureOnACustomWeaponCannotClaimASourcebook() throws Exception {
+        // The inline feature was written straight to the global features table with whatever
+        // expansionId the caller sent, so a plain user could put a row into the Daggerheart Core
+        // Set's feature list. It also poisons the find-or-create key a later import searches.
+        CreateCustomWeaponRequest request = customWeapon("Smuggler's Blade");
+        request.setFeatures(List.of(inlineFeature("Smuggled Canon", expansion.getId())));
+
+        String body = mockMvc.perform(post("/api/dh/weapons/custom")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        Feature created = onlyFeatureOf(createdIdFrom(body));
+        assertThat(created.getExpansion()).isNull();
+    }
+
+    @Test
+    void anInlineFeatureOnACustomWeaponRecordsItsAuthor() throws Exception {
+        // features.created_by_user_id was added for exactly this and nothing wrote it, which is
+        // what would make a flood of user-minted rows impossible to attribute after the fact.
+        CreateCustomWeaponRequest request = customWeapon("Attributed Blade");
+        request.setFeatures(List.of(inlineFeature("Authored Feature", null)));
+
+        String body = mockMvc.perform(post("/api/dh/weapons/custom")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        Feature created = onlyFeatureOf(createdIdFrom(body));
+        assertThat(created.getCreatedBy()).isNotNull();
+        assertThat(created.getCreatedBy().getId()).isEqualTo(author.getId());
+    }
+
+    @Test
+    void aCustomWeaponWithAnInlineFeatureCanBeReadBackWithExpandFeatures() throws Exception {
+        // A feature with no expansion was dereferenced unconditionally when building its
+        // response, so expanding the features of any custom item threw.
+        CreateCustomWeaponRequest request = customWeapon("Readable Blade");
+        request.setFeatures(List.of(inlineFeature("Readable Feature", null)));
+
+        String body = mockMvc.perform(post("/api/dh/weapons/custom")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        mockMvc.perform(get("/api/dh/weapons/" + createdIdFrom(body))
+                        .param("expand", "features")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.features[0].name").value("Readable Feature"))
+                .andExpect(jsonPath("$.features[0].expansionId").doesNotExist());
+    }
+
+    @Test
+    void theAdminImportPathCanStillGiveAFeatureASourcebook() throws Exception {
+        // The coercion must be conditional on the owning item, not a blanket rule, or every
+        // content import stops being able to attribute a feature to its book.
+        CreateWeaponRequest request = CreateWeaponRequest.builder()
+                .name("Imported Blade").expansionId(expansion.getId()).tier(1)
+                .isOfficial(true).isPrimary(true)
+                .trait(Trait.AGILITY).range(Range.MELEE).burden(Burden.ONE_HANDED)
+                .damage(CreateWeaponRequest.DamageRollRequest.builder()
+                        .diceType(DiceType.D8).damageType(DamageType.PHYSICAL).build())
+                .features(List.of(inlineFeature("Canon Feature", expansion.getId())))
+                .build();
+
+        String body = mockMvc.perform(post("/api/dh/weapons")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        Feature created = onlyFeatureOf(createdIdFrom(body));
+        assertThat(created.getExpansion()).isNotNull();
+        assertThat(created.getExpansion().getId()).isEqualTo(expansion.getId());
+        assertThat(created.getCreatedBy()).isNull();
+    }
+
+    @Test
+    void anInlineFeatureAddedByUpdatingACustomWeaponCannotClaimASourcebook() throws Exception {
+        Weapon weapon = persistWeapon("Retrofitted", false, false, author);
+        UpdateWeaponRequest request = new UpdateWeaponRequest();
+        request.setFeatures(List.of(inlineFeature("Retrofitted Canon", expansion.getId())));
+
+        mockMvc.perform(put("/api/dh/weapons/" + weapon.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+
+        assertThat(onlyFeatureOf(weapon.getId()).getExpansion()).isNull();
+    }
+
 }

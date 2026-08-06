@@ -156,7 +156,8 @@ public class ArmorService {
                 .baseScore(request.getBaseScore())
                 .build();
 
-        Set<Feature> resolvedFeatures = featureService.resolveFeatures(null, request.getFeatures());
+        Set<Feature> resolvedFeatures = featureService.resolveFeatures(
+                null, request.getFeatures(), FeatureService.FeatureOrigin.forItem(user, isOfficial));
         if (resolvedFeatures != null) {
             armor.setFeatures(resolvedFeatures);
         }
@@ -385,7 +386,9 @@ public class ArmorService {
         }
 
         if (request.getFeatureIds() != null || request.getFeatures() != null) {
-            Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
+            Set<Feature> resolvedUpdateFeatures = featureService.resolveFeatures(
+                    request.getFeatureIds(), request.getFeatures(),
+                    FeatureService.FeatureOrigin.forItem(user, Boolean.TRUE.equals(armor.getIsOfficial())));
             if (resolvedUpdateFeatures != null) {
                 armor.setFeatures(resolvedUpdateFeatures);
             }

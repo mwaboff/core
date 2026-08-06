@@ -7,6 +7,7 @@ import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
@@ -304,6 +305,46 @@ public class FeatureService {
     }
 
     /**
+     * Where an inline feature came from, which decides what that feature is allowed to claim.
+     * <p>
+     * A feature that arrives alongside official content was printed in a sourcebook and has no
+     * individual author — that describes every imported row. A feature that arrives alongside a
+     * user's custom item is the mirror image: it belongs to the person who wrote it and to no
+     * book. Those two facts always move together, so the owning item's service resolves them
+     * once and passes them down. They cannot be re-derived here: {@code FeatureService} is
+     * reached from both the ADMIN import endpoints and the open {@code /custom} endpoints, and
+     * only the caller knows which.
+     * </p>
+     *
+     * @param author the user who wrote the feature, or null for imported content
+     * @param mayClaimSourcebook whether the feature may keep the expansion the request named
+     */
+    public record FeatureOrigin(User author, boolean mayClaimSourcebook) {
+
+        /**
+         * The origin for content created through the ADMIN/OWNER import and card endpoints,
+         * which legitimately assign a feature to a sourcebook.
+         *
+         * @return an origin that keeps the requested expansion and records no author
+         */
+        public static FeatureOrigin imported() {
+            return new FeatureOrigin(null, true);
+        }
+
+        /**
+         * The origin for a feature created inline on an item, derived from that item.
+         *
+         * @param user the user performing the create or update
+         * @param itemIsOfficial the already-resolved official flag of the owning item
+         * @return an origin that permits a sourcebook only for official items, and credits the
+         *         user as author only for custom ones
+         */
+        public static FeatureOrigin forItem(User user, boolean itemIsOfficial) {
+            return itemIsOfficial ? imported() : new FeatureOrigin(user, false);
+        }
+    }
+
+    /**
      * Finds an existing feature by name+expansion+type+description (case-insensitive on name,
      * exact/case-sensitive on description) or creates a new one. Description is part of the
      * find-or-create key so that features which share a name but carry different rules text —
@@ -318,43 +359,93 @@ public class FeatureService {
      */
     @Transactional
     public Feature findOrCreate(FeatureInput input) {
+        return findOrCreate(input, FeatureOrigin.imported());
+    }
+
+    /**
+     * Finds or creates a feature, restricting what the feature may claim to what its origin
+     * allows. See {@link #findOrCreate(FeatureInput)} for the find-or-create key.
+     * <p>
+     * The expansion is coerced before the lookup, not after, because the expansion is part of
+     * that key. Coercing afterwards would let a custom item's inline feature match — and then
+     * silently reuse — an official row belonging to a sourcebook it has no claim to.
+     * </p>
+     *
+     * @param input The feature input containing name, type, expansion, description, and optional cost tags
+     * @param origin Where the feature came from; see {@link FeatureOrigin}
+     * @return The existing or newly created Feature entity
+     * @throws EntityNotFoundException if the expansion referenced by the input does not exist
+     */
+    @Transactional
+    public Feature findOrCreate(FeatureInput input, FeatureOrigin origin) {
+        Long expansionId = resolveExpansionId(input, origin);
+
         // Only attempt to find an existing feature if a name is provided
         if (input.getName() != null && !input.getName().isBlank()) {
             return featureRepository
                     .findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
-                            input.getName(), input.getExpansionId(), input.getFeatureType(), input.getDescription())
+                            input.getName(), expansionId, input.getFeatureType(), input.getDescription())
                     .map(existing -> {
                         log.debug("Found existing feature with name '{}' (id: {})", input.getName(), existing.getId());
                         return existing;
                     })
-                    .orElseGet(() -> createFeatureFromInput(input));
+                    .orElseGet(() -> createFeatureFromInput(input, expansionId, origin.author()));
         }
 
-        return createFeatureFromInput(input);
+        return createFeatureFromInput(input, expansionId, origin.author());
+    }
+
+    /**
+     * Resolves the sourcebook an inline feature may actually claim.
+     * <p>
+     * Only official content carries an expansion. A stray {@code expansionId} on a feature
+     * authored alongside a custom item is dropped rather than rejected, matching how
+     * {@code ItemAccessService.resolveExpansion} treats the same field on the item itself: the
+     * custom-item form never shows it, so failing the request would read as an unexplained
+     * error. Dropping it also keeps the row out of the official catalogue and out of the
+     * dedupe key that a later import will search, so a user cannot pre-empt an imported
+     * feature by minting a row that matches its tuple.
+     * </p>
+     *
+     * @param input the feature input
+     * @param origin where the feature came from
+     * @return the requested expansion ID when the origin permits one, otherwise null
+     */
+    private Long resolveExpansionId(FeatureInput input, FeatureOrigin origin) {
+        if (origin.mayClaimSourcebook() || input.getExpansionId() == null) {
+            return input.getExpansionId();
+        }
+
+        log.warn("User id={} supplied expansionId={} for a feature on custom content; dropping it",
+                origin.author() == null ? null : origin.author().getId(), input.getExpansionId());
+        return null;
     }
 
     /**
      * Creates a new Feature entity from a FeatureInput, resolving expansion, cost tags, and modifiers.
      *
      * @param input The feature input containing details for the new feature
+     * @param expansionId The already-coerced expansion ID; null for a feature from no sourcebook
+     * @param author The user to credit as author, or null for imported content
      * @return The newly created and persisted Feature entity
      * @throws EntityNotFoundException if the expansion referenced by the input does not exist
      */
-    private Feature createFeatureFromInput(FeatureInput input) {
+    private Feature createFeatureFromInput(FeatureInput input, Long expansionId, User author) {
         log.debug("Creating new feature with name '{}', type '{}', expansion '{}'",
-                input.getName(), input.getFeatureType(), input.getExpansionId());
+                input.getName(), input.getFeatureType(), expansionId);
         // A null expansion is legitimate: features authored alongside a custom item come from
         // no sourcebook. Only resolve when one was actually named.
-        Expansion expansion = input.getExpansionId() == null ? null
-                : expansionRepository.findByIdAndDeletedAtIsNull(input.getExpansionId())
+        Expansion expansion = expansionId == null ? null
+                : expansionRepository.findByIdAndDeletedAtIsNull(expansionId)
                         .orElseThrow(() -> new EntityNotFoundException(
-                                "Expansion not found with id: " + input.getExpansionId()));
+                                "Expansion not found with id: " + expansionId));
         Feature feature = Feature.builder()
                 .name(input.getName())
                 .description(input.getDescription())
                 .featureType(input.getFeatureType())
                 .timing(input.getTiming())
                 .expansion(expansion)
+                .createdBy(author)
                 .build();
         Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(
                 input.getCostTagIds(), input.getCostTags());
@@ -383,6 +474,20 @@ public class FeatureService {
      */
     @Transactional
     public Set<Feature> resolveFeatures(List<Long> featureIds, List<FeatureInput> features) {
+        return resolveFeatures(featureIds, features, FeatureOrigin.imported());
+    }
+
+    /**
+     * Resolves features as {@link #resolveFeatures(List, List)} does, restricting what any
+     * newly created feature may claim to what the given origin allows.
+     *
+     * @param featureIds Optional list of existing feature IDs to look up
+     * @param features Optional list of feature inputs to find or create
+     * @param origin Where the inline features came from; see {@link FeatureOrigin}
+     * @return Merged set of resolved features, or null if both inputs are null
+     */
+    @Transactional
+    public Set<Feature> resolveFeatures(List<Long> featureIds, List<FeatureInput> features, FeatureOrigin origin) {
         if (featureIds == null && features == null) {
             return null;
         }
@@ -395,7 +500,7 @@ public class FeatureService {
 
         if (features != null && !features.isEmpty()) {
             for (FeatureInput input : features) {
-                resolved.add(findOrCreate(input));
+                resolved.add(findOrCreate(input, origin));
             }
         }
 
@@ -443,12 +548,13 @@ public class FeatureService {
                 .description(feature.getDescription())
                 .featureType(feature.getFeatureType())
                 .timing(feature.getTiming())
-                .expansionId(feature.getExpansion().getId())
+                // Null for a feature authored alongside a custom item: it came from no book.
+                .expansionId(feature.getExpansion() == null ? null : feature.getExpansion().getId())
                 .createdAt(feature.getCreatedAt())
                 .lastModifiedAt(feature.getLastModifiedAt())
                 .deletedAt(feature.getDeletedAt());
 
-        if (ExpandUtil.shouldExpand(expand, "expansion")) {
+        if (ExpandUtil.shouldExpand(expand, "expansion") && feature.getExpansion() != null) {
             Expansion expansion = feature.getExpansion();
             builder.expansion(ExpansionResponse.builder()
                     .id(expansion.getId())

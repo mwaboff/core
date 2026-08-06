@@ -565,7 +565,7 @@ class LootServiceTest {
 
         when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingLoot));
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(eq(List.of(1L)), isNull())).thenReturn(Set.of(feature));
+        when(featureService.resolveFeatures(eq(List.of(1L)), isNull(), any())).thenReturn(Set.of(feature));
         when(lootRepository.save(any(Loot.class))).thenAnswer(invocation -> {
             Loot saved = invocation.getArgument(0);
             saved.setFeatures(Set.of(feature));
@@ -577,7 +577,7 @@ class LootServiceTest {
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
-        verify(featureService).resolveFeatures(eq(List.of(1L)), isNull());
+        verify(featureService).resolveFeatures(eq(List.of(1L)), isNull(), any());
     }
 
     @Test
@@ -604,7 +604,7 @@ class LootServiceTest {
         lootService.updateLoot(1L, request, null);
 
         // Assert
-        verify(featureService, never()).resolveFeatures(any(), any());
+        verify(featureService, never()).resolveFeatures(any(), any(), any());
     }
 
     @Test
