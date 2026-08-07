@@ -14,6 +14,7 @@ import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.repository.ActiveTokenRepository;
 import com.aboff.core.repository.dh.ArmorRepository;
+import com.aboff.core.repository.dh.CharacterAdvancementLogRepository;
 import com.aboff.core.repository.dh.CharacterSheetRepository;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainCardRepository;
@@ -42,6 +43,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -102,6 +104,9 @@ class CharacterSheetControllerIntegrationTest {
 
     @Autowired
     private SubclassCardRepository subclassCardRepository;
+
+    @Autowired
+    private CharacterAdvancementLogRepository characterAdvancementLogRepository;
 
     @Autowired
     private TransformationCardRepository transformationCardRepository;
@@ -348,6 +353,36 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.classNames.length()").value(2))
                 .andExpect(jsonPath("$.classNames", containsInAnyOrder("Druid", "Wizard")))
                 .andExpect(jsonPath("$.classIds.length()").value(2));
+    }
+
+    @Test
+    void getCharacterSheetById_Multiclass_OrdersClassesByAcquisition() throws Exception {
+        // Arrange - the Druid card is created first so its class gets the lower ID; the character
+        // started as a Wizard and multiclassed into Druid, so Wizard must still come first
+        SubclassCard druidCard = createSubclassCard("Warden of Renewal", "Druid");
+        SubclassCard wizardCard = createSubclassCard("School of Knowledge", "Wizard");
+        CharacterSheet multiclassSheet = createCharacterSheet("Merlin", "they/them", 6, player1);
+        multiclassSheet.getSubclassCards().add(wizardCard);
+        multiclassSheet.getSubclassCards().add(druidCard);
+        characterSheetRepository.save(multiclassSheet);
+
+        String advancementData = objectMapper.writeValueAsString(Map.of(
+                "advancements", List.of(Map.of("type", "MULTICLASS", "subclassCardId", druidCard.getId()))));
+        characterAdvancementLogRepository.save(CharacterAdvancementLog.builder()
+                .characterSheet(multiclassSheet)
+                .fromLevel(4)
+                .toLevel(5)
+                .tier(2)
+                .advancementData(advancementData)
+                .build());
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", multiclassSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.classNames[0]").value("Wizard"))
+                .andExpect(jsonPath("$.classNames[1]").value("Druid"))
+                .andExpect(jsonPath("$.className").value("Wizard"));
     }
 
     // ==================== CREATE CHARACTER SHEET TESTS ====================

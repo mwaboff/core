@@ -41,4 +41,16 @@ public interface CharacterAdvancementLogRepository extends JpaRepository<Charact
      * @return list of all advancement logs
      */
     List<CharacterAdvancementLog> findByCharacterSheetId(Long characterSheetId);
+
+    /**
+     * Finds all advancement logs for a character sheet in the order they were applied.
+     * <p>
+     * Ordering by target level first (then ID) reproduces the sequence of level-ups, which is how
+     * acquisition order of multiclass selections is recovered.
+     * </p>
+     *
+     * @param characterSheetId the character sheet ID
+     * @return list of all advancement logs, oldest level-up first
+     */
+    List<CharacterAdvancementLog> findByCharacterSheetIdOrderByToLevelAscIdAsc(Long characterSheetId);
 }

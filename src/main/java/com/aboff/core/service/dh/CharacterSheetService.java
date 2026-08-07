@@ -24,6 +24,8 @@ import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.service.UserService;
 import com.aboff.core.util.ExpandUtil;
+import com.aboff.core.model.enums.AdvancementType;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -37,6 +39,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -94,6 +97,8 @@ public class CharacterSheetService {
     private final CompanionRepository companionRepository;
     private final CompanionService companionService;
     private final UserService userService;
+    private final CharacterAdvancementLogRepository characterAdvancementLogRepository;
+    private final ObjectMapper objectMapper;
 
     /**
      * Maximum value for Vampire "Feed" tokens ("You can hold up to 6 tokens at a time").
@@ -1286,9 +1291,16 @@ public class CharacterSheetService {
      * <p>
      * A multiclassed character holds subclass cards from more than one class, and a single class can
      * contribute several cards (foundation plus specialization). Classes are therefore deduplicated by
-     * ID and returned in a deterministic order (class ID ascending, then class name) so that repeated
-     * calls produce identical responses despite the underlying subclass cards being held in a
-     * {@link java.util.HashSet}.
+     * ID and returned in acquisition order: the character's original class first, followed by each
+     * multiclass in the order it was selected during level-ups.
+     * </p>
+     * <p>
+     * Acquisition order is recovered from the character's advancement log, since the subclass cards
+     * themselves are held in a {@link java.util.HashSet} and carry no ordering. Characters with fewer
+     * than two classes skip the log lookup entirely. When the log is missing, incomplete, or
+     * unreadable — legacy characters created before level-up logging, or level-ups that were undone —
+     * the remaining classes fall back to class ID ascending (then class name) so repeated calls still
+     * produce identical responses.
      * </p>
      *
      * @param sheet The character sheet to inspect
@@ -1304,10 +1316,92 @@ public class CharacterSheetService {
             Class associatedClass = path.getAssociatedClass();
             classesById.putIfAbsent(associatedClass.getId(), associatedClass);
         }
-        return classesById.values().stream()
+
+        List<Class> classes = classesById.values().stream()
                 .sorted(Comparator.comparing(Class::getId, Comparator.nullsLast(Comparator.naturalOrder()))
                         .thenComparing(Class::getName, Comparator.nullsLast(Comparator.naturalOrder())))
                 .collect(Collectors.toList());
+        if (classes.size() < 2) {
+            return classes;
+        }
+
+        List<Long> multiclassOrder = resolveMulticlassClassIdOrder(sheet);
+        if (multiclassOrder.isEmpty()) {
+            return classes;
+        }
+
+        List<Class> acquisitionOrdered = classes.stream()
+                .filter(characterClass -> !multiclassOrder.contains(characterClass.getId()))
+                .collect(Collectors.toList());
+        for (Long classId : multiclassOrder) {
+            Class multiclass = classesById.get(classId);
+            if (multiclass != null) {
+                acquisitionOrdered.add(multiclass);
+            }
+        }
+        return acquisitionOrdered;
+    }
+
+    /**
+     * Reads the character's advancement log to recover the order in which multiclasses were selected.
+     * <p>
+     * Each log entry stores its level-up choices as a JSON blob; entries of type
+     * {@link AdvancementType#MULTICLASS} name the subclass card that was gained, which resolves to a
+     * class through the card's subclass path. Entries that cannot be parsed, or that name a subclass
+     * card the character no longer holds (an undone level-up), are skipped rather than failing the
+     * whole response.
+     * </p>
+     *
+     * @param sheet The character sheet whose logs should be inspected
+     * @return Class IDs gained through multiclassing, oldest selection first and deduplicated; empty
+     *         if the character has no readable multiclass advancements
+     */
+    @SuppressWarnings("unchecked")
+    private List<Long> resolveMulticlassClassIdOrder(CharacterSheet sheet) {
+        Map<Long, Long> classIdBySubclassCardId = new HashMap<>();
+        for (SubclassCard card : sheet.getSubclassCards()) {
+            SubclassPath path = card.getSubclassPath();
+            if (card.getId() == null || path == null || path.getAssociatedClass() == null) {
+                continue;
+            }
+            classIdBySubclassCardId.put(card.getId(), path.getAssociatedClass().getId());
+        }
+
+        List<Long> multiclassOrder = new ArrayList<>();
+        List<CharacterAdvancementLog> logs =
+                characterAdvancementLogRepository.findByCharacterSheetIdOrderByToLevelAscIdAsc(sheet.getId());
+        for (CharacterAdvancementLog logEntry : logs) {
+            try {
+                Map<String, Object> data = objectMapper.readValue(logEntry.getAdvancementData(), Map.class);
+                List<Map<String, Object>> advancements = (List<Map<String, Object>>) data.get("advancements");
+                if (advancements == null) {
+                    continue;
+                }
+                for (Map<String, Object> advancement : advancements) {
+                    if (!AdvancementType.MULTICLASS.name().equals(advancement.get("type"))) {
+                        continue;
+                    }
+                    Long classId = classIdBySubclassCardId.get(toLong(advancement.get("subclassCardId")));
+                    if (classId != null && !multiclassOrder.contains(classId)) {
+                        multiclassOrder.add(classId);
+                    }
+                }
+            } catch (Exception e) {
+                log.warn("Failed to parse advancement data for log {} while ordering classes for sheet {}: {}",
+                        logEntry.getId(), sheet.getId(), e.getMessage());
+            }
+        }
+        return multiclassOrder;
+    }
+
+    /**
+     * Safely converts a value read out of an advancement JSON blob to a Long.
+     *
+     * @param value The raw JSON value
+     * @return The value as a Long, or null if it is absent or not numeric
+     */
+    private Long toLong(Object value) {
+        return value instanceof Number number ? number.longValue() : null;
     }
 
     /**

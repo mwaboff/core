@@ -907,7 +907,7 @@ Nested options compose freely with any item/card expand options. Examples:
 | `?expand=class`                                             | Returns a `classes` array with one full class object per class, each with ID lists for features, domains, and questions |
 | `?expand=class,hopeFeatures,classFeatures`                  | Returns every class object with full hope and class feature objects |
 
-Multiclassed characters have more than one class. `classIds` / `classNames` are always present and list every class; `?expand=class` returns the matching `classes` array. The singular `classId` / `className` / `class` fields remain for backward compatibility and always hold the first entry of the corresponding list.
+Multiclassed characters have more than one class. `classIds` / `classNames` are always present and list every class in acquisition order (the original class first, then each multiclass in the order it was chosen at level-up); `?expand=class` returns the matching `classes` array in that same order. The singular `classId` / `className` / `class` fields remain for backward compatibility and always hold the first entry of the corresponding list — for a multiclassed character that is the original class.
 
 Null fields are omitted from JSON responses (uses `@JsonInclude(NON_NULL)`). Inventory arrays (`inventoryWeapons`, `inventoryArmors`, `inventoryItems`) are always included in the response with linking entity data (IDs, equipped status, slot). The `expand` parameter controls whether the nested `weapon`/`armor`/`loot` objects within each entry are populated.
 
@@ -1130,7 +1130,7 @@ Returned by `GET /api/dh/character-sheets/{id}/notes`.
 | `communityCards`         | CommunityCardResponse[]   | No             | Only with `?expand=communityCards`         |
 | `ancestryCardIds`        | long[]                    | Yes            | --                                         |
 | `ancestryCards`          | AncestryCardResponse[]    | No             | Only with `?expand=ancestryCards`          |
-| `classIds`               | long[]                    | Yes            | IDs of **all** the character's classes, derived from subclass cards, deduplicated and ordered by class ID ascending. Empty array if no subclass cards. A multiclassed character has more than one entry |
+| `classIds`               | long[]                    | Yes            | IDs of **all** the character's classes, derived from subclass cards, deduplicated and in acquisition order — original class first, then each multiclass in the order it was selected during level-ups (falls back to class ID ascending when the advancement log is missing or unreadable). Empty array if no subclass cards. A multiclassed character has more than one entry |
 | `classNames`             | string[]                  | Yes            | Names of all the character's classes, in the same order as `classIds`. Empty array if no subclass cards |
 | `classes`                | ClassResponse[]           | No             | Only with `?expand=class`. Full class object for **every** class, in the same order as `classIds`. Supports nested expand keys (e.g. `hopeFeatures`, `classFeatures`, `expansion`) |
 | `classId`                | long                      | No             | **Deprecated** — use `classIds`. First entry of `classIds`; null if no subclass cards |
