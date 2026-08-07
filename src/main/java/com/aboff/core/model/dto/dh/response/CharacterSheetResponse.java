@@ -299,8 +299,10 @@ public class CharacterSheetResponse {
     // ========== Class ==========
 
     /**
-     * IDs of all the character's classes, derived from their subclass cards, ordered by class ID ascending
-     * (always included, empty if no subclass cards). A multiclassed character has more than one entry.
+     * IDs of all the character's classes, derived from their subclass cards, in acquisition order: the
+     * original class first, then each multiclass in the order it was selected during level-ups (always
+     * included, empty if no subclass cards). A multiclassed character has more than one entry.
+     * Characters whose advancement log is missing or unreadable fall back to class ID ascending.
      */
     private List<Long> classIds;
 

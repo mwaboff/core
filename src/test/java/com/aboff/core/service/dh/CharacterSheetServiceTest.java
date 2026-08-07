@@ -23,12 +23,14 @@ import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.service.UserService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityNotFoundException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -36,8 +38,10 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -150,6 +154,12 @@ class CharacterSheetServiceTest {
 
     @Mock
     private UserService userService;
+
+    @Mock
+    private CharacterAdvancementLogRepository characterAdvancementLogRepository;
+
+    @Spy
+    private ObjectMapper objectMapper = new ObjectMapper();
 
     @Mock
     private Authentication authentication;
@@ -3534,8 +3544,22 @@ class CharacterSheetServiceTest {
         assertThat(result.getClassNames()).containsExactly("Druid");
     }
 
+    /**
+     * Builds an advancement log entry whose blob multiclasses into the supplied subclass cards.
+     */
+    private CharacterAdvancementLog buildMulticlassLog(Long logId, int toLevel, Long... subclassCardIds) throws Exception {
+        List<Map<String, Object>> advancements = new ArrayList<>();
+        advancements.add(Map.of("type", "GAIN_HP"));
+        for (Long subclassCardId : subclassCardIds) {
+            advancements.add(Map.of("type", "MULTICLASS", "subclassCardId", subclassCardId));
+        }
+        String advancementData = objectMapper.writeValueAsString(Map.of("advancements", advancements));
+        return CharacterAdvancementLog.builder()
+                .id(logId).fromLevel(toLevel - 1).toLevel(toLevel).tier(2).advancementData(advancementData).build();
+    }
+
     @Test
-    void getCharacterSheet_Multiclass_ReturnsAllClassesOrderedByClassId() {
+    void getCharacterSheet_MulticlassWithoutAdvancementLogs_FallsBackToClassIdAscending() {
         // Arrange
         User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
         Class wizard = Class.builder().id(30L).name("Wizard").build();
@@ -3545,6 +3569,8 @@ class CharacterSheetServiceTest {
                 buildSubclassCard(2L, "Warden of Renewal", 6L, "Warden of Renewal", druid));
 
         when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        // Legacy characters predate level-up logging, so acquisition order cannot be recovered
+        when(characterAdvancementLogRepository.findByCharacterSheetIdOrderByToLevelAscIdAsc(1L)).thenReturn(List.of());
 
         // Act
         CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
@@ -3554,6 +3580,121 @@ class CharacterSheetServiceTest {
         assertThat(result.getClassNames()).containsExactly("Druid", "Wizard");
         assertThat(result.getClassId()).isEqualTo(20L);
         assertThat(result.getClassName()).isEqualTo("Druid");
+    }
+
+    @Test
+    void getCharacterSheet_Multiclass_ReturnsOriginalClassFirstThenMulticlassesInLogOrder() throws Exception {
+        // Arrange - a Wizard who multiclassed into Warrior first and Druid second, so acquisition
+        // order (Wizard, Warrior, Druid) is deliberately unrelated to class ID order (20, 30, 40)
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class druid = Class.builder().id(20L).name("Druid").build();
+        Class wizard = Class.builder().id(30L).name("Wizard").build();
+        Class warrior = Class.builder().id(40L).name("Warrior").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "School of Knowledge", 7L, "School of Knowledge", wizard),
+                buildSubclassCard(2L, "Call of the Brave", 8L, "Call of the Brave", warrior),
+                buildSubclassCard(3L, "Warden of Renewal", 6L, "Warden of Renewal", druid));
+        List<CharacterAdvancementLog> logs = List.of(buildMulticlassLog(1L, 5, 2L), buildMulticlassLog(2L, 8, 3L));
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdOrderByToLevelAscIdAsc(1L)).thenReturn(logs);
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassNames()).containsExactly("Wizard", "Warrior", "Druid");
+        assertThat(result.getClassIds()).containsExactly(30L, 40L, 20L);
+        assertThat(result.getClassId()).isEqualTo(30L);
+        assertThat(result.getClassName()).isEqualTo("Wizard");
+    }
+
+    @Test
+    void getCharacterSheet_MulticlassWithExpandClass_ExpandsInAcquisitionOrder() throws Exception {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class druid = Class.builder().id(20L).name("Druid").build();
+        Class wizard = Class.builder().id(30L).name("Wizard").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "School of Knowledge", 7L, "School of Knowledge", wizard),
+                buildSubclassCard(2L, "Warden of Renewal", 6L, "Warden of Renewal", druid));
+        List<CharacterAdvancementLog> logs = List.of(buildMulticlassLog(1L, 5, 2L));
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdOrderByToLevelAscIdAsc(1L)).thenReturn(logs);
+        when(classService.toResponse(eq(druid), anySet()))
+                .thenReturn(ClassResponse.builder().id(20L).name("Druid").build());
+        when(classService.toResponse(eq(wizard), anySet()))
+                .thenReturn(ClassResponse.builder().id(30L).name("Wizard").build());
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, "class");
+
+        // Assert
+        assertThat(result.getClasses()).extracting(ClassResponse::getName).containsExactly("Wizard", "Druid");
+        assertThat(result.getClassObject().getName()).isEqualTo("Wizard");
+    }
+
+    @Test
+    void getCharacterSheet_MulticlassWithMalformedAdvancementData_FallsBackToClassIdAscending() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class druid = Class.builder().id(20L).name("Druid").build();
+        Class wizard = Class.builder().id(30L).name("Wizard").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "School of Knowledge", 7L, "School of Knowledge", wizard),
+                buildSubclassCard(2L, "Warden of Renewal", 6L, "Warden of Renewal", druid));
+        CharacterAdvancementLog corruptLog = CharacterAdvancementLog.builder()
+                .id(1L).fromLevel(4).toLevel(5).tier(2).advancementData("{not valid json").build();
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdOrderByToLevelAscIdAsc(1L))
+                .thenReturn(List.of(corruptLog));
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassNames()).containsExactly("Druid", "Wizard");
+    }
+
+    @Test
+    void getCharacterSheet_MulticlassLogNamingAnUnheldSubclassCard_IgnoresThatAdvancement() throws Exception {
+        // Arrange - the Warrior multiclass was undone, so its card is gone from the sheet but the
+        // Druid multiclass that followed it must still be ordered after the original Wizard
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class druid = Class.builder().id(20L).name("Druid").build();
+        Class wizard = Class.builder().id(30L).name("Wizard").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "School of Knowledge", 7L, "School of Knowledge", wizard),
+                buildSubclassCard(3L, "Warden of Renewal", 6L, "Warden of Renewal", druid));
+        List<CharacterAdvancementLog> logs = List.of(buildMulticlassLog(1L, 5, 2L), buildMulticlassLog(2L, 8, 3L));
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(characterAdvancementLogRepository.findByCharacterSheetIdOrderByToLevelAscIdAsc(1L)).thenReturn(logs);
+
+        // Act
+        CharacterSheetResponse result = characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert
+        assertThat(result.getClassNames()).containsExactly("Wizard", "Druid");
+    }
+
+    @Test
+    void getCharacterSheet_SingleClass_DoesNotQueryAdvancementLog() {
+        // Arrange
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        Class warrior = Class.builder().id(10L).name("Warrior").build();
+        CharacterSheet sheet = buildSheetWithSubclassCards(owner,
+                buildSubclassCard(1L, "Call of the Brave", 5L, "Call of the Brave", warrior));
+
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+
+        // Act
+        characterSheetService.getCharacterSheetById(1L, null);
+
+        // Assert - the common single-class case must not pay for an extra query
+        verifyNoInteractions(characterAdvancementLogRepository);
     }
 
     @Test
