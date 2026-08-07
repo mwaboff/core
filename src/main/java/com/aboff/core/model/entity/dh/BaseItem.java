@@ -3,10 +3,12 @@ package com.aboff.core.model.entity.dh;
 import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.entity.User;
 import jakarta.persistence.*;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 import lombok.experimental.SuperBuilder;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.LocalDateTime;
 import java.util.HashSet;
@@ -29,15 +31,17 @@ import java.util.Set;
  * </p>
  * <ul>
  *   <li>Basic identification (name)</li>
- *   <li>Expansion association</li>
- *   <li>Official vs custom content tracking</li>
+ *   <li>Expansion association (null for custom items)</li>
+ *   <li>Official vs custom content tracking, and public visibility</li>
  *   <li>User ownership for custom items</li>
  *   <li>Feature associations (multiple features per item)</li>
+ *   <li>Campaign sharing for custom items</li>
  *   <li>Soft delete support</li>
  * </ul>
  * <p>
- * Subclasses must use {@code @AssociationOverride} to specify their own join table
- * for the {@code features} relationship (e.g., weapon_features, armor_features, loot_features).
+ * Subclasses must use {@code @AssociationOverrides} to specify their own join tables
+ * for the {@code features} and {@code campaigns} relationships (e.g. weapon_features
+ * and weapon_campaigns).
  * </p>
  */
 @MappedSuperclass
@@ -62,10 +66,14 @@ public abstract class BaseItem extends BaseEntity {
     private Integer tier;
 
     /**
-     * The expansion this item belongs to.
+     * The sourcebook this item was published in.
+     * <p>
+     * Null for custom items, which came from no book. A database constraint enforces
+     * the one direction that matters: official content must name its expansion.
+     * </p>
      */
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "expansion_id", nullable = false)
+    @JoinColumn(name = "expansion_id")
     private Expansion expansion;
 
     /**
@@ -74,6 +82,17 @@ public abstract class BaseItem extends BaseEntity {
      */
     @Column(name = "is_official", nullable = false)
     private Boolean isOfficial;
+
+    /**
+     * Indicates whether this custom item is visible to every user.
+     * <p>
+     * Only MODERATOR and above may set this. Official content is universally visible
+     * regardless of this flag, so official rows leave it false.
+     * </p>
+     */
+    @Column(name = "is_public", nullable = false)
+    @Builder.Default
+    private Boolean isPublic = false;
 
     /**
      * The user who created this item.
@@ -85,7 +104,18 @@ public abstract class BaseItem extends BaseEntity {
 
     /**
      * The features associated with this item.
-     * Subclasses override the join table name via {@code @AssociationOverride}.
+     * <p>
+     * Subclasses override the join table name via {@code @AssociationOverride}. The
+     * {@code @Builder.Default} matters: without it Lombok ignores the field initializer and a
+     * builder-created item carries a null collection, so callers that reasonably expect an
+     * empty set — copying an item, counting its features — fail with a
+     * {@link NullPointerException}.
+     * </p>
+     * <p>
+     * {@code @BatchSize} exists because every item response reads this collection, so browsing
+     * a page of 100 items issued 100 separate loads. See the note on {@link #campaigns} for why
+     * a fetch join is the wrong tool here.
+     * </p>
      */
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(
@@ -93,7 +123,37 @@ public abstract class BaseItem extends BaseEntity {
         joinColumns = @JoinColumn(name = "item_id"),
         inverseJoinColumns = @JoinColumn(name = "feature_id")
     )
+    @BatchSize(size = 25)
+    @Builder.Default
     private Set<Feature> features = new HashSet<>();
+
+    /**
+     * Campaigns this item has been explicitly shared with.
+     * <p>
+     * Everyone involved in a tagged campaign can see and equip the item, even when it
+     * is neither official nor public. Sharing is deliberate: an untagged custom item
+     * stays private to its creator. Subclasses override the join table name via
+     * {@code @AssociationOverride}.
+     * </p>
+     * <p>
+     * {@code @BatchSize} rather than a fetch join or an entity graph, deliberately. The item
+     * browse queries already carry a {@code LEFT JOIN} onto this table as a visibility
+     * <em>predicate</em>, which does not populate the collection, together with
+     * {@code DISTINCT} and pagination. Adding a fetch join on top makes Hibernate apply
+     * {@code firstResult}/{@code maxResults} in memory (HHH000104) and paging silently breaks.
+     * Batching leaves the query shape untouched and collapses the per-row loads into one
+     * {@code IN} per 25 rows.
+     * </p>
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "item_campaigns",
+        joinColumns = @JoinColumn(name = "item_id"),
+        inverseJoinColumns = @JoinColumn(name = "campaign_id")
+    )
+    @BatchSize(size = 25)
+    @Builder.Default
+    private Set<Campaign> campaigns = new HashSet<>();
 
     /**
      * Timestamp indicating when this item was soft-deleted.

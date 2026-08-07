@@ -7,6 +7,7 @@ import com.aboff.core.model.dto.dh.request.FeatureModifierInput;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
@@ -1891,5 +1892,124 @@ class FeatureServiceTest {
         assertThat(result).isEqualTo(feature);
         verify(featureRepository, never()).findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
                 any(), any(), any(), any());
+    }
+
+    // ==================== FEATURE ORIGIN TESTS ====================
+
+    @Test
+    void findOrCreate_CustomItemOrigin_DropsTheRequestedSourcebook() {
+        // A logged-in user POSTing to /api/dh/weapons/custom controls every field of an inline
+        // feature, including expansionId. Left alone it landed on the row, making a user's
+        // feature indistinguishable from one printed in the Daggerheart Core Set.
+        User author = User.builder().id(7L).username("author").build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Serrated")
+                .description("Deals extra damage.")
+                .featureType(FeatureType.ITEM)
+                .expansionId(1L)
+                .build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                "Serrated", null, FeatureType.ITEM, "Deals extra damage.")).thenReturn(Optional.empty());
+        when(featureRepository.save(any(Feature.class))).thenAnswer(i -> i.getArgument(0));
+
+        Feature result = featureService.findOrCreate(
+                input, FeatureService.FeatureOrigin.forItem(author, false));
+
+        assertThat(result.getExpansion()).isNull();
+        verify(expansionRepository, never()).findByIdAndDeletedAtIsNull(any());
+    }
+
+    @Test
+    void findOrCreate_CustomItemOrigin_LooksUpWithoutTheRequestedSourcebook() {
+        // The expansion is part of the find-or-create key, so it has to be dropped before the
+        // lookup. Otherwise a custom item's feature matches — and then silently reuses — an
+        // official row belonging to a sourcebook it has no claim to.
+        User author = User.builder().id(7L).username("author").build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Brutal")
+                .featureType(FeatureType.ITEM)
+                .expansionId(1L)
+                .build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(featureRepository.save(any(Feature.class))).thenAnswer(i -> i.getArgument(0));
+
+        featureService.findOrCreate(input, FeatureService.FeatureOrigin.forItem(author, false));
+
+        verify(featureRepository).findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                "Brutal", null, FeatureType.ITEM, null);
+    }
+
+    @Test
+    void findOrCreate_CustomItemOrigin_RecordsTheAuthor() {
+        // features.created_by_user_id exists precisely so a user-minted row can be traced back
+        // and cleaned up. Nothing wrote it, so every row was NULL.
+        User author = User.builder().id(7L).username("author").build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Weightless").featureType(FeatureType.ITEM).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                any(), any(), any(), any())).thenReturn(Optional.empty());
+        when(featureRepository.save(any(Feature.class))).thenAnswer(i -> i.getArgument(0));
+
+        Feature result = featureService.findOrCreate(
+                input, FeatureService.FeatureOrigin.forItem(author, false));
+
+        assertThat(result.getCreatedBy()).isEqualTo(author);
+    }
+
+    @Test
+    void findOrCreate_OfficialItemOrigin_KeepsTheSourcebookAndRecordsNoAuthor() {
+        // The other half of the rule: a moderator editing official content is entering catalogue
+        // data, so the feature belongs to the book and to no individual.
+        User moderator = User.builder().id(9L).username("mod").build();
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Barrier").featureType(FeatureType.ITEM).expansionId(1L).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                "Barrier", 1L, FeatureType.ITEM, null)).thenReturn(Optional.empty());
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureRepository.save(any(Feature.class))).thenAnswer(i -> i.getArgument(0));
+
+        Feature result = featureService.findOrCreate(
+                input, FeatureService.FeatureOrigin.forItem(moderator, true));
+
+        assertThat(result.getExpansion()).isEqualTo(expansion);
+        assertThat(result.getCreatedBy()).isNull();
+    }
+
+    @Test
+    void findOrCreate_ImportedOrigin_IsTheDefaultForTheBulkImportPath() {
+        // The single-argument overload is what the ADMIN/OWNER card and bulk-import services
+        // call. It must keep assigning features to their sourcebook or every import breaks.
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Paired").featureType(FeatureType.ITEM).expansionId(1L).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                "Paired", 1L, FeatureType.ITEM, null)).thenReturn(Optional.empty());
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureRepository.save(any(Feature.class))).thenAnswer(i -> i.getArgument(0));
+
+        Feature result = featureService.findOrCreate(input);
+
+        assertThat(result.getExpansion()).isEqualTo(expansion);
+        assertThat(result.getCreatedBy()).isNull();
+    }
+
+    @Test
+    void toResponse_FeatureWithNoSourcebook_ReturnsANullExpansionId() {
+        // Reading back a feature authored on a custom item dereferenced a null expansion, so
+        // GET /api/dh/weapons/{id}?expand=features on any custom item threw.
+        Feature feature = Feature.builder()
+                .id(3L).name("Homebrew").featureType(FeatureType.ITEM).expansion(null).build();
+
+        FeatureResponse result = featureService.toResponse(feature, Set.of("expansion"));
+
+        assertThat(result.getExpansionId()).isNull();
+        assertThat(result.getExpansion()).isNull();
     }
 }

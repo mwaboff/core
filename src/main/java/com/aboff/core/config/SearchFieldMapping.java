@@ -4,6 +4,7 @@ import com.aboff.core.model.entity.dh.Adversary;
 import com.aboff.core.model.entity.dh.AncestryCard;
 import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.Beastform;
+import com.aboff.core.model.entity.dh.Campaign;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.CommunityCard;
@@ -31,6 +32,8 @@ import org.springframework.stereotype.Component;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -309,7 +312,8 @@ public class SearchFieldMapping {
     /**
      * Builds search index data for a {@link Weapon} entity.
      * Weight A: name. Weight C: features text.
-     * Filter: expansionId, isOfficial, tier, createdByUserId, trait, range, burden, isPrimary, damageType.
+     * Filter: expansionId, isOfficial, isPublic, tier, createdByUserId, trait, range, burden,
+     * isPrimary, damageType, sharedCampaignIds.
      *
      * @param weapon the weapon entity
      * @return populated search index data
@@ -327,6 +331,7 @@ public class SearchFieldMapping {
                 .featureText(extractFeatureText(weapon.getFeatures()))
                 .expansionId(expansionId(weapon.getExpansion()))
                 .isOfficial(weapon.getIsOfficial())
+                .isPublic(weapon.getIsPublic())
                 .tier(weapon.getTier())
                 .createdByUserId(userId(weapon.getCreatedBy()))
                 .trait(enumName(weapon.getTrait()))
@@ -334,13 +339,14 @@ public class SearchFieldMapping {
                 .burden(enumName(weapon.getBurden()))
                 .isPrimary(weapon.getIsPrimary())
                 .damageType(damageType)
+                .sharedCampaignIds(campaignIds(weapon.getCampaigns()))
                 .build();
     }
 
     /**
      * Builds search index data for an {@link Armor} entity.
      * Weight A: name. Weight C: features text.
-     * Filter: expansionId, isOfficial, tier, createdByUserId.
+     * Filter: expansionId, isOfficial, isPublic, tier, createdByUserId, sharedCampaignIds.
      *
      * @param armor the armor entity
      * @return populated search index data
@@ -354,15 +360,18 @@ public class SearchFieldMapping {
                 .featureText(extractFeatureText(armor.getFeatures()))
                 .expansionId(expansionId(armor.getExpansion()))
                 .isOfficial(armor.getIsOfficial())
+                .isPublic(armor.getIsPublic())
                 .tier(armor.getTier())
                 .createdByUserId(userId(armor.getCreatedBy()))
+                .sharedCampaignIds(campaignIds(armor.getCampaigns()))
                 .build();
     }
 
     /**
      * Builds search index data for a {@link Loot} entity.
      * Weight A: name. Weight B: description. Weight C: features text.
-     * Filter: expansionId, isOfficial, tier, createdByUserId, isConsumable.
+     * Filter: expansionId, isOfficial, isPublic, tier, createdByUserId, isConsumable,
+     * sharedCampaignIds.
      *
      * @param loot the loot entity
      * @return populated search index data
@@ -377,16 +386,18 @@ public class SearchFieldMapping {
                 .featureText(extractFeatureText(loot.getFeatures()))
                 .expansionId(expansionId(loot.getExpansion()))
                 .isOfficial(loot.getIsOfficial())
+                .isPublic(loot.getIsPublic())
                 .tier(loot.getTier())
                 .createdByUserId(userId(loot.getCreatedBy()))
                 .isConsumable(loot.getIsConsumable())
+                .sharedCampaignIds(campaignIds(loot.getCampaigns()))
                 .build();
     }
 
     /**
      * Builds search index data for a {@link MartialStance} entity.
      * Weight A: name. Weight B: description. Weight C: features text.
-     * Filter: expansionId, isOfficial, tier, createdByUserId.
+     * Filter: expansionId, isOfficial, isPublic, tier, createdByUserId, sharedCampaignIds.
      *
      * @param martialStance the martial stance entity
      * @return populated search index data
@@ -401,8 +412,10 @@ public class SearchFieldMapping {
                 .featureText(extractFeatureText(martialStance.getFeatures()))
                 .expansionId(expansionId(martialStance.getExpansion()))
                 .isOfficial(martialStance.getIsOfficial())
+                .isPublic(martialStance.getIsPublic())
                 .tier(martialStance.getTier())
                 .createdByUserId(userId(martialStance.getCreatedBy()))
+                .sharedCampaignIds(campaignIds(martialStance.getCampaigns()))
                 .build();
     }
 
@@ -633,6 +646,31 @@ public class SearchFieldMapping {
     }
 
     /**
+     * Extracts the IDs of the campaigns an item has been explicitly shared with.
+     *
+     * <p>Only {@link com.aboff.core.model.entity.dh.BaseItem} subclasses carry campaign tags.
+     * The IDs are sorted so that re-indexing an unchanged item produces an identical array,
+     * which keeps index rows stable and diffs readable.
+     *
+     * <p>Soft-deleted campaigns are not filtered out here. A tag pointing at a deleted campaign
+     * grants access to nobody, because the caller's own membership list only ever contains
+     * active campaigns — the overlap simply never matches.
+     *
+     * @param campaigns the campaigns the item is tagged to; may be null or empty
+     * @return the sorted campaign IDs, or an empty list when the item is untagged
+     */
+    private List<Long> campaignIds(Collection<Campaign> campaigns) {
+        if (campaigns == null || campaigns.isEmpty()) {
+            return List.of();
+        }
+        return campaigns.stream()
+                .map(Campaign::getId)
+                .filter(Objects::nonNull)
+                .sorted()
+                .toList();
+    }
+
+    /**
      * Joins multiple string values with a space separator, skipping any that are null or blank.
      *
      * @param parts the string values to join; individual nulls are silently ignored
@@ -786,5 +824,11 @@ public class SearchFieldMapping {
 
         /** Cost tag category name string, where applicable. */
         private String costTagCategory;
+
+        /**
+         * IDs of the campaigns an item has been explicitly shared with; empty when the entity
+         * is untagged, and empty for every type that has no campaign tags at all.
+         */
+        private List<Long> sharedCampaignIds;
     }
 }

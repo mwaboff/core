@@ -45,7 +45,10 @@ public class WeaponResponse {
     private String name;
 
     /**
-     * ID of the expansion this weapon belongs to (always included).
+     * ID of the sourcebook this weapon was published in (always included).
+     * <p>
+     * Null for custom items, which came from no book.
+     * </p>
      */
     private Long expansionId;
 
@@ -63,6 +66,25 @@ public class WeaponResponse {
      * Whether this weapon is from official game content.
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this weapon is visible to every user.
+     */
+    private Boolean isPublic;
+
+    /**
+     * ID of the user who authored this weapon.
+     * <p>
+     * Null for official imports and for any row created before user authoring existed.
+     * A non-null value alongside {@code isOfficial=false} is what marks a weapon as homebrew.
+     * </p>
+     */
+    private Long createdByUserId;
+
+    /**
+     * IDs of the campaigns this weapon has been explicitly shared with.
+     */
+    private List<Long> campaignIds;
 
     /**
      * Whether this is a primary weapon (true) or secondary weapon (false).

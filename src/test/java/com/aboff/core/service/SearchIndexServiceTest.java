@@ -105,7 +105,8 @@ class SearchIndexServiceTest {
                 eq("WEAPON"), eq(1L), eq("Test Entity"), eq("Test Entity"),
                 eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
                 eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
-                eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null)
+                eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
+                eq("{}")
         );
     }
 
@@ -121,7 +122,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, never()).upsertSearchIndex(
                 anyString(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
 
@@ -138,7 +139,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, never()).upsertSearchIndex(
                 anyString(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
 
@@ -255,7 +256,8 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository).deleteAllByEntityType("WEAPON");
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
                 eq("WEAPON"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any()
         );
     }
 
@@ -292,7 +294,8 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository).deleteAllByEntityType("BEASTFORM");
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
                 eq("BEASTFORM"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any()
         );
     }
 
@@ -328,7 +331,8 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository).deleteAllByEntityType("CONDITION");
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
                 eq("CONDITION"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
+                any()
         );
     }
 
@@ -349,7 +353,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, never()).upsertSearchIndex(
                 anyString(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
 }

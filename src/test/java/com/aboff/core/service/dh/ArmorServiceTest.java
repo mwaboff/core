@@ -16,9 +16,11 @@ import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.ArmorRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.aboff.core.service.AuditLogger;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -60,10 +62,24 @@ class ArmorServiceTest {
     @Mock
     private AuditLogger auditLogger;
 
+    @Mock
+    private ItemAccessService itemAccessService;
+
+    @Mock
+    private Authentication authentication;
+
     @InjectMocks
     private ArmorService armorService;
 
     // ==================== GET ALL ARMORS TESTS ====================
+
+    @BeforeEach
+    void stubDefaultVisibility() {
+        // Every list call resolves the caller's visibility scope first. Default to a
+        // non-privileged user who belongs to no campaigns; tests that care override it.
+        lenient().when(itemAccessService.visibilityScope(any()))
+                .thenReturn(new ItemAccessService.VisibilityScope(1L, List.of(-1L), false));
+    }
 
     @Test
     void getAllArmors_WithoutFilters_ReturnsPagedArmors() {
@@ -75,11 +91,11 @@ class ArmorServiceTest {
         armor2.setBaseScore(3);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor1, armor2));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, null);
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, null, null, null, null, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -97,33 +113,30 @@ class ArmorServiceTest {
         Armor armor = createTestArmor(1L, "Leather Armor", expansion);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, 1L, null, null, null);
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, 1L, null, null, null, null, null, null, authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(armorRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), any(Pageable.class));
+        verify(armorRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
     }
 
     @Test
     void getAllArmors_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Armor> armorPage = new PageImpl<>(List.of());
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
-        armorService.getAllArmors(0, 500, false, null, null, null, null);
+        armorService.getAllArmors(0, 500, false, null, null, null, null, null, null, null, authentication);
 
         // Assert
-        verify(armorRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(), isNull(),
-                argThat(pageable -> pageable.getPageSize() == 100)
-        );
+        verify(armorRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
@@ -136,7 +149,7 @@ class ArmorServiceTest {
         armor.setFeatures(Set.of(feature));
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor));
-        when(armorRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(armorPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -167,7 +180,7 @@ class ArmorServiceTest {
         });
 
         // Act
-        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, "expansion,features");
+        PagedResponse<ArmorResponse> result = armorService.getAllArmors(0, 20, false, null, null, null, null, null, null, "expansion,features", authentication);
 
         // Assert
         assertThat(result.getContent()).hasSize(1);
@@ -361,7 +374,10 @@ class ArmorServiceTest {
                 .build();
 
         when(armorRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingArmor));
-        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        // The update path resolves the official flag first, then asks ItemAccessService which
+        // sourcebook that flag permits, rather than trusting the request's expansionId.
+        when(itemAccessService.resolveIsOfficial(any(), eq(true))).thenReturn(true);
+        when(itemAccessService.resolveExpansion(any(), eq(1L), eq(true))).thenReturn(expansion);
         when(armorRepository.save(any(Armor.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act

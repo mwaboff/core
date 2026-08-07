@@ -7,6 +7,7 @@ import com.aboff.core.model.entity.SearchIndex;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
 import com.aboff.core.service.search.SearchTypeRegistry;
+import com.aboff.core.util.PostgresArrayUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -91,7 +92,8 @@ public class SearchIndexService {
                 data.getIsConsumable(),
                 data.getIsMixed(),
                 data.getSubclassLevel(),
-                data.getCostTagCategory()
+                data.getCostTagCategory(),
+                PostgresArrayUtil.toBigintArrayLiteral(data.getSharedCampaignIds())
         );
 
         log.debug("Upserted search index for entity type={} id={}", data.getEntityType(), data.getEntityId());

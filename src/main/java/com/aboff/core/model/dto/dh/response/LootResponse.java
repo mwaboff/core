@@ -40,7 +40,10 @@ public class LootResponse {
     private String name;
 
     /**
-     * ID of the expansion this loot belongs to (always included).
+     * ID of the sourcebook this loot was published in (always included).
+     * <p>
+     * Null for custom items, which came from no book.
+     * </p>
      */
     private Long expansionId;
 
@@ -58,6 +61,25 @@ public class LootResponse {
      * Whether this loot is from official game content.
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this loot is visible to every user.
+     */
+    private Boolean isPublic;
+
+    /**
+     * ID of the user who authored this loot.
+     * <p>
+     * Null for official imports and for any row created before user authoring existed.
+     * A non-null value alongside {@code isOfficial=false} is what marks a loot as homebrew.
+     * </p>
+     */
+    private Long createdByUserId;
+
+    /**
+     * IDs of the campaigns this loot has been explicitly shared with.
+     */
+    private List<Long> campaignIds;
 
     /**
      * Whether this loot item is consumable.

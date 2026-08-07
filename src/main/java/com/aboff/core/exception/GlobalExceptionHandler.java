@@ -4,6 +4,7 @@ import com.aboff.core.model.dto.response.ErrorResponse;
 import com.aboff.core.model.dto.response.ValidationErrorResponse;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -112,6 +113,44 @@ public class GlobalExceptionHandler {
                 .timestamp(LocalDateTime.now())
                 .build();
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(error);
+    }
+
+    /**
+     * Handles a database constraint violation.
+     * Returns 409 Conflict.
+     * <p>
+     * The case this exists for is the unique index behind the feature find-or-create key
+     * ({@code uq_features_dedupe_key}). Two requests carrying the same inline feature can both
+     * find nothing and both try to insert; the index lets one win. Losing is transient and the
+     * request is safe to retry, because the retry's lookup finds the winner's row — a 409 says
+     * that, where the previous opaque 500 did not. Recovering in-process is not possible: a
+     * constraint violation aborts the surrounding Postgres transaction.
+     * </p>
+     * <p>
+     * Any other constraint violation reaching here is a bug, so the cause is logged in full.
+     * Rules the caller can be told about ahead of time are checked in the service instead —
+     * see {@code ItemAccessService.validateOfficialHasExpansion}.
+     * </p>
+     *
+     * @param ex      the exception
+     * @param request the HTTP request
+     * @return the error response entity
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(
+            DataIntegrityViolationException ex,
+            HttpServletRequest request) {
+        log.warn("Constraint violation on {} {}: {}",
+                request.getMethod(), request.getRequestURI(), ex.getMostSpecificCause().getMessage());
+        ErrorResponse error = ErrorResponse.builder()
+                .status(HttpStatus.CONFLICT.value())
+                .error("Conflict")
+                .message("The request conflicted with existing data. If you were creating or "
+                        + "editing content, retry the request.")
+                .path(request.getRequestURI())
+                .timestamp(LocalDateTime.now())
+                .build();
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
     }
 
     /**

@@ -1,10 +1,12 @@
 package com.aboff.core.controller.dh;
 
 import com.aboff.core.model.AuditContext;
+import com.aboff.core.model.dto.dh.request.CreateCustomWeaponRequest;
 import com.aboff.core.model.dto.dh.request.CreateWeaponRequest;
 import com.aboff.core.model.dto.dh.request.UpdateWeaponRequest;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.enums.ItemSort;
 import com.aboff.core.model.enums.Burden;
 import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.Range;
@@ -27,7 +29,9 @@ import java.util.List;
  * Provides endpoints for CRUD operations on Daggerheart weapons.
  * <p>
  * GET endpoints are accessible to all authenticated users.
- * POST/PUT/DELETE endpoints require ADMIN or OWNER role.
+ * Bulk and admin create endpoints require ADMIN or OWNER. Custom creation and copying are
+ * open to any authenticated user, and update/delete/restore are ownership-aware and
+ * enforced in the service.
  * </p>
  */
 @RestController
@@ -43,7 +47,7 @@ public class WeaponController {
      *
      * @param page Zero-based page number (default: 0)
      * @param size Number of items per page (default: 20, max: 100)
-     * @param includeDeleted Whether to include soft-deleted weapons (default: false, ADMIN+ only)
+     * @param includeDeleted Whether to include soft-deleted weapons (default: false, MODERATOR+ only)
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
      * @param trait Optional filter for weapon trait
@@ -52,8 +56,12 @@ public class WeaponController {
      * @param isPrimary Optional filter for primary/secondary weapon
      * @param tier Optional filter for weapon tier (1–4)
      * @param damageType Optional filter for damage type (PHYSICAL, MAGIC, PHYSICAL_AND_MAGIC)
+     * @param createdByUserId Optional filter narrowing results to weapons authored by one user
+     * @param name Optional case-insensitive substring match on the name
+     * @param sort Ordering: ID (default), NAME, TIER, or NEWEST
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion,feature,originalWeapon")
-     * @return Paginated response containing weapons
+     * @param authentication The current authentication, used to resolve visibility
+     * @return Paginated response containing weapons the caller is allowed to see
      */
     @GetMapping
     public ResponseEntity<PagedResponse<WeaponResponse>> getAllWeapons(
@@ -68,10 +76,15 @@ public class WeaponController {
             @RequestParam(required = false) Boolean isPrimary,
             @RequestParam(required = false) Integer tier,
             @RequestParam(required = false) DamageType damageType,
-            @RequestParam(required = false) String expand) {
+            @RequestParam(required = false) Long createdByUserId,
+            @RequestParam(required = false) String name,
+            @RequestParam(required = false) ItemSort sort,
+            @RequestParam(required = false) String expand,
+            Authentication authentication) {
 
         PagedResponse<WeaponResponse> response = weaponService.getAllWeapons(
-                page, size, includeDeleted, expansionId, isOfficial, trait, range, burden, isPrimary, tier, damageType, expand);
+                page, size, includeDeleted, expansionId, isOfficial, trait, range, burden,
+                isPrimary, tier, damageType, createdByUserId, name, sort, expand, authentication);
 
         return ResponseEntity.ok(response);
     }
@@ -130,6 +143,67 @@ public class WeaponController {
     }
 
     /**
+     * Creates a weapon authored by the calling user.
+     * <p>
+     * Open to any authenticated user, unlike {@code POST /api/dh/weapons}, which remains the
+     * admin import path and takes the stricter request type. Ownership and the official, public,
+     * and expansion fields are all resolved server-side, so there is nothing here for a caller
+     * to escalate through.
+     * </p>
+     *
+     * @param request The custom weapon details
+     * @param authentication The current authentication
+     * @param httpRequest The HTTP request, used for audit context
+     * @return The created weapon with 201 status
+     */
+    @PostMapping("/custom")
+    public ResponseEntity<WeaponResponse> createCustomWeapon(
+            @Valid @RequestBody CreateCustomWeaponRequest request,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/weapons/custom");
+
+        WeaponResponse response = weaponService.createCustomWeapon(request, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/weapons/custom", startTime);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
+     * Copies an existing weapon into a new custom weapon owned by the calling user.
+     * <p>
+     * Any authenticated user may copy any weapon, official ones included. Nothing is protected
+     * by restricting this: weapons are already readable by id, and the copy is created private
+     * and unofficial regardless of its source.
+     * </p>
+     *
+     * @param id The ID of the weapon to copy
+     * @param authentication The current authentication
+     * @param httpRequest The HTTP request, used for audit context
+     * @return The newly created copy with 201 status
+     */
+    @PostMapping("/{id}/copy")
+    public ResponseEntity<WeaponResponse> copyWeapon(
+            @PathVariable Long id,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr()).build();
+        auditLogger.requestReceived(ctx, "POST", "/api/dh/weapons/" + id + "/copy");
+
+        WeaponResponse response = weaponService.copyWeapon(id, authentication);
+
+        auditLogger.requestCompleted(ctx, "POST", "/api/dh/weapons/" + id + "/copy", startTime);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+
+    /**
      * Creates multiple weapons in bulk.
      * Requires ADMIN or OWNER role.
      *
@@ -165,7 +239,8 @@ public class WeaponController {
      * @return WeaponResponse containing the updated weapon
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    // Authorisation is ownership-aware (author, or moderator, or admin for official
+    // content), so it lives in the service rather than in a flat role gate here.
     public ResponseEntity<WeaponResponse> updateWeapon(
             @PathVariable Long id,
             @Valid @RequestBody UpdateWeaponRequest request,
@@ -192,7 +267,7 @@ public class WeaponController {
      * @return 204 No Content on success
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    // Authorisation is ownership-aware; see the service.
     public ResponseEntity<Void> deleteWeapon(
             @PathVariable Long id,
             Authentication authentication,
@@ -218,7 +293,7 @@ public class WeaponController {
      * @return WeaponResponse containing the restored weapon
      */
     @PostMapping("/{id}/restore")
-    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    // Authorisation is ownership-aware; an author must be able to undo their own delete.
     public ResponseEntity<WeaponResponse> restoreWeapon(
             @PathVariable Long id,
             Authentication authentication,

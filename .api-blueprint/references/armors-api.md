@@ -2,7 +2,19 @@
 
 Base path: `/api/dh/armors`
 Authentication: All endpoints require a valid JWT token via `AUTH_TOKEN` HttpOnly cookie.
-Authorization: GET endpoints are accessible to all authenticated users. POST/PUT/DELETE endpoints require `ADMIN` or `OWNER` role.
+Authorization: GET endpoints are accessible to all authenticated users. Admin and bulk create
+require `ADMIN` or `OWNER`; custom creation and copying are open to any authenticated user;
+update, delete, and restore are ownership-aware (author, MODERATOR+, or ADMIN+ for official).
+
+Visibility: list endpoints return only what the caller may see — official content, public
+content, content they authored, content with no author (every imported row), or content
+explicitly tagged to a campaign they are involved in. MODERATOR+ bypasses this filter. There is
+no derived "we share a campaign so you see my things" rule; sharing is always a deliberate act
+by the author.
+
+`GET /{id}` is deliberately not filtered: any authenticated user can fetch any record by ID.
+Custom items have to render on other people's character sheets and profiles, and they carry no
+secrets. Restricting it would silently blank those pages.
 
 ---
 
@@ -22,10 +34,13 @@ Retrieve a paginated list of armors with optional filters.
 |-----------|------|----------|---------|-------------|
 | `page` | `int` | No | `0` | Zero-based page number |
 | `size` | `int` | No | `20` | Items per page (max: 100; values above 100 are clamped) |
-| `includeDeleted` | `boolean` | No | `false` | Include soft-deleted armors (ADMIN+ only) |
+| `includeDeleted` | `boolean` | No | `false` | Include soft-deleted armors (MODERATOR+ only; 403 otherwise) |
 | `expansionId` | `Long` | No | - | Filter by expansion ID |
 | `isOfficial` | `Boolean` | No | - | Filter by official status |
 | `tier` | `Integer` | No | - | Filter by tier (1--4) |
+| `createdByUserId` | `Long` | No | - | Narrow to one author. Filters within visibility; never widens it |
+| `name` | `String` | No | - | Case-insensitive substring match on the name |
+| `sort` | `ItemSort` | No | `ID` | Ordering: `ID` (insertion), `NAME`, `TIER`, `NEWEST`. `ID` puts official content first, so lists people read should ask for `NAME` |
 | `expand` | `String` | No | - | Comma-separated list of relationships to expand: `expansion`, `features`, `originalArmor` |
 
 **Response Body:**
@@ -597,6 +612,17 @@ Identical field set and validation to CreateArmorRequest. This is a full replace
 
 When using `?expand=`, the following nested objects may appear in responses.
 
+### Write responses always expand features
+
+A single-record write -- create (custom or admin), update, copy, and restore -- returns the record
+with `features` (and each feature's `costTags` and `modifiers`) already expanded, regardless of any
+`expand` parameter. A client that seeds an editor from the write response has no other way to learn
+them, and an omitted list reads as an emptied one: because a supplied `features` array replaces the
+whole relation, the next update would send that empty list back and delete the features for real.
+
+Bulk create is the exception and still returns unexpanded records.
+
+
 ### ExpansionResponse
 
 | Field | Type | Description |
@@ -818,3 +844,84 @@ Values used in integration and unit tests for crafting valid requests.
 ### Authentication
 
 All requests use an `AUTH_TOKEN` HttpOnly cookie containing a JWT. Admin-only endpoints (POST, PUT, DELETE) return `403 Forbidden` when called with a USER-role token.
+
+## 8. POST `/api/dh/armors/custom`
+
+Create armor authored by the calling user. Open to **any authenticated user**.
+
+Distinct from `POST /api/dh/armors`, which remains the admin import path and takes the stricter
+`CreateArmorRequest`. Keeping the two separate means an import payload that omits `isOfficial`
+still fails loudly rather than silently landing as un-attributed homebrew.
+
+### Request Body: `CreateCustomArmorRequest`
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | String | Yes | Max 200 characters |
+| `tier` | Integer | Yes | 1-4 |
+| `isPublic` | Boolean | No | Visible to everyone. **Honoured only for MODERATOR+; silently coerced to false otherwise** |
+| `campaignIds` | Long[] | No | Campaigns to share with. The caller must be involved in each; 403 otherwise |
+| `baseMajorThreshold` | Integer | Yes | Major damage threshold (min 1) |
+| `baseSevereThreshold` | Integer | Yes | Severe damage threshold (min 1, >= major) |
+| `baseScore` | Integer | Yes | Armor score (min 1) |
+| `features` | FeatureInput[] | No | Inline features, max 20 |
+
+**Fields deliberately absent:** `isOfficial` and `expansionId` (custom content is never canon and
+belongs to no sourcebook) and `originalArmorId` (set only by the copy endpoint, so a caller cannot
+claim their creation derives from something it does not).
+
+### Response: `201 Created`
+
+`ArmorResponse` with `isOfficial: false`, `expansionId: null`, and `createdByUserId` set to the
+caller.
+
+### Error Responses
+
+| Status | Condition |
+|--------|-----------|
+| 400 | Validation failure (missing required field, tier out of range, >20 features) |
+| 401 | Missing or invalid AUTH_TOKEN cookie |
+| 403 | `campaignIds` names a campaign the caller is not involved in |
+| 404 | A named campaign does not exist or has been deleted |
+
+---
+
+## 9. POST `/api/dh/armors/{id}/copy`
+
+Copy any existing record into new custom content owned by the caller. Open to **any
+authenticated user**, including copies of official content — records are already readable by ID,
+so restricting this would protect nothing.
+
+The copy is always private and unofficial regardless of its source, carries no sourcebook, and
+inherits **no** campaign tags: sharing is a decision the new owner makes for themselves. Features
+are carried over. The name gains a `" (Copy)"` suffix and `originalArmorId` points at the source.
+
+### Path Parameters
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `id` | Long | ID of the record to copy |
+
+### Response: `201 Created`
+
+### Error Responses
+
+| Status | Condition |
+|--------|-----------|
+| 401 | Missing or invalid AUTH_TOKEN cookie |
+| 404 | Source not found or soft-deleted |
+
+---
+
+
+### ItemSort
+
+| Value | Ordering |
+|-------|----------|
+| `ID` | Insertion order (default). Official content holds the low ids, so user-authored content sorts last |
+| `NAME` | Alphabetical. The sensible choice for pickers and browse screens |
+| `TIER` | Lowest tier first, alphabetical within a tier |
+| `NEWEST` | Most recently created first |
+
+An allowlist rather than a free-text Spring `sort` parameter: binding an arbitrary property path
+from a query string would let a caller order by, and so infer, fields the response never exposes.
