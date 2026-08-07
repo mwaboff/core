@@ -536,6 +536,86 @@ class CustomItemAuthorizationIntegrationTest {
                 .andExpect(jsonPath("$.features[0].expansionId").doesNotExist());
     }
 
+    // ==================== WRITE RESPONSES CARRY THEIR FEATURES ====================
+    //
+    // A create or update response is what a builder UI re-seeds its form from, and it was returning
+    // the item without its features. That reads as "the feature was never saved", and because an
+    // update treats a supplied features array as the item's complete new set, the next save sent
+    // that empty list back and deleted the features for real.
+
+    @Test
+    void aCreateResponseCarriesTheFeatureItJustSaved() throws Exception {
+        CreateCustomWeaponRequest request = customWeapon("Answering Blade");
+        request.setFeatures(List.of(inlineFeature("Answered Feature", null)));
+
+        mockMvc.perform(post("/api/dh/weapons/custom")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.features[0].name").value("Answered Feature"));
+    }
+
+    @Test
+    void anUpdateResponseCarriesTheFeaturesTheItemKept() throws Exception {
+        CreateCustomWeaponRequest create = customWeapon("Resaved Blade");
+        create.setFeatures(List.of(inlineFeature("Surviving Feature", null)));
+        String body = mockMvc.perform(post("/api/dh/weapons/custom")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(create)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        UpdateWeaponRequest update = new UpdateWeaponRequest();
+        update.setName("Resaved Blade II");
+        update.setFeatures(List.of(inlineFeature("Surviving Feature", null)));
+
+        mockMvc.perform(put("/api/dh/weapons/" + createdIdFrom(body))
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(update)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.features[0].name").value("Surviving Feature"));
+    }
+
+    @Test
+    void aCustomLootCreateResponseCarriesItsFeature() throws Exception {
+        CreateCustomLootRequest request = CreateCustomLootRequest.builder()
+                .name("Answering Charm")
+                .tier(1)
+                .isConsumable(false)
+                .description("A charm.")
+                .features(List.of(inlineFeature("Charmed Feature", null)))
+                .build();
+
+        mockMvc.perform(post("/api/dh/loot/custom")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.features[0].name").value("Charmed Feature"));
+    }
+
+    @Test
+    void aCustomArmorCreateResponseCarriesItsFeature() throws Exception {
+        CreateCustomArmorRequest request = CreateCustomArmorRequest.builder()
+                .name("Answering Plate")
+                .tier(1)
+                .baseScore(4)
+                .baseMajorThreshold(5)
+                .baseSevereThreshold(11)
+                .features(List.of(inlineFeature("Plated Feature", null)))
+                .build();
+
+        mockMvc.perform(post("/api/dh/armors/custom")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.features[0].name").value("Plated Feature"));
+    }
+
     @Test
     void theAdminImportPathCanStillGiveAFeatureASourcebook() throws Exception {
         // The coercion must be conditional on the owning item, not a blanket rule, or every

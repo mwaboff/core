@@ -612,6 +612,17 @@ Identical field set and validation to CreateArmorRequest. This is a full replace
 
 When using `?expand=`, the following nested objects may appear in responses.
 
+### Write responses always expand features
+
+A single-record write -- create (custom or admin), update, copy, and restore -- returns the record
+with `features` (and each feature's `costTags` and `modifiers`) already expanded, regardless of any
+`expand` parameter. A client that seeds an editor from the write response has no other way to learn
+them, and an omitted list reads as an emptied one: because a supplied `features` array replaces the
+whole relation, the next update would send that empty list back and delete the features for real.
+
+Bulk create is the exception and still returns unexpanded records.
+
+
 ### ExpansionResponse
 
 | Field | Type | Description |

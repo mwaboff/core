@@ -170,7 +170,7 @@ public class ArmorService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
                 "custom armor_id: " + savedArmor.getId());
 
-        return toResponse(savedArmor, Set.of());
+        return toResponse(savedArmor, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -216,7 +216,7 @@ public class ArmorService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
                 "copied armor_id: " + id + " to armor_id: " + savedCopy.getId());
 
-        return toResponse(savedCopy, Set.of());
+        return toResponse(savedCopy, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -277,7 +277,7 @@ public class ArmorService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
                 "\"" + savedArmor.getName() + "\" (armor_id: " + savedArmor.getId() + ")");
 
-        return toResponse(savedArmor, Set.of());
+        return toResponse(savedArmor, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -403,7 +403,7 @@ public class ArmorService {
         auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("armor").build(),
                 "armor_id: " + updatedArmor.getId());
 
-        return toResponse(updatedArmor, Set.of());
+        return toResponse(updatedArmor, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -455,7 +455,7 @@ public class ArmorService {
         auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("armor").build(),
                 "armor_id: " + id);
 
-        return toResponse(restoredArmor, Set.of());
+        return toResponse(restoredArmor, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**

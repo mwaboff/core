@@ -186,7 +186,7 @@ public class WeaponService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
                 "custom weapon_id: " + savedWeapon.getId());
 
-        return toResponse(savedWeapon, Set.of());
+        return toResponse(savedWeapon, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -234,7 +234,7 @@ public class WeaponService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
                 "copied weapon_id: " + id + " to weapon_id: " + savedCopy.getId());
 
-        return toResponse(savedCopy, Set.of());
+        return toResponse(savedCopy, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -297,7 +297,7 @@ public class WeaponService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
                 "\"" + savedWeapon.getName() + "\" (weapon_id: " + savedWeapon.getId() + ")");
 
-        return toResponse(savedWeapon, Set.of());
+        return toResponse(savedWeapon, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -429,7 +429,7 @@ public class WeaponService {
         auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
                 "weapon_id: " + updatedWeapon.getId());
 
-        return toResponse(updatedWeapon, Set.of());
+        return toResponse(updatedWeapon, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -481,7 +481,7 @@ public class WeaponService {
         auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("weapon").build(),
                 "weapon_id: " + id);
 
-        return toResponse(restoredWeapon, Set.of());
+        return toResponse(restoredWeapon, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**

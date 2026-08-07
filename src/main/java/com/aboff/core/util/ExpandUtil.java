@@ -17,6 +17,19 @@ public final class ExpandUtil {
     /** Special expand value that causes all available relationships to be expanded. */
     public static final String EXPAND_ALL = "all";
 
+    /**
+     * The expansion a single-record write response uses, so that a create or update describes the
+     * record it just wrote rather than a partial view of it.
+     * <p>
+     * Features are expanded because a client that seeds its editor from the write response has no
+     * other way to learn them, and an omitted list reads as an emptied one: the next update would
+     * send that empty set back and, since a supplied {@code features} array replaces the whole
+     * relation, delete the features for real. Cost tags and modifiers ride along because a feature
+     * without them is the same half-truth one level down.
+     * </p>
+     */
+    public static final Set<String> WRITE_RESPONSE_EXPAND = Set.of("features", "costTags", "modifiers");
+
     private ExpandUtil() {
         // Utility class - prevent instantiation
     }

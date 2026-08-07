@@ -412,6 +412,16 @@ are carried over. The name gains a `" (Copy)"` suffix and `originalWeaponId` poi
 
 The `?expand=` query parameter controls which related objects are embedded in the response. By default, only foreign-key IDs are returned. Pass a comma-separated list of relationship names to include full objects.
 
+### Write responses always expand features
+
+A single-record write -- create (custom or admin), update, copy, and restore -- returns the record
+with `features` (and each feature's `costTags` and `modifiers`) already expanded, regardless of any
+`expand` parameter. A client that seeds an editor from the write response has no other way to learn
+them, and an omitted list reads as an emptied one: because a supplied `features` array replaces the
+whole relation, the next update would send that empty list back and delete the features for real.
+
+Bulk create is the exception and still returns unexpanded records.
+
 ### Supported Values
 
 | Value | Effect |

@@ -453,6 +453,17 @@ curl -s -X POST -b "AUTH_TOKEN=<jwt>" "http://localhost:8080/api/dh/loot/1/resto
 
 The `expand` query parameter accepts a comma-separated list of relationship names. Null fields are omitted from the response (`@JsonInclude(NON_NULL)`).
 
+### Write responses always expand features
+
+A single-record write -- create (custom or admin), update, copy, and restore -- returns the record
+with `features` (and each feature's `costTags` and `modifiers`) already expanded, regardless of any
+`expand` parameter. A client that seeds an editor from the write response has no other way to learn
+them, and an omitted list reads as an emptied one: because a supplied `features` array replaces the
+whole relation, the next update would send that empty list back and delete the features for real.
+
+Bulk create is the exception and still returns unexpanded records.
+
+
 | Value          | Effect                                                    |
 |----------------|-----------------------------------------------------------|
 | `expansion`    | Includes full `ExpansionResponse` object                  |

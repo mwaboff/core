@@ -169,7 +169,7 @@ public class LootService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
                 "custom loot_id: " + savedLoot.getId());
 
-        return toResponse(savedLoot, Set.of());
+        return toResponse(savedLoot, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -214,7 +214,7 @@ public class LootService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
                 "copied loot_id: " + id + " to loot_id: " + savedCopy.getId());
 
-        return toResponse(savedCopy, Set.of());
+        return toResponse(savedCopy, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -274,7 +274,7 @@ public class LootService {
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
                 "\"" + savedLoot.getName() + "\" (loot_id: " + savedLoot.getId() + ")");
 
-        return toResponse(savedLoot, Set.of());
+        return toResponse(savedLoot, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -396,7 +396,7 @@ public class LootService {
         auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("loot").build(),
                 "loot_id: " + updatedLoot.getId());
 
-        return toResponse(updatedLoot, Set.of());
+        return toResponse(updatedLoot, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
@@ -448,7 +448,7 @@ public class LootService {
         auditLogger.log(AuditAction.CONTENT_RESTORED, AuditContext.forUser(authentication).withEntityType("loot").build(),
                 "loot_id: " + id);
 
-        return toResponse(restoredLoot, Set.of());
+        return toResponse(restoredLoot, ExpandUtil.WRITE_RESPONSE_EXPAND);
     }
 
     /**
