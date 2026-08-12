@@ -909,23 +909,35 @@ public class CharacterSheetService {
      * cosmetic, because {@code UpdateCharacterSheetRequest} deliberately has no
      * {@code transformationEnabled} field for a player to set.
      * </p>
+     * <p>
+     * The gate is on <em>change</em>, not on mention: a request that merely restates a value the
+     * sheet already holds (most commonly {@code wolfFormActive: false} on a character that has
+     * never transformed) changes nothing, so it is allowed through. A partial-update body that
+     * carries a whole group of resources -- a rest, for one -- would otherwise be rejected in
+     * full over a field it never moved. {@code clearTransformationCard} stays strict either way:
+     * it is an explicit command flag, never an incidental restatement of current state.
+     * </p>
      *
      * @param sheet   the character sheet being updated
      * @param request the partial update request
-     * @throws IllegalStateException if the request touches transformation state while the sheet
-     *                               is not transformation-enabled
+     * @throws IllegalStateException if the request would change transformation state while the
+     *                               sheet is not transformation-enabled
      */
     private void validateTransformationAccess(CharacterSheet sheet, UpdateCharacterSheetRequest request) {
         if (sheet.isTransformationEnabled()) {
             return;
         }
 
-        boolean touchesTransformation = request.getTransformationCardId() != null
-                || Boolean.TRUE.equals(request.getClearTransformationCard())
-                || request.getTransformationTokens() != null
-                || request.getWolfFormActive() != null;
+        Long currentCardId = sheet.getTransformationCard() == null ? null : sheet.getTransformationCard().getId();
+        boolean changesCard = request.getTransformationCardId() != null
+                && !request.getTransformationCardId().equals(currentCardId);
+        boolean changesTokens = request.getTransformationTokens() != null
+                && !request.getTransformationTokens().equals(sheet.getTransformationTokens());
+        boolean changesWolfForm = request.getWolfFormActive() != null
+                && request.getWolfFormActive() != Boolean.TRUE.equals(sheet.getWolfFormActive());
 
-        if (touchesTransformation) {
+        if (Boolean.TRUE.equals(request.getClearTransformationCard())
+                || changesCard || changesTokens || changesWolfForm) {
             throw new IllegalStateException(
                     "Transformations are not enabled for this character. Ask your GM to enable them.");
         }

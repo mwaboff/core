@@ -2280,6 +2280,103 @@ class CharacterSheetServiceTest {
     }
 
     @Test
+    void updateCharacterSheet_WolfFormActiveRestatesCurrentValue_WhenNotEnabled_Succeeds() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .wolfFormActive(false)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getWolfFormActive()).isFalse();
+    }
+
+    @Test
+    void updateCharacterSheet_TransformationTokensRestateCurrentValue_WhenNotEnabled_Succeeds() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+        sheet.setTransformationTokens(2);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationTokens(2)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getTransformationTokens()).isEqualTo(2);
+    }
+
+    @Test
+    void updateCharacterSheet_TransformationCardRestatesAttachedCard_WhenNotEnabled_Succeeds() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+        Expansion expansion = Expansion.builder().id(2L).name("Hope & Fear").build();
+        TransformationCard card = TransformationCard.builder().id(5L).name("Werewolf").expansion(expansion).build();
+        sheet.setTransformationCard(card);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .transformationCardId(5L)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        when(transformationCardRepository.findByIdAndDeletedAtIsNull(5L)).thenReturn(Optional.of(card));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getTransformationCardId()).isEqualTo(5L);
+    }
+
+    /**
+     * The rest flow sends every resource it can move in one body, including transformation state
+     * it left untouched. A character without transformations must still be able to rest.
+     */
+    @Test
+    void updateCharacterSheet_RestShapedBody_WhenNotEnabled_Succeeds() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setTransformationEnabled(false);
+        sheet.setHitPointMarked(4);
+        sheet.setStressMarked(3);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .hitPointMarked(0)
+                .stressMarked(0)
+                .armorMarked(2)
+                .hopeMarked(5)
+                .focusMarked(0)
+                .favor(0)
+                .wolfFormActive(false)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getHitPointMarked()).isZero();
+    }
+
+    @Test
     void updateCharacterSheet_NonTransformationFields_WhenNotEnabled_Succeeds() {
         User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
         CharacterSheet sheet = buildHfSheet(owner);
