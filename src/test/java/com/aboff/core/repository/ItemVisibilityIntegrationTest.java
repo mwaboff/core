@@ -111,7 +111,7 @@ class ItemVisibilityIntegrationTest {
     private List<String> visibleTo(User user, List<Long> campaignIds, boolean privileged) {
         return weaponRepository.findAccessibleWithFilters(
                         user.getId(), campaignIds, privileged,
-                        null, null, null, null, null, null, null, null, null, null, FIRST_PAGE)
+                        null, null, null, null, null, null, null, null, null, null, true, FIRST_PAGE)
                 .getContent().stream().map(Weapon::getName).toList();
     }
 
@@ -212,7 +212,7 @@ class ItemVisibilityIntegrationTest {
 
         List<String> firstPage = weaponRepository.findAccessibleWithFilters(
                         campaignMate.getId(), List.of(one.getId(), two.getId(), three.getId()), false,
-                        null, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, null, null, null, null, null, null, true,
                         PageRequest.of(0, 2, org.springframework.data.domain.Sort.by("name")))
                 .getContent().stream().map(Weapon::getName).toList();
 
@@ -235,7 +235,7 @@ class ItemVisibilityIntegrationTest {
         List<Long> campaignIds = List.of(one.getId(), two.getId(), three.getId());
         long total = weaponRepository.findAccessibleWithFilters(
                         campaignMate.getId(), campaignIds, false,
-                        null, null, null, null, null, null, null, null, null, null,
+                        null, null, null, null, null, null, null, null, null, null, true,
                         PageRequest.of(0, 1))
                 .getTotalElements();
 
@@ -275,7 +275,7 @@ class ItemVisibilityIntegrationTest {
 
         List<String> visible = weaponRepository.findAccessibleWithFilters(
                         stranger.getId(), NO_CAMPAIGNS, false,
-                        null, author.getId(), null, null, null, null, null, null, null, null, FIRST_PAGE)
+                        null, author.getId(), null, null, null, null, null, null, null, null, true, FIRST_PAGE)
                 .getContent().stream().map(Weapon::getName).toList();
 
         assertThat(visible).contains("Author Public").doesNotContain("Author Private");
@@ -289,7 +289,7 @@ class ItemVisibilityIntegrationTest {
                 : PageRequest.of(0, 50, sort.toSort());
         return weaponRepository.findAccessibleWithFilters(
                         user.getId(), NO_CAMPAIGNS, false,
-                        null, null, name, null, null, null, null, null, null, null, pageable)
+                        null, null, name, null, null, null, null, null, null, null, true, pageable)
                 .getContent().stream().map(Weapon::getName).toList();
     }
 

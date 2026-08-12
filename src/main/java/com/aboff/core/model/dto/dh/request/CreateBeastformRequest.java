@@ -131,6 +131,13 @@ public class CreateBeastformRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this beastform is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Optional; only ADMIN+ callers may actually set it to true --
+     * see {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
+
+    /**
      * Whether this custom beastform is publicly visible.
      */
     @Builder.Default

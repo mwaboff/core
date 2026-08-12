@@ -28,6 +28,7 @@ import com.aboff.core.repository.dh.EncounterRunRepository;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.MarkdownSanitizerUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -67,6 +68,17 @@ import java.util.stream.Collectors;
  * and {@code CampaignService#updateFear}: absolute values, not deltas, so two GMs (or two open
  * tabs) resolve to last-write-wins instead of compounding a lost update.
  * </p>
+ * <p>
+ * <strong>SRD gating.</strong> {@link #toAdversaryStatBlock} applies
+ * {@link ContentAccessService#mayView(Boolean, Boolean)} and {@link ContentRedaction#stub} itself
+ * rather than delegating to {@code AdversaryService}'s own (private) {@code toResponse} -- that
+ * method reads {@code adversary.getFeatures()}/{@code getExperiences()} directly, while this
+ * class deliberately batch-loads both across every instance in a run first (see
+ * {@link #toAdversaryStatBlock}'s javadoc) to avoid one lazy-collection query per instance.
+ * Delegating would mean either reintroducing that N+1 or threading the batched sets through a
+ * shape {@code AdversaryService} does not expose, so the same gate/stub primitives every other
+ * {@code toResponse} funnel uses are applied here directly instead.
+ * </p>
  */
 @Service
 @RequiredArgsConstructor
@@ -82,6 +94,7 @@ public class EncounterRunService {
     private final CampaignService campaignService;
     private final AdversaryService adversaryService;
     private final RoleHierarchyService roleHierarchyService;
+    private final ContentAccessService contentAccessService;
     private final AuditLogger auditLogger;
 
     /**
@@ -521,13 +534,25 @@ public class EncounterRunService {
      * {@link Adversary#getExperiences()} are lazy {@code @ManyToMany} collections that a run with
      * many instances would otherwise trigger once per instance.
      * </p>
+     * <p>
+     * Gated the same way {@code AdversaryService#toResponse} gates its own adversaries -- a run
+     * is visible to any GM tagged to its campaign or any MODERATOR (see the class javadoc on
+     * authorization), neither of which implies ADMIN/OWNER or an SRD grant, so a licensing-gated
+     * adversary must still redact to a stub here rather than leaking its full stat block to
+     * whoever can merely see the run.
+     * </p>
      *
      * @param adversary The catalog adversary
      * @param features The adversary's features, already loaded
      * @param experiences The adversary's experiences, already loaded
-     * @return The adversary's stat block
+     * @return The adversary's stat block, or a redacted stub if the caller may not view it
      */
     private AdversaryResponse toAdversaryStatBlock(Adversary adversary, Set<Feature> features, Set<Experience> experiences) {
+        if (!contentAccessService.mayView(adversary.getIsOfficial(), adversary.getSrd())) {
+            return ContentRedaction.stub(AdversaryResponse::new, adversary.getId(),
+                    adversary.getExpansion() != null ? adversary.getExpansion().getName() : null);
+        }
+
         AdversaryResponse.AdversaryResponseBuilder builder = AdversaryResponse.builder()
                 .id(adversary.getId())
                 .name(adversary.getName())

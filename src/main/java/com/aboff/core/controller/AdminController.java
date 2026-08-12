@@ -2,14 +2,17 @@ package com.aboff.core.controller;
 
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.request.BanUserRequest;
+import com.aboff.core.model.dto.request.BulkSrdUpdateRequest;
 import com.aboff.core.model.dto.request.ChangeRoleRequest;
 import com.aboff.core.model.dto.request.UpdateAdminUserRequest;
 import com.aboff.core.model.dto.response.AdminUserDetailResponse;
 import com.aboff.core.model.dto.response.AdminUserSummaryResponse;
+import com.aboff.core.model.dto.response.BulkSrdUpdateResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.AdminContentService;
 import com.aboff.core.service.AdminUserService;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.SearchIndexService;
@@ -38,22 +41,26 @@ import java.util.Map;
 public class AdminController {
 
     private final AdminUserService adminUserService;
+    private final AdminContentService adminContentService;
     private final SearchIndexService searchIndexService;
     private final AuditLogger auditLogger;
 
     /**
      * Constructs a new {@code AdminController}.
      *
-     * @param adminUserService   admin user service
-     * @param searchIndexService search index service
-     * @param auditLogger        SLF4J audit logger (kept in parallel with
-     *                           the persistent {@code admin_action_log})
+     * @param adminUserService    admin user service
+     * @param adminContentService bulk content SRD-flagging service
+     * @param searchIndexService  search index service
+     * @param auditLogger         SLF4J audit logger (kept in parallel with
+     *                            the persistent {@code admin_action_log})
      */
     public AdminController(
             AdminUserService adminUserService,
+            AdminContentService adminContentService,
             SearchIndexService searchIndexService,
             AuditLogger auditLogger) {
         this.adminUserService = adminUserService;
+        this.adminContentService = adminContentService;
         this.searchIndexService = searchIndexService;
         this.auditLogger = auditLogger;
     }
@@ -257,6 +264,40 @@ public class AdminController {
                 currentUser.getUser(), userId, request.getNewRole(), httpRequest.getRemoteAddr());
 
         auditLogger.requestCompleted(ctx, "POST", "/api/admin/users/" + userId + "/change-role", startTime);
+        return result;
+    }
+
+    // ==================== BULK SRD FLAGGING ====================
+
+    /**
+     * Bulk-flags or unflags game content as SRD-licensed. Backs the admin bulk SRD-flagging
+     * tool: this is the only way {@code srd} is ever set true for content, since every row was
+     * backfilled to {@code srd = false} when the column was added.
+     *
+     * <p>PATCH /api/admin/content/srd</p>
+     *
+     * @param request     the type, ids, and target srd value
+     * @param currentUser the authenticated admin
+     * @return the updated and unknown ids
+     */
+    @PatchMapping("/content/srd")
+    @PreAuthorize("hasAnyRole('ADMIN', 'OWNER')")
+    public BulkSrdUpdateResponse updateContentSrd(
+            @Valid @RequestBody BulkSrdUpdateRequest request,
+            @AuthenticationPrincipal CustomUserDetails currentUser,
+            Authentication authentication,
+            HttpServletRequest httpRequest) {
+
+        long startTime = System.nanoTime();
+        AuditContext ctx = AuditContext.forUser(authentication)
+                .withIp(httpRequest.getRemoteAddr())
+                .build();
+        auditLogger.requestReceived(ctx, "PATCH", "/api/admin/content/srd");
+
+        BulkSrdUpdateResponse result = adminContentService.updateSrd(
+                currentUser.getUser(), request, httpRequest.getRemoteAddr());
+
+        auditLogger.requestCompleted(ctx, "PATCH", "/api/admin/content/srd", startTime);
         return result;
     }
 

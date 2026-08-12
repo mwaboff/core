@@ -45,6 +45,14 @@ public class CreateSubclassPathRequest {
     private Trait spellcastingTrait;
 
     /**
+     * Whether this path (and by cascade, its Foundation/Specialization/Mastery cards) is
+     * SRD-licensed content. Optional and ADMIN+ only — see
+     * {@code ContentAccessService#resolveSrd}. Deliberately not {@code @NotNull}: bulk import
+     * payloads omit this field and must keep working unchanged.
+     */
+    private Boolean srd;
+
+    /**
      * IDs of domains to associate with this path.
      */
     private List<Long> associatedDomainIds;

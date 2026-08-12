@@ -39,6 +39,13 @@ public class CreateTransformationCardRequest {
     private Long expansionId;
 
     /**
+     * Whether this transformation card is SRD-licensed content. Optional and ADMIN+ only — see
+     * {@code ContentAccessService#resolveSrd}. Deliberately not {@code @NotNull}: bulk import
+     * payloads omit this field and must keep working unchanged.
+     */
+    private Boolean srd;
+
+    /**
      * IDs of existing features to associate with this transformation card.
      */
     private List<Long> featureIds;

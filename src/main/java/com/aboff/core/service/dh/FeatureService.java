@@ -2,7 +2,6 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
-import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
@@ -15,6 +14,8 @@ import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
+import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,6 +54,7 @@ public class FeatureService {
     private final ExpansionRepository expansionRepository;
     private final CardCostTagService cardCostTagService;
     private final FeatureModifierService featureModifierService;
+    private final ContentAccessService contentAccessService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -80,10 +82,11 @@ public class FeatureService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<Feature> featurePage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             featurePage = featureRepository.findAllWithFilters(expansionId, featureType, pageable);
         } else {
-            featurePage = featureRepository.findByDeletedAtIsNullAndFilters(expansionId, featureType, pageable);
+            featurePage = featureRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, featureType, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -135,6 +138,11 @@ public class FeatureService {
                 .featureType(request.getFeatureType())
                 .timing(request.getTiming())
                 .expansion(expansion)
+                // Standalone create is ADMIN/OWNER-only with a required expansionId, so an
+                // expansion always resolves here; written generically (rather than hardcoded
+                // true) so this stays correct if expansionId is ever relaxed to optional.
+                .isOfficial(expansion != null)
+                .srd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()))
                 .build();
 
         // Set cost tags if provided
@@ -189,6 +197,9 @@ public class FeatureService {
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Expansion not found with id: " + request.getExpansionId()));
             feature.setExpansion(expansion);
+        }
+        if (request.getSrd() != null) {
+            feature.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
         }
 
         // Update cost tags
@@ -265,6 +276,7 @@ public class FeatureService {
     @Transactional
     public List<FeatureResponse> createFeaturesBulk(List<CreateFeatureRequest> requests, Authentication authentication) {
 
+        User user = currentUser(authentication);
         List<Feature> features = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -277,6 +289,8 @@ public class FeatureService {
                             .featureType(request.getFeatureType())
                             .timing(request.getTiming())
                             .expansion(expansion)
+                            .isOfficial(expansion != null)
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .build();
 
                     Set<CardCostTag> bulkResolvedTags = cardCostTagService.resolveCostTags(request.getCostTagIds(), request.getCostTags());
@@ -317,9 +331,16 @@ public class FeatureService {
      * </p>
      *
      * @param author the user who wrote the feature, or null for imported content
-     * @param mayClaimSourcebook whether the feature may keep the expansion the request named
+     * @param mayClaimSourcebook whether the feature may keep the expansion the request named;
+     *                           this also decides the created feature's {@code isOfficial} —
+     *                           by construction, official content is exactly the content
+     *                           allowed to claim a sourcebook
+     * @param srd the {@code srd} flag the created feature should inherit from its parent;
+     *            {@code false} for every existing caller of {@link #forItem} and
+     *            {@link #imported()}, since those factories predate per-parent srd tracking —
+     *            only {@link #forParent} threads a real value
      */
-    public record FeatureOrigin(User author, boolean mayClaimSourcebook) {
+    public record FeatureOrigin(User author, boolean mayClaimSourcebook, boolean srd) {
 
         /**
          * The origin for content created through the ADMIN/OWNER import and card endpoints,
@@ -328,7 +349,7 @@ public class FeatureService {
          * @return an origin that keeps the requested expansion and records no author
          */
         public static FeatureOrigin imported() {
-            return new FeatureOrigin(null, true);
+            return new FeatureOrigin(null, true, false);
         }
 
         /**
@@ -340,7 +361,25 @@ public class FeatureService {
          *         user as author only for custom ones
          */
         public static FeatureOrigin forItem(User user, boolean itemIsOfficial) {
-            return itemIsOfficial ? imported() : new FeatureOrigin(user, false);
+            return itemIsOfficial ? imported() : new FeatureOrigin(user, false, false);
+        }
+
+        /**
+         * The origin for a feature created inline on a parent whose {@code srd} flag is already
+         * resolved (e.g. a {@code Class}'s hope/class features, a {@code TransformationCard}'s
+         * features), so the feature inherits both {@code isOfficial} and {@code srd} from that
+         * parent instead of unconditionally defaulting to official via {@link #imported()}.
+         *
+         * @param user the user performing the create or update
+         * @param parentIsOfficial the already-resolved official flag of the owning parent
+         * @param parentSrd the already-resolved srd flag of the owning parent
+         * @return an origin that permits a sourcebook only for official parents, credits the
+         *         user as author only for custom ones, and always carries the parent's srd
+         */
+        public static FeatureOrigin forParent(User user, boolean parentIsOfficial, boolean parentSrd) {
+            return parentIsOfficial
+                    ? new FeatureOrigin(null, true, parentSrd)
+                    : new FeatureOrigin(user, false, parentSrd);
         }
     }
 
@@ -389,10 +428,10 @@ public class FeatureService {
                         log.debug("Found existing feature with name '{}' (id: {})", input.getName(), existing.getId());
                         return existing;
                     })
-                    .orElseGet(() -> createFeatureFromInput(input, expansionId, origin.author()));
+                    .orElseGet(() -> createFeatureFromInput(input, expansionId, origin));
         }
 
-        return createFeatureFromInput(input, expansionId, origin.author());
+        return createFeatureFromInput(input, expansionId, origin);
     }
 
     /**
@@ -423,14 +462,20 @@ public class FeatureService {
 
     /**
      * Creates a new Feature entity from a FeatureInput, resolving expansion, cost tags, and modifiers.
+     * <p>
+     * {@code isOfficial} is derived from {@link FeatureOrigin#mayClaimSourcebook()} rather than
+     * read from any request — by construction the two already mean the same thing everywhere
+     * this is called (see {@link FeatureOrigin}'s Javadoc), so no separate field is needed.
+     * {@code srd} is taken from the origin directly.
+     * </p>
      *
      * @param input The feature input containing details for the new feature
      * @param expansionId The already-coerced expansion ID; null for a feature from no sourcebook
-     * @param author The user to credit as author, or null for imported content
+     * @param origin Where the feature came from; see {@link FeatureOrigin}
      * @return The newly created and persisted Feature entity
      * @throws EntityNotFoundException if the expansion referenced by the input does not exist
      */
-    private Feature createFeatureFromInput(FeatureInput input, Long expansionId, User author) {
+    private Feature createFeatureFromInput(FeatureInput input, Long expansionId, FeatureOrigin origin) {
         log.debug("Creating new feature with name '{}', type '{}', expansion '{}'",
                 input.getName(), input.getFeatureType(), expansionId);
         // A null expansion is legitimate: features authored alongside a custom item come from
@@ -445,7 +490,9 @@ public class FeatureService {
                 .featureType(input.getFeatureType())
                 .timing(input.getTiming())
                 .expansion(expansion)
-                .createdBy(author)
+                .createdBy(origin.author())
+                .isOfficial(origin.mayClaimSourcebook())
+                .srd(origin.srd())
                 .build();
         Set<CardCostTag> resolvedTags = cardCostTagService.resolveCostTags(
                 input.getCostTagIds(), input.getCostTags());
@@ -536,16 +583,30 @@ public class FeatureService {
 
     /**
      * Converts a Feature entity to FeatureResponse DTO.
+     * <p>
+     * This is the universal funnel — every caller (list, single-get, and every sibling type
+     * expanding its features, e.g. {@code ClassService}, {@code TransformationCardService},
+     * {@code SubclassCardService}) must route through this method rather than building a
+     * {@link FeatureResponse} directly, so a gated non-SRD feature redacts to a stub instead of
+     * leaking through an expand.
+     * </p>
      *
      * @param feature The feature entity
      * @param expand Set of relationships to expand
-     * @return FeatureResponse DTO
+     * @return FeatureResponse DTO, or a redacted stub if the caller may not view it
      */
     public FeatureResponse toResponse(Feature feature, Set<String> expand) {
+        if (!contentAccessService.mayView(feature.getIsOfficial(), feature.getSrd())) {
+            return ContentRedaction.stub(FeatureResponse::new, feature.getId(),
+                    feature.getExpansion() != null ? feature.getExpansion().getName() : null);
+        }
+
         FeatureResponse.FeatureResponseBuilder builder = FeatureResponse.builder()
                 .id(feature.getId())
                 .name(feature.getName())
                 .description(feature.getDescription())
+                .isOfficial(feature.getIsOfficial())
+                .srd(feature.getSrd())
                 .featureType(feature.getFeatureType())
                 .timing(feature.getTiming())
                 // Null for a feature authored alongside a custom item: it came from no book.
@@ -573,17 +634,12 @@ public class FeatureService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand cost tags if requested
+        // Expand cost tags if requested. Routed through CardCostTagService#toResponse (not built
+        // inline) so a gated non-SRD cost tag redacts to a stub here too -- the inline builder
+        // this replaced also silently dropped the srd field.
         if (ExpandUtil.shouldExpand(expand, "costTags") && feature.getCostTags() != null) {
             builder.costTags(feature.getCostTags().stream()
-                    .map(tag -> CardCostTagResponse.builder()
-                            .id(tag.getId())
-                            .label(tag.getLabel())
-                            .category(tag.getCategory())
-                            .createdAt(tag.getCreatedAt())
-                            .lastModifiedAt(tag.getLastModifiedAt())
-                            .deletedAt(tag.getDeletedAt())
-                            .build())
+                    .map(cardCostTagService::toResponse)
                     .collect(Collectors.toList()));
         }
 
@@ -610,5 +666,16 @@ public class FeatureService {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Resolves the authenticated user from an {@link Authentication}, matching the
+     * {@link CustomUserDetails} extraction pattern used throughout {@code service.dh}.
+     *
+     * @param authentication the authentication context of the requesting user
+     * @return the authenticated {@link User}
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

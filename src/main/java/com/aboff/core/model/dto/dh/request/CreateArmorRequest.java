@@ -52,6 +52,14 @@ public class CreateArmorRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this armor is SRD-licensed content, freely usable without owning the sourcebook
+     * it was printed in. Optional and honoured only for ADMIN+ — see
+     * {@code ContentAccessService#resolveSrd}. Omitted by existing bulk-import payloads, which
+     * must keep working, so this is never required.
+     */
+    private Boolean srd;
+
+    /**
      * The minimum damage required to inflict a major injury.
      */
     @NotNull(message = "Base major threshold is required")

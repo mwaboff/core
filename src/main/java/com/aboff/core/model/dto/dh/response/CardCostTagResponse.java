@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class CardCostTagResponse {
+public class CardCostTagResponse implements Restrictable {
     /**
      * Unique identifier for the cost tag
      */
@@ -35,6 +35,12 @@ public class CardCostTagResponse {
     private CostTagCategory category;
 
     /**
+     * Whether this cost tag is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in.
+     */
+    private Boolean srd;
+
+    /**
      * Timestamp when the cost tag was created
      */
     private LocalDateTime createdAt;
@@ -48,4 +54,29 @@ public class CardCostTagResponse {
      * Timestamp when the cost tag was soft-deleted (null if not deleted)
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * The name of the expansion this cost tag belongs to. Only set on a redacted stub — a
+     * CardCostTag carries no expansion of its own, so this is always null in practice.
+     */
+    private String expansionName;
+
+    /**
+     * True if this response is a redacted stub for gated non-SRD content the caller may not
+     * view. When true, every other field except {@link #id} and {@link #expansionName} is
+     * unset.
+     */
+    private Boolean restricted;
+
+    /**
+     * Restrictable's setter for the cost tag's display name — a CardCostTagResponse has no
+     * {@code name} field (it uses {@link #label}), so this is a no-op. Never called by
+     * {@link com.aboff.core.util.ContentRedaction#stub}, which never sets a name on a stub.
+     *
+     * @param name unused
+     */
+    @Override
+    public void setName(String name) {
+        // No-op: CardCostTagResponse has no "name" field.
+    }
 }

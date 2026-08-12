@@ -159,6 +159,13 @@ public class CreateAdversaryRequest {
     private Boolean isOfficial = false;
 
     /**
+     * Whether this adversary is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Optional; only ADMIN+ callers may actually set it to true --
+     * see {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
+
+    /**
      * Whether this adversary is publicly visible to other users.
      */
     @Builder.Default

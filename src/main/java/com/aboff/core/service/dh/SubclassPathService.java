@@ -3,24 +3,27 @@ package com.aboff.core.service.dh;
 import com.aboff.core.model.dto.dh.request.CreateSubclassPathRequest;
 import com.aboff.core.model.dto.dh.request.SubclassPathInput;
 import com.aboff.core.model.dto.dh.request.UpdateSubclassPathRequest;
-import com.aboff.core.model.dto.dh.response.ClassResponse;
-import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.SubclassPathResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.SubclassCardRepository;
 import com.aboff.core.repository.dh.SubclassPathRepository;
 import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
@@ -50,9 +53,13 @@ import java.util.stream.Collectors;
 public class SubclassPathService {
 
     private final SubclassPathRepository subclassPathRepository;
+    private final SubclassCardRepository subclassCardRepository;
     private final ExpansionRepository expansionRepository;
     private final ClassRepository classRepository;
     private final DomainRepository domainRepository;
+    private final ClassService classService;
+    private final DomainService domainService;
+    private final ContentAccessService contentAccessService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -78,10 +85,11 @@ public class SubclassPathService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<SubclassPath> pathPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             pathPage = subclassPathRepository.findAllWithFilters(classId, pageable);
         } else {
-            pathPage = subclassPathRepository.findByDeletedAtIsNullAndFilters(classId, pageable);
+            pathPage = subclassPathRepository.findByDeletedAtIsNullAndFilters(
+                    classId, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -124,6 +132,7 @@ public class SubclassPathService {
      */
     @Transactional
     public SubclassPathResponse createSubclassPath(CreateSubclassPathRequest request, Authentication authentication) {
+        User user = currentUser(authentication);
         Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Class not found with id: " + request.getAssociatedClassId()));
@@ -137,6 +146,7 @@ public class SubclassPathService {
                 .associatedClass(associatedClass)
                 .spellcastingTrait(request.getSpellcastingTrait())
                 .expansion(expansion)
+                .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                 .build();
 
         if (request.getAssociatedDomainIds() != null && !request.getAssociatedDomainIds().isEmpty()) {
@@ -147,6 +157,10 @@ public class SubclassPathService {
 
         SubclassPath savedPath = subclassPathRepository.save(path);
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedPath, EntityChangeEvent.ChangeType.CREATED));
+        // A freshly created path has no cards yet, so this is a no-op today; kept for symmetry
+        // with updateSubclassPath and because resolvePath's find-or-create branch can later
+        // attach cards to this same path.
+        cascadeSrdToCards(savedPath);
         auditLogger.log(AuditAction.CONTENT_CREATED, AuditContext.forUser(authentication).withEntityType("subclass_path").build(),
                 "\"" + savedPath.getName() + "\" (subclass_path_id: " + savedPath.getId() + ")");
 
@@ -162,6 +176,7 @@ public class SubclassPathService {
      */
     @Transactional
     public List<SubclassPathResponse> createSubclassPathsBulk(List<CreateSubclassPathRequest> requests, Authentication authentication) {
+        User user = currentUser(authentication);
         List<SubclassPath> paths = requests.stream()
                 .map(request -> {
                     Class associatedClass = classRepository.findByIdAndDeletedAtIsNull(request.getAssociatedClassId())
@@ -177,6 +192,7 @@ public class SubclassPathService {
                             .associatedClass(associatedClass)
                             .spellcastingTrait(request.getSpellcastingTrait())
                             .expansion(expansion)
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .build();
 
                     if (request.getAssociatedDomainIds() != null && !request.getAssociatedDomainIds().isEmpty()) {
@@ -190,7 +206,10 @@ public class SubclassPathService {
                 .collect(Collectors.toList());
 
         List<SubclassPath> savedPaths = subclassPathRepository.saveAll(paths);
-        savedPaths.forEach(p -> eventPublisher.publishEvent(new EntityChangeEvent(this, p, EntityChangeEvent.ChangeType.CREATED)));
+        savedPaths.forEach(p -> {
+            eventPublisher.publishEvent(new EntityChangeEvent(this, p, EntityChangeEvent.ChangeType.CREATED));
+            cascadeSrdToCards(p);
+        });
         auditLogger.log(AuditAction.CONTENT_BATCH_CREATED, AuditContext.forUser(authentication).withEntityType("subclass_path").build(),
                 savedPaths.size() + " created");
 
@@ -241,9 +260,18 @@ public class SubclassPathService {
                 path.setAssociatedDomains(domains);
             }
         }
+        if (request.getSrd() != null) {
+            path.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
+        }
 
         SubclassPath updatedPath = subclassPathRepository.save(path);
         eventPublisher.publishEvent(new EntityChangeEvent(this, updatedPath, EntityChangeEvent.ChangeType.UPDATED));
+        // subclass_paths.srd is the only writable flag for the (path, Foundation, Specialization,
+        // Mastery) group -- cascade it to every card in the path, in this same transaction, so
+        // the group can never disagree with itself. SubclassCardService derives each card's own
+        // srd from its path on every create/update, so this is the sole write path that can move
+        // an existing card's srd.
+        cascadeSrdToCards(updatedPath);
         auditLogger.log(AuditAction.CONTENT_UPDATED, AuditContext.forUser(authentication).withEntityType("subclass_path").build(),
                 "subclass_path_id: " + updatedPath.getId());
 
@@ -415,15 +443,30 @@ public class SubclassPathService {
 
     /**
      * Converts a SubclassPath entity to SubclassPathResponse DTO.
+     * <p>
+     * {@code SubclassPath} carries no {@code isOfficial} distinction of its own (see the
+     * entity), so {@code true} is passed as the {@code isOfficial} argument to
+     * {@link ContentAccessService#mayView(Boolean, Boolean)} to force the {@code srd} check
+     * rather than short-circuiting it — matching {@code QuestionService}/{@code
+     * CardCostTagService}. This is the universal funnel — every caller (list, single-get, and
+     * any sibling type expanding its subclass paths, e.g. {@code SubclassCardService}) must
+     * route through this method rather than building a {@link SubclassPathResponse} directly.
+     * </p>
      *
      * @param path The subclass path entity
      * @param expand Set of relationships to expand
-     * @return SubclassPathResponse DTO
+     * @return SubclassPathResponse DTO, or a redacted stub if the caller may not view it
      */
     public SubclassPathResponse toResponse(SubclassPath path, Set<String> expand) {
+        if (!contentAccessService.mayView(true, path.getSrd())) {
+            return ContentRedaction.stub(SubclassPathResponse::new, path.getId(),
+                    path.getExpansion() != null ? path.getExpansion().getName() : null);
+        }
+
         SubclassPathResponse.SubclassPathResponseBuilder builder = SubclassPathResponse.builder()
                 .id(path.getId())
                 .name(path.getName())
+                .srd(path.getSrd())
                 .associatedClassId(path.getAssociatedClass().getId())
                 .expansionId(path.getExpansion().getId())
                 .createdAt(path.getCreatedAt())
@@ -446,36 +489,17 @@ public class SubclassPathService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand associated class if requested
+        // Expand associated class if requested. Routed through ClassService#toResponse (not
+        // built inline) so a gated non-SRD class redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "associatedClass")) {
-            Class clazz = path.getAssociatedClass();
-            builder.associatedClass(ClassResponse.builder()
-                    .id(clazz.getId())
-                    .name(clazz.getName())
-                    .description(clazz.getDescription())
-                    .expansionId(clazz.getExpansion().getId())
-                    .startingClassItems(clazz.getStartingClassItems())
-                    .startingEvasion(clazz.getStartingEvasion())
-                    .startingHitPoints(clazz.getStartingHitPoints())
-                    .createdAt(clazz.getCreatedAt())
-                    .lastModifiedAt(clazz.getLastModifiedAt())
-                    .deletedAt(clazz.getDeletedAt())
-                    .build());
+            builder.associatedClass(classService.toResponse(path.getAssociatedClass(), Set.of()));
         }
 
-        // Expand associated domains if requested
+        // Expand associated domains if requested. Routed through DomainService#toResponse (not
+        // built inline) so a gated non-SRD domain redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "associatedDomains") && path.getAssociatedDomains() != null) {
             builder.associatedDomains(path.getAssociatedDomains().stream()
-                    .map(domain -> DomainResponse.builder()
-                            .id(domain.getId())
-                            .name(domain.getName())
-                            .iconUrl(domain.getIconUrl())
-                            .description(domain.getDescription())
-                            .expansionId(domain.getExpansion().getId())
-                            .createdAt(domain.getCreatedAt())
-                            .lastModifiedAt(domain.getLastModifiedAt())
-                            .deletedAt(domain.getDeletedAt())
-                            .build())
+                    .map(domain -> domainService.toResponse(domain, Set.of()))
                     .collect(Collectors.toList()));
         }
 
@@ -493,5 +517,75 @@ public class SubclassPathService {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Re-derives every non-deleted subclass card in a path's {@code srd} flag from the path
+     * itself, so the group (path, Foundation, Specialization, Mastery) can never disagree.
+     * <p>
+     * Called from within the same {@code @Transactional} method that changed the path's
+     * {@code srd}, so the cascade commits atomically with the path change. Uses
+     * {@link SubclassCardRepository#findBySubclassPathIdAndDeletedAtIsNull} rather than the
+     * caller-facing, SRD-gated list query — this must reach every card in the path regardless of
+     * the current caller's own visibility, since it is a write operation, not a browse.
+     * </p>
+     *
+     * @param path the subclass path whose {@code srd} is now authoritative for its cards
+     */
+    private void cascadeSrdToCards(SubclassPath path) {
+        List<SubclassCard> cards = subclassCardRepository.findBySubclassPathIdAndDeletedAtIsNull(path.getId());
+        if (cards.isEmpty()) {
+            return;
+        }
+
+        cards.forEach(card -> card.setSrd(path.getSrd()));
+        List<SubclassCard> updatedCards = subclassCardRepository.saveAll(cards);
+        updatedCards.forEach(card -> eventPublisher.publishEvent(
+                new EntityChangeEvent(this, card, EntityChangeEvent.ChangeType.UPDATED)));
+        log.debug("Cascaded srd={} from subclass path id={} to {} card(s)",
+                path.getSrd(), path.getId(), updatedCards.size());
+    }
+
+    /**
+     * Bulk-sets {@code srd} on every existing subclass path in {@code ids}, cascading each
+     * change to that path's cards in the same transaction.
+     * <p>
+     * This is the only path {@link com.aboff.core.service.AdminContentService}'s bulk
+     * SRD-flagging tool may use for {@code type=SUBCLASS_PATH}. That tool otherwise fetches
+     * entities generically and saves them straight through their
+     * {@link org.springframework.data.jpa.repository.JpaRepository}, which would skip
+     * {@link #cascadeSrdToCards} entirely and leave a path disagreeing with its own
+     * Foundation/Specialization/Mastery cards -- the exact invariant this class exists to
+     * protect (see {@link #updateSubclassPath}).
+     * </p>
+     *
+     * @param ids the requested subclass path ids; entries that don't resolve are silently skipped
+     * @param srd the srd value to apply
+     * @return the ids that were found and updated
+     */
+    @Transactional
+    public List<Long> bulkSetSrd(List<Long> ids, boolean srd) {
+        List<SubclassPath> paths = subclassPathRepository.findAllById(ids);
+        paths.forEach(path -> path.setSrd(srd));
+        List<SubclassPath> updatedPaths = subclassPathRepository.saveAll(paths);
+
+        updatedPaths.forEach(path -> {
+            eventPublisher.publishEvent(new EntityChangeEvent(this, path, EntityChangeEvent.ChangeType.UPDATED));
+            cascadeSrdToCards(path);
+        });
+
+        log.debug("Bulk set srd={} on {} subclass path(s)", srd, updatedPaths.size());
+        return updatedPaths.stream().map(SubclassPath::getId).toList();
+    }
+
+    /**
+     * Resolves the authenticated user from an {@link Authentication}, matching the
+     * {@link CustomUserDetails} extraction pattern used throughout {@code service.dh}.
+     *
+     * @param authentication the authentication context of the requesting user
+     * @return the authenticated {@link User}
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

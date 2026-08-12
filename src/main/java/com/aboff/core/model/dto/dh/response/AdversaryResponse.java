@@ -36,7 +36,7 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AdversaryResponse {
+public class AdversaryResponse implements Restrictable {
 
     /**
      * Unique identifier for the adversary.
@@ -129,6 +129,12 @@ public class AdversaryResponse {
     private Boolean isOfficial;
 
     /**
+     * Whether this adversary is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Never populated on a redacted stub.
+     */
+    private Boolean srd;
+
+    /**
      * Whether this adversary is publicly visible to other users.
      */
     private Boolean isPublic;
@@ -137,6 +143,13 @@ public class AdversaryResponse {
      * ID of the expansion this adversary belongs to (always included).
      */
     private Long expansionId;
+
+    /**
+     * Name of the expansion this adversary belongs to (always included). On a redacted stub,
+     * this is the only content-identifying field carried, so the frontend can tell the viewer
+     * which book to buy without exposing the adversary's real content.
+     */
+    private String expansionName;
 
     /**
      * Full expansion object (included only when ?expand=expansion is specified).
@@ -207,6 +220,13 @@ public class AdversaryResponse {
      * Timestamp when the adversary was soft-deleted (null if not deleted).
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * True when this response is a redacted stub for gated non-SRD content the caller may not
+     * browse directly. When true, every field except {@code id}, {@code expansionName}, and
+     * this one is omitted from the response.
+     */
+    private Boolean restricted;
 
     /**
      * Nested DTO for damage roll information.

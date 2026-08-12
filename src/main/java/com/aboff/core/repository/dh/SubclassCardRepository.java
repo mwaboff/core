@@ -27,6 +27,8 @@ public interface SubclassCardRepository extends JpaRepository<SubclassCard, Long
      * @param associatedClassId Optional filter for associated class ID (via subclass path)
      * @param subclassPathId Optional filter for subclass path ID
      * @param level Optional filter for subclass level
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) cards; when
+     *                      false, only custom (non-official) or SRD-flagged cards are returned
      * @param pageable Pagination information
      * @return Page of non-deleted subclass cards matching the criteria
      */
@@ -35,17 +37,24 @@ public interface SubclassCardRepository extends JpaRepository<SubclassCard, Long
            "AND (:isOfficial IS NULL OR s.isOfficial = :isOfficial) " +
            "AND (:associatedClassId IS NULL OR s.subclassPath.associatedClass.id = :associatedClassId) " +
            "AND (:subclassPathId IS NULL OR s.subclassPath.id = :subclassPathId) " +
-           "AND (:level IS NULL OR s.level = :level)")
+           "AND (:level IS NULL OR s.level = :level) " +
+           "AND (:includeNonSrd = true OR s.isOfficial = false OR s.srd = true)")
     Page<SubclassCard> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("associatedClassId") Long associatedClassId,
             @Param("subclassPathId") Long subclassPathId,
             @Param("level") SubclassLevel level,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**
      * Finds all subclass cards with optional filters, including soft-deleted ones.
+     * <p>
+     * ADMIN-only per the controller's {@code includeDeleted} contract; carries no SRD
+     * visibility clause because {@code ContentAccessService#resolveIncludeDeleted} already
+     * restricts this path to privileged callers.
+     * </p>
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
@@ -86,4 +95,19 @@ public interface SubclassCardRepository extends JpaRepository<SubclassCard, Long
      */
     @Query("SELECT s FROM SubclassCard s WHERE s.id IN :ids AND s.deletedAt IS NULL")
     List<SubclassCard> findAllByIdInAndDeletedAtIsNull(@Param("ids") List<Long> ids);
+
+    /**
+     * Finds every non-deleted subclass card belonging to a subclass path.
+     * <p>
+     * Deliberately not SRD-gated (no {@code :includeNonSrd} bind param) and deliberately a
+     * derived query rather than a hand-written {@code @Query}: this exists solely to power the
+     * {@code SubclassPathService#updateSubclassPath} srd cascade, which must reach every card in
+     * the path — including non-SRD ones the caller could not otherwise browse — and re-derive
+     * its {@code srd} from the path. Results are never serialized back to a caller directly.
+     * </p>
+     *
+     * @param subclassPathId the subclass path ID
+     * @return the non-deleted subclass cards in that path
+     */
+    List<SubclassCard> findBySubclassPathIdAndDeletedAtIsNull(Long subclassPathId);
 }

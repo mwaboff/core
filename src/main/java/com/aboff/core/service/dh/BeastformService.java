@@ -28,6 +28,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -62,6 +63,7 @@ public class BeastformService {
     private final FeatureService featureService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of beastforms.
@@ -89,10 +91,11 @@ public class BeastformService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<Beastform> beastformPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             beastformPage = beastformRepository.findAllWithFilters(expansionId, isOfficial, isPublic, pageable);
         } else {
-            beastformPage = beastformRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, isPublic, pageable);
+            beastformPage = beastformRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, isOfficial, isPublic, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -163,6 +166,7 @@ public class BeastformService {
                 .expansion(expansion)
                 .createdBy(creator)
                 .isOfficial(request.getIsOfficial())
+                .srd(contentAccessService.resolveSrd(creator, request.getSrd()))
                 .isPublic(request.getIsPublic() != null ? request.getIsPublic() : false)
                 .build();
 
@@ -219,6 +223,9 @@ public class BeastformService {
         Beastform beastform = beastformRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Beastform not found with id: " + id));
 
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+
         if (request.getName() != null && !request.getName().isBlank()) {
             beastform.setName(request.getName());
         }
@@ -269,6 +276,9 @@ public class BeastformService {
         }
         if (request.getIsOfficial() != null) {
             beastform.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getSrd() != null) {
+            beastform.setSrd(contentAccessService.resolveSrd(user, request.getSrd()));
         }
         if (request.getIsPublic() != null) {
             beastform.setIsPublic(request.getIsPublic());
@@ -380,6 +390,11 @@ public class BeastformService {
      * @return BeastformResponse DTO
      */
     public BeastformResponse toResponse(Beastform beastform, Set<String> expand) {
+        if (!contentAccessService.mayView(beastform.getIsOfficial(), beastform.getSrd())) {
+            return ContentRedaction.stub(BeastformResponse::new, beastform.getId(),
+                    beastform.getExpansion() != null ? beastform.getExpansion().getName() : null);
+        }
+
         BeastformResponse.BeastformResponseBuilder builder = BeastformResponse.builder()
                 .id(beastform.getId())
                 .name(beastform.getName())
@@ -396,7 +411,9 @@ public class BeastformService {
                 .attackRange(beastform.getAttackRange())
                 .attackTrait(beastform.getAttackTrait())
                 .expansionId(beastform.getExpansion().getId())
+                .expansionName(beastform.getExpansion().getName())
                 .isOfficial(beastform.getIsOfficial())
+                .srd(beastform.getSrd())
                 .isPublic(beastform.getIsPublic())
                 .createdAt(beastform.getCreatedAt())
                 .lastModifiedAt(beastform.getLastModifiedAt())

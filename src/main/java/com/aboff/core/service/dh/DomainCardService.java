@@ -2,9 +2,7 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateDomainCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateDomainCardRequest;
-import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.DomainCardResponse;
-import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
@@ -13,10 +11,13 @@ import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -53,8 +54,10 @@ public class DomainCardService {
     private final FeatureService featureService;
     private final CardCostTagService cardCostTagService;
     private final DomainRepository domainRepository;
+    private final DomainService domainService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of domain cards.
@@ -83,6 +86,7 @@ public class DomainCardService {
             List<Integer> levels,
             String expand) {
 
+        includeDeleted = contentAccessService.resolveIncludeDeleted(includeDeleted);
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size,
                 Sort.by("level").ascending().and(Sort.by("name").ascending()));
@@ -91,7 +95,8 @@ public class DomainCardService {
         if (includeDeleted) {
             cardPage = domainCardRepository.findAllWithFilters(expansionId, isOfficial, associatedDomainIds, type, levels, pageable);
         } else {
-            cardPage = domainCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, associatedDomainIds, type, levels, pageable);
+            cardPage = domainCardRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, isOfficial, associatedDomainIds, type, levels, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -148,6 +153,7 @@ public class DomainCardService {
                 .description(request.getDescription())
                 .expansion(expansion)
                 .isOfficial(request.getIsOfficial())
+                .srd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()))
                 .backgroundImageUrl(request.getBackgroundImageUrl())
                 .associatedDomain(associatedDomain)
                 .level(request.getLevel())
@@ -185,6 +191,7 @@ public class DomainCardService {
     @Transactional
     public List<DomainCardResponse> createDomainCardsBulk(List<CreateDomainCardRequest> requests, Authentication authentication) {
 
+        User user = currentUser(authentication);
         List<DomainCard> cards = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -200,6 +207,7 @@ public class DomainCardService {
                             .description(request.getDescription())
                             .expansion(expansion)
                             .isOfficial(request.getIsOfficial())
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .backgroundImageUrl(request.getBackgroundImageUrl())
                             .associatedDomain(associatedDomain)
                             .level(request.getLevel())
@@ -260,6 +268,9 @@ public class DomainCardService {
         }
         if (request.getIsOfficial() != null) {
             card.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getSrd() != null) {
+            card.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
         }
         if (request.getBackgroundImageUrl() != null) {
             card.setBackgroundImageUrl(request.getBackgroundImageUrl());
@@ -348,19 +359,35 @@ public class DomainCardService {
 
     /**
      * Converts a DomainCard entity to DomainCardResponse DTO.
+     * <p>
+     * If the caller may not view this card (gated non-SRD content outside their access), returns
+     * a redacted stub instead — see {@link ContentRedaction#stub}. This is the universal funnel:
+     * list endpoints, single-get, and embedded-content resolution (e.g. character sheets, search
+     * {@code ?expand=}) all route through this method, so it is the one place redaction can be
+     * enforced without every caller having to remember to check.
+     * </p>
      *
      * @param card The card entity
      * @param expand Set of relationships to expand
-     * @return DomainCardResponse DTO
+     * @return DomainCardResponse DTO, or a redacted stub if the caller may not view it
      */
     public DomainCardResponse toResponse(DomainCard card, Set<String> expand) {
+        if (!contentAccessService.mayView(card)) {
+            DomainCardResponse stub = ContentRedaction.stub(DomainCardResponse::new, card.getId(),
+                    card.getExpansion() != null ? card.getExpansion().getName() : null);
+            stub.setCardType(card.getCardType());
+            return stub;
+        }
+
         DomainCardResponse.DomainCardResponseBuilder builder = DomainCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())
                 .description(card.getDescription())
                 .cardType(card.getCardType())
                 .expansionId(card.getExpansion().getId())
+                .expansionName(card.getExpansion() != null ? card.getExpansion().getName() : null)
                 .isOfficial(card.getIsOfficial())
+                .srd(card.getSrd())
                 .backgroundImageUrl(card.getBackgroundImageUrl())
                 .associatedDomainId(card.getAssociatedDomain().getId())
                 .level(card.getLevel())
@@ -404,35 +431,30 @@ public class DomainCardService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand cost tags if requested
+        // Expand cost tags if requested. Routed through CardCostTagService#toResponse (not built
+        // inline) so a gated non-SRD cost tag redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "costTags") && card.getCostTags() != null) {
             builder.costTags(card.getCostTags().stream()
-                    .map(tag -> CardCostTagResponse.builder()
-                            .id(tag.getId())
-                            .label(tag.getLabel())
-                            .category(tag.getCategory())
-                            .createdAt(tag.getCreatedAt())
-                            .lastModifiedAt(tag.getLastModifiedAt())
-                            .deletedAt(tag.getDeletedAt())
-                            .build())
+                    .map(cardCostTagService::toResponse)
                     .collect(Collectors.toList()));
         }
 
-        // Expand associated domain if requested
+        // Expand associated domain if requested. Routed through DomainService#toResponse (not
+        // built inline) so a gated non-SRD domain redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "associatedDomain")) {
-            Domain domain = card.getAssociatedDomain();
-            builder.associatedDomain(DomainResponse.builder()
-                    .id(domain.getId())
-                    .name(domain.getName())
-                    .iconUrl(domain.getIconUrl())
-                    .description(domain.getDescription())
-                    .expansionId(domain.getExpansion().getId())
-                    .createdAt(domain.getCreatedAt())
-                    .lastModifiedAt(domain.getLastModifiedAt())
-                    .deletedAt(domain.getDeletedAt())
-                    .build());
+            builder.associatedDomain(domainService.toResponse(card.getAssociatedDomain(), Set.of()));
         }
 
         return builder.build();
+    }
+
+    /**
+     * Extracts the authenticated user from the security context principal.
+     *
+     * @param authentication the current authentication
+     * @return the authenticated user
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

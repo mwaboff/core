@@ -14,6 +14,7 @@ import com.aboff.core.model.entity.dh.EncounterAdversary;
 import com.aboff.core.model.entity.dh.EncounterRun;
 import com.aboff.core.model.entity.dh.EncounterRunAdversary;
 import com.aboff.core.model.entity.dh.Environment;
+import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Experience;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.enums.AdversaryType;
@@ -101,6 +102,9 @@ class EncounterRunServiceTest {
     private RoleHierarchyService roleHierarchyService;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private AuditLogger auditLogger;
 
     @Mock
@@ -148,6 +152,9 @@ class EncounterRunServiceTest {
         when(campaignRepository.findActiveById(20L)).thenReturn(Optional.of(campaign));
         when(encounterRunRepository.save(any(EncounterRun.class))).thenAnswer(inv -> inv.getArgument(0));
         when(encounterRunAdversaryRepository.save(any(EncounterRunAdversary.class))).thenAnswer(inv -> inv.getArgument(0));
+        // Default every adversary to visible; the redaction gate itself is covered by a
+        // dedicated test below.
+        when(contentAccessService.mayView(any(), any())).thenReturn(true);
     }
 
     private void authAs(CustomUserDetails userDetails) {
@@ -480,6 +487,34 @@ class EncounterRunServiceTest {
 
         assertThat(response.getAdversaries().get(0).getAdversary()).isNotNull();
         assertThat(response.getAdversaries().get(0).getAdversary().getName()).isEqualTo(adversary.getName());
+    }
+
+    @Test
+    void getRun_AdversaryGatedNonSrd_ReturnsRedactedStatBlockStub() {
+        // A run is visible to any GM tagged to its campaign or any MODERATOR (see the class
+        // javadoc), neither of which implies ADMIN/OWNER or an SRD grant, so a licensing-gated
+        // adversary must still redact here even though the caller can see the run itself.
+        authAs(ownerDetails);
+        Adversary adversary = testAdversary(50L);
+        adversary.setIsOfficial(true);
+        adversary.setSrd(false);
+        adversary.setExpansion(Expansion.builder().id(9L).name("Hope & Fear").build());
+        EncounterRun run = activeRun(owner, null, runInstance(200L, adversary, 0, 0, 0));
+        when(encounterRunRepository.findById(100L)).thenReturn(Optional.of(run));
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        EncounterRunResponse response = encounterRunService.getRun(100L, authentication);
+
+        var statBlock = response.getAdversaries().get(0).getAdversary();
+        assertThat(statBlock.getRestricted()).isTrue();
+        assertThat(statBlock.getId()).isEqualTo(50L);
+        assertThat(statBlock.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(statBlock.getName()).isNull();
+        assertThat(statBlock.getDescription()).isNull();
+        assertThat(statBlock.getFeatures()).isNull();
+        assertThat(statBlock.getExperiences()).isNull();
+        verify(adversaryService, never()).toFeatureResponses(any(), any());
+        verify(adversaryService, never()).toExperienceResponses(any());
     }
 
     @Test

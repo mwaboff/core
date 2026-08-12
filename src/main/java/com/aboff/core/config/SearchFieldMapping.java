@@ -132,6 +132,7 @@ public class SearchFieldMapping {
                 .descriptionText(domain.getDescription())
                 .expansionId(expansionId(domain.getExpansion()))
                 .isOfficial(domain.getIsOfficial())
+                .srd(domain.getSrd())
                 .build();
     }
 
@@ -151,6 +152,7 @@ public class SearchFieldMapping {
                 .descriptionText(joinNonNull(cls.getDescription(), cls.getStartingClassItems()))
                 .expansionId(expansionId(cls.getExpansion()))
                 .isOfficial(cls.getIsOfficial())
+                .srd(cls.getSrd())
                 .build();
     }
 
@@ -173,6 +175,7 @@ public class SearchFieldMapping {
                 .descriptionText(card.getDescription())
                 .featureText(extractFeatureText(card.getFeatures()))
                 .expansionId(expansionId(card.getExpansion()))
+                .srd(card.getSrd())
                 .build();
     }
 
@@ -192,6 +195,7 @@ public class SearchFieldMapping {
                 .descriptionText(feature.getDescription())
                 .expansionId(expansionId(feature.getExpansion()))
                 .featureType(enumName(feature.getFeatureType()))
+                .srd(feature.getSrd())
                 .build();
     }
 
@@ -222,6 +226,7 @@ public class SearchFieldMapping {
                 .isOfficial(card.getIsOfficial())
                 .isMixed(card.getIsMixed())
                 .cardType(CardType.ANCESTRY.name())
+                .srd(card.getSrd())
                 .build();
     }
 
@@ -247,6 +252,7 @@ public class SearchFieldMapping {
                 .expansionId(expansionId(card.getExpansion()))
                 .isOfficial(card.getIsOfficial())
                 .cardType(CardType.COMMUNITY.name())
+                .srd(card.getSrd())
                 .build();
     }
 
@@ -273,6 +279,7 @@ public class SearchFieldMapping {
                 .isOfficial(card.getIsOfficial())
                 .subclassLevel(enumName(card.getLevel()))
                 .cardType(CardType.SUBCLASS.name())
+                .srd(card.getSrd())
                 .build();
     }
 
@@ -306,6 +313,7 @@ public class SearchFieldMapping {
                 .domainCardType(enumName(card.getType()))
                 .associatedDomainId(associatedDomainId)
                 .cardType(CardType.DOMAIN.name())
+                .srd(card.getSrd())
                 .build();
     }
 
@@ -340,6 +348,7 @@ public class SearchFieldMapping {
                 .isPrimary(weapon.getIsPrimary())
                 .damageType(damageType)
                 .sharedCampaignIds(campaignIds(weapon.getCampaigns()))
+                .srd(weapon.getSrd())
                 .build();
     }
 
@@ -364,6 +373,7 @@ public class SearchFieldMapping {
                 .tier(armor.getTier())
                 .createdByUserId(userId(armor.getCreatedBy()))
                 .sharedCampaignIds(campaignIds(armor.getCampaigns()))
+                .srd(armor.getSrd())
                 .build();
     }
 
@@ -391,6 +401,7 @@ public class SearchFieldMapping {
                 .createdByUserId(userId(loot.getCreatedBy()))
                 .isConsumable(loot.getIsConsumable())
                 .sharedCampaignIds(campaignIds(loot.getCampaigns()))
+                .srd(loot.getSrd())
                 .build();
     }
 
@@ -416,6 +427,7 @@ public class SearchFieldMapping {
                 .tier(martialStance.getTier())
                 .createdByUserId(userId(martialStance.getCreatedBy()))
                 .sharedCampaignIds(campaignIds(martialStance.getCampaigns()))
+                .srd(martialStance.getSrd())
                 .build();
     }
 
@@ -445,6 +457,7 @@ public class SearchFieldMapping {
                 .tier(adversary.getTier())
                 .createdByUserId(userId(adversary.getCreatedBy()))
                 .adversaryType(enumName(adversary.getAdversaryType()))
+                .srd(adversary.getSrd())
                 .build();
     }
 
@@ -472,6 +485,7 @@ public class SearchFieldMapping {
                 .isPublic(beastform.getIsPublic())
                 .tier(beastform.getTier())
                 .createdByUserId(userId(beastform.getCreatedBy()))
+                .srd(beastform.getSrd())
                 .build();
     }
 
@@ -494,12 +508,19 @@ public class SearchFieldMapping {
                 .isPublic(encounter.getIsPublic())
                 .tier(encounter.getTier())
                 .createdByUserId(userId(encounter.getCreatedBy()))
+                .srd(encounter.getSrd())
                 .build();
     }
 
     /**
      * Builds search index data for an {@link Expansion} entity.
      * Weight A: name only. No filter columns apply.
+     *
+     * <p>{@code srd} is deliberately left unset: {@code expansions} is the source-book row
+     * itself (e.g. "Hope &amp; Fear"), not gated content, and Workstream A's foundation
+     * migration ({@code V20260811222234279__add_srd_and_expansion_access.sql}) did not add a
+     * {@code srd} column to this table. Whether an expansion's cards are SRD-licensed is a
+     * property of each card, not of the book.
      *
      * @param expansion the expansion entity
      * @return populated search index data
@@ -536,6 +557,7 @@ public class SearchFieldMapping {
                 .nameText(path.getName())
                 .expansionId(expansionId(path.getExpansion()))
                 .associatedDomainId(firstDomainId)
+                .srd(path.getSrd())
                 .build();
     }
 
@@ -553,6 +575,7 @@ public class SearchFieldMapping {
                 .name(question.getQuestionText())
                 .nameText(question.getQuestionText())
                 .expansionId(expansionId(question.getExpansion()))
+                .srd(question.getSrd())
                 .build();
     }
 
@@ -570,6 +593,7 @@ public class SearchFieldMapping {
                 .name(tag.getLabel())
                 .nameText(tag.getLabel())
                 .costTagCategory(enumName(tag.getCategory()))
+                .srd(tag.getSrd())
                 .build();
     }
 
@@ -598,6 +622,7 @@ public class SearchFieldMapping {
                 .isPublic(environment.getIsPublic())
                 .tier(environment.getTier())
                 .createdByUserId(userId(environment.getCreatedBy()))
+                .srd(environment.getSrd())
                 .build();
     }
 
@@ -617,6 +642,7 @@ public class SearchFieldMapping {
                 .descriptionText(condition.getDescription())
                 .expansionId(expansionId(condition.getExpansion()))
                 .isOfficial(condition.getIsOfficial())
+                .srd(condition.getSrd())
                 .build();
     }
 
@@ -782,6 +808,13 @@ public class SearchFieldMapping {
 
         /** ID of the user who created the entity, where applicable. */
         private Long createdByUserId;
+
+        /**
+         * Whether the entity is SRD-licensed rather than exclusive to a paid expansion book,
+         * where applicable. {@code null} for types with no SRD/paid-expansion distinction
+         * (e.g. {@link SearchableEntityType#EXPANSION}).
+         */
+        private Boolean srd;
 
         /** Card type discriminator string, where applicable. */
         private String cardType;

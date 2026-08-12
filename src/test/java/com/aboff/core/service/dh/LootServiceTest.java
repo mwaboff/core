@@ -5,6 +5,7 @@ import com.aboff.core.model.dto.dh.request.UpdateLootRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.LootResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.BaseItem;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
@@ -62,6 +63,9 @@ class LootServiceTest {
     private ItemAccessService itemAccessService;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
@@ -75,6 +79,13 @@ class LootServiceTest {
         // non-privileged user who belongs to no campaigns; tests that care override it.
         lenient().when(itemAccessService.visibilityScope(any()))
                 .thenReturn(new ItemAccessService.VisibilityScope(1L, List.of(-1L), false));
+        // Every list call also resolves includeDeleted through the SRD gate; default to the
+        // ordinary (non-deleted) browse path unless a test overrides it.
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        // toResponse redacts anything mayView() rejects; default to visible so existing
+        // assertions on full response fields keep working. Redaction itself is covered by a
+        // dedicated test below.
+        lenient().when(contentAccessService.mayView(any(BaseItem.class))).thenReturn(true);
     }
 
     @Test
@@ -86,7 +97,7 @@ class LootServiceTest {
         Loot loot2 = createTestLoot(2L, "Rope", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot1, loot2));
-        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
@@ -108,7 +119,7 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
@@ -117,7 +128,7 @@ class LootServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(lootRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(lootRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -128,7 +139,7 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), eq(true), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), eq(true), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
@@ -143,14 +154,14 @@ class LootServiceTest {
     void getAllLoot_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Loot> lootPage = new PageImpl<>(List.of());
-        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
         lootService.getAllLoot(0, 500, false, null, null, null, null, null, null, null, null, authentication);
 
         // Assert
-        verify(lootRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
+        verify(lootRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
@@ -161,7 +172,7 @@ class LootServiceTest {
         Loot loot = createTestLoot(1L, "Health Potion", expansion);
 
         Page<Loot> lootPage = new PageImpl<>(List.of(loot));
-        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(lootPage);
 
         // Act
@@ -663,6 +674,46 @@ class LootServiceTest {
         assertThat(result.getFeatureIds()).containsExactly(1L);
         assertThat(result.getFeatures()).isNull();
         verify(featureService, never()).toResponse(any(Feature.class), anySet());
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void toResponse_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Loot loot = createTestLoot(1L, "Restricted Elixir", expansion);
+
+        when(lootRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(loot));
+        when(contentAccessService.mayView(loot)).thenReturn(false);
+
+        // Act
+        LootResponse result = lootService.getLootById(1L, null);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getDescription()).isNull();
+        assertThat(result.getSrd()).isNull();
+    }
+
+    @Test
+    void getAllLoot_IncludeDeletedRequestedByNonModerator_CoercesToFalse() {
+        // Arrange: resolveIncludeDeleted is what enforces the role check now, so a coercion to
+        // false must route through the ordinary (non-deleted) query rather than findAllWithFilters.
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(false);
+        Page<Loot> lootPage = new PageImpl<>(List.of());
+        when(lootRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
+                .thenReturn(lootPage);
+
+        // Act
+        lootService.getAllLoot(0, 20, true, null, null, null, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(lootRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), any(), any());
+        verify(lootRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== HELPER METHODS ====================

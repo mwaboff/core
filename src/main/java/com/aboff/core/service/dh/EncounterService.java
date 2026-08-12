@@ -32,6 +32,7 @@ import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
@@ -78,6 +79,7 @@ public class EncounterService {
     private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of encounters accessible to the authenticated user.
@@ -120,12 +122,13 @@ public class EncounterService {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         User user = userDetails.getUser();
 
-        if (includeDeleted && roleHierarchyService.hasRoleOrHigher(user, Role.ADMIN)) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             encounterPage = encounterRepository.findAllWithFilters(
                     creatorId, campaignId, tier, isOfficial, name, true, pageable);
         } else {
             encounterPage = encounterRepository.findAccessibleWithFilters(
-                    user.getId(), creatorId, campaignId, tier, isOfficial, name, pageable);
+                    user.getId(), creatorId, campaignId, tier, isOfficial, name,
+                    contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -180,6 +183,7 @@ public class EncounterService {
                 .tier(request.getTier())
                 .createdBy(creator)
                 .isOfficial(false)
+                .srd(contentAccessService.resolveSrd(creator, request.getSrd()))
                 .isPublic(request.getIsPublic() != null ? request.getIsPublic() : false)
                 .partySize(request.getPartySize())
                 .adjustmentEasier(nullToFalse(request.getAdjustmentEasier()))
@@ -250,6 +254,9 @@ public class EncounterService {
 
         validateModifyPermission(encounter, auth);
 
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        User user = userDetails.getUser();
+
         // Partial updates - only update non-null fields
         if (request.getName() != null) {
             encounter.setName(request.getName());
@@ -259,6 +266,9 @@ public class EncounterService {
         }
         if (request.getTier() != null) {
             encounter.setTier(request.getTier());
+        }
+        if (request.getSrd() != null) {
+            encounter.setSrd(contentAccessService.resolveSrd(user, request.getSrd()));
         }
         if (request.getIsPublic() != null) {
             encounter.setIsPublic(request.getIsPublic());
@@ -602,12 +612,21 @@ public class EncounterService {
      * Converts an Encounter entity to EncounterResponse DTO.
      */
     private EncounterResponse toResponse(Encounter encounter, Set<String> expand) {
+        // Encounters are user-authored GM content that embed official adversaries/environment;
+        // an encounter itself is only gated when it is BOTH official and non-SRD -- never for a
+        // user's own custom encounter (isOfficial is always false for those). The embedded
+        // adversaries/environment redact independently, below, regardless of this check.
+        if (!contentAccessService.mayView(encounter.getIsOfficial(), encounter.getSrd())) {
+            return ContentRedaction.stub(EncounterResponse::new, encounter.getId(), null);
+        }
+
         EncounterResponse.EncounterResponseBuilder builder = EncounterResponse.builder()
                 .id(encounter.getId())
                 .name(encounter.getName())
                 .description(encounter.getDescription())
                 .tier(encounter.getTier())
                 .isOfficial(encounter.getIsOfficial())
+                .srd(encounter.getSrd())
                 .isPublic(encounter.getIsPublic())
                 .creatorId(encounter.getCreatedBy().getId())
                 .partySize(encounter.getPartySize())
@@ -697,17 +716,25 @@ public class EncounterService {
                 .tierOverride(ea.getTierOverride())
                 .displayOrder(ea.getDisplayOrder());
 
-        // Expand full adversary if requested
+        // Expand full adversary if requested. Built as a slim projection (not the full
+        // AdversaryService#toResponse shape) rather than fetching experiences/features/damage
+        // for every instance in the list -- but a restricted adversary must still redact rather
+        // than leak its name/tier/type/difficulty/hitPointMax to a caller who cannot browse it.
         if (expandAdversary) {
             Adversary adversary = ea.getAdversary();
-            builder.adversary(AdversaryResponse.builder()
-                    .id(adversary.getId())
-                    .name(adversary.getName())
-                    .tier(adversary.getTier())
-                    .adversaryType(adversary.getAdversaryType())
-                    .difficulty(adversary.getDifficulty())
-                    .hitPointMax(adversary.getHitPointMax())
-                    .build());
+            if (contentAccessService.mayView(adversary.getIsOfficial(), adversary.getSrd())) {
+                builder.adversary(AdversaryResponse.builder()
+                        .id(adversary.getId())
+                        .name(adversary.getName())
+                        .tier(adversary.getTier())
+                        .adversaryType(adversary.getAdversaryType())
+                        .difficulty(adversary.getDifficulty())
+                        .hitPointMax(adversary.getHitPointMax())
+                        .build());
+            } else {
+                builder.adversary(ContentRedaction.stub(AdversaryResponse::new, adversary.getId(),
+                        adversary.getExpansion() != null ? adversary.getExpansion().getName() : null));
+            }
         }
 
         // Derived retiered statistics, computed on read rather than stored
@@ -726,8 +753,19 @@ public class EncounterService {
 
     /**
      * Converts an Environment entity to EnvironmentResponse DTO (unexpanded).
+     * <p>
+     * A restricted environment redacts here rather than leaking its full stat block -- this is
+     * a separate code path from {@code EnvironmentService#toResponse} (an encounter embeds its
+     * environment rather than expanding it through that service), so the gating check has to be
+     * repeated rather than inherited for free.
+     * </p>
      */
     private EnvironmentResponse toEnvironmentResponse(Environment environment) {
+        if (!contentAccessService.mayView(environment.getIsOfficial(), environment.getSrd())) {
+            return ContentRedaction.stub(EnvironmentResponse::new, environment.getId(),
+                    environment.getExpansion() != null ? environment.getExpansion().getName() : null);
+        }
+
         return EnvironmentResponse.builder()
                 .id(environment.getId())
                 .name(environment.getName())
@@ -739,8 +777,10 @@ public class EncounterService {
                 .difficultySpecial(environment.getDifficultySpecial())
                 .potentialAdversaries(environment.getPotentialAdversaries())
                 .isOfficial(environment.getIsOfficial())
+                .srd(environment.getSrd())
                 .isPublic(environment.getIsPublic())
                 .expansionId(environment.getExpansion().getId())
+                .expansionName(environment.getExpansion().getName())
                 .creatorId(environment.getCreatedBy().getId())
                 .createdAt(environment.getCreatedAt())
                 .lastModifiedAt(environment.getLastModifiedAt())

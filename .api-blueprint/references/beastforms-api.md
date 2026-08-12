@@ -37,7 +37,7 @@ List all active beastforms with optional filters and pagination.
 |-----------|------|---------|----------|-------------|
 | `page` | int | `0` | No | Zero-based page number |
 | `size` | int | `20` | No | Items per page (max: 100; values >100 are clamped) |
-| `includeDeleted` | boolean | `false` | No | Include soft-deleted beastforms (ADMIN+ only) |
+| `includeDeleted` | boolean | `false` | No | Include soft-deleted beastforms (MODERATOR+ only; see [Content Gating](#content-gating)) |
 | `expansionId` | Long | -- | No | Filter by expansion ID |
 | `isOfficial` | Boolean | -- | No | Filter by official status |
 | `isPublic` | Boolean | -- | No | Filter by public visibility |
@@ -190,6 +190,7 @@ Create a new beastform. Requires ADMIN or OWNER role.
 | `damage.damageType` | DamageType | Yes, if `damage` present | See [DamageType enum](#damagetype) |
 | `expansionId` | Long | Yes | Must reference an active expansion |
 | `isOfficial` | Boolean | Yes | |
+| `srd` | Boolean | No | SRD-licensed content flag. Silently coerced to false for non-ADMIN callers; see [Content Gating](#content-gating) |
 | `isPublic` | Boolean | No | Defaults to `false` if omitted |
 | `featureIds` | List\<Long\> | No | IDs of existing features to attach |
 | `features` | List\<FeatureInput\> | No | Inline features to create and attach (merged with featureIds) |
@@ -400,8 +401,10 @@ GET /api/dh/beastforms/1?expand=expansion,features,originalBeastform
 | `attackTrait` | Trait | If non-null | Trait used for attack rolls; absent for stat-less "Evolved" cards |
 | `damage` | DamageRollResponse | If non-null | Damage roll info (nested); absent for stat-less "Evolved" cards |
 | `expansionId` | Long | Yes | Owning expansion ID |
+| `expansionName` | String | Yes | Owning expansion name (the only content-identifying field on a redacted stub) |
 | `expansion` | ExpansionResponse | Only with `?expand=expansion` | Full expansion object |
 | `isOfficial` | Boolean | Yes | Official game content flag |
+| `srd` | Boolean | Yes | SRD-licensed content flag; never present on a redacted stub -- see [Content Gating](#content-gating) |
 | `isPublic` | Boolean | Yes | Public visibility flag (custom content) |
 | `featureIds` | List\<Long\> | If non-null | Associated feature IDs |
 | `features` | List\<FeatureResponse\> | Only with `?expand=features` | Full feature objects |
@@ -416,6 +419,27 @@ GET /api/dh/beastforms/1?expand=expansion,features,originalBeastform
 See `references/weapons-api.md` for the shared `DamageRollResponse`/notation format,
 `ExpansionResponse`, `FeatureResponse`, `PagedResponse<T>`, and the `Trait`/`Range`/`DiceType`/
 `DamageType`/`FeatureType` enum tables — Beastform reuses all of these unchanged.
+
+---
+
+## Content Gating
+
+Official beastforms that are not SRD-licensed (`isOfficial: true`, `srd: false`) are only visible
+to ADMIN/OWNER or a user with an explicit "Access All Expansions" grant -- see
+`ContentAccessService`. This applies while gating is enabled via the
+`application.content.srd-gating-enabled` flag; while disabled, every row is visible to every
+authenticated user regardless of `srd`.
+
+- **List/get endpoints** silently exclude restricted rows from `GET /api/dh/beastforms`, and
+  return a redacted stub (`id`, `expansionName`, `restricted: true` only) from
+  `GET /api/dh/beastforms/{id}` for a restricted beastform.
+- **Custom beastforms are never gated** -- `isOfficial = false` always passes, regardless of
+  `srd`. (In practice, beastforms are always ADMIN/OWNER-authored today; the schema still
+  supports a future user-facing customization feature, see the note at the top of this file.)
+- **`includeDeleted=true` now requires MODERATOR+** and is coerced to `false` below that role.
+  Previously this parameter had no role check at all despite the Javadoc claiming ADMIN-only.
+  The admin listing this unlocks bypasses SRD filtering entirely -- a MODERATOR+ caller sees
+  every row regardless of licensing.
 
 ---
 

@@ -32,7 +32,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class WeaponResponse {
+public class WeaponResponse implements Restrictable {
 
     /**
      * Unique identifier for the weapon.
@@ -53,6 +53,19 @@ public class WeaponResponse {
     private Long expansionId;
 
     /**
+     * Name of the expansion this weapon belongs to (always included). On a redacted stub, this
+     * is the only content-identifying field carried, so the frontend can tell the viewer which
+     * book to buy without exposing the weapon's real content.
+     */
+    private String expansionName;
+
+    /**
+     * True when this response is a redacted stub for gated non-SRD content the caller may not
+     * view; every field but {@code id}, {@code restricted}, and {@code expansionName} is absent.
+     */
+    private Boolean restricted;
+
+    /**
      * Full expansion object (included only when ?expand=expansion is specified).
      */
     private ExpansionResponse expansion;
@@ -66,6 +79,12 @@ public class WeaponResponse {
      * Whether this weapon is from official game content.
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this weapon is SRD-licensed content, freely usable without owning the sourcebook
+     * it was printed in.
+     */
+    private Boolean srd;
 
     /**
      * Whether this weapon is visible to every user.

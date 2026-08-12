@@ -28,6 +28,15 @@ A character's attached transformation, token count (Vampire "Feed"), and Wolf Fo
 live on the character sheet, not here — see `references/character-sheets-api.md` (`transformationCardId`,
 `transformationTokens`, `wolfFormActive`, `clearTransformationCard`).
 
+**SRD content gating:** paid-expansion ("non-SRD") transformation cards are gated behind
+ADMIN/OWNER role or a per-user "Access All Expansions" grant; SRD-licensed cards stay visible to
+everyone. `isOfficial` is always `true` for every transformation card — there is no `/custom`
+authoring endpoint for this type, every create is ADMIN/OWNER catalogue content. List endpoints
+filter restricted rows out entirely. `GET /{id}` cannot filter, so a restricted card fetched
+directly comes back as a **redacted stub**: only `id`, `restricted: true`, and `expansionName` are
+present. This gate is currently off by default (kill-switched) until the catalogue's SRD flags are
+populated.
+
 ---
 
 ## 1. GET `/api/dh/transformation-cards`
@@ -79,8 +88,9 @@ Restores a soft-deleted card. `400` if the card is not currently deleted.
 | `name` | string | Yes | Not blank, max 200 chars |
 | `description` | string | No | -- |
 | `expansionId` | long | Yes | Must reference an existing Expansion |
+| `srd` | boolean | No | ADMIN+ only, coerced to `false` otherwise (no error). Omitted by existing bulk-import payloads, which keep working |
 | `featureIds` | long[] | No | Each must reference an existing Feature |
-| `features` | FeatureInput[] | No | Find-or-create inline. Merged with `featureIds` if both provided. |
+| `features` | FeatureInput[] | No | Find-or-create inline. Merged with `featureIds` if both provided. Each inherits this card's `isOfficial`/`srd` rather than defaulting to official |
 | `questionIds` | long[] | No | Each must reference an existing Question |
 | `questions` | QuestionInput[] | No | Find-or-create inline via the shared `QuestionService.resolveQuestions` (same machinery `ClassService` uses for `backgroundQuestions`/`connectionQuestions`). Merged with `questionIds` if both provided. |
 
@@ -97,6 +107,7 @@ All fields optional; only non-null fields are applied.
 | `name` | string | Max 200 chars |
 | `description` | string | -- |
 | `expansionId` | long | Must reference an existing Expansion |
+| `srd` | boolean | ADMIN+ only |
 | `featureIds` | long[] | Replaces the entire feature set when provided |
 | `features` | FeatureInput[] | Find-or-create inline, merged with `featureIds` |
 | `questionIds` | long[] | Replaces the entire question set when provided |
@@ -120,6 +131,8 @@ Shared DTO also used by `CreateClassRequest`/`UpdateClassRequest`. See `referenc
 | `id` | long | Yes | -- |
 | `name` | string | Yes | -- |
 | `description` | string | No | Omitted if null |
+| `isOfficial` | boolean | Yes | Always `true` (no `/custom` authoring endpoint exists for this type) |
+| `srd` | boolean | Yes | Whether this card is SRD-licensed content |
 | `expansionId` | long | Yes | -- |
 | `expansion` | ExpansionResponse | No | Only with `?expand=expansion` |
 | `featureIds` | long[] | Yes | -- |
@@ -129,6 +142,8 @@ Shared DTO also used by `CreateClassRequest`/`UpdateClassRequest`. See `referenc
 | `createdAt` | datetime | Yes | -- |
 | `lastModifiedAt` | datetime | Yes | -- |
 | `deletedAt` | datetime | No | Omitted unless soft-deleted |
+| `expansionName` | string | No | Only on a redacted stub — display name of the expansion, so the caller can tell which book to buy even though `expansion` itself is unset |
+| `restricted` | boolean | No | Only on a redacted stub — `true` when this response is a redacted stub for gated non-SRD content the caller may not view. When present, every field above except `id` and `expansionName` is absent |
 
 ---
 

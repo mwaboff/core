@@ -5,16 +5,21 @@ import com.aboff.core.model.dto.dh.request.UpdateMartialStanceRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.MartialStanceResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
+import com.aboff.core.model.entity.dh.BaseItem;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.MartialStance;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.MartialStanceRepository;
+import com.aboff.core.security.CustomUserDetails;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import com.aboff.core.service.AuditLogger;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.core.Authentication;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -55,10 +60,32 @@ class MartialStanceServiceTest {
     @Mock
     private AuditLogger auditLogger;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
+    private Authentication authentication;
+
     @InjectMocks
     private MartialStanceService martialStanceService;
 
     // ==================== GET ALL MARTIAL STANCES TESTS ====================
+
+    @BeforeEach
+    void stubDefaults() {
+        // Create/update resolve the caller from the security principal to pass to
+        // ContentAccessService#resolveSrd (itself mocked); stub a stand-in user so tests that
+        // don't care about the exact caller still work.
+        User user = User.builder().id(1L).build();
+        lenient().when(authentication.getPrincipal()).thenReturn(new CustomUserDetails(user));
+        // Every list call also resolves includeDeleted through the SRD gate; default to the
+        // ordinary (non-deleted) browse path unless a test overrides it.
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        // toResponse redacts anything mayView() rejects; default to visible so existing
+        // assertions on full response fields keep working. Redaction itself is covered by a
+        // dedicated test below.
+        lenient().when(contentAccessService.mayView(any(BaseItem.class))).thenReturn(true);
+    }
 
     @Test
     void getAllMartialStances_WithoutFilters_ReturnsPagedMartialStances() {
@@ -69,7 +96,7 @@ class MartialStanceServiceTest {
         MartialStance stance2 = createTestMartialStance(2L, "Aggressive", expansion, 2);
 
         Page<MartialStance> stancePage = new PageImpl<>(List.of(stance1, stance2));
-        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(stancePage);
 
         // Act
@@ -91,7 +118,7 @@ class MartialStanceServiceTest {
         MartialStance stance = createTestMartialStance(1L, "Favored", expansion, 1);
 
         Page<MartialStance> stancePage = new PageImpl<>(List.of(stance));
-        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), any(Pageable.class)))
+        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(stancePage);
 
         // Act
@@ -100,7 +127,7 @@ class MartialStanceServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(martialStanceRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), any(Pageable.class));
+        verify(martialStanceRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -111,7 +138,7 @@ class MartialStanceServiceTest {
         MartialStance stance = createTestMartialStance(1L, "Aggressive", expansion, 2);
 
         Page<MartialStance> stancePage = new PageImpl<>(List.of(stance));
-        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(2), any(Pageable.class)))
+        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(2), anyBoolean(), any(Pageable.class)))
                 .thenReturn(stancePage);
 
         // Act
@@ -126,7 +153,7 @@ class MartialStanceServiceTest {
     void getAllMartialStances_WithLargePage_LimitsTo100() {
         // Arrange
         Page<MartialStance> stancePage = new PageImpl<>(List.of());
-        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(stancePage);
 
         // Act
@@ -134,7 +161,7 @@ class MartialStanceServiceTest {
 
         // Assert
         verify(martialStanceRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), anyBoolean(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -147,7 +174,7 @@ class MartialStanceServiceTest {
         MartialStance stance = createTestMartialStance(1L, "Favored", expansion, 1);
 
         Page<MartialStance> stancePage = new PageImpl<>(List.of(stance));
-        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(stancePage);
 
         // Act
@@ -214,7 +241,7 @@ class MartialStanceServiceTest {
         when(martialStanceRepository.save(any(MartialStance.class))).thenReturn(savedMartialStance);
 
         // Act
-        MartialStanceResponse result = martialStanceService.createMartialStance(request, null);
+        MartialStanceResponse result = martialStanceService.createMartialStance(request, authentication);
 
         // Assert
         assertThat(result).isNotNull();
@@ -266,7 +293,7 @@ class MartialStanceServiceTest {
         when(martialStanceRepository.save(any(MartialStance.class))).thenReturn(savedMartialStance);
 
         // Act
-        MartialStanceResponse result = martialStanceService.createMartialStance(request, null);
+        MartialStanceResponse result = martialStanceService.createMartialStance(request, authentication);
 
         // Assert
         assertThat(result.getOriginalMartialStanceId()).isEqualTo(1L);
@@ -302,7 +329,7 @@ class MartialStanceServiceTest {
         when(martialStanceRepository.saveAll(anyList())).thenReturn(List.of(savedStance1, savedStance2));
 
         // Act
-        List<MartialStanceResponse> results = martialStanceService.createMartialStanceBulk(List.of(request1, request2), null);
+        List<MartialStanceResponse> results = martialStanceService.createMartialStanceBulk(List.of(request1, request2), authentication);
 
         // Assert
         assertThat(results).hasSize(2);
@@ -333,7 +360,7 @@ class MartialStanceServiceTest {
         when(martialStanceRepository.save(any(MartialStance.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        MartialStanceResponse result = martialStanceService.updateMartialStance(1L, request, null);
+        MartialStanceResponse result = martialStanceService.updateMartialStance(1L, request, authentication);
 
         // Assert
         assertThat(result.getName()).isEqualTo("Updated Name");
@@ -488,7 +515,7 @@ class MartialStanceServiceTest {
         when(martialStanceRepository.save(any(MartialStance.class))).thenReturn(savedMartialStance);
 
         // Act
-        MartialStanceResponse result = martialStanceService.createMartialStance(request, null);
+        MartialStanceResponse result = martialStanceService.createMartialStance(request, authentication);
 
         // Assert
         assertThat(result.getFeatureIds()).containsExactly(1L);
@@ -515,7 +542,7 @@ class MartialStanceServiceTest {
         when(martialStanceRepository.save(any(MartialStance.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         // Act
-        martialStanceService.updateMartialStance(1L, request, null);
+        martialStanceService.updateMartialStance(1L, request, authentication);
 
         // Assert
         verify(featureService, never()).resolveFeatures(any(), any());
@@ -568,6 +595,46 @@ class MartialStanceServiceTest {
         assertThat(result.getFeatureIds()).containsExactly(1L);
         assertThat(result.getFeatures()).isNull();
         verify(featureService, never()).toResponse(any(Feature.class), anySet());
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void toResponse_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope and Fear").isPublished(true).build();
+        MartialStance stance = createTestMartialStance(1L, "Restricted Stance", expansion, 2);
+
+        when(martialStanceRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(stance));
+        when(contentAccessService.mayView(stance)).thenReturn(false);
+
+        // Act
+        MartialStanceResponse result = martialStanceService.getMartialStanceById(1L, null);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getExpansionName()).isEqualTo("Hope and Fear");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getDescription()).isNull();
+        assertThat(result.getSrd()).isNull();
+    }
+
+    @Test
+    void getAllMartialStances_IncludeDeletedRequestedByNonModerator_CoercesToFalse() {
+        // Arrange: resolveIncludeDeleted is what enforces the role check now, so a coercion to
+        // false must route through the ordinary (non-deleted) query rather than findAllWithFilters.
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(false);
+        Page<MartialStance> stancePage = new PageImpl<>(List.of());
+        when(martialStanceRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
+                .thenReturn(stancePage);
+
+        // Act
+        martialStanceService.getAllMartialStances(0, 20, true, null, null, null, null);
+
+        // Assert
+        verify(martialStanceRepository, never()).findAllWithFilters(any(), any(), any(), any());
+        verify(martialStanceRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== HELPER METHODS ====================

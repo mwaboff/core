@@ -21,6 +21,7 @@ import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -63,6 +64,7 @@ public class EnvironmentService {
     private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of environments accessible to the authenticated user.
@@ -99,12 +101,13 @@ public class EnvironmentService {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         User user = userDetails.getUser();
 
-        if (includeDeleted && roleHierarchyService.hasRoleOrHigher(user, Role.ADMIN)) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             environmentPage = environmentRepository.findAllWithFilters(
                     expansionId, tier, environmentType, isOfficial, name, true, pageable);
         } else {
             environmentPage = environmentRepository.findAccessibleWithFilters(
-                    user.getId(), expansionId, tier, environmentType, isOfficial, name, pageable);
+                    user.getId(), expansionId, tier, environmentType, isOfficial, name,
+                    contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -171,6 +174,7 @@ public class EnvironmentService {
                 .expansion(expansion)
                 .createdBy(creator)
                 .isOfficial(request.getIsOfficial() != null ? request.getIsOfficial() : false)
+                .srd(contentAccessService.resolveSrd(creator, request.getSrd()))
                 .isPublic(request.getIsPublic() != null ? request.getIsPublic() : false)
                 .build();
 
@@ -225,6 +229,9 @@ public class EnvironmentService {
 
         validateModifyPermission(environment, auth);
 
+        CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
+        User user = userDetails.getUser();
+
         // Partial updates - only update non-null fields
         if (request.getName() != null) {
             environment.setName(request.getName());
@@ -267,6 +274,9 @@ public class EnvironmentService {
         }
         if (request.getIsOfficial() != null) {
             environment.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getSrd() != null) {
+            environment.setSrd(contentAccessService.resolveSrd(user, request.getSrd()));
         }
         if (request.getIsPublic() != null) {
             environment.setIsPublic(request.getIsPublic());
@@ -431,6 +441,11 @@ public class EnvironmentService {
      * Converts an Environment entity to EnvironmentResponse DTO.
      */
     private EnvironmentResponse toResponse(Environment environment, Set<String> expand) {
+        if (!contentAccessService.mayView(environment.getIsOfficial(), environment.getSrd())) {
+            return ContentRedaction.stub(EnvironmentResponse::new, environment.getId(),
+                    environment.getExpansion() != null ? environment.getExpansion().getName() : null);
+        }
+
         EnvironmentResponse.EnvironmentResponseBuilder builder = EnvironmentResponse.builder()
                 .id(environment.getId())
                 .name(environment.getName())
@@ -442,8 +457,10 @@ public class EnvironmentService {
                 .difficultySpecial(environment.getDifficultySpecial())
                 .potentialAdversaries(environment.getPotentialAdversaries())
                 .isOfficial(environment.getIsOfficial())
+                .srd(environment.getSrd())
                 .isPublic(environment.getIsPublic())
                 .expansionId(environment.getExpansion().getId())
+                .expansionName(environment.getExpansion().getName())
                 .creatorId(environment.getCreatedBy().getId())
                 .createdAt(environment.getCreatedAt())
                 .lastModifiedAt(environment.getLastModifiedAt())

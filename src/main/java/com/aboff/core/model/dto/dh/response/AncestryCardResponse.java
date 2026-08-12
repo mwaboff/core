@@ -26,7 +26,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class AncestryCardResponse {
+public class AncestryCardResponse implements Restrictable {
     /**
      * Unique identifier for the card
      */
@@ -53,6 +53,13 @@ public class AncestryCardResponse {
     private Long expansionId;
 
     /**
+     * Name of the expansion this card belongs to (always included). On a redacted stub, this is
+     * the only content-identifying field carried, so the frontend can tell the viewer which book
+     * to buy without exposing the card's real content.
+     */
+    private String expansionName;
+
+    /**
      * Full expansion object (included only when ?expand=expansion is specified)
      */
     private ExpansionResponse expansion;
@@ -61,6 +68,12 @@ public class AncestryCardResponse {
      * Whether this card is from official game content
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this card is SRD-licensed content, freely usable without owning the sourcebook it
+     * was printed in.
+     */
+    private Boolean srd;
 
     /**
      * Whether this ancestry card represents a mixed ancestry
@@ -106,4 +119,11 @@ public class AncestryCardResponse {
      * Timestamp when the card was soft-deleted (null if not deleted)
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * True when this response is a redacted stub for gated non-SRD content the caller may not
+     * browse directly. When true, every field except {@code id}, {@code cardType}, and
+     * {@code expansionName} is omitted from the response.
+     */
+    private Boolean restricted;
 }

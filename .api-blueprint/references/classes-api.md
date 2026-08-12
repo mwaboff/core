@@ -4,6 +4,15 @@ Base path: `/api/dh/classes`
 Authentication: All endpoints require a valid JWT token (HttpOnly `AUTH_TOKEN` cookie).
 Write access: `POST`, `PUT`, `DELETE` endpoints require `ADMIN` or `OWNER` role.
 
+**SRD content gating:** among official content, paid-expansion ("non-SRD") classes are further
+gated behind ADMIN/OWNER role or a per-user "Access All Expansions" grant; SRD-licensed classes
+stay visible to everyone. List endpoints filter restricted rows out entirely — they simply do not
+appear in the page. `GET /{id}` cannot filter (it is used to render other people's shared content),
+so a restricted class fetched directly, or embedded via a `?expand=` on a sibling type (e.g.
+`SubclassPathResponse.associatedClass`), comes back as a **redacted stub**: only `id`,
+`restricted: true`, and `expansionName` are present. This gate is currently off by default
+(kill-switched) until the catalogue's SRD flags are populated.
+
 ## Endpoints
 
 ### GET `/api/dh/classes`
@@ -157,6 +166,7 @@ Create a new class.
 | `name` | `String` | Yes | Max 100 chars; not blank | Class name |
 | `description` | `String` | No | — | Class description |
 | `isOfficial` | `Boolean` | No | Defaults to `true` when omitted | Whether this is official game content |
+| `srd` | `Boolean` | No | SRD-licensed flag. **Honoured only for ADMIN+**, coerced to `false` otherwise (no error). Omitted by existing bulk-import payloads, which keep working | Whether this is SRD-licensed content |
 | `expansionId` | `Long` | Yes | Must reference existing expansion | Expansion this class belongs to |
 | `startingClassItems` | `String` | No | — | Description of starting class items |
 | `startingEvasion` | `Integer` | Yes | Must be positive | Starting evasion score |
@@ -166,8 +176,8 @@ Create a new class.
 | `classFeatureIds` | `Long[]` | No | — | IDs of class features |
 | `backgroundQuestionIds` | `Long[]` | No | — | IDs of background questions |
 | `connectionQuestionIds` | `Long[]` | No | — | IDs of connection questions |
-| `hopeFeatures` | `FeatureInput[]` | No | — | Hope features to find or create inline. Merged with `hopeFeatureIds` |
-| `classFeatures` | `FeatureInput[]` | No | — | Class features to find or create inline. Merged with `classFeatureIds` |
+| `hopeFeatures` | `FeatureInput[]` | No | — | Hope features to find or create inline. Merged with `hopeFeatureIds`. Each inherits this class's resolved `isOfficial`/`srd` rather than defaulting to official |
+| `classFeatures` | `FeatureInput[]` | No | — | Class features to find or create inline. Merged with `classFeatureIds`. Same `isOfficial`/`srd` inheritance as `hopeFeatures` |
 | `backgroundQuestions` | `QuestionInput[]` | No | — | Background questions to find or create inline. Merged with `backgroundQuestionIds` |
 | `connectionQuestions` | `QuestionInput[]` | No | — | Connection questions to find or create inline. Merged with `connectionQuestionIds` |
 
@@ -354,6 +364,7 @@ Update an existing class.
 | `name` | `String` | Yes | Max 100 chars; not blank | Class name |
 | `description` | `String` | No | — | Class description |
 | `isOfficial` | `Boolean` | No | Omit to leave unchanged | Whether this is official game content |
+| `srd` | `Boolean` | No | ADMIN+ only; omit to leave unchanged | Whether this is SRD-licensed content |
 | `expansionId` | `Long` | Yes | Must reference existing expansion | Expansion this class belongs to |
 | `startingClassItems` | `String` | No | — | Description of starting class items |
 | `startingEvasion` | `Integer` | Yes | Must be positive | Starting evasion score |
@@ -499,6 +510,8 @@ Uses `@JsonInclude(NON_NULL)` -- null fields are omitted from the JSON response.
 | `id` | `Long` | No | Unique identifier |
 | `name` | `String` | No | Class name |
 | `description` | `String` | Yes | Class description |
+| `isOfficial` | `Boolean` | No | Whether this is official game content |
+| `srd` | `Boolean` | No | Whether this is SRD-licensed content, freely usable without owning the sourcebook |
 | `expansionId` | `Long` | No | ID of the associated expansion |
 | `expansion` | `ExpansionResponse` | Yes | Full expansion object (only with `?expand=expansion`) |
 | `startingClassItems` | `String` | Yes | Starting class items description |
@@ -517,6 +530,8 @@ Uses `@JsonInclude(NON_NULL)` -- null fields are omitted from the JSON response.
 | `createdAt` | `LocalDateTime` | No | Creation timestamp |
 | `lastModifiedAt` | `LocalDateTime` | No | Last modification timestamp |
 | `deletedAt` | `LocalDateTime` | Yes | Soft-deletion timestamp (null if active) |
+| `expansionName` | `String` | Only on a redacted stub | Display name of the expansion, so the caller can tell which book to buy even though `expansion` itself is unset |
+| `restricted` | `Boolean` | Only on a redacted stub | `true` when this response is a redacted stub for gated non-SRD content the caller may not view. When present, every field above except `id` and `expansionName` is absent |
 
 ## Nested Models
 

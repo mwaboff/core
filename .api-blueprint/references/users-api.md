@@ -317,6 +317,7 @@ Response DTO for user profile endpoints. Uses `@JsonInclude(NON_NULL)` so null f
 | `banReason` | `String` | Yes | Privileged only | Admin-supplied ban reason, if any |
 | `lastSeenAt` | `LocalDateTime` | Yes | Privileged only | Most recent authenticated request; updated by the JWT filter with a 5-minute throttle |
 | `usernameChosen` | `Boolean` | Yes | All | True once the user has explicitly chosen their username |
+| `accessAllExpansions` | `Boolean` | Yes | Self + Privileged | Whether this user is manually granted visibility into non-SRD (paid expansion) game content, independent of `role`. ADMIN/OWNER always see non-SRD content regardless of this flag. Gated the same way as `email`/`timezone`/`lastModifiedAt` above — an arbitrary other USER viewing this profile does not receive it; account-state with no reason to be public. Settable only via an admin — see `UpdateAdminUserRequest.accessAllExpansions` in `admin-api.md` (`null`/omitted there means "leave unchanged", never defaulted to `false`). Also returned on `GET /api/auth/me` — see `auth-api.md`. |
 
 **Visibility levels:**
 - **All** — returned to any authenticated requester

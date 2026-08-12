@@ -29,6 +29,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -52,13 +53,17 @@ public class LootService {
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
     private final ItemAccessService itemAccessService;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of loot items.
      *
      * @param page Zero-based page number
      * @param size Number of items per page
-     * @param includeDeleted Whether to include soft-deleted loot
+     * @param includeDeleted Whether to include soft-deleted loot; coerced to false for callers
+     *                       below MODERATOR by {@link ContentAccessService#resolveIncludeDeleted},
+     *                       which also logs a warning -- the request still succeeds, it simply
+     *                       narrows to non-deleted rows rather than being rejected
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for loot tier (1–4)
@@ -69,8 +74,6 @@ public class LootService {
      * @param expand Comma-separated list of relationships to expand
      * @param authentication The current authentication, used to resolve what the caller may see
      * @return Paginated response containing loot items
-     * @throws com.aboff.core.exception.InsufficientPermissionsException if a non-moderator
-     *         requests soft-deleted loot
      */
     @Transactional(readOnly = true)
     public PagedResponse<LootResponse> getAllLoot(
@@ -91,13 +94,15 @@ public class LootService {
         Pageable pageable = PageRequest.of(page, size,
                 (sort == null ? ItemSort.ID : sort).toSort());
         ItemAccessService.VisibilityScope scope = itemAccessService.visibilityScope(authentication);
+        boolean effectiveIncludeDeleted = contentAccessService.resolveIncludeDeleted(includeDeleted);
         Page<Loot> lootPage;
 
-        if (includeDeleted) {
-            // Soft-deleted rows are a moderation surface, not a browse surface. This was
-            // previously ungated, which was harmless while every loot row was official but would
-            // expose other users' private homebrew now that anyone can author one.
-            itemAccessService.requireModerator(authentication);
+        if (effectiveIncludeDeleted) {
+            // Soft-deleted rows are a moderation surface, not a browse surface --
+            // resolveIncludeDeleted() above already coerced this branch to be unreachable for
+            // anyone below MODERATOR, so no further permission check belongs here. This was
+            // previously ungated entirely, which was harmless while every loot row was official
+            // but would expose other users' private homebrew now that anyone can author one.
             lootPage = lootRepository.findAllWithFilters(expansionId, createdByUserId, name, isOfficial, tier, isConsumable, pageable);
         } else {
             // Moderators are not branched to a separate query: findAccessibleWithFilters
@@ -105,7 +110,8 @@ public class LootService {
             // duplicate the filter list a second time.
             lootPage = lootRepository.findAccessibleWithFilters(
                     scope.userId(), scope.memberCampaignIds(), scope.privileged(),
-                    expansionId, createdByUserId, name, isOfficial, tier, isConsumable, pageable);
+                    expansionId, createdByUserId, name, isOfficial, tier, isConsumable,
+                    contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -247,12 +253,14 @@ public class LootService {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
+        User user = itemAccessService.currentUser(authentication);
 
         Loot loot = Loot.builder()
                 .name(request.getName())
                 .expansion(expansion)
                 .tier(request.getTier())
                 .isOfficial(request.getIsOfficial())
+                .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                 .isConsumable(request.getIsConsumable())
                 .description(request.getDescription())
                 .build();
@@ -286,6 +294,7 @@ public class LootService {
      */
     @Transactional
     public List<LootResponse> createLootBulk(List<CreateLootRequest> requests, Authentication authentication) {
+        User user = itemAccessService.currentUser(authentication);
         List<Loot> lootItems = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -297,6 +306,7 @@ public class LootService {
                             .expansion(expansion)
                             .tier(request.getTier())
                             .isOfficial(request.getIsOfficial())
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .isConsumable(request.getIsConsumable())
                             .description(request.getDescription())
                             .build();
@@ -353,6 +363,9 @@ public class LootService {
             loot.setIsOfficial(itemAccessService.resolveIsOfficial(user, request.getIsOfficial()));
         }
         boolean isOfficial = Boolean.TRUE.equals(loot.getIsOfficial());
+        if (request.getSrd() != null) {
+            loot.setSrd(contentAccessService.resolveSrd(user, request.getSrd()));
+        }
 
         if (Boolean.TRUE.equals(request.getClearExpansion())) {
             // A JSON null for expansionId is indistinguishable from an omitted field, so
@@ -459,12 +472,19 @@ public class LootService {
      * @return LootResponse DTO
      */
     public LootResponse toResponse(Loot loot, Set<String> expand) {
+        if (!contentAccessService.mayView(loot)) {
+            return ContentRedaction.stub(LootResponse::new, loot.getId(),
+                    loot.getExpansion() != null ? loot.getExpansion().getName() : null);
+        }
+
         LootResponse.LootResponseBuilder builder = LootResponse.builder()
                 .id(loot.getId())
                 .name(loot.getName())
                 .expansionId(loot.getExpansion() != null ? loot.getExpansion().getId() : null)
+                .expansionName(loot.getExpansion() != null ? loot.getExpansion().getName() : null)
                 .tier(loot.getTier())
                 .isOfficial(loot.getIsOfficial())
+                .srd(loot.getSrd())
                 .isPublic(loot.getIsPublic())
                 .createdByUserId(loot.getCreatedBy() != null ? loot.getCreatedBy().getId() : null)
                 .isConsumable(loot.getIsConsumable())

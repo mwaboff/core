@@ -95,6 +95,17 @@ public abstract class BaseItem extends BaseEntity {
     private Boolean isPublic = false;
 
     /**
+     * Indicates whether this item is SRD-licensed content, freely usable without owning
+     * the sourcebook it was printed in. Custom items and paid-expansion items that have not
+     * been flagged both leave this false; only an explicit SRD flag opens the item to users
+     * who have not been granted expansion access. See {@code ContentAccessService} for how
+     * this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
+
+    /**
      * The user who created this item.
      * Null for official content, populated for custom items.
      */

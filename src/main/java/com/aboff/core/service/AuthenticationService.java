@@ -152,6 +152,7 @@ public class AuthenticationService {
                 .createdAt(user.getCreatedAt())
                 .lastModifiedAt(user.getLastModifiedAt())
                 .usernameChosen(user.getUsernameChosen())
+                .accessAllExpansions(user.getAccessAllExpansions())
                 .build();
     }
 

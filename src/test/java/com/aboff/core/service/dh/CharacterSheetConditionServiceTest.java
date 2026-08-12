@@ -4,6 +4,7 @@ import com.aboff.core.exception.InsufficientPermissionsException;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetConditionRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCharacterSheetConditionRequest;
 import com.aboff.core.model.dto.dh.response.CharacterSheetConditionResponse;
+import com.aboff.core.model.dto.dh.response.ConditionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CharacterSheet;
@@ -30,6 +31,7 @@ import org.springframework.security.core.Authentication;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -52,6 +54,9 @@ class CharacterSheetConditionServiceTest {
 
     @Mock
     private ConditionRepository conditionRepository;
+
+    @Mock
+    private ConditionService conditionService;
 
     @Mock
     private RoleHierarchyService roleHierarchyService;
@@ -125,13 +130,39 @@ class CharacterSheetConditionServiceTest {
         setUpFixtures();
         CharacterSheetCondition instance = CharacterSheetCondition.builder()
                 .id(1L).characterSheet(sheet).condition(condition).magnitude(1).build();
+        ConditionResponse conditionResponse = ConditionResponse.builder().id(1L).name("Restrained").build();
 
         when(characterSheetConditionRepository.findById(1L)).thenReturn(Optional.of(instance));
+        when(conditionService.toResponse(condition, Set.of())).thenReturn(conditionResponse);
 
         CharacterSheetConditionResponse result = characterSheetConditionService.getConditionInstanceById(1L, "condition");
 
         assertThat(result.getCondition()).isNotNull();
         assertThat(result.getCondition().getName()).isEqualTo("Restrained");
+    }
+
+    @Test
+    void getConditionInstanceById_WithExpandCondition_DelegatesToConditionServiceForRedaction() {
+        // The embedded condition must be built by ConditionService.toResponse, not assembled by
+        // hand here, or SRD gating applied there (see ConditionService) would never take effect
+        // on a character sheet's condition instances. Returning whatever the mock produces --
+        // including a redacted stub shape with no name/description -- proves the call is a real
+        // delegation rather than a coincidental match on a hand-built DTO.
+        setUpFixtures();
+        CharacterSheetCondition instance = CharacterSheetCondition.builder()
+                .id(1L).characterSheet(sheet).condition(condition).magnitude(1).build();
+        ConditionResponse restrictedStub = ConditionResponse.builder()
+                .id(1L).restricted(true).expansionName("Hope & Fear").build();
+
+        when(characterSheetConditionRepository.findById(1L)).thenReturn(Optional.of(instance));
+        when(conditionService.toResponse(condition, Set.of())).thenReturn(restrictedStub);
+
+        CharacterSheetConditionResponse result = characterSheetConditionService.getConditionInstanceById(1L, "condition");
+
+        assertThat(result.getCondition()).isSameAs(restrictedStub);
+        assertThat(result.getCondition().getRestricted()).isTrue();
+        assertThat(result.getCondition().getName()).isNull();
+        verify(conditionService).toResponse(condition, Set.of());
     }
 
     // ==================== CREATE TESTS — the magnitude round-trip ====================

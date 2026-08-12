@@ -106,7 +106,7 @@ class SearchIndexServiceTest {
                 eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
                 eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
                 eq(null), eq(null), eq(null), eq(null), eq(null), eq(null), eq(null),
-                eq("{}")
+                eq("{}"), eq(null)
         );
     }
 
@@ -122,7 +122,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, never()).upsertSearchIndex(
                 anyString(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
 
@@ -139,7 +139,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, never()).upsertSearchIndex(
                 anyString(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
 
@@ -257,7 +257,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
                 eq("WEAPON"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any()
+                any(), any()
         );
     }
 
@@ -295,7 +295,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
                 eq("BEASTFORM"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any()
+                any(), any()
         );
     }
 
@@ -332,7 +332,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, times(2)).upsertSearchIndex(
                 eq("CONDITION"), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any()
+                any(), any()
         );
     }
 
@@ -353,7 +353,7 @@ class SearchIndexServiceTest {
         verify(searchIndexRepository, never()).upsertSearchIndex(
                 anyString(), any(), any(), any(), any(), any(), any(), any(),
                 any(), any(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any(), any(), any(), any()
+                any(), any(), any(), any(), any(), any(), any(), any(), any(), any()
         );
     }
 }

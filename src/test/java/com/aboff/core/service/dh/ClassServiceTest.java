@@ -6,9 +6,11 @@ import com.aboff.core.model.dto.dh.request.QuestionInput;
 import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.ClassResponse;
+import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.enums.CostTagCategory;
@@ -19,11 +21,14 @@ import com.aboff.core.model.entity.dh.FeatureModifier;
 import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.QuestionType;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -64,10 +69,16 @@ class ClassServiceTest {
     private DomainRepository domainRepository;
 
     @Mock
+    private DomainService domainService;
+
+    @Mock
     private FeatureService featureService;
 
     @Mock
     private QuestionService questionService;
+
+    @Mock
+    private ContentAccessService contentAccessService;
 
     @Mock
     private ApplicationEventPublisher eventPublisher;
@@ -80,6 +91,27 @@ class ClassServiceTest {
 
     @InjectMocks
     private ClassService classService;
+
+    private final User defaultUser = User.builder().id(1L).username("tester").role(Role.USER).build();
+
+    @BeforeEach
+    void stubDefaultVisibility() {
+        // Every list call resolves includeDeleted/includeNonSrd through the SRD gate first;
+        // default to the ordinary (non-deleted, full-visibility) browse path unless a test
+        // overrides it.
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        // toResponse redacts anything mayView() rejects; default to visible so existing
+        // assertions on full response fields keep working. Redaction itself is covered by a
+        // dedicated test below.
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
+        // createClass/createClassesBulk/updateClass always resolve currentUser(authentication)
+        // now (for FeatureOrigin threading and the srd field), so every test needs a principal.
+        lenient().when(authentication.getPrincipal()).thenReturn(new CustomUserDetails(defaultUser));
+        // Default a non-admin caller's requested srd to false; tests exercising the srd cascade
+        // override this per-test.
+        lenient().when(contentAccessService.resolveSrd(any(), any())).thenReturn(false);
+    }
 
     // ==================== GET ALL CLASSES TESTS ====================
 
@@ -111,7 +143,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(class1, class2));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
 
         // Act
@@ -142,7 +174,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
 
         // Act
@@ -151,7 +183,7 @@ class ClassServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(classRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
+        verify(classRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -171,6 +203,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         when(classRepository.findAllWithFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(classPage);
 
@@ -187,7 +220,7 @@ class ClassServiceTest {
     void getAllClasses_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Class> classPage = new PageImpl<>(List.of());
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
 
         // Act
@@ -197,6 +230,7 @@ class ClassServiceTest {
         verify(classRepository).findByDeletedAtIsNullAndFilters(
                 isNull(),
                 isNull(),
+                anyBoolean(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -223,9 +257,13 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
+        when(domainService.toResponse(any(Domain.class), any())).thenAnswer(invocation -> {
+            Domain d = invocation.getArgument(0);
+            return DomainResponse.builder().id(d.getId()).name(d.getName()).build();
+        });
 
         // Act
         PagedResponse<ClassResponse> result = classService.getAllClasses(0, 20, false, null, null, "expansion,associatedDomains,hopeFeatures");
@@ -321,8 +359,8 @@ class ClassServiceTest {
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
         when(domainRepository.findAllByIdInAndDeletedAtIsNull(List.of(1L))).thenReturn(List.of(domain));
-        when(featureService.resolveFeatures(eq(List.of(1L)), isNull())).thenReturn(Set.of(feature));
-        when(featureService.resolveFeatures(eq(List.of()), isNull())).thenReturn(new HashSet<>());
+        when(featureService.resolveFeatures(eq(List.of(1L)), isNull(), any())).thenReturn(Set.of(feature));
+        when(featureService.resolveFeatures(eq(List.of()), isNull(), any())).thenReturn(new HashSet<>());
         when(questionService.resolveQuestions(eq(List.of(1L)), isNull())).thenReturn(Set.of(question));
         when(questionService.resolveQuestions(eq(List.of()), isNull())).thenReturn(new HashSet<>());
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
@@ -525,6 +563,7 @@ class ClassServiceTest {
                 .name("Old Name")
                 .description("Old description")
                 .expansion(expansion)
+                .isOfficial(true)
                 .startingClassItems("Old Items")
                 .startingEvasion(5)
                 .startingHitPoints(10)
@@ -716,7 +755,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
@@ -752,7 +791,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
@@ -788,7 +827,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
@@ -822,7 +861,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
@@ -855,7 +894,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
@@ -891,7 +930,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
@@ -926,7 +965,7 @@ class ClassServiceTest {
                 .build();
 
         Page<Class> classPage = new PageImpl<>(List.of(clazz));
-        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(classRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(classPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> buildFeatureResponse(invocation.getArgument(0), invocation.getArgument(1)));
 
@@ -962,8 +1001,8 @@ class ClassServiceTest {
                 .hopeFeatures(Set.of(inlineFeature)).createdAt(LocalDateTime.now()).build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)))).thenReturn(Set.of(inlineFeature));
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)), any())).thenReturn(Set.of(inlineFeature));
+        when(featureService.resolveFeatures(isNull(), isNull(), any())).thenReturn(null);
         when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
@@ -973,7 +1012,7 @@ class ClassServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getHopeFeatureIds()).containsExactly(10L);
-        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)));
+        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)), any());
     }
 
     @Test
@@ -996,8 +1035,8 @@ class ClassServiceTest {
                 .classFeatures(Set.of(classFeature)).createdAt(LocalDateTime.now()).build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(isNull(), eq(List.of(classInput)))).thenReturn(Set.of(classFeature));
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(featureService.resolveFeatures(isNull(), eq(List.of(classInput)), any())).thenReturn(Set.of(classFeature));
+        when(featureService.resolveFeatures(isNull(), isNull(), any())).thenReturn(null);
         when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
@@ -1007,7 +1046,7 @@ class ClassServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getClassFeatureIds()).containsExactly(11L);
-        verify(featureService).resolveFeatures(isNull(), eq(List.of(classInput)));
+        verify(featureService).resolveFeatures(isNull(), eq(List.of(classInput)), any());
     }
 
     @Test
@@ -1031,7 +1070,7 @@ class ClassServiceTest {
                 .backgroundQuestions(Set.of(bgQuestion)).createdAt(LocalDateTime.now()).build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(featureService.resolveFeatures(isNull(), isNull(), any())).thenReturn(null);
         when(questionService.resolveQuestions(isNull(), eq(List.of(bgInput)))).thenReturn(Set.of(bgQuestion));
         when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
@@ -1066,7 +1105,7 @@ class ClassServiceTest {
                 .connectionQuestions(Set.of(connQuestion)).createdAt(LocalDateTime.now()).build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(featureService.resolveFeatures(isNull(), isNull(), any())).thenReturn(null);
         when(questionService.resolveQuestions(isNull(), eq(List.of(connInput)))).thenReturn(Set.of(connQuestion));
         when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
@@ -1104,8 +1143,8 @@ class ClassServiceTest {
                 .hopeFeatures(mergedFeatures).createdAt(LocalDateTime.now()).build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(eq(List.of(1L)), eq(List.of(hopeInput)))).thenReturn(mergedFeatures);
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(featureService.resolveFeatures(eq(List.of(1L)), eq(List.of(hopeInput)), any())).thenReturn(mergedFeatures);
+        when(featureService.resolveFeatures(isNull(), isNull(), any())).thenReturn(null);
         when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
         when(classRepository.save(any(Class.class))).thenReturn(savedClass);
 
@@ -1115,7 +1154,7 @@ class ClassServiceTest {
         // Assert
         assertThat(result).isNotNull();
         assertThat(result.getHopeFeatureIds()).containsExactlyInAnyOrder(1L, 10L);
-        verify(featureService).resolveFeatures(eq(List.of(1L)), eq(List.of(hopeInput)));
+        verify(featureService).resolveFeatures(eq(List.of(1L)), eq(List.of(hopeInput)), any());
     }
 
     @Test
@@ -1146,8 +1185,8 @@ class ClassServiceTest {
                 .createdAt(LocalDateTime.now()).build();
 
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)))).thenReturn(Set.of(hopeFeature));
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)), any())).thenReturn(Set.of(hopeFeature));
+        when(featureService.resolveFeatures(isNull(), isNull(), any())).thenReturn(null);
         when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
         when(classRepository.saveAll(anyList())).thenReturn(List.of(savedClass1, savedClass2));
 
@@ -1157,7 +1196,7 @@ class ClassServiceTest {
         // Assert
         assertThat(results).hasSize(2);
         assertThat(results.get(0).getHopeFeatureIds()).containsExactly(10L);
-        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)));
+        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)), any());
     }
 
     @Test
@@ -1171,6 +1210,7 @@ class ClassServiceTest {
 
         Class existingClass = Class.builder()
                 .id(1L).name("Warrior").description("Fighter").expansion(expansion)
+                .isOfficial(true)
                 .startingEvasion(10).startingHitPoints(20)
                 .associatedDomains(new HashSet<>()).hopeFeatures(new HashSet<>())
                 .classFeatures(new HashSet<>()).backgroundQuestions(new HashSet<>())
@@ -1184,8 +1224,8 @@ class ClassServiceTest {
 
         when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingClass));
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)))).thenReturn(Set.of(newFeature));
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(featureService.resolveFeatures(isNull(), eq(List.of(hopeInput)), any())).thenReturn(Set.of(newFeature));
+        when(featureService.resolveFeatures(isNull(), isNull(), any())).thenReturn(null);
         when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
         when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -1194,7 +1234,7 @@ class ClassServiceTest {
 
         // Assert
         assertThat(result).isNotNull();
-        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)));
+        verify(featureService).resolveFeatures(isNull(), eq(List.of(hopeInput)), any());
     }
 
     @Test
@@ -1205,6 +1245,7 @@ class ClassServiceTest {
 
         Class existingClass = Class.builder()
                 .id(1L).name("Warrior").description("Fighter").expansion(expansion)
+                .isOfficial(true)
                 .startingEvasion(10).startingHitPoints(20)
                 .associatedDomains(new HashSet<>()).hopeFeatures(new HashSet<>(Set.of(existingFeature)))
                 .classFeatures(new HashSet<>()).backgroundQuestions(new HashSet<>())
@@ -1217,7 +1258,7 @@ class ClassServiceTest {
 
         when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingClass));
         when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
-        when(featureService.resolveFeatures(isNull(), isNull())).thenReturn(null);
+        when(featureService.resolveFeatures(isNull(), isNull(), any())).thenReturn(null);
         when(questionService.resolveQuestions(isNull(), isNull())).thenReturn(null);
         when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
@@ -1227,7 +1268,103 @@ class ClassServiceTest {
         // Assert - existing features should be preserved since resolveFeatures returned null
         assertThat(result).isNotNull();
         assertThat(result.getHopeFeatureIds()).containsExactly(1L);
-        verify(featureService, times(2)).resolveFeatures(isNull(), isNull());
+        verify(featureService, times(2)).resolveFeatures(isNull(), isNull(), any());
+    }
+
+    // ==================== SRD GATING TESTS ====================
+
+    @Test
+    void toResponse_MayViewFalse_ReturnsRedactedStub() {
+        // Arrange — a gated non-SRD class (isOfficial=true, srd=false) that the current caller
+        // may not view, per ContentAccessService.
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+
+        Class clazz = Class.builder()
+                .id(1L)
+                .name("Restricted Class")
+                .description("Should not leak")
+                .isOfficial(true)
+                .srd(false)
+                .expansion(expansion)
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        // Act
+        ClassResponse result = classService.toResponse(clazz, Set.of());
+
+        // Assert — only id, restricted, and expansionName are set; everything else stays unset
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getDescription()).isNull();
+        assertThat(result.getSrd()).isNull();
+        assertThat(result.getIsOfficial()).isNull();
+    }
+
+    @Test
+    void createClass_SrdRequestedByAdmin_ThreadsResolvedSrdIntoSavedEntity() {
+        // Arrange — resolveSrd is the single source of truth for whether a requested srd flag
+        // actually applies; verify createClass threads its result (not the raw request value)
+        // into the entity it builds.
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        CreateClassRequest request = CreateClassRequest.builder()
+                .name("Warrior")
+                .description("Strong fighter")
+                .expansionId(1L)
+                .srd(true)
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(contentAccessService.resolveSrd(defaultUser, true)).thenReturn(true);
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.createClass(request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isTrue();
+        verify(classRepository).save(argThat(c -> Boolean.TRUE.equals(c.getSrd())));
+    }
+
+    @Test
+    void updateClass_SrdRequestedByNonAdmin_CoercesToFalse() {
+        // Arrange — resolveSrd coerces a non-admin's requested srd=true to false; updateClass
+        // must persist whatever resolveSrd returns, not the raw request value.
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+
+        Class existingClass = Class.builder()
+                .id(1L)
+                .name("Warrior")
+                .isOfficial(true)
+                .srd(false)
+                .expansion(expansion)
+                .startingEvasion(10)
+                .startingHitPoints(20)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        UpdateClassRequest request = UpdateClassRequest.builder()
+                .srd(true)
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingClass));
+        when(contentAccessService.resolveSrd(defaultUser, true)).thenReturn(false);
+        when(classRepository.save(any(Class.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        ClassResponse result = classService.updateClass(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isFalse();
+        verify(contentAccessService).resolveSrd(defaultUser, true);
     }
 
     /**

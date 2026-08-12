@@ -4,10 +4,9 @@ import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateClassRequest;
 import com.aboff.core.model.dto.dh.request.UpdateClassRequest;
 import com.aboff.core.model.dto.dh.response.ClassResponse;
-import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
-import com.aboff.core.model.dto.dh.response.QuestionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
@@ -17,7 +16,9 @@ import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,8 +51,10 @@ public class ClassService {
     private final ClassRepository classRepository;
     private final ExpansionRepository expansionRepository;
     private final DomainRepository domainRepository;
+    private final DomainService domainService;
     private final FeatureService featureService;
     private final QuestionService questionService;
+    private final ContentAccessService contentAccessService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -79,10 +82,11 @@ public class ClassService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<Class> classPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             classPage = classRepository.findAllWithFilters(expansionId, isOfficial, pageable);
         } else {
-            classPage = classRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
+            classPage = classRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, isOfficial, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -125,7 +129,7 @@ public class ClassService {
      */
     @Transactional
     public ClassResponse createClass(CreateClassRequest request, Authentication authentication) {
-        Class clazz = buildClassFromRequest(request);
+        Class clazz = buildClassFromRequest(request, currentUser(authentication));
         Class savedClass = classRepository.save(clazz);
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedClass, EntityChangeEvent.ChangeType.CREATED));
         auditLogger.log(AuditAction.CONTENT_CREATED,
@@ -144,8 +148,9 @@ public class ClassService {
      */
     @Transactional
     public List<ClassResponse> createClassesBulk(List<CreateClassRequest> requests, Authentication authentication) {
+        User user = currentUser(authentication);
         List<Class> classes = requests.stream()
-                .map(this::buildClassFromRequest)
+                .map(request -> buildClassFromRequest(request, user))
                 .toList();
 
         List<Class> savedClasses = classRepository.saveAll(classes);
@@ -182,6 +187,9 @@ public class ClassService {
         if (request.getIsOfficial() != null) {
             clazz.setIsOfficial(request.getIsOfficial());
         }
+        if (request.getSrd() != null) {
+            clazz.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
+        }
         if (request.getExpansionId() != null) {
             Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                     .orElseThrow(() -> new EntityNotFoundException(
@@ -208,16 +216,20 @@ public class ClassService {
             }
         }
 
-        // Resolve hope features (IDs + inline, null = don't modify)
+        // Resolve hope/class features (IDs + inline, null = don't modify), inheriting isOfficial
+        // and srd from this class's now-current values.
+        FeatureService.FeatureOrigin featureOrigin = FeatureService.FeatureOrigin.forParent(
+                currentUser(authentication), clazz.getIsOfficial(), clazz.getSrd());
+
         Set<Feature> hopeFeatures = featureService.resolveFeatures(
-                request.getHopeFeatureIds(), request.getHopeFeatures());
+                request.getHopeFeatureIds(), request.getHopeFeatures(), featureOrigin);
         if (hopeFeatures != null) {
             clazz.setHopeFeatures(hopeFeatures);
         }
 
         // Resolve class features
         Set<Feature> classFeatures = featureService.resolveFeatures(
-                request.getClassFeatureIds(), request.getClassFeatures());
+                request.getClassFeatureIds(), request.getClassFeatures(), featureOrigin);
         if (classFeatures != null) {
             clazz.setClassFeatures(classFeatures);
         }
@@ -297,10 +309,11 @@ public class ClassService {
      * Builds a Class entity from a CreateClassRequest, resolving all relationships.
      *
      * @param request The creation request containing class details
+     * @param user The user performing the create, used to resolve the requested srd flag
      * @return The built Class entity (not yet persisted)
      * @throws EntityNotFoundException if the referenced expansion is not found
      */
-    private Class buildClassFromRequest(CreateClassRequest request) {
+    private Class buildClassFromRequest(CreateClassRequest request, User user) {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
@@ -309,6 +322,7 @@ public class ClassService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .isOfficial(request.getIsOfficial() != null ? request.getIsOfficial() : true)
+                .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                 .expansion(expansion)
                 .startingClassItems(request.getStartingClassItems())
                 .startingEvasion(request.getStartingEvasion())
@@ -321,16 +335,20 @@ public class ClassService {
             clazz.setAssociatedDomains(domains);
         }
 
-        // Resolve hope features (IDs + inline)
+        // Resolve hope/class features (IDs + inline), inheriting isOfficial and srd from this
+        // class rather than defaulting to official via FeatureService's default origin.
+        FeatureService.FeatureOrigin featureOrigin =
+                FeatureService.FeatureOrigin.forParent(user, clazz.getIsOfficial(), clazz.getSrd());
+
         Set<Feature> hopeFeatures = featureService.resolveFeatures(
-                request.getHopeFeatureIds(), request.getHopeFeatures());
+                request.getHopeFeatureIds(), request.getHopeFeatures(), featureOrigin);
         if (hopeFeatures != null) {
             clazz.setHopeFeatures(hopeFeatures);
         }
 
         // Resolve class features (IDs + inline)
         Set<Feature> classFeatures = featureService.resolveFeatures(
-                request.getClassFeatureIds(), request.getClassFeatures());
+                request.getClassFeatureIds(), request.getClassFeatures(), featureOrigin);
         if (classFeatures != null) {
             clazz.setClassFeatures(classFeatures);
         }
@@ -354,17 +372,28 @@ public class ClassService {
 
     /**
      * Converts a Class entity to ClassResponse DTO.
+     * <p>
+     * This is the universal funnel — every caller (list, single-get, and any sibling type
+     * expanding its classes, e.g. {@code SubclassPathService}) must route through this method
+     * rather than building a {@link ClassResponse} directly.
+     * </p>
      *
      * @param clazz The class entity
      * @param expand Set of relationships to expand
-     * @return ClassResponse DTO
+     * @return ClassResponse DTO, or a redacted stub if the caller may not view it
      */
     public ClassResponse toResponse(Class clazz, Set<String> expand) {
+        if (!contentAccessService.mayView(clazz.getIsOfficial(), clazz.getSrd())) {
+            return ContentRedaction.stub(ClassResponse::new, clazz.getId(),
+                    clazz.getExpansion() != null ? clazz.getExpansion().getName() : null);
+        }
+
         ClassResponse.ClassResponseBuilder builder = ClassResponse.builder()
                 .id(clazz.getId())
                 .name(clazz.getName())
                 .description(clazz.getDescription())
                 .isOfficial(clazz.getIsOfficial())
+                .srd(clazz.getSrd())
                 .expansionId(clazz.getExpansion().getId())
                 .startingClassItems(clazz.getStartingClassItems())
                 .startingEvasion(clazz.getStartingEvasion())
@@ -417,19 +446,11 @@ public class ClassService {
                     .build());
         }
 
-        // Expand associated domains if requested
+        // Expand associated domains if requested. Routed through DomainService#toResponse
+        // (not built inline) so a gated non-SRD domain redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "associatedDomains") && clazz.getAssociatedDomains() != null) {
             builder.associatedDomains(clazz.getAssociatedDomains().stream()
-                    .map(domain -> DomainResponse.builder()
-                            .id(domain.getId())
-                            .name(domain.getName())
-                            .iconUrl(domain.getIconUrl())
-                            .description(domain.getDescription())
-                            .expansionId(domain.getExpansion().getId())
-                            .createdAt(domain.getCreatedAt())
-                            .lastModifiedAt(domain.getLastModifiedAt())
-                            .deletedAt(domain.getDeletedAt())
-                            .build())
+                    .map(domain -> domainService.toResponse(domain, Set.of()))
                     .collect(Collectors.toList()));
         }
 
@@ -451,33 +472,29 @@ public class ClassService {
         // Expand background questions if requested
         if (ExpandUtil.shouldExpand(expand, "backgroundQuestions") && clazz.getBackgroundQuestions() != null) {
             builder.backgroundQuestions(clazz.getBackgroundQuestions().stream()
-                    .map(question -> QuestionResponse.builder()
-                            .id(question.getId())
-                            .questionText(question.getQuestionText())
-                            .questionType(question.getQuestionType())
-                            .expansionId(question.getExpansion().getId())
-                            .createdAt(question.getCreatedAt())
-                            .lastModifiedAt(question.getLastModifiedAt())
-                            .deletedAt(question.getDeletedAt())
-                            .build())
+                    .map(question -> questionService.toResponse(question, Set.of()))
                     .collect(Collectors.toList()));
         }
 
-        // Expand connection questions if requested
+        // Expand connection questions if requested. Routed through QuestionService#toResponse
+        // (not built inline) so a gated non-SRD question redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "connectionQuestions") && clazz.getConnectionQuestions() != null) {
             builder.connectionQuestions(clazz.getConnectionQuestions().stream()
-                    .map(question -> QuestionResponse.builder()
-                            .id(question.getId())
-                            .questionText(question.getQuestionText())
-                            .questionType(question.getQuestionType())
-                            .expansionId(question.getExpansion().getId())
-                            .createdAt(question.getCreatedAt())
-                            .lastModifiedAt(question.getLastModifiedAt())
-                            .deletedAt(question.getDeletedAt())
-                            .build())
+                    .map(question -> questionService.toResponse(question, Set.of()))
                     .collect(Collectors.toList()));
         }
 
         return builder.build();
+    }
+
+    /**
+     * Resolves the authenticated user from an {@link Authentication}, matching the
+     * {@link CustomUserDetails} extraction pattern used throughout {@code service.dh}.
+     *
+     * @param authentication the authentication context of the requesting user
+     * @return the authenticated {@link User}
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

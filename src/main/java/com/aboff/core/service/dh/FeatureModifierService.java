@@ -43,6 +43,7 @@ import java.util.Set;
 public class FeatureModifierService {
 
     private final FeatureModifierRepository featureModifierRepository;
+    private final ContentAccessService contentAccessService;
     private final AuditLogger auditLogger;
 
     /**
@@ -50,7 +51,8 @@ public class FeatureModifierService {
      *
      * @param page Zero-based page number
      * @param size Number of items per page
-     * @param includeDeleted Whether to include soft-deleted modifiers
+     * @param includeDeleted Whether to include soft-deleted modifiers; coerced to false below
+     *                       MODERATOR by {@link ContentAccessService#resolveIncludeDeleted}
      * @return Paginated response containing feature modifiers
      */
     @Transactional(readOnly = true)
@@ -59,7 +61,7 @@ public class FeatureModifierService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<FeatureModifier> modifierPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             modifierPage = featureModifierRepository.findAll(pageable);
         } else {
             modifierPage = featureModifierRepository.findAllByDeletedAtIsNull(pageable);

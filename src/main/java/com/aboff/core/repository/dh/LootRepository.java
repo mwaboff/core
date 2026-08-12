@@ -49,6 +49,8 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for tier
      * @param isConsumable Optional filter for consumable status
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) official content;
+     *                      see {@code ContentAccessService#includeNonSrd()}
      * @param pageable Pagination information
      * @return Page of visible loot matching the criteria
      */
@@ -65,7 +67,8 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
            "AND (:name IS NULL OR LOWER(l.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
            "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial) " +
            "AND (:tier IS NULL OR l.tier = :tier) " +
-           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable) ",
+           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable) " +
+           "AND (:includeNonSrd = true OR l.isOfficial = false OR l.srd = true) ",
            countQuery = "SELECT COUNT(DISTINCT l) FROM Loot l LEFT JOIN l.campaigns lc " +
            "WHERE l.deletedAt IS NULL " +
            "AND (:isPrivileged = true " +
@@ -79,7 +82,8 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
            "AND (:name IS NULL OR LOWER(l.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
            "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial) " +
            "AND (:tier IS NULL OR l.tier = :tier) " +
-           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable) ")
+           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable) " +
+           "AND (:includeNonSrd = true OR l.isOfficial = false OR l.srd = true) ")
     Page<Loot> findAccessibleWithFilters(
             @Param("userId") Long userId,
             @Param("memberCampaignIds") Collection<Long> memberCampaignIds,
@@ -90,6 +94,7 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
             @Param("isConsumable") Boolean isConsumable,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**
@@ -97,6 +102,10 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param tier Optional filter for tier
+     * @param isConsumable Optional filter for consumable status
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) official content;
+     *                      see {@code ContentAccessService#includeNonSrd()}
      * @param pageable Pagination information
      * @return Page of non-deleted loot matching the criteria
      */
@@ -104,12 +113,14 @@ public interface LootRepository extends JpaRepository<Loot, Long> {
            "AND (:expansionId IS NULL OR l.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR l.isOfficial = :isOfficial) " +
            "AND (:tier IS NULL OR l.tier = :tier) " +
-           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable)")
+           "AND (:isConsumable IS NULL OR l.isConsumable = :isConsumable) " +
+           "AND (:includeNonSrd = true OR l.isOfficial = false OR l.srd = true)")
     Page<Loot> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
             @Param("isConsumable") Boolean isConsumable,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

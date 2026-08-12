@@ -2,7 +2,6 @@ package com.aboff.core.service.dh;
 
 import com.aboff.core.model.dto.dh.request.CreateSubclassCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateSubclassCardRequest;
-import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.SubclassCardResponse;
@@ -18,6 +17,7 @@ import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.SubclassCardRepository;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -56,6 +56,7 @@ public class SubclassCardService {
     private final SubclassPathService subclassPathService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of subclass cards.
@@ -83,6 +84,7 @@ public class SubclassCardService {
             SubclassLevel level,
             String expand) {
 
+        includeDeleted = contentAccessService.resolveIncludeDeleted(includeDeleted);
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<SubclassCard> cardPage;
@@ -90,7 +92,8 @@ public class SubclassCardService {
         if (includeDeleted) {
             cardPage = subclassCardRepository.findAllWithFilters(expansionId, isOfficial, associatedClassId, subclassPathId, level, pageable);
         } else {
-            cardPage = subclassCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, associatedClassId, subclassPathId, level, pageable);
+            cardPage = subclassCardRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, isOfficial, associatedClassId, subclassPathId, level, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -125,6 +128,15 @@ public class SubclassCardService {
 
     /**
      * Creates a new subclass card.
+     * <p>
+     * {@code request.getSrd()} is deliberately ignored: a subclass card's {@code srd} flag is
+     * always derived from its {@link SubclassPath#getSrd()} rather than accepted from the
+     * caller, so the three cards in a path (Foundation/Specialization/Mastery) can never
+     * disagree with each other or with the path itself. Only {@code SubclassPathService} may
+     * change a path's {@code srd} flag; changing it there cascades to every card in the path.
+     * If a caller supplies {@code srd} anyway, it is logged and dropped rather than rejected, so
+     * an otherwise valid request does not fail over a field this endpoint does not honor.
+     * </p>
      *
      * @param request The creation request containing card details
      * @param authentication The authentication of the requesting user
@@ -144,12 +156,14 @@ public class SubclassCardService {
                 request.getSubclassPath(),
                 request.getAssociatedClassId(),
                 request.getExpansionId());
+        warnIfSrdSupplied(request.getSrd());
 
         SubclassCard card = SubclassCard.builder()
                 .name(request.getName())
                 .description(request.getDescription())
                 .expansion(expansion)
                 .isOfficial(request.getIsOfficial())
+                .srd(path.getSrd())
                 .backgroundImageUrl(request.getBackgroundImageUrl())
                 .subclassPath(path)
                 .level(request.getLevel())
@@ -177,6 +191,11 @@ public class SubclassCardService {
 
     /**
      * Creates multiple subclass cards in bulk.
+     * <p>
+     * As with {@link #createSubclassCard}, each card's {@code srd} flag is derived from its
+     * {@code subclassPath} rather than {@code request.getSrd()} — see that method's Javadoc for
+     * why.
+     * </p>
      *
      * @param requests List of creation requests
      * @param authentication The authentication of the requesting user
@@ -196,12 +215,14 @@ public class SubclassCardService {
                             request.getSubclassPath(),
                             request.getAssociatedClassId(),
                             request.getExpansionId());
+                    warnIfSrdSupplied(request.getSrd());
 
                     SubclassCard card = SubclassCard.builder()
                             .name(request.getName())
                             .description(request.getDescription())
                             .expansion(expansion)
                             .isOfficial(request.getIsOfficial())
+                            .srd(path.getSrd())
                             .backgroundImageUrl(request.getBackgroundImageUrl())
                             .subclassPath(path)
                             .level(request.getLevel())
@@ -233,6 +254,12 @@ public class SubclassCardService {
 
     /**
      * Updates an existing subclass card.
+     * <p>
+     * {@code request.getSrd()} is deliberately ignored — see {@link #createSubclassCard} for
+     * why. The card's {@code srd} flag is unconditionally re-derived from its (possibly newly
+     * reassigned) {@code subclassPath} on every update, so a path reassignment can never leave
+     * the card carrying a stale value.
+     * </p>
      *
      * @param id The card ID to update
      * @param request The update request containing new card details
@@ -246,6 +273,8 @@ public class SubclassCardService {
 
         SubclassCard card = subclassCardRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("SubclassCard not found with id: " + id));
+
+        warnIfSrdSupplied(request.getSrd());
 
         if (request.getName() != null && !request.getName().isBlank()) {
             card.setName(request.getName());
@@ -276,6 +305,9 @@ public class SubclassCardService {
         if (request.getLevel() != null) {
             card.setLevel(request.getLevel());
         }
+
+        // Always re-derive srd from the (possibly just-reassigned) subclassPath, never from the request
+        card.setSrd(card.getSubclassPath().getSrd());
 
         // Update features
         Set<Feature> resolvedFeatures = featureService.resolveFeatures(request.getFeatureIds(), request.getFeatures());
@@ -345,12 +377,26 @@ public class SubclassCardService {
 
     /**
      * Converts a SubclassCard entity to SubclassCardResponse DTO.
+     * <p>
+     * If the caller may not view this card (gated non-SRD content outside their access), returns
+     * a redacted stub instead — see {@link ContentRedaction#stub}. This is the universal funnel:
+     * list endpoints, single-get, and embedded-content resolution (e.g. character sheets, search
+     * {@code ?expand=}) all route through this method, so it is the one place redaction can be
+     * enforced without every caller having to remember to check.
+     * </p>
      *
      * @param card The card entity
      * @param expand Set of relationships to expand
-     * @return SubclassCardResponse DTO
+     * @return SubclassCardResponse DTO, or a redacted stub if the caller may not view it
      */
     public SubclassCardResponse toResponse(SubclassCard card, Set<String> expand) {
+        if (!contentAccessService.mayView(card)) {
+            SubclassCardResponse stub = ContentRedaction.stub(SubclassCardResponse::new, card.getId(),
+                    card.getExpansion() != null ? card.getExpansion().getName() : null);
+            stub.setCardType(card.getCardType());
+            return stub;
+        }
+
         SubclassCardResponse.SubclassCardResponseBuilder builder = SubclassCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())
@@ -359,6 +405,7 @@ public class SubclassCardService {
                 .expansionId(card.getExpansion().getId())
                 .expansionName(card.getExpansion().getName())
                 .isOfficial(card.getIsOfficial())
+                .srd(card.getSrd())
                 .backgroundImageUrl(card.getBackgroundImageUrl())
                 .associatedClassId(card.getSubclassPath().getAssociatedClass().getId())
                 .associatedClassName(card.getSubclassPath().getAssociatedClass().getName())
@@ -416,17 +463,11 @@ public class SubclassCardService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand cost tags if requested
+        // Expand cost tags if requested. Routed through CardCostTagService#toResponse (not built
+        // inline) so a gated non-SRD cost tag redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "costTags") && card.getCostTags() != null) {
             builder.costTags(card.getCostTags().stream()
-                    .map(tag -> CardCostTagResponse.builder()
-                            .id(tag.getId())
-                            .label(tag.getLabel())
-                            .category(tag.getCategory())
-                            .createdAt(tag.getCreatedAt())
-                            .lastModifiedAt(tag.getLastModifiedAt())
-                            .deletedAt(tag.getDeletedAt())
-                            .build())
+                    .map(cardCostTagService::toResponse)
                     .collect(Collectors.toList()));
         }
 
@@ -453,5 +494,19 @@ public class SubclassCardService {
                 .description(trait.getDescription())
                 .examples(trait.getExamples())
                 .build();
+    }
+
+    /**
+     * Logs a warning when a caller supplies an {@code srd} value on a subclass card create or
+     * update request, since it is always dropped in favor of the value derived from the card's
+     * {@code subclassPath}. See {@link #createSubclassCard} for why.
+     *
+     * @param requestedSrd the {@code srd} value from the request, or null if not supplied
+     */
+    private void warnIfSrdSupplied(Boolean requestedSrd) {
+        if (requestedSrd != null) {
+            log.warn("Caller supplied srd={} on a subclass card request; ignoring — subclass card "
+                    + "srd is always derived from its subclassPath", requestedSrd);
+        }
     }
 }

@@ -39,8 +39,12 @@ public class AdminActionLog extends BaseEntity {
 
     /**
      * Id of the user the action was performed against.
+     * <p>
+     * Null for actions with no user target, e.g. {@link AdminActionType#CONTENT_SRD_CHANGED}
+     * — every other action type always populates this.
+     * </p>
      */
-    @Column(name = "target_user_id", nullable = false)
+    @Column(name = "target_user_id")
     private Long targetUserId;
 
     /**

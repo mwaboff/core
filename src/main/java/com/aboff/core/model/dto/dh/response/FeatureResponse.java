@@ -27,7 +27,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class FeatureResponse {
+public class FeatureResponse implements Restrictable {
     /**
      * Unique identifier for the feature
      */
@@ -42,6 +42,18 @@ public class FeatureResponse {
      * Detailed description of what the feature does
      */
     private String description;
+
+    /**
+     * Whether this feature is from official game content. Derived from whatever the feature
+     * is attached to; never settable from a request.
+     */
+    private Boolean isOfficial;
+
+    /**
+     * Whether this feature is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in.
+     */
+    private Boolean srd;
 
     /**
      * Type/category of the feature (see {@link FeatureType})
@@ -97,4 +109,17 @@ public class FeatureResponse {
      * Timestamp when the feature was soft-deleted (null if not deleted)
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * The display name of the expansion this feature belongs to. Set on a redacted stub so
+     * the caller can tell which book to buy, even though {@link #expansion} itself is unset.
+     */
+    private String expansionName;
+
+    /**
+     * True if this response is a redacted stub for gated non-SRD content the caller may not
+     * view. When true, every other field except {@link #id} and {@link #expansionName} is
+     * unset.
+     */
+    private Boolean restricted;
 }

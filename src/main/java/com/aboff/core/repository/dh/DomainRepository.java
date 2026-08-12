@@ -20,26 +20,39 @@ public interface DomainRepository extends JpaRepository<Domain, Long> {
 
     /**
      * Finds all non-deleted domains (where deletedAt is null).
+     * <p>
+     * Unused today (no caller resolves it, it was reachable only via Spring Data's derived
+     * query naming), but gated all the same on the chance a future admin-facing unfiltered
+     * listing wires it up — a dead query is not a safe place to skip SRD gating.
+     * </p>
      *
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) domains; when
+     *                      false, only custom (non-official) or SRD-flagged domains are returned
      * @param pageable Pagination information
      * @return Page of non-deleted domains
      */
-    Page<Domain> findByDeletedAtIsNull(Pageable pageable);
+    @Query("SELECT d FROM Domain d WHERE d.deletedAt IS NULL " +
+           "AND (:includeNonSrd = true OR d.isOfficial = false OR d.srd = true)")
+    Page<Domain> findByDeletedAtIsNull(@Param("includeNonSrd") boolean includeNonSrd, Pageable pageable);
 
     /**
      * Finds all non-deleted domains with optional filters.
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) domains; when
+     *                      false, only custom (non-official) or SRD-flagged domains are returned
      * @param pageable Pagination information
      * @return Page of non-deleted domains matching the criteria
      */
     @Query("SELECT d FROM Domain d WHERE d.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR d.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial) " +
+           "AND (:includeNonSrd = true OR d.isOfficial = false OR d.srd = true)")
     Page<Domain> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

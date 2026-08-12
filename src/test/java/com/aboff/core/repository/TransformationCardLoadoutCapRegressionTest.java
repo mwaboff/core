@@ -102,6 +102,7 @@ class TransformationCardLoadoutCapRegressionTest {
                     .name("Transformation Card " + i)
                     .description("Unrelated content")
                     .expansion(expansion)
+                    .isOfficial(false)
                     .build());
         }
 
@@ -121,6 +122,7 @@ class TransformationCardLoadoutCapRegressionTest {
             transformationCardRepository.save(TransformationCard.builder()
                     .name("Bulk Transformation Card " + i)
                     .expansion(expansion)
+                    .isOfficial(false)
                     .build());
         }
 

@@ -4,17 +4,22 @@ import com.aboff.core.model.dto.dh.request.CreateTransformationCardRequest;
 import com.aboff.core.model.dto.dh.request.QuestionInput;
 import com.aboff.core.model.dto.dh.request.UpdateTransformationCardRequest;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
+import com.aboff.core.model.dto.dh.response.QuestionResponse;
 import com.aboff.core.model.dto.dh.response.TransformationCardResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.enums.QuestionType;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.TransformationCardRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -64,8 +69,25 @@ class TransformationCardServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
     @InjectMocks
     private TransformationCardService transformationCardService;
+
+    /**
+     * Defaults every test to "caller may see everything" so pre-existing assertions on full
+     * card content keep passing without each test having to stub SRD gating explicitly. Tests
+     * exercising gating override these with their own stubbing.
+     */
+    @BeforeEach
+    void stubDefaultVisibility() {
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        lenient().when(authentication.getPrincipal())
+                .thenReturn(new CustomUserDetails(User.builder().id(1L).username("tester").role(Role.ADMIN).build()));
+    }
 
     // ==================== GET ALL TESTS ====================
 
@@ -81,7 +103,7 @@ class TransformationCardServiceTest {
                 .expansion(expansion).createdAt(LocalDateTime.now()).build();
 
         Page<TransformationCard> page = new PageImpl<>(List.of(card1, card2));
-        when(transformationCardRepository.findByDeletedAtIsNullAndExpansion(isNull(), any(Pageable.class)))
+        when(transformationCardRepository.findByDeletedAtIsNullAndExpansion(isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(page);
 
         PagedResponse<TransformationCardResponse> result =
@@ -94,6 +116,7 @@ class TransformationCardServiceTest {
 
     @Test
     void getAllTransformationCards_IncludeDeleted_UsesFindAllWithExpansion() {
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         Page<TransformationCard> page = new PageImpl<>(List.of());
         when(transformationCardRepository.findAllWithExpansion(isNull(), any(Pageable.class)))
                 .thenReturn(page);
@@ -101,7 +124,7 @@ class TransformationCardServiceTest {
         transformationCardService.getAllTransformationCards(0, 20, true, null, null);
 
         verify(transformationCardRepository).findAllWithExpansion(isNull(), any(Pageable.class));
-        verify(transformationCardRepository, never()).findByDeletedAtIsNullAndExpansion(any(), any());
+        verify(transformationCardRepository, never()).findByDeletedAtIsNullAndExpansion(any(), anyBoolean(), any());
     }
 
     // ==================== GET BY ID TESTS ====================
@@ -195,7 +218,8 @@ class TransformationCardServiceTest {
     void updateTransformationCard_WithPartialFields_UpdatesOnlyProvidedFields() {
         Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
         TransformationCard existing = TransformationCard.builder()
-                .id(1L).name("Feral Transformation").description("Original").expansion(expansion).build();
+                .id(1L).name("Feral Transformation").description("Original").expansion(expansion)
+                .isOfficial(true).build();
         when(transformationCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existing));
         when(transformationCardRepository.save(any(TransformationCard.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -343,7 +367,7 @@ class TransformationCardServiceTest {
         Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
         Question oldQuestion = Question.builder().id(1L).questionText("Old?").questionType(QuestionType.TRANSFORMATION).expansion(expansion).build();
         TransformationCard existing = TransformationCard.builder()
-                .id(1L).name("Werewolf").expansion(expansion).questions(Set.of(oldQuestion)).build();
+                .id(1L).name("Werewolf").expansion(expansion).isOfficial(true).questions(Set.of(oldQuestion)).build();
         when(transformationCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existing));
         when(transformationCardRepository.save(any(TransformationCard.class))).thenAnswer(inv -> inv.getArgument(0));
 
@@ -367,6 +391,10 @@ class TransformationCardServiceTest {
                 .id(1L).name("Demigod").expansion(expansion)
                 .questions(Set.of(question)).build();
 
+        QuestionResponse questionResponse = QuestionResponse.builder()
+                .id(9L).questionText("What changed?").questionType(QuestionType.TRANSFORMATION).build();
+        when(questionService.toResponse(eq(question), eq(Set.of()))).thenReturn(questionResponse);
+
         TransformationCardResponse response = transformationCardService.toResponse(card, Set.of("questions"));
 
         assertThat(response.getQuestionIds()).containsExactly(9L);
@@ -386,5 +414,87 @@ class TransformationCardServiceTest {
 
         assertThat(response.getQuestionIds()).containsExactly(9L);
         assertThat(response.getQuestions()).isNull();
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void toResponse_MayViewFalse_ReturnsRedactedStub() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        TransformationCard card = TransformationCard.builder()
+                .id(1L).name("Feral Transformation").description("Becomes a beast")
+                .expansion(expansion).isOfficial(true).srd(false).build();
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        TransformationCardResponse response = transformationCardService.toResponse(card, Set.of());
+
+        assertThat(response.getRestricted()).isTrue();
+        assertThat(response.getId()).isEqualTo(1L);
+        assertThat(response.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(response.getName()).isNull();
+        assertThat(response.getDescription()).isNull();
+        assertThat(response.getIsOfficial()).isNull();
+        assertThat(response.getSrd()).isNull();
+    }
+
+    @Test
+    void createTransformationCard_ThreadsRequestedSrdThroughContentAccessService() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(contentAccessService.resolveSrd(any(User.class), eq(true))).thenReturn(true);
+
+        CreateTransformationCardRequest request = CreateTransformationCardRequest.builder()
+                .name("Feral Transformation")
+                .expansionId(1L)
+                .srd(true)
+                .build();
+
+        when(transformationCardRepository.save(any(TransformationCard.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TransformationCardResponse response =
+                transformationCardService.createTransformationCard(request, authentication);
+
+        assertThat(response.getSrd()).isTrue();
+        verify(transformationCardRepository).save(argThat(card -> Boolean.TRUE.equals(card.getSrd())));
+    }
+
+    @Test
+    void updateTransformationCard_ThreadsRequestedSrdThroughContentAccessService() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        TransformationCard existing = TransformationCard.builder()
+                .id(1L).name("Feral Transformation").description("Original")
+                .expansion(expansion).isOfficial(true).srd(false).build();
+        when(transformationCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existing));
+        when(transformationCardRepository.save(any(TransformationCard.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(contentAccessService.resolveSrd(any(User.class), eq(true))).thenReturn(true);
+
+        UpdateTransformationCardRequest request = UpdateTransformationCardRequest.builder()
+                .srd(true)
+                .build();
+
+        TransformationCardResponse response =
+                transformationCardService.updateTransformationCard(1L, request, authentication);
+
+        assertThat(response.getSrd()).isTrue();
+        verify(contentAccessService).resolveSrd(any(User.class), eq(true));
+    }
+
+    @Test
+    void createTransformationCard_AlwaysSetsIsOfficialTrue() {
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+
+        CreateTransformationCardRequest request = CreateTransformationCardRequest.builder()
+                .name("Feral Transformation")
+                .expansionId(1L)
+                .build();
+
+        when(transformationCardRepository.save(any(TransformationCard.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        TransformationCardResponse response =
+                transformationCardService.createTransformationCard(request, authentication);
+
+        assertThat(response.getIsOfficial()).isTrue();
+        verify(transformationCardRepository).save(argThat(card -> Boolean.TRUE.equals(card.getIsOfficial())));
     }
 }

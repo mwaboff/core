@@ -36,6 +36,12 @@ public class UpdateTransformationCardRequest {
     private Long expansionId;
 
     /**
+     * Whether this transformation card is SRD-licensed content. Optional and ADMIN+ only — see
+     * {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
+
+    /**
      * IDs of existing features to associate with this transformation card.
      * Replaces existing features when provided.
      */

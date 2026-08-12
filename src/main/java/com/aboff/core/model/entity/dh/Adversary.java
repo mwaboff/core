@@ -208,6 +208,16 @@ public class Adversary extends BaseEntity {
     private Boolean isOfficial = false;
 
     /**
+     * Indicates whether this adversary is SRD-licensed content, freely usable without
+     * owning the sourcebook it was printed in. Defaults to false at creation time; only an
+     * explicit SRD flag opens the adversary to users who have not been granted expansion
+     * access. See {@code ContentAccessService} for how this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
+
+    /**
      * Indicates whether this custom adversary is publicly visible.
      * Public adversaries can be viewed and copied by other users, while
      * private adversaries are only visible to their creator.

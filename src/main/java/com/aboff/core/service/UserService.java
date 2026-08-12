@@ -307,7 +307,13 @@ public class UserService {
         if (fullInfo) {
             builder.email(user.getEmail())
                     .timezone(user.getTimezone())
-                    .lastModifiedAt(user.getLastModifiedAt());
+                    .lastModifiedAt(user.getLastModifiedAt())
+                    // Self + privileged, same as email/timezone above -- this is account-state
+                    // information with no reason to be visible to an arbitrary other user, but
+                    // the target user themselves and MODERATOR+ both have a legitimate reason
+                    // to know it (the former to understand their own access, the latter to
+                    // administer it).
+                    .accessAllExpansions(user.getAccessAllExpansions());
         }
 
         if (privilegedInfo) {

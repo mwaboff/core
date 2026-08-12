@@ -40,6 +40,9 @@ public interface AdversaryRepository extends JpaRepository<Adversary, Long> {
      * @param adversaryType Optional filter for adversary type
      * @param isOfficial Optional filter for official status
      * @param name Optional filter for name (partial match, case-insensitive)
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) content; official
+     *                      rows that are not SRD-licensed are excluded when false. See
+     *                      {@code ContentAccessService#includeNonSrd()}.
      * @param pageable Pagination information
      * @return Page of accessible non-deleted adversaries matching the criteria
      */
@@ -49,7 +52,8 @@ public interface AdversaryRepository extends JpaRepository<Adversary, Long> {
            "AND (:tier IS NULL OR a.tier IN :tier) " +
            "AND (:adversaryType IS NULL OR a.adversaryType = :adversaryType) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
-           "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
+           "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
+           "AND (:includeNonSrd = true OR a.isOfficial = false OR a.srd = true)")
     Page<Adversary> findAccessibleWithFilters(
             @Param("userId") Long userId,
             @Param("expansionId") Long expansionId,
@@ -57,6 +61,7 @@ public interface AdversaryRepository extends JpaRepository<Adversary, Long> {
             @Param("adversaryType") AdversaryType adversaryType,
             @Param("isOfficial") Boolean isOfficial,
             @Param("name") String name,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

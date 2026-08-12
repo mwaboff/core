@@ -44,4 +44,11 @@ public class CreateDomainRequest {
      */
     @NotNull(message = "Expansion ID is required")
     private Long expansionId;
+
+    /**
+     * Whether this domain is SRD-licensed content. Only ADMIN/OWNER may set this to true;
+     * see {@code ContentAccessService#resolveSrd}. Optional and omittable so existing bulk
+     * import payloads that predate SRD gating continue to work unchanged.
+     */
+    private Boolean srd;
 }

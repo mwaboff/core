@@ -553,6 +553,7 @@ class LevelUpControllerIntegrationTest {
                 .name("Companion")
                 .featureType(FeatureType.SUBCLASS)
                 .expansion(testExpansion)
+                .isOfficial(true)
                 .build());
         SubclassCard companionCard = subclassCardRepository.save(SubclassCard.builder()
                 .name("Beastbound Foundation")

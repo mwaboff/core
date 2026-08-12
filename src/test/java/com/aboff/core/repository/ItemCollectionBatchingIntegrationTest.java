@@ -127,7 +127,8 @@ class ItemCollectionBatchingIntegrationTest {
         Campaign campaign = campaignRepository.save(
                 Campaign.builder().name("Batching Table").creator(owner).build());
         Feature feature = featureRepository.save(Feature.builder()
-                .name("Batched Feature").featureType(FeatureType.ITEM).expansion(expansion).build());
+                .name("Batched Feature").featureType(FeatureType.ITEM).expansion(expansion)
+                .isOfficial(false).build());
 
         for (int i = 0; i < WEAPON_COUNT; i++) {
             weaponRepository.save(Weapon.builder()

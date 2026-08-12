@@ -29,6 +29,14 @@ public class CreateClassRequest {
     /** Whether this class is from official game content. Defaults to true when omitted. */
     private Boolean isOfficial;
 
+    /**
+     * Whether this class is SRD-licensed content. Optional and ADMIN+ only — see
+     * {@code ContentAccessService#resolveSrd}. Deliberately not {@code @NotNull}: the bulk
+     * import payloads in {@code core-import/} and {@code hope_and_fear-import/} omit this field
+     * and must keep working unchanged.
+     */
+    private Boolean srd;
+
     @NotNull(message = "Expansion ID is required")
     private Long expansionId;
 

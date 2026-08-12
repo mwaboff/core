@@ -27,6 +27,7 @@ import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.service.RoleHierarchyService;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -75,6 +76,7 @@ public class AdversaryService {
     private final RoleHierarchyService roleHierarchyService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of adversaries accessible to the authenticated user.
@@ -112,12 +114,13 @@ public class AdversaryService {
         CustomUserDetails userDetails = (CustomUserDetails) auth.getPrincipal();
         User user = userDetails.getUser();
 
-        if (includeDeleted && roleHierarchyService.hasRoleOrHigher(user, Role.ADMIN)) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             adversaryPage = adversaryRepository.findAllWithFilters(
                     expansionId, tier, adversaryType, isOfficial, name, true, pageable);
         } else {
             adversaryPage = adversaryRepository.findAccessibleWithFilters(
-                    user.getId(), expansionId, tier, adversaryType, isOfficial, name, pageable);
+                    user.getId(), expansionId, tier, adversaryType, isOfficial, name,
+                    contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -190,6 +193,7 @@ public class AdversaryService {
                 .expansion(expansion)
                 .createdBy(creator)
                 .isOfficial(resolveIsOfficial(creator, request.getIsOfficial()))
+                .srd(contentAccessService.resolveSrd(creator, request.getSrd()))
                 .isPublic(request.getIsPublic() != null ? request.getIsPublic() : false)
                 .build();
 
@@ -323,6 +327,9 @@ public class AdversaryService {
         }
         if (request.getIsOfficial() != null) {
             adversary.setIsOfficial(resolveIsOfficial(user, request.getIsOfficial()));
+        }
+        if (request.getSrd() != null) {
+            adversary.setSrd(contentAccessService.resolveSrd(user, request.getSrd()));
         }
         if (request.getIsPublic() != null) {
             adversary.setIsPublic(request.getIsPublic());
@@ -609,6 +616,11 @@ public class AdversaryService {
      * Converts an Adversary entity to AdversaryResponse DTO.
      */
     private AdversaryResponse toResponse(Adversary adversary, Set<String> expand) {
+        if (!contentAccessService.mayView(adversary.getIsOfficial(), adversary.getSrd())) {
+            return ContentRedaction.stub(AdversaryResponse::new, adversary.getId(),
+                    adversary.getExpansion() != null ? adversary.getExpansion().getName() : null);
+        }
+
         AdversaryResponse.AdversaryResponseBuilder builder = AdversaryResponse.builder()
                 .id(adversary.getId())
                 .name(adversary.getName())
@@ -627,8 +639,10 @@ public class AdversaryService {
                 .weaponName(adversary.getWeaponName())
                 .attackRange(adversary.getAttackRange())
                 .isOfficial(adversary.getIsOfficial())
+                .srd(adversary.getSrd())
                 .isPublic(adversary.getIsPublic())
                 .expansionId(adversary.getExpansion().getId())
+                .expansionName(adversary.getExpansion().getName())
                 .creatorId(adversary.getCreatedBy().getId())
                 .createdAt(adversary.getCreatedAt())
                 .lastModifiedAt(adversary.getLastModifiedAt())

@@ -6,6 +6,23 @@ Write access: `POST`, `PUT`, `DELETE` endpoints require `ADMIN` or `OWNER` role.
 
 Subclass paths group three subclass cards (Foundation, Specialization, Mastery) that share a common theme within a class. Each path has associated domains and an optional spellcasting trait.
 
+**SRD content gating:** paid-expansion ("non-SRD") subclass paths are gated behind ADMIN/OWNER
+role or a per-user "Access All Expansions" grant; SRD-licensed paths stay visible to everyone.
+`SubclassPath` carries no `isOfficial` of its own — visibility is decided by `srd` alone. List
+endpoints filter restricted rows out entirely. `GET /{id}` cannot filter, so a restricted path
+fetched directly, or embedded via `?expand=subclassPath` on a `SubclassCardResponse`, comes back
+as a **redacted stub**: only `id`, `restricted: true`, and `expansionName` are present.
+
+**`srd` is the single source of truth for the whole group.** A subclass path's `srd` flag is the
+*only* writable flag for it and its three cards — `PUT /api/dh/subclass-paths/{id}` with `srd` in
+the body cascades that value, in the same transaction, to every non-deleted `SubclassCard` in the
+path. A subclass card's own `srd` (see `subclass-cards-api.md`) can never be set directly by a
+request; it is always derived from its path. This makes it structurally impossible for a path and
+its cards to disagree with each other.
+
+This gate is currently off by default (kill-switched) until the catalogue's SRD flags are
+populated.
+
 ## Endpoints
 
 ### GET `/api/dh/subclass-paths`
@@ -176,6 +193,7 @@ Create a new subclass path.
 | `associatedClassId` | `Long` | Yes | Must reference existing class | Class this path belongs to |
 | `expansionId` | `Long` | Yes | Must reference existing expansion | Expansion this path belongs to |
 | `spellcastingTrait` | `Trait` | No | One of the valid Trait values | Spellcasting trait for the path |
+| `srd` | `Boolean` | No | ADMIN+ only; coerced to `false` otherwise. Omitted by existing bulk-import payloads | Whether this path (and by cascade, its cards) is SRD-licensed content |
 | `associatedDomainIds` | `Long[]` | No | — | IDs of domains to associate |
 
 ##### `Trait` Enum Values
@@ -291,6 +309,7 @@ Update an existing subclass path.
 | `associatedClassId` | `Long` | Yes | Must reference existing class | Class this path belongs to |
 | `expansionId` | `Long` | Yes | Must reference existing expansion | Expansion this path belongs to |
 | `spellcastingTrait` | `Trait` | No | One of the valid Trait values | Spellcasting trait for the path |
+| `srd` | `Boolean` | No | ADMIN+ only; omit to leave unchanged | **The only writable `srd` flag for the group.** Cascades to every non-deleted `SubclassCard` in the path in the same transaction |
 | `associatedDomainIds` | `Long[]` | No | — | IDs of domains to associate |
 
 ```json
@@ -400,6 +419,7 @@ Uses `@JsonInclude(NON_NULL)` -- null fields are omitted from the JSON response.
 |---|---|---|---|
 | `id` | `Long` | No | Unique identifier |
 | `name` | `String` | No | Subclass path name |
+| `srd` | `Boolean` | No | Whether this path (and every card in it) is SRD-licensed content |
 | `associatedClassId` | `Long` | No | ID of the associated class |
 | `associatedClass` | `ClassResponse` | Yes | Full class object (only with `?expand=associatedClass`) |
 | `spellcastingTrait` | `TraitInfo` | Yes | Spellcasting trait with metadata (null if path has no spellcasting) |
@@ -410,6 +430,8 @@ Uses `@JsonInclude(NON_NULL)` -- null fields are omitted from the JSON response.
 | `createdAt` | `LocalDateTime` | No | Creation timestamp |
 | `lastModifiedAt` | `LocalDateTime` | No | Last modification timestamp |
 | `deletedAt` | `LocalDateTime` | Yes | Soft-deletion timestamp (null if active) |
+| `expansionName` | `String` | Only on a redacted stub | Display name of the expansion, so the caller can tell which book to buy even though `expansion` itself is unset |
+| `restricted` | `Boolean` | Only on a redacted stub | `true` when this response is a redacted stub for gated non-SRD content the caller may not view. When present, every field above except `id` and `expansionName` is absent |
 
 ### `TraitInfo` (nested object)
 

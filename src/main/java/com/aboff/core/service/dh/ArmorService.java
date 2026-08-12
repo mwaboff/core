@@ -31,6 +31,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -54,13 +55,17 @@ public class ArmorService {
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
     private final ItemAccessService itemAccessService;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of armors.
      *
      * @param page Zero-based page number
      * @param size Number of items per page
-     * @param includeDeleted Whether to include soft-deleted armors
+     * @param includeDeleted Whether to include soft-deleted armors; coerced to false for callers
+     *                       below MODERATOR by {@link ContentAccessService#resolveIncludeDeleted},
+     *                       which also logs a warning -- the request still succeeds, it simply
+     *                       narrows to non-deleted rows rather than being rejected
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for armor tier (1–4)
@@ -70,8 +75,6 @@ public class ArmorService {
      * @param expand Comma-separated list of relationships to expand
      * @param authentication The current authentication, used to resolve what the caller may see
      * @return Paginated response containing armors
-     * @throws com.aboff.core.exception.InsufficientPermissionsException if a non-moderator
-     *         requests soft-deleted armors
      */
     @Transactional(readOnly = true)
     public PagedResponse<ArmorResponse> getAllArmors(
@@ -91,13 +94,15 @@ public class ArmorService {
         Pageable pageable = PageRequest.of(page, size,
                 (sort == null ? ItemSort.ID : sort).toSort());
         ItemAccessService.VisibilityScope scope = itemAccessService.visibilityScope(authentication);
+        boolean effectiveIncludeDeleted = contentAccessService.resolveIncludeDeleted(includeDeleted);
         Page<Armor> armorPage;
 
-        if (includeDeleted) {
-            // Soft-deleted rows are a moderation surface, not a browse surface. This was
-            // previously ungated, which was harmless while every armor was official but would
-            // expose other users' private homebrew now that anyone can author one.
-            itemAccessService.requireModerator(authentication);
+        if (effectiveIncludeDeleted) {
+            // Soft-deleted rows are a moderation surface, not a browse surface --
+            // resolveIncludeDeleted() above already coerced this branch to be unreachable for
+            // anyone below MODERATOR, so no further permission check belongs here. This was
+            // previously ungated entirely, which was harmless while every armor was official
+            // but would expose other users' private homebrew now that anyone can author one.
             armorPage = armorRepository.findAllWithFilters(expansionId, createdByUserId, name, isOfficial, tier, pageable);
         } else {
             // Moderators are not branched to a separate query: findAccessibleWithFilters
@@ -105,7 +110,8 @@ public class ArmorService {
             // duplicate the filter list a second time.
             armorPage = armorRepository.findAccessibleWithFilters(
                     scope.userId(), scope.memberCampaignIds(), scope.privileged(),
-                    expansionId, createdByUserId, name, isOfficial, tier, pageable);
+                    expansionId, createdByUserId, name, isOfficial, tier,
+                    contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -249,12 +255,14 @@ public class ArmorService {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
+        User user = itemAccessService.currentUser(authentication);
 
         Armor armor = Armor.builder()
                 .name(request.getName())
                 .expansion(expansion)
                 .tier(request.getTier())
                 .isOfficial(request.getIsOfficial())
+                .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                 .baseMajorThreshold(request.getBaseMajorThreshold())
                 .baseSevereThreshold(request.getBaseSevereThreshold())
                 .baseScore(request.getBaseScore())
@@ -289,6 +297,7 @@ public class ArmorService {
      */
     @Transactional
     public List<ArmorResponse> createArmorsBulk(List<CreateArmorRequest> requests, Authentication authentication) {
+        User user = itemAccessService.currentUser(authentication);
         List<Armor> armors = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -300,6 +309,7 @@ public class ArmorService {
                             .expansion(expansion)
                             .tier(request.getTier())
                             .isOfficial(request.getIsOfficial())
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .baseMajorThreshold(request.getBaseMajorThreshold())
                             .baseSevereThreshold(request.getBaseSevereThreshold())
                             .baseScore(request.getBaseScore())
@@ -357,6 +367,9 @@ public class ArmorService {
             armor.setIsOfficial(itemAccessService.resolveIsOfficial(user, request.getIsOfficial()));
         }
         boolean isOfficial = Boolean.TRUE.equals(armor.getIsOfficial());
+        if (request.getSrd() != null) {
+            armor.setSrd(contentAccessService.resolveSrd(user, request.getSrd()));
+        }
 
         if (Boolean.TRUE.equals(request.getClearExpansion())) {
             // A JSON null for expansionId is indistinguishable from an omitted field, so
@@ -466,12 +479,19 @@ public class ArmorService {
      * @return ArmorResponse DTO
      */
     public ArmorResponse toResponse(Armor armor, Set<String> expand) {
+        if (!contentAccessService.mayView(armor)) {
+            return ContentRedaction.stub(ArmorResponse::new, armor.getId(),
+                    armor.getExpansion() != null ? armor.getExpansion().getName() : null);
+        }
+
         ArmorResponse.ArmorResponseBuilder builder = ArmorResponse.builder()
                 .id(armor.getId())
                 .name(armor.getName())
                 .expansionId(armor.getExpansion() != null ? armor.getExpansion().getId() : null)
+                .expansionName(armor.getExpansion() != null ? armor.getExpansion().getName() : null)
                 .tier(armor.getTier())
                 .isOfficial(armor.getIsOfficial())
+                .srd(armor.getSrd())
                 .isPublic(armor.getIsPublic())
                 .createdByUserId(armor.getCreatedBy() != null ? armor.getCreatedBy().getId() : null)
                 .baseMajorThreshold(armor.getBaseMajorThreshold())

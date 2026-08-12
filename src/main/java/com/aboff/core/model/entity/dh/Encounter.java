@@ -79,6 +79,16 @@ public class Encounter extends BaseEntity {
     private Boolean isOfficial;
 
     /**
+     * Indicates whether this encounter is SRD-licensed content, freely usable without
+     * owning the sourcebook it was printed in. Defaults to false at creation time; only an
+     * explicit SRD flag opens the encounter to users who have not been granted expansion
+     * access. See {@code ContentAccessService} for how this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @lombok.Builder.Default
+    private Boolean srd = false;
+
+    /**
      * Indicates whether this custom encounter is publicly visible.
      * Public encounters can be viewed and copied by other users, while
      * private encounters are only visible to their creator.

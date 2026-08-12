@@ -33,6 +33,18 @@ public class FeatureController {
 
     /**
      * Retrieves a paginated list of features.
+     * <p>
+     * Restricted to MODERATOR or higher. A {@link com.aboff.core.model.entity.dh.Feature}'s
+     * {@code srd}/{@code isOfficial} flags are stamped once at creation and are never re-derived
+     * when the parent that granted them (a class, card, item, adversary, ...) is later re-flagged
+     * -- a feature is shared M:N across many parent types and has no single owner to inherit from.
+     * That means this endpoint's own SRD gating predicate can only ever reflect a feature's
+     * possibly-stale row, not any parent's current, correct gating. Restricting the standalone
+     * browse surface to MODERATOR+ keeps that staleness from being reachable by users who would
+     * otherwise see it as a bypass of a parent's gating; MODERATOR is deliberately included here
+     * even though moderators do not get the broader non-SRD content grant elsewhere in this
+     * feature -- this is about who may use the standalone browse surface at all, not about which
+     * content they may see once granted access to it.
      *
      * @param page Zero-based page number (default: 0)
      * @param size Number of items per page (default: 20, max: 100)
@@ -43,6 +55,7 @@ public class FeatureController {
      * @return Paginated response containing features
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN', 'OWNER')")
     public ResponseEntity<PagedResponse<FeatureResponse>> getAllFeatures(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
@@ -59,12 +72,18 @@ public class FeatureController {
 
     /**
      * Retrieves a single feature by ID.
+     * <p>
+     * Restricted to MODERATOR or higher, for the same reason as {@link #getAllFeatures}: a
+     * feature's own {@code srd}/{@code isOfficial} flags can go stale relative to the parent that
+     * granted them, and this endpoint has no parent to re-derive from, so it cannot be trusted to
+     * reflect a parent's current gating on its own.
      *
      * @param id The feature ID
      * @param expand Comma-separated list of relationships to expand (e.g., "expansion")
      * @return FeatureResponse containing the feature details
      */
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('MODERATOR', 'ADMIN', 'OWNER')")
     public ResponseEntity<FeatureResponse> getFeatureById(
             @PathVariable Long id,
             @RequestParam(required = false) String expand,

@@ -6,6 +6,7 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
 import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.service.dh.ContentAccessService;
 import com.aboff.core.service.dh.ItemAccessService;
 import com.aboff.core.service.search.SearchTypeRegistry;
 import com.aboff.core.util.PostgresArrayUtil;
@@ -32,6 +33,11 @@ import java.util.List;
  * receive results they are permitted to view (official, public, their own content, or
  * content shared with a campaign they are involved in).
  * Privileged users (MODERATOR and above) bypass these restrictions.
+ *
+ * <p>Independently, SRD vs. paid-expansion gating is enforced at the same level via
+ * {@link ContentAccessService#includeNonSrd()}: official rows that are not SRD-flagged are
+ * excluded for callers who may not view paid-expansion content, regardless of role-based
+ * search privilege above.
  */
 @Service
 @RequiredArgsConstructor
@@ -55,6 +61,7 @@ public class SearchService {
     private final RoleHierarchyService roleHierarchyService;
     private final SearchTypeRegistry searchTypeRegistry;
     private final ItemAccessService itemAccessService;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Performs a paginated full-text search across all indexed game content.
@@ -157,6 +164,7 @@ public class SearchService {
                 user.getId(),
                 memberCampaignIds,
                 isPrivileged,
+                contentAccessService.includeNonSrd(),
                 PageRequest.of(page, size));
 
         boolean expandEntity = expand != null && (expand.contains("entity") || expand.contains("all"));

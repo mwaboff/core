@@ -19,4 +19,10 @@ public class UpdateQuestionRequest {
     private QuestionType questionType;
 
     private Long expansionId;
+
+    /**
+     * Whether this question is SRD-licensed content. Only ADMIN/OWNER may set this to true;
+     * see {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
 }

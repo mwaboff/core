@@ -25,6 +25,15 @@ knows or which is active; that character-state lives on the character sheet — 
 `references/character-sheets-api.md` (`knownMartialStanceIds`, `activeMartialStanceId`,
 `clearActiveMartialStance`).
 
+Martial stances have no user-authoring path — only ADMIN/OWNER can create or update one, unlike
+weapons, armor, and loot. **SRD content gating:** among official content, paid-expansion
+("non-SRD") stances are further gated behind ADMIN/OWNER role or a per-user "Access All
+Expansions" grant; SRD-licensed stances stay visible to everyone. List endpoints filter restricted
+rows out entirely. `GET /{id}`, and the stance embedded in `CharacterSheetResponse` (known stances
+and `activeMartialStance`), come back as a redacted stub for restricted content: only `id`,
+`restricted: true`, and `expansionName` are present. This gate is currently off by default
+(kill-switched) until the catalogue's SRD flags are populated.
+
 Granted by the Martial Artist subclass's foundation feature ("Stance Fighter"). A character knows 2
 Tier-1 stances at pick, +1 stance per level thereafter (at or below the character's current tier). Only
 one stance can be active at a time; entering costs 1 Focus. The active stance drops on Severe damage,
@@ -41,7 +50,7 @@ the backend only enforces the structural invariants below).
 |-----------|------|---------|----------|-------------|
 | `page` | int | `0` | No | Zero-based page number |
 | `size` | int | `20` | No | Items per page (max: 100; values >100 are clamped) |
-| `includeDeleted` | boolean | `false` | No | Include soft-deleted stances |
+| `includeDeleted` | boolean | `false` | No | Include soft-deleted stances (MODERATOR+ only; silently coerced to `false` below that role, no error) |
 | `expansionId` | long | -- | No | Filter by expansion |
 | `isOfficial` | boolean | -- | No | Filter by official status |
 | `tier` | int | -- | No | Filter by tier (1-4) |
@@ -85,6 +94,7 @@ Restores a soft-deleted stance. `400` if not currently deleted.
 | `expansionId` | long | Yes | Must reference an existing Expansion |
 | `tier` | integer | Yes | 1-4 |
 | `isOfficial` | boolean | Yes | -- |
+| `srd` | boolean | No | SRD-licensed flag. Honoured only for ADMIN+, coerced to `false` otherwise (no error). Omitted by existing bulk-import payloads, which keep working |
 | `description` | string | No | Effect text |
 | `featureIds` | long[] | No | Each must reference an existing Feature |
 | `features` | FeatureInput[] | No | Find-or-create inline, merged with `featureIds` |
@@ -104,9 +114,12 @@ Same fields as create, all optional; only non-null fields are applied.
 | `id` | long | Yes | -- |
 | `name` | string | Yes | -- |
 | `expansionId` | long | Yes | -- |
+| `expansionName` | string | Yes | Always included. On a redacted stub this is the only content-identifying field carried |
+| `restricted` | boolean | No | `true` when this response is a redacted stub for gated non-SRD content the caller may not view. When present, every field below except `id` and `expansionName` is absent |
 | `expansion` | ExpansionResponse | No | Only with `?expand=expansion` |
 | `tier` | integer | Yes | 1-4 |
 | `isOfficial` | boolean | Yes | -- |
+| `srd` | boolean | Yes | Whether this is SRD-licensed content |
 | `description` | string | No | Omitted if null |
 | `featureIds` | long[] | Yes (when present) | -- |
 | `features` | FeatureResponse[] | No | Only with `?expand=features` |

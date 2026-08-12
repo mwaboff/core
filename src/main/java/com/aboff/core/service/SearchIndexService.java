@@ -93,7 +93,8 @@ public class SearchIndexService {
                 data.getIsMixed(),
                 data.getSubclassLevel(),
                 data.getCostTagCategory(),
-                PostgresArrayUtil.toBigintArrayLiteral(data.getSharedCampaignIds())
+                PostgresArrayUtil.toBigintArrayLiteral(data.getSharedCampaignIds()),
+                data.getSrd()
         );
 
         log.debug("Upserted search index for entity type={} id={}", data.getEntityType(), data.getEntityId());

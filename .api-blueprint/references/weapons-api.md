@@ -10,9 +10,19 @@ explicitly tagged to a campaign they are involved in. MODERATOR+ bypasses this f
 There is no derived "we share a campaign so you see my things" rule — sharing is always a
 deliberate act by the author.
 
+**SRD content gating:** among official content, paid-expansion ("non-SRD") weapons are further
+gated behind ADMIN/OWNER role or a per-user "Access All Expansions" grant; SRD-licensed weapons
+stay visible to everyone. List endpoints filter restricted rows out entirely — they simply do not
+appear in the page. `GET /{id}` cannot filter (see below), so a restricted weapon fetched directly,
+or embedded on a character sheet the caller owns, comes back as a **redacted stub**: only `id`,
+`restricted: true`, and `expansionName` are present, so the frontend can render a "content not
+available" placeholder and tell the viewer which book to buy. This gate is currently off by
+default (kill-switched) until the catalogue's SRD flags are populated.
+
 `GET /{id}` is deliberately **not** filtered: any authenticated user can fetch any record by ID.
 Custom items have to render on other people's character sheets and profiles, and they carry no
-secrets. Restricting it would silently blank those pages.
+secrets. Restricting it would silently blank those pages. SRD gating is instead enforced by
+redacting the response body, not by a 403/404.
 **Content-Type:** `application/json`
 
 ---
@@ -43,7 +53,7 @@ List all active weapons with optional filters and pagination.
 |-----------|------|---------|----------|-------------|
 | `page` | int | `0` | No | Zero-based page number |
 | `size` | int | `20` | No | Items per page (max: 100; values >100 are clamped) |
-| `includeDeleted` | boolean | `false` | No | Include soft-deleted weapons (MODERATOR+ only; 403 otherwise) |
+| `includeDeleted` | boolean | `false` | No | Include soft-deleted weapons (MODERATOR+ only; **silently coerced to `false`** below that role, no error) |
 | `expansionId` | Long | -- | No | Filter by expansion ID |
 | `isOfficial` | Boolean | -- | No | Filter by official status |
 | `trait` | Trait | -- | No | Filter by weapon trait |
@@ -177,6 +187,7 @@ Create a new weapon. Requires ADMIN or OWNER role.
 | `expansionId` | Long | Yes | Must reference an active expansion |
 | `tier` | Integer | Yes | 1-4 |
 | `isOfficial` | Boolean | Yes | |
+| `srd` | Boolean | No | SRD-licensed flag. **Honoured only for ADMIN+**, coerced to `false` otherwise (no error). Omitted by existing bulk-import payloads, which keep working |
 | `isPrimary` | Boolean | Yes | |
 | `trait` | Trait | Yes | See [Trait enum](#trait) |
 | `range` | Range | Yes | See [Range enum](#range) |
@@ -362,8 +373,10 @@ still fails loudly rather than silently landing as un-attributed homebrew.
 | `features` | FeatureInput[] | No | Inline features, max 20 |
 
 **Fields deliberately absent:** `isOfficial` and `expansionId` (custom content is never canon and
-belongs to no sourcebook) and `originalWeaponId` (set only by the copy endpoint, so a caller cannot
-claim their creation derives from something it does not).
+belongs to no sourcebook), `srd` (SRD-ness is a property of published book content — a weapon
+invented at someone's table came from no book, and the SRD gate already exempts custom content via
+`isOfficial = false` regardless), and `originalWeaponId` (set only by the copy endpoint, so a
+caller cannot claim their creation derives from something it does not).
 
 ### Response: `201 Created`
 
@@ -519,9 +532,12 @@ GET /api/dh/weapons/1?expand=expansion,features,originalWeapon
 | `id` | Long | Yes | Unique identifier |
 | `name` | String | Yes | Weapon name |
 | `expansionId` | Long | If non-null | Sourcebook ID. **Null for custom content**, which came from no book |
+| `expansionName` | String | Yes | Sourcebook display name. On a redacted stub this is the only content-identifying field carried |
+| `restricted` | Boolean | Only on a redacted stub | `true` when this response is a redacted stub for gated non-SRD content the caller may not view. When present, every field below except `id` and `expansionName` is absent |
 | `expansion` | ExpansionResponse | Only with `?expand=expansion` | Full expansion object |
 | `tier` | Integer | Yes | Power tier (1-4) |
 | `isOfficial` | Boolean | Yes | Official game content flag |
+| `srd` | Boolean | Yes | SRD-licensed content flag |
 | `isPublic` | Boolean | Yes | Visible to every user (custom content only) |
 | `createdByUserId` | Long | If non-null | Author. Null for imports; non-null with `isOfficial: false` marks homebrew |
 | `campaignIds` | List\<Long\> | If non-empty | Campaigns this record is explicitly shared with |

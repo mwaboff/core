@@ -19,5 +19,13 @@ public enum AdminActionType {
     /** An admin changed a user's username. */
     USER_USERNAME_CHANGED,
     /** An admin changed a user's avatar URL. */
-    USER_AVATAR_CHANGED
+    USER_AVATAR_CHANGED,
+    /** An admin granted or revoked a user's "Access All Expansions" override. */
+    USER_EXPANSION_ACCESS_CHANGED,
+    /**
+     * An admin flagged or unflagged a batch of game content as SRD-licensed via the bulk
+     * SRD-flagging tool. Unlike every other action type, this one has no target user; see
+     * {@code V20260811225540367__add_content_srd_changed_admin_action.sql}.
+     */
+    CONTENT_SRD_CHANGED
 }

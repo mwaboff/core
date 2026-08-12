@@ -238,6 +238,7 @@ POST /api/dh/cards/subclass
 | `description` | string | No | -- | Card description |
 | `expansionId` | long | Yes | Not null | Expansion this card belongs to |
 | `isOfficial` | boolean | Yes | Not null | Whether this is official game content |
+| `srd` | boolean | No | -- | **Ignored.** Present for schema uniformity with the other card create requests only. A subclass card's `srd` is always derived from its `subclassPath` — see [Content Gating (SRD)](#content-gating-srd) below |
 | `backgroundImageUrl` | string | No | Max 500 chars | URL to card background image |
 | `featureIds` | long[] | No | -- | IDs of existing features to associate |
 | `features` | FeatureInput[] | No | Valid | Inline feature find-or-create objects (merged with featureIds) |
@@ -759,30 +760,32 @@ Without expansion, the response still includes summary fields: `expansionName`, 
 | Field | Type | Always Present | Description |
 |---|---|---|---|
 | `id` | long | Yes | Unique identifier |
-| `name` | string | Yes | Card name |
-| `description` | string | Yes | Card description |
+| `name` | string | Unless redacted | Card name |
+| `description` | string | Unless redacted | Card description |
 | `cardType` | string | Yes | Always `"SUBCLASS"` |
-| `expansionId` | long | Yes | Expansion ID |
-| `expansionName` | string | Yes | Expansion name |
+| `expansionId` | long | Unless redacted | Expansion ID |
+| `expansionName` | string | Yes | Expansion name. The only content-identifying field carried on a redacted stub |
 | `expansion` | object | Only with `?expand=expansion` | Full ExpansionResponse |
-| `isOfficial` | boolean | Yes | Official game content flag |
+| `isOfficial` | boolean | Unless redacted | Official game content flag |
+| `srd` | boolean | Unless redacted | Whether this card is SRD-licensed content. Always mirrors the parent `subclassPath`'s `srd` — see [Content Gating (SRD)](#content-gating-srd) below |
 | `backgroundImageUrl` | string | If set | Background image URL |
-| `featureIds` | long[] | Yes | Feature IDs |
+| `featureIds` | long[] | Unless redacted | Feature IDs |
 | `features` | object[] | Only with `?expand=features` | Full FeatureResponse objects |
-| `costTagIds` | long[] | Yes | Cost tag IDs |
+| `costTagIds` | long[] | Unless redacted | Cost tag IDs |
 | `costTags` | object[] | Only with `?expand=costTags` | Full CardCostTagResponse objects |
-| `associatedClassId` | long | Yes | Class ID (via subclass path) |
-| `associatedClassName` | string | Yes | Class name (via subclass path) |
-| `subclassPathId` | long | Yes | Subclass path ID |
-| `subclassPathName` | string | Yes | Subclass path name |
+| `associatedClassId` | long | Unless redacted | Class ID (via subclass path) |
+| `associatedClassName` | string | Unless redacted | Class name (via subclass path) |
+| `subclassPathId` | long | Unless redacted | Subclass path ID |
+| `subclassPathName` | string | Unless redacted | Subclass path name |
 | `subclassPath` | object | Only with `?expand=subclassPath` | Full SubclassPathResponse |
-| `domainNames` | string[] | Yes | Domain names from path |
-| `domainIds` | long[] | Yes | Domain IDs from path |
+| `domainNames` | string[] | Unless redacted | Domain names from path |
+| `domainIds` | long[] | Unless redacted | Domain IDs from path |
 | `spellcastingTrait` | object | If path has spellcasting | TraitInfo with `trait`, `description`, `examples` |
-| `level` | string | Yes | Subclass level enum value |
-| `createdAt` | datetime | Yes | Creation timestamp |
-| `lastModifiedAt` | datetime | Yes | Last modification timestamp |
+| `level` | string | Unless redacted | Subclass level enum value |
+| `createdAt` | datetime | Unless redacted | Creation timestamp |
+| `lastModifiedAt` | datetime | Unless redacted | Last modification timestamp |
 | `deletedAt` | datetime | If deleted | Soft-deletion timestamp |
+| `restricted` | boolean | Only on a redacted stub | `true` when this response is a redacted stub for gated content the caller may not view. See [Content Gating (SRD)](#content-gating-srd) below |
 
 ### SubclassPathResponse (expanded)
 
@@ -825,6 +828,7 @@ Without expansion, the response still includes summary fields: `expansionName`, 
 | `card_type` | VARCHAR(20) | NOT NULL, CHECK IN ('ANCESTRY', 'COMMUNITY', 'SUBCLASS', 'DOMAIN') |
 | `expansion_id` | BIGINT | NOT NULL, FK -> expansions(id) |
 | `is_official` | BOOLEAN | NOT NULL, DEFAULT true |
+| `srd` | BOOLEAN | NOT NULL, DEFAULT false |
 | `background_image_url` | VARCHAR(500) | -- |
 | `created_at` | TIMESTAMP | NOT NULL |
 | `last_modified_at` | TIMESTAMP | NOT NULL |
@@ -847,6 +851,7 @@ Without expansion, the response still includes summary fields: `expansionName`, 
 | `associated_class_id` | BIGINT | NOT NULL, FK -> classes(id) |
 | `spellcasting_trait` | VARCHAR(20) | -- |
 | `expansion_id` | BIGINT | NOT NULL, FK -> expansions(id) |
+| `srd` | BOOLEAN | NOT NULL, DEFAULT false |
 | `created_at` | TIMESTAMP | NOT NULL |
 | `last_modified_at` | TIMESTAMP | NOT NULL |
 | `deleted_at` | TIMESTAMP | -- |
@@ -873,3 +878,33 @@ Unique index: `LOWER(name), associated_class_id`
 |---|---|---|
 | `card_id` | BIGINT | FK -> cards(id) CASCADE |
 | `card_cost_tag_id` | BIGINT | FK -> card_cost_tags(id) CASCADE |
+
+---
+
+## Content Gating (SRD)
+
+Subclass cards from paid expansions (e.g., Hope & Fear) are gated behind ADMIN/OWNER role or a per-user "Access All Expansions" grant, unless the card's subclass path is flagged `srd` (SRD-licensed, freely usable content). Custom (`isOfficial: false`) cards are never gated, regardless of `srd`.
+
+**Subclass cards never set their own `srd` — it is always derived from the subclass path.** A subclass path groups exactly three cards (Foundation/Specialization/Mastery), and this API deliberately makes it structurally impossible for those three to disagree with each other or with the path on SRD status:
+
+- `subclass_paths.srd` is the **only** writable copy of the flag. It is set on the subclass path itself, via `subclass-paths-api.md`'s update endpoint — never through this API.
+- The `srd` field on `CreateSubclassCardRequest` / `UpdateSubclassCardRequest` exists only for schema uniformity with the other three card types. If supplied, it is **ignored** (logged server-side, never applied).
+- On create, a new card's `srd` is copied from its resolved `subclassPath.srd` at save time.
+- On update, a card's `srd` is unconditionally re-derived from its current `subclassPath.srd` — including when the update reassigns the card to a different path, in which case the card immediately adopts the new path's `srd`.
+- Changing a path's `srd` (via the subclass paths API) cascades to every card already in that path.
+
+**List and single-get behavior** matches the other three card types:
+
+- **List endpoints** (`GET /api/dh/cards/subclass`) silently exclude gated cards the caller may not view. They never appear in `content`, and pagination totals reflect the filtered count.
+- **Single-get and embedded content** (e.g., a gated subclass card in a character sheet's loadout the caller owns) come back as a **redacted stub** instead of a `404` or the full card. A stub carries only `id`, `cardType`, `expansionName`, and `restricted: true` — every other field is omitted from the JSON entirely (not `null`, simply absent):
+
+```json
+{
+  "id": 42,
+  "cardType": "SUBCLASS",
+  "expansionName": "Hope & Fear",
+  "restricted": true
+}
+```
+
+- `includeDeleted=true` is similarly gated: only MODERATOR+ callers may actually see soft-deleted cards; a lower-privileged request is coerced to `includeDeleted=false`.

@@ -23,13 +23,17 @@ public interface CardCostTagRepository extends JpaRepository<CardCostTag, Long> 
      * Finds all non-deleted cost tags with optional category filter.
      *
      * @param category Optional filter for cost tag category
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) tags; when
+     *                      false, only SRD-flagged tags are returned
      * @param pageable Pagination information
      * @return Page of non-deleted cost tags matching the criteria
      */
     @Query("SELECT t FROM CardCostTag t WHERE t.deletedAt IS NULL " +
-           "AND (:category IS NULL OR t.category = :category)")
+           "AND (:category IS NULL OR t.category = :category) " +
+           "AND (:includeNonSrd = true OR t.srd = true)")
     Page<CardCostTag> findByDeletedAtIsNullAndFilters(
             @Param("category") CostTagCategory category,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

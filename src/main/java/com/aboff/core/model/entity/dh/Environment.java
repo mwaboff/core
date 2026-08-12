@@ -122,6 +122,16 @@ public class Environment extends BaseEntity {
     private Boolean isPublic = false;
 
     /**
+     * Indicates whether this environment is SRD-licensed content, freely usable without
+     * owning the sourcebook it was printed in. Defaults to false at creation time; only an
+     * explicit SRD flag opens the environment to users who have not been granted expansion
+     * access. See {@code ContentAccessService} for how this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
+
+    /**
      * The expansion this environment belongs to.
      */
     @ManyToOne(fetch = FetchType.LAZY)

@@ -12,9 +12,18 @@ explicitly tagged to a campaign they are involved in. MODERATOR+ bypasses this f
 no derived "we share a campaign so you see my things" rule; sharing is always a deliberate act
 by the author.
 
+SRD content gating: among official content, paid-expansion ("non-SRD") armors are further gated
+behind ADMIN/OWNER role or a per-user "Access All Expansions" grant; SRD-licensed armors stay
+visible to everyone. List endpoints filter restricted rows out entirely. `GET /{id}` cannot
+filter (see below), so a restricted armor fetched directly, or embedded on a character sheet the
+caller owns, comes back as a redacted stub: only `id`, `restricted: true`, and `expansionName`
+are present. This gate is currently off by default (kill-switched) until the catalogue's SRD
+flags are populated.
+
 `GET /{id}` is deliberately not filtered: any authenticated user can fetch any record by ID.
 Custom items have to render on other people's character sheets and profiles, and they carry no
-secrets. Restricting it would silently blank those pages.
+secrets. Restricting it would silently blank those pages. SRD gating is instead enforced by
+redacting the response body, not by a 403/404.
 
 ---
 
@@ -34,7 +43,7 @@ Retrieve a paginated list of armors with optional filters.
 |-----------|------|----------|---------|-------------|
 | `page` | `int` | No | `0` | Zero-based page number |
 | `size` | `int` | No | `20` | Items per page (max: 100; values above 100 are clamped) |
-| `includeDeleted` | `boolean` | No | `false` | Include soft-deleted armors (MODERATOR+ only; 403 otherwise) |
+| `includeDeleted` | `boolean` | No | `false` | Include soft-deleted armors (MODERATOR+ only; silently coerced to `false` below that role, no error) |
 | `expansionId` | `Long` | No | - | Filter by expansion ID |
 | `isOfficial` | `Boolean` | No | - | Filter by official status |
 | `tier` | `Integer` | No | - | Filter by tier (1--4) |
@@ -232,6 +241,7 @@ Create a new armor.
 | `expansionId` | `Long` | Yes | `@NotNull` | Expansion this armor belongs to |
 | `tier` | `Integer` | Yes | `@NotNull`, 1--4 | Tier level |
 | `isOfficial` | `Boolean` | Yes | `@NotNull` | Whether from official content |
+| `srd` | `Boolean` | No | - | SRD-licensed flag. Honoured only for ADMIN+, coerced to `false` otherwise (no error). Omitted by existing bulk-import payloads, which keep working |
 | `baseMajorThreshold` | `Integer` | Yes | `@NotNull`, `@Positive` | Min damage for major injury |
 | `baseSevereThreshold` | `Integer` | Yes | `@NotNull`, `@Positive` | Min damage for severe injury |
 | `baseScore` | `Integer` | Yes | `@NotNull`, `@PositiveOrZero` | Base defensive score |
@@ -545,9 +555,12 @@ Returned by all endpoints that produce armor data. Uses `@JsonInclude(NON_NULL)`
 | `id` | `Long` | No | Unique identifier |
 | `name` | `String` | No | Armor name (max 200 chars) |
 | `expansionId` | `Long` | No | ID of the parent expansion (always included) |
+| `expansionName` | `String` | No | Expansion display name (always included). On a redacted stub this is the only content-identifying field carried |
+| `restricted` | `Boolean` | Yes | `true` when this response is a redacted stub for gated non-SRD content the caller may not view. When present, every field below except `id` and `expansionName` is absent |
 | `expansion` | `ExpansionResponse` | Yes | Full expansion object (only with `?expand=expansion`) |
 | `tier` | `Integer` | No | Tier level (1--4) |
 | `isOfficial` | `Boolean` | No | Whether from official content |
+| `srd` | `Boolean` | No | Whether SRD-licensed content |
 | `baseMajorThreshold` | `Integer` | No | Min damage for major injury (positive) |
 | `baseSevereThreshold` | `Integer` | No | Min damage for severe injury (positive, >= baseMajorThreshold) |
 | `baseScore` | `Integer` | No | Base defensive score (zero or positive) |
@@ -567,6 +580,7 @@ Returned by all endpoints that produce armor data. Uses `@JsonInclude(NON_NULL)`
 | `expansionId` | `Long` | Yes | `@NotNull` | Parent expansion ID |
 | `tier` | `Integer` | Yes | `@NotNull`, `@Min(1)`, `@Max(4)` | Tier level (1--4) |
 | `isOfficial` | `Boolean` | Yes | `@NotNull` | Official content flag |
+| `srd` | `Boolean` | No | - | SRD-licensed flag; ADMIN+ only |
 | `baseMajorThreshold` | `Integer` | Yes | `@NotNull`, `@Positive` | Major injury threshold |
 | `baseSevereThreshold` | `Integer` | Yes | `@NotNull`, `@Positive` | Severe injury threshold |
 | `baseScore` | `Integer` | Yes | `@NotNull`, `@PositiveOrZero` | Base defensive score |
@@ -867,8 +881,10 @@ still fails loudly rather than silently landing as un-attributed homebrew.
 | `features` | FeatureInput[] | No | Inline features, max 20 |
 
 **Fields deliberately absent:** `isOfficial` and `expansionId` (custom content is never canon and
-belongs to no sourcebook) and `originalArmorId` (set only by the copy endpoint, so a caller cannot
-claim their creation derives from something it does not).
+belongs to no sourcebook), `srd` (SRD-ness is a property of published book content — a homebrew
+armor came from no book, and the SRD gate already exempts custom content via `isOfficial = false`
+regardless), and `originalArmorId` (set only by the copy endpoint, so a caller cannot claim their
+creation derives from something it does not).
 
 ### Response: `201 Created`
 

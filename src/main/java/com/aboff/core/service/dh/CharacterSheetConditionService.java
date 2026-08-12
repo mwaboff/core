@@ -52,6 +52,7 @@ public class CharacterSheetConditionService {
     private final CharacterSheetConditionRepository characterSheetConditionRepository;
     private final CharacterSheetRepository characterSheetRepository;
     private final ConditionRepository conditionRepository;
+    private final ConditionService conditionService;
     private final RoleHierarchyService roleHierarchyService;
     private final AuditLogger auditLogger;
 
@@ -278,17 +279,9 @@ public class CharacterSheetConditionService {
         }
 
         if (ExpandUtil.shouldExpand(expand, "condition")) {
-            Condition condition = instance.getCondition();
-            builder.condition(com.aboff.core.model.dto.dh.response.ConditionResponse.builder()
-                    .id(condition.getId())
-                    .name(condition.getName())
-                    .description(condition.getDescription())
-                    .expansionId(condition.getExpansion().getId())
-                    .isOfficial(condition.getIsOfficial())
-                    .createdAt(condition.getCreatedAt())
-                    .lastModifiedAt(condition.getLastModifiedAt())
-                    .deletedAt(condition.getDeletedAt())
-                    .build());
+            // Delegate to ConditionService.toResponse so non-SRD conditions embedded on a
+            // character sheet are redacted the same way the conditions catalogue is.
+            builder.condition(conditionService.toResponse(instance.getCondition(), Set.of()));
         }
 
         return builder.build();

@@ -137,9 +137,12 @@ Return the currently authenticated user's profile.
   "timezone": "UTC",
   "createdAt": "2026-04-12T10:00:00",
   "lastModifiedAt": "2026-04-12T10:00:00",
-  "usernameChosen": true
+  "usernameChosen": true,
+  "accessAllExpansions": false
 }
 ```
+
+`accessAllExpansions` is omitted (not `false`) when null, per `@JsonInclude(NON_NULL)`. It reflects whether an admin has manually granted this user visibility into non-SRD (paid expansion) game content — see `UpdateAdminUserRequest.accessAllExpansions` in `admin-api.md`. ADMIN/OWNER callers see non-SRD content regardless of this flag.
 
 #### Error Responses
 
@@ -332,6 +335,7 @@ Response DTO containing non-sensitive user profile data. Uses `@JsonInclude(NON_
 | `deletedAt` | `LocalDateTime` | Yes | Soft-deletion timestamp (privileged view only) |
 | `bannedAt` | `LocalDateTime` | Yes | Ban timestamp (privileged view only) |
 | `usernameChosen` | `Boolean` | No | `false` for first-time OAuth users who haven't completed username selection; `true` once chosen |
+| `accessAllExpansions` | `Boolean` | Yes | Whether this user is manually granted visibility into non-SRD (paid expansion) game content, independent of `role`. Settable only by an admin — see `admin-api.md`. |
 
 ### `ErrorResponse`
 

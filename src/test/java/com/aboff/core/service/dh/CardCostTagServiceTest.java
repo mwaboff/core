@@ -5,11 +5,15 @@ import com.aboff.core.model.dto.dh.request.CreateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.enums.CostTagCategory;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.CardCostTagRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -48,10 +52,24 @@ class CardCostTagServiceTest {
     private AuditLogger auditLogger;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
     private CardCostTagService cardCostTagService;
+
+    @BeforeEach
+    void stubDefaultVisibility() {
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        // CardCostTagService.currentUser(authentication) is real (non-mocked) code invoked
+        // unconditionally on the create path, so the principal must resolve to a real user.
+        lenient().when(authentication.getPrincipal())
+                .thenReturn(new CustomUserDetails(User.builder().id(1L).username("tester").role(Role.ADMIN).build()));
+    }
 
     // ==================== GET ALL COST TAGS TESTS ====================
 
@@ -73,7 +91,7 @@ class CardCostTagServiceTest {
                 .build();
 
         Page<CardCostTag> tagPage = new PageImpl<>(List.of(tag1, tag2));
-        when(cardCostTagRepository.findByDeletedAtIsNullAndFilters(isNull(), any(Pageable.class)))
+        when(cardCostTagRepository.findByDeletedAtIsNullAndFilters(isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(tagPage);
 
         // Act
@@ -99,7 +117,7 @@ class CardCostTagServiceTest {
                 .build();
 
         Page<CardCostTag> tagPage = new PageImpl<>(List.of(tag));
-        when(cardCostTagRepository.findByDeletedAtIsNullAndFilters(eq(CostTagCategory.COST), any(Pageable.class)))
+        when(cardCostTagRepository.findByDeletedAtIsNullAndFilters(eq(CostTagCategory.COST), anyBoolean(), any(Pageable.class)))
                 .thenReturn(tagPage);
 
         // Act
@@ -108,7 +126,7 @@ class CardCostTagServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getCategory()).isEqualTo(CostTagCategory.COST);
-        verify(cardCostTagRepository).findByDeletedAtIsNullAndFilters(eq(CostTagCategory.COST), any(Pageable.class));
+        verify(cardCostTagRepository).findByDeletedAtIsNullAndFilters(eq(CostTagCategory.COST), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -122,6 +140,7 @@ class CardCostTagServiceTest {
                 .build();
 
         Page<CardCostTag> tagPage = new PageImpl<>(List.of(tag));
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         when(cardCostTagRepository.findAllWithFilters(isNull(), any(Pageable.class)))
                 .thenReturn(tagPage);
 
@@ -138,7 +157,7 @@ class CardCostTagServiceTest {
     void getAllCostTags_WithLargePage_LimitsTo100() {
         // Arrange
         Page<CardCostTag> tagPage = new PageImpl<>(List.of());
-        when(cardCostTagRepository.findByDeletedAtIsNullAndFilters(isNull(), any(Pageable.class)))
+        when(cardCostTagRepository.findByDeletedAtIsNullAndFilters(isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(tagPage);
 
         // Act
@@ -147,6 +166,7 @@ class CardCostTagServiceTest {
         // Assert
         verify(cardCostTagRepository).findByDeletedAtIsNullAndFilters(
                 isNull(),
+                anyBoolean(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -551,5 +571,33 @@ class CardCostTagServiceTest {
         // Assert
         assertThat(result).hasSize(1);
         assertThat(result).contains(tag);
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void getCostTagById_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange
+        CardCostTag tag = CardCostTag.builder()
+                .id(1L)
+                .label("Restricted Tag")
+                .category(CostTagCategory.COST)
+                .srd(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(cardCostTagRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(tag));
+        when(contentAccessService.mayView(true, tag.getSrd())).thenReturn(false);
+
+        // Act
+        CardCostTagResponse result = cardCostTagService.getCostTagById(1L);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getLabel()).isNull();
+        assertThat(result.getCategory()).isNull();
+        assertThat(result.getSrd()).isNull();
     }
 }

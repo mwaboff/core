@@ -21,7 +21,7 @@ GET /api/dh/adversaries
 |------------------|---------|----------|---------|-----------------------------------------------------------------|
 | `page`           | integer | No       | `0`     | Zero-based page number                                          |
 | `size`           | integer | No       | `20`    | Items per page (max: 100)                                       |
-| `includeDeleted` | boolean | No       | `false` | Include soft-deleted adversaries (ADMIN+ only)                  |
+| `includeDeleted` | boolean | No       | `false` | Include soft-deleted adversaries (MODERATOR+ only; see [Content Gating](#content-gating)) |
 | `expansionId`    | long    | No       | --      | Filter by expansion ID                                          |
 | `tier`           | integer (repeatable) | No | --   | Filter by one or more tiers (1-4). Repeat the parameter (`?tier=1&tier=2`) to match any of several tiers at once; a single `?tier=1` still works as before |
 | `adversaryType`  | string  | No       | --      | Filter by adversary type (e.g., `MINION`, `BRUISER`)            |
@@ -702,8 +702,10 @@ Returned by all adversary endpoints. Fields with `@JsonInclude(NON_NULL)` are om
 | `attackRange`        | Range                      | Yes      | Effective attack range                              |
 | `damage`             | DamageRollResponse         | Yes      | Damage roll details                                 |
 | `isOfficial`         | boolean                    | No       | Whether from official content                       |
+| `srd`                | boolean                    | Yes      | Whether this is SRD-licensed content, freely usable without owning the sourcebook. Never present on a redacted stub -- see [Content Gating](#content-gating) |
 | `isPublic`           | boolean                    | No       | Whether publicly visible                            |
 | `expansionId`        | long                       | No       | Expansion ID (always included)                      |
+| `expansionName`      | string                     | No       | Expansion name (always included; the only content-identifying field on a redacted stub) |
 | `expansion`          | ExpansionResponse          | Yes      | Full expansion (with `?expand=expansion`)           |
 | `originalAdversaryId`| long                       | Yes      | Source adversary ID if copied                       |
 | `originalAdversary`  | AdversaryResponse          | Yes      | Full original (with `?expand=originalAdversary`)    |
@@ -751,6 +753,7 @@ Returned by all adversary endpoints. Fields with `@JsonInclude(NON_NULL)` are om
 | `featureIds`        | Set\<long\>                | No       | --                               | Existing feature IDs to link                 |
 | `features`          | List\<FeatureInput\>       | No       | Valid nested objects             | Inline features to find-or-create, merged with featureIds |
 | `isOfficial`        | boolean                    | No       | Default: false                   | Official game content. Silently coerced to false for non-MODERATOR callers |
+| `srd`                | boolean                    | No       | Default: none                    | SRD-licensed content flag. Silently coerced to false for non-ADMIN callers; see [Content Gating](#content-gating) |
 | `isPublic`          | boolean                    | No       | Default: false                   | Public visibility                            |
 
 ### DamageRollRequest (nested in Create/UpdateAdversaryRequest)
@@ -785,6 +788,7 @@ All fields are optional for partial updates. Providing `experienceIds`, `feature
 | `attackRange`       | Range                      | No       | Valid enum value                 | Attack range                                 |
 | `damage`            | DamageRollRequest          | No       | Valid nested object              | Damage roll details                          |
 | `isOfficial`        | boolean                    | No       | --                               | Official game content. Silently coerced to false for non-MODERATOR callers |
+| `srd`                | boolean                    | No       | --                                | SRD-licensed content flag. Silently coerced to false for non-ADMIN callers; see [Content Gating](#content-gating) |
 | `isPublic`          | boolean                    | No       | --                               | Public visibility                            |
 | `experienceIds`     | Set\<long\>                | No       | --                               | Replaces existing experience associations    |
 | `featureIds`        | Set\<long\>                | No       | --                               | Replaces existing feature associations       |
@@ -971,6 +975,32 @@ Evaluated in order: SET first, then MULTIPLY, then ADD.
 | `ADMIN`     | Administrative access                |
 | `MODERATOR` | Can bypass ownership checks          |
 | `USER`      | Standard authenticated user          |
+
+---
+
+## Content Gating
+
+Adversary statblocks are one of the two most licensing-sensitive content types in the app
+(alongside Environment features). Official content that is not SRD-licensed (`isOfficial: true`,
+`srd: false`) is only visible to ADMIN/OWNER or a user with an explicit "Access All Expansions"
+grant -- see `ContentAccessService`. This applies while gating is enabled via the
+`application.content.srd-gating-enabled` flag; while disabled, every row is visible to every
+authenticated user regardless of `srd`.
+
+- **List/get endpoints** silently exclude restricted rows from `GET /api/dh/adversaries` (both
+  the accessible-listing and, when `includeDeleted=true`, the admin listing) and return a
+  redacted stub for `GET /api/dh/adversaries/{id}` and any `?expand=` that resolves to a
+  restricted adversary. A redacted stub carries only `id`, `expansionName`, and
+  `restricted: true` -- no name, no statblock, no `srd`/`isOfficial`.
+- **Custom (non-official) adversaries are never gated** -- `isOfficial = false` always passes,
+  regardless of `srd`, since content licensing only applies to official rulebook content.
+- **`includeDeleted=true` now requires MODERATOR+** (previously ADMIN+); a request from a lower
+  role silently falls back to `includeDeleted=false` rather than erroring. The admin listing this
+  unlocks (`findAllWithFilters`) intentionally bypasses SRD filtering entirely -- a
+  MODERATOR+ caller managing soft-deleted content sees every row regardless of licensing.
+- **Embedding**: an encounter that includes a restricted adversary (via
+  `?expand=adversaryDetails`) redacts just that adversary entry; the encounter itself, and any
+  other adversary in it, are unaffected.
 
 ---
 

@@ -399,6 +399,7 @@ class CampaignTransformationAccessIntegrationTest {
                 .name(name)
                 .description(name + " transformation")
                 .expansion(expansion)
+                .isOfficial(false)
                 .build());
     }
 

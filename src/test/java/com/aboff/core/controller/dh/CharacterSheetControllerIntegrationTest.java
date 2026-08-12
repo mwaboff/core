@@ -29,14 +29,17 @@ import com.aboff.core.repository.dh.MartialStanceRepository;
 import com.aboff.core.repository.dh.TransformationCardRepository;
 import com.aboff.core.repository.UserRepository;
 import com.aboff.core.security.JwtTokenProvider;
+import com.aboff.core.service.dh.ContentAccessService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.Cookie;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.TestPropertySource;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
@@ -117,6 +120,9 @@ class CharacterSheetControllerIntegrationTest {
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
 
+    @Autowired
+    private ContentAccessService contentAccessService;
+
     private User player1;
     private User player2;
     private User moderator;
@@ -140,6 +146,26 @@ class CharacterSheetControllerIntegrationTest {
         storeTokenInDatabase(moderator.getId(), moderatorToken);
 
         testSheet = createCharacterSheet("Aragorn", "he/him", 5, player1);
+    }
+
+    /**
+     * {@code ContentAccessService} is a singleton bean shared across all tests in this class's
+     * cached Spring context, so a test that flips its kill switch on via {@link
+     * #enableSrdGating()} must flip it back off here -- otherwise it leaks into every later test.
+     */
+    @AfterEach
+    void resetSrdGating() {
+        ReflectionTestUtils.setField(contentAccessService, "srdGatingEnabled", false);
+    }
+
+    /**
+     * Turns on {@code application.content.srd-gating-enabled} for the current test by setting the
+     * field directly on the already-autowired {@link ContentAccessService} singleton, rather than
+     * via {@code @TestPropertySource} -- doing it this way preserves Spring context caching across
+     * this test class instead of forcing a second application context to boot.
+     */
+    private void enableSrdGating() {
+        ReflectionTestUtils.setField(contentAccessService, "srdGatingEnabled", true);
     }
 
     // ==================== GET ALL CHARACTER SHEETS TESTS ====================
@@ -1373,6 +1399,97 @@ class CharacterSheetControllerIntegrationTest {
                 .andExpect(jsonPath("$.notes").doesNotExist());
     }
 
+    // ==================== SRD CONTENT GATING TESTS ====================
+    //
+    // Non-SRD (paid-expansion) content embedded on a character sheet -- an equipped domain card
+    // or an equipped weapon, here -- must never simply vanish from the owner's sheet: the slot
+    // stays, but the entity comes back as a redacted stub carrying only id/restricted/
+    // expansionName. This is enforced by CharacterSheetService delegating every embedded slot's
+    // DTO construction to the owning content service's toResponse (see toDomainCardResponse /
+    // toWeaponResponse), which is where the actual mayView() check and ContentRedaction.stub()
+    // call live. Gating is off by default (application.content.srd-gating-enabled=false), so
+    // these tests flip it on via enableSrdGating() -- without that, this whole test class would
+    // still pass even if redaction were entirely broken.
+
+    private record GatedSheetFixture(
+            Long sheetId, Long restrictedDomainCardId, Long visibleDomainCardId, Long restrictedWeaponId) {
+    }
+
+    /**
+     * Persists a sheet, owned by {@code player1}, with two equipped domain cards (one gated
+     * non-SRD, one SRD-licensed) and one equipped, non-SRD weapon.
+     */
+    private GatedSheetFixture createSheetWithGatedContent() throws Exception {
+        DomainCard restrictedCard = createDomainCard("Forbidden Rite", false);
+        DomainCard visibleCard = createDomainCard("Open Rite", true);
+        Weapon restrictedWeapon = createWeapon("Cursed Blade", false);
+
+        CreateCharacterSheetRequest request = createValidRequest();
+        request.setEquippedDomainCardIds(List.of(restrictedCard.getId(), visibleCard.getId()));
+        request.setVaultDomainCardIds(List.of());
+        request.setInventoryWeapons(List.of(
+                InventoryWeaponRequest.builder()
+                        .weaponId(restrictedWeapon.getId()).equipped(true).slot("PRIMARY").build()));
+
+        String responseJson = mockMvc.perform(post("/api/dh/character-sheets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        Long sheetId = objectMapper.readTree(responseJson).get("id").asLong();
+
+        return new GatedSheetFixture(sheetId, restrictedCard.getId(), visibleCard.getId(), restrictedWeapon.getId());
+    }
+
+    @Test
+    void getCharacterSheetById_SrdGatingDisabled_ShowsFullEmbeddedContent() throws Exception {
+        // Control case: with the kill switch off (the default), nothing is redacted -- this is
+        // what guards against the redacted-content test below passing vacuously.
+        GatedSheetFixture fixture = createSheetWithGatedContent();
+
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", fixture.sheetId())
+                        .param("expand", "equippedDomainCards,inventoryWeapons")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.equippedDomainCards[0].name").value("Forbidden Rite"))
+                .andExpect(jsonPath("$.equippedDomainCards[0].restricted").doesNotExist())
+                .andExpect(jsonPath("$.inventoryWeapons[0].weapon.name").value("Cursed Blade"));
+    }
+
+    @Test
+    void getCharacterSheetById_SrdGatingEnabled_RedactsNonSrdSlotsButPreservesPositionAndIds() throws Exception {
+        GatedSheetFixture fixture = createSheetWithGatedContent();
+        enableSrdGating();
+
+        // Act & Assert -- fetched by the owner, as a plain USER, with gating enabled.
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", fixture.sheetId())
+                        .param("expand", "equippedDomainCards,inventoryWeapons")
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                // The ID lists are untouched by redaction -- both cards and the weapon stay linked.
+                .andExpect(jsonPath("$.equippedDomainCardIds.length()").value(2))
+                .andExpect(jsonPath("$.equippedDomainCardIds[0]").value(fixture.restrictedDomainCardId()))
+                .andExpect(jsonPath("$.equippedDomainCardIds[1]").value(fixture.visibleDomainCardId()))
+                // The restricted card stays in the loadout array at its original index, as a stub.
+                .andExpect(jsonPath("$.equippedDomainCards.length()").value(2))
+                .andExpect(jsonPath("$.equippedDomainCards[0].id").value(fixture.restrictedDomainCardId()))
+                .andExpect(jsonPath("$.equippedDomainCards[0].restricted").value(true))
+                .andExpect(jsonPath("$.equippedDomainCards[0].name").doesNotExist())
+                .andExpect(jsonPath("$.equippedDomainCards[0].description").doesNotExist())
+                .andExpect(jsonPath("$.equippedDomainCards[0].expansionName").value("Test Expansion Forbidden Rite"))
+                // The SRD-licensed card in the same slot list is unaffected.
+                .andExpect(jsonPath("$.equippedDomainCards[1].id").value(fixture.visibleDomainCardId()))
+                .andExpect(jsonPath("$.equippedDomainCards[1].restricted").doesNotExist())
+                .andExpect(jsonPath("$.equippedDomainCards[1].name").value("Open Rite"))
+                // The equipped weapon slot: the weaponId link survives; the nested weapon is redacted.
+                .andExpect(jsonPath("$.inventoryWeapons.length()").value(1))
+                .andExpect(jsonPath("$.inventoryWeapons[0].weaponId").value(fixture.restrictedWeaponId()))
+                .andExpect(jsonPath("$.inventoryWeapons[0].weapon.restricted").value(true))
+                .andExpect(jsonPath("$.inventoryWeapons[0].weapon.name").doesNotExist())
+                .andExpect(jsonPath("$.inventoryWeapons[0].weapon.expansionName").value("Test Expansion Cursed Blade"));
+    }
+
     // ==================== HELPER METHODS ====================
 
     private User createUserWithRole(String username, String email, Role role) {
@@ -1487,6 +1604,15 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     private DomainCard createDomainCard(String name) {
+        return createDomainCard(name, false);
+    }
+
+    /**
+     * Creates a persisted domain card whose expansion name is derived from {@code name}, with an
+     * explicit {@code srd} flag. {@code isOfficial} is always {@code true}, so passing {@code
+     * srd = false} produces content that SRD gating restricts to privileged/granted callers.
+     */
+    private DomainCard createDomainCard(String name, boolean srd) {
         Expansion expansion = Expansion.builder()
                 .name("Test Expansion " + name)
                 .isPublished(true)
@@ -1504,6 +1630,7 @@ class CharacterSheetControllerIntegrationTest {
                 .name(name)
                 .expansion(expansion)
                 .isOfficial(true)
+                .srd(srd)
                 .associatedDomain(domain)
                 .level(1)
                 .recallCost(0)
@@ -1519,6 +1646,7 @@ class CharacterSheetControllerIntegrationTest {
                 .name(name)
                 .description("Test transformation")
                 .expansion(expansion)
+                .isOfficial(true)
                 .build();
         return transformationCardRepository.save(card);
     }
@@ -1537,12 +1665,22 @@ class CharacterSheetControllerIntegrationTest {
     }
 
     private Weapon createWeapon(String name) {
+        return createWeapon(name, false);
+    }
+
+    /**
+     * Creates a persisted weapon whose expansion name is derived from {@code name}, with an
+     * explicit {@code srd} flag. {@code isOfficial} is always {@code true}, so passing {@code
+     * srd = false} produces content that SRD gating restricts to privileged/granted callers.
+     */
+    private Weapon createWeapon(String name, boolean srd) {
         Expansion expansion = Expansion.builder().name("Test Expansion " + name).isPublished(true).build();
         expansion = expansionRepository.save(expansion);
         Weapon weapon = Weapon.builder()
                 .name(name)
                 .expansion(expansion)
                 .isOfficial(true)
+                .srd(srd)
                 .isPrimary(true)
                 .trait(com.aboff.core.model.enums.Trait.STRENGTH)
                 .range(com.aboff.core.model.enums.Range.MELEE)

@@ -231,6 +231,7 @@ POST /api/dh/cards/ancestry
 | `description` | string | No | -- | Card description |
 | `expansionId` | long | Yes | Not null | Expansion this card belongs to |
 | `isOfficial` | boolean | Yes | Not null | Whether this is official game content |
+| `srd` | boolean | No | -- | Whether this card is SRD-licensed content. Only ADMIN+ callers may actually set it `true`; a lower-privileged caller's `true` is silently coerced to `false`. See [Content Gating (SRD)](#content-gating-srd) below |
 | `backgroundImageUrl` | string | No | Max 500 chars | URL to card background image |
 | `featureIds` | long[] | No | -- | IDs of existing features to associate |
 | `features` | FeatureInput[] | No | Valid | Inline feature find-or-create objects (merged with featureIds) |
@@ -662,21 +663,24 @@ Without expansion, only IDs are returned: `expansionId`, `featureIds`, `costTagI
 | Field | Type | Always Present | Description |
 |---|---|---|---|
 | `id` | long | Yes | Unique identifier |
-| `name` | string | Yes | Card name |
-| `description` | string | Yes | Card description |
+| `name` | string | Unless redacted | Card name |
+| `description` | string | Unless redacted | Card description |
 | `cardType` | string | Yes | Always `"ANCESTRY"` |
-| `expansionId` | long | Yes | Expansion ID |
+| `expansionId` | long | Unless redacted | Expansion ID |
+| `expansionName` | string | Yes | Expansion display name. The only content-identifying field carried on a redacted stub |
 | `expansion` | object | Only with `?expand=expansion` | Full ExpansionResponse |
-| `isOfficial` | boolean | Yes | Official game content flag |
-| `isMixed` | boolean | Yes | Whether this is a mixed ancestry (combined from two ancestries) |
+| `isOfficial` | boolean | Unless redacted | Official game content flag |
+| `srd` | boolean | Unless redacted | Whether this card is SRD-licensed content |
+| `isMixed` | boolean | Unless redacted | Whether this is a mixed ancestry (combined from two ancestries) |
 | `backgroundImageUrl` | string | If set | Background image URL |
-| `featureIds` | long[] | Yes | Feature IDs |
+| `featureIds` | long[] | Unless redacted | Feature IDs |
 | `features` | object[] | Only with `?expand=features` | Full FeatureResponse objects |
-| `costTagIds` | long[] | Yes | Cost tag IDs |
+| `costTagIds` | long[] | Unless redacted | Cost tag IDs |
 | `costTags` | object[] | Only with `?expand=costTags` | Full CardCostTagResponse objects |
-| `createdAt` | datetime | Yes | Creation timestamp |
-| `lastModifiedAt` | datetime | Yes | Last modification timestamp |
+| `createdAt` | datetime | Unless redacted | Creation timestamp |
+| `lastModifiedAt` | datetime | Unless redacted | Last modification timestamp |
 | `deletedAt` | datetime | If deleted | Soft-deletion timestamp |
+| `restricted` | boolean | Only on a redacted stub | `true` when this response is a redacted stub for gated content the caller may not view. See [Content Gating (SRD)](#content-gating-srd) below |
 
 ---
 
@@ -692,6 +696,7 @@ Without expansion, only IDs are returned: `expansionId`, `featureIds`, `costTagI
 | `card_type` | VARCHAR(20) | NOT NULL, CHECK IN ('ANCESTRY', 'COMMUNITY', 'SUBCLASS', 'DOMAIN') |
 | `expansion_id` | BIGINT | NOT NULL, FK -> expansions(id) |
 | `is_official` | BOOLEAN | NOT NULL, DEFAULT true |
+| `srd` | BOOLEAN | NOT NULL, DEFAULT false |
 | `background_image_url` | VARCHAR(500) | -- |
 | `created_at` | TIMESTAMP | NOT NULL |
 | `last_modified_at` | TIMESTAMP | NOT NULL |
@@ -753,3 +758,24 @@ Cookie: AUTH_TOKEN=<jwt>
 ### How Mixed Ancestries Appear in Standard Listings
 
 By default, mixed ancestries are **excluded** from the standard listing endpoint. The `isMixed` parameter defaults to `false`, so a standard call to `GET /api/dh/cards/ancestry` returns only non-mixed ancestries. To include mixed ancestries, explicitly pass `isMixed=true`.
+
+---
+
+## Content Gating (SRD)
+
+Ancestry cards from paid expansions (e.g., Hope & Fear) are gated behind ADMIN/OWNER role or a per-user "Access All Expansions" grant, unless explicitly flagged `srd` (SRD-licensed, freely usable content). Custom (`isOfficial: false`) cards are never gated, regardless of `srd`.
+
+- **List endpoints** (`GET /api/dh/cards/ancestry`) silently exclude gated cards the caller may not view. They never appear in `content`, and pagination totals reflect the filtered count.
+- **Single-get and embedded content** (e.g., a gated ancestry card referenced by a character sheet the caller owns) come back as a **redacted stub** instead of a `404` or the full card. A stub carries only `id`, `cardType`, `expansionName`, and `restricted: true` — every other field is omitted from the JSON entirely (not `null`, simply absent):
+
+```json
+{
+  "id": 42,
+  "cardType": "ANCESTRY",
+  "expansionName": "Hope & Fear",
+  "restricted": true
+}
+```
+
+- `srd` on create/update is optional and defaults to `false`. Only ADMIN+ callers may set it `true`; a lower-privileged caller's request is accepted but the flag is silently coerced to `false` (logged server-side).
+- `includeDeleted=true` is similarly gated: only MODERATOR+ callers may actually see soft-deleted cards; a lower-privileged request is coerced to `includeDeleted=false`.

@@ -5,6 +5,7 @@ import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.enums.SearchableEntityType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -49,6 +50,16 @@ public class Class extends BaseEntity {
      */
     @Column(name = "is_official", nullable = false)
     private Boolean isOfficial;
+
+    /**
+     * Indicates whether this class is SRD-licensed content, freely usable without owning
+     * the sourcebook it was printed in. Defaults to false at creation time; only an explicit
+     * SRD flag opens the class to users who have not been granted expansion access. See
+     * {@code ContentAccessService} for how this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
 
     /**
      * The expansion this class belongs to.

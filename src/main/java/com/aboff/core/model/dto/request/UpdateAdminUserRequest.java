@@ -27,4 +27,14 @@ public class UpdateAdminUserRequest {
     private String avatarUrl;
 
     private Role role;
+
+    /**
+     * Grants or revokes the user's "Access All Expansions" override.
+     * <p>
+     * {@code null} means "leave unchanged" — it is never defaulted to
+     * {@code false}, so a PATCH that only edits username or role cannot
+     * silently revoke an existing grant.
+     * </p>
+     */
+    private Boolean accessAllExpansions;
 }

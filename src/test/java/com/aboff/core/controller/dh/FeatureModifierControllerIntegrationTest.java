@@ -135,20 +135,44 @@ class FeatureModifierControllerIntegrationTest {
     }
 
     @Test
-    void getAllModifiers_IncludeDeleted_ReturnsAll() throws Exception {
+    void getAllModifiers_IncludeDeleted_AsAdmin_ReturnsAll() throws Exception {
         // Arrange
         createModifier(ModifierTarget.STRENGTH, ModifierOperation.ADD, 1);
         FeatureModifier deletedModifier = createModifier(ModifierTarget.EVASION, ModifierOperation.ADD, -1);
         deletedModifier.setDeletedAt(LocalDateTime.now());
         featureModifierRepository.save(deletedModifier);
 
-        // Act & Assert
+        // Act & Assert -- MODERATOR+ is not coerced by ContentAccessService#resolveIncludeDeleted.
+        mockMvc.perform(get("/api/dh/feature-modifiers")
+                        .param("includeDeleted", "true")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(2))
+                .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void getAllModifiers_IncludeDeleted_AsRegularUser_IsCoercedAndExcludesDeleted() throws Exception {
+        // FeatureModifierService#getAllModifiers previously passed includeDeleted straight
+        // through with no role check at all -- any authenticated user could see soft-deleted
+        // modifiers just by setting the query param. This branch closed that gap by routing
+        // includeDeleted through ContentAccessService#resolveIncludeDeleted, which coerces the
+        // flag to false (and logs a warning) for callers below MODERATOR rather than rejecting
+        // the request outright. The request still succeeds; it just silently narrows to
+        // non-deleted rows. This asserts that against the actual response body, not just the
+        // status code, so a regression that let deleted rows leak back through would be caught.
+        createModifier(ModifierTarget.STRENGTH, ModifierOperation.ADD, 1);
+        FeatureModifier deletedModifier = createModifier(ModifierTarget.EVASION, ModifierOperation.ADD, -1);
+        deletedModifier.setDeletedAt(LocalDateTime.now());
+        featureModifierRepository.save(deletedModifier);
+
         mockMvc.perform(get("/api/dh/feature-modifiers")
                         .param("includeDeleted", "true")
                         .cookie(new Cookie("AUTH_TOKEN", userToken)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.content.length()").value(2))
-                .andExpect(jsonPath("$.totalElements").value(2));
+                .andExpect(jsonPath("$.content.length()").value(1))
+                .andExpect(jsonPath("$.totalElements").value(1))
+                .andExpect(jsonPath("$.content[0].target").value("STRENGTH"));
     }
 
     // ==================== GET MODIFIER BY ID TESTS ====================

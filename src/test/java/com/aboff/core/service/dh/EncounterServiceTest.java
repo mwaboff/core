@@ -50,6 +50,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -98,6 +99,9 @@ class EncounterServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
     @InjectMocks
     private EncounterService encounterService;
 
@@ -117,6 +121,9 @@ class EncounterServiceTest {
 
         regularUserDetails = new CustomUserDetails(regularUser);
         adminUserDetails = new CustomUserDetails(adminUser);
+
+        // Default: content is visible unless a test overrides this to exercise SRD redaction.
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
     }
 
     // ==================== GET ALL / VIEW PERMISSIONS ====================
@@ -128,7 +135,7 @@ class EncounterServiceTest {
         Encounter encounter = baseEncounterBuilder().build();
         Page<Encounter> page = new PageImpl<>(List.of(encounter));
         when(encounterRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(page);
 
         // Act
@@ -146,7 +153,7 @@ class EncounterServiceTest {
         setupAuthenticationWith(regularUserDetails);
         Page<Encounter> page = new PageImpl<>(List.of(baseEncounterBuilder().build()));
         when(encounterRepository.findAccessibleWithFilters(
-                eq(1L), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), eq(1L), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(page);
 
         // Act
@@ -155,7 +162,7 @@ class EncounterServiceTest {
         // Assert - creatorId reaches the repository as a distinct parameter from the caller's
         // own userId, so the visibility clause and the creator filter compose rather than collapse
         verify(encounterRepository).findAccessibleWithFilters(
-                eq(1L), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+                eq(1L), eq(1L), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -165,7 +172,7 @@ class EncounterServiceTest {
         setupAuthenticationWith(regularUserDetails);
         Page<Encounter> page = new PageImpl<>(List.of());
         when(encounterRepository.findAccessibleWithFilters(
-                eq(1L), eq(2L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), eq(2L), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(page);
 
         // Act
@@ -173,7 +180,7 @@ class EncounterServiceTest {
 
         // Assert
         verify(encounterRepository).findAccessibleWithFilters(
-                eq(1L), eq(2L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+                eq(1L), eq(2L), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
         verify(encounterRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), anyBoolean(), any());
     }
 
@@ -181,7 +188,7 @@ class EncounterServiceTest {
     void getAllEncounters_IncludeDeletedAsAdminWithCreatorId_PassesItToTheAdminQuery() {
         // Arrange
         setupAuthenticationWith(adminUserDetails);
-        when(roleHierarchyService.hasRoleOrHigher(adminUser, Role.ADMIN)).thenReturn(true);
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         Page<Encounter> page = new PageImpl<>(List.of(baseEncounterBuilder().build()));
         when(encounterRepository.findAllWithFilters(
                 eq(2L), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
@@ -316,6 +323,92 @@ class EncounterServiceTest {
 
         // Assert
         assertThat(response.getAdversaries().get(0).getRetieredStatistics()).isNull();
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void getEncounterById_OfficialNonSrdEncounter_ReturnsRedactedStub() {
+        // Arrange -- an official, non-SRD encounter the caller may not view in full. Encounter
+        // has no Expansion relation of its own, so the stub's expansionName is always null.
+        setupAuthenticationWith(regularUserDetails);
+        Encounter encounter = baseEncounterBuilder().isOfficial(true).isPublic(true).build();
+        when(encounterRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(encounter));
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        // Act
+        EncounterResponse response = encounterService.getEncounterById(1L, null, authentication);
+
+        // Assert
+        assertThat(response.getRestricted()).isTrue();
+        assertThat(response.getId()).isEqualTo(1L);
+        assertThat(response.getExpansionName()).isNull();
+        assertThat(response.getName()).isNull();
+        assertThat(response.getIsOfficial()).isNull();
+    }
+
+    @Test
+    void getEncounterById_OwnEncounterWithRestrictedEmbeddedAdversary_RedactsOnlyThatAdversary() {
+        // Arrange -- a user's own custom encounter (isOfficial=false, per baseEncounterBuilder())
+        // embeds an official, non-SRD adversary. The encounter itself must stay fully visible;
+        // only the restricted adversary entry redacts.
+        setupAuthenticationWith(regularUserDetails);
+        Encounter encounter = baseEncounterBuilder().build();
+        EncounterAdversary instance = instanceOf(encounter, AdversaryType.STANDARD, 0);
+        instance.getAdversary().setSrd(false);
+        encounter.setEncounterAdversaries(List.of(instance));
+        when(encounterRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(encounter));
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        // Act
+        EncounterResponse response = encounterService.getEncounterById(1L, "adversaryDetails", authentication);
+
+        // Assert -- the encounter row is untouched...
+        assertThat(response.getRestricted()).isNull();
+        assertThat(response.getName()).isEqualTo("Test Encounter");
+        // ...but the embedded adversary redacts to a stub
+        EncounterResponse.EncounterAdversaryResponse adversaryResponse = response.getAdversaries().get(0);
+        assertThat(adversaryResponse.getAdversary().getRestricted()).isTrue();
+        assertThat(adversaryResponse.getAdversary().getId()).isEqualTo(instance.getAdversary().getId());
+        assertThat(adversaryResponse.getAdversary().getName()).isNull();
+    }
+
+    @Test
+    void getEncounterById_RestrictedEmbeddedEnvironment_RedactsEnvironmentOnly() {
+        // Arrange -- same principle as the adversary case above, for the embedded environment
+        setupAuthenticationWith(regularUserDetails);
+        Environment environment = testEnvironment(9L);
+        environment.setSrd(false);
+        Encounter encounter = baseEncounterBuilder().environment(environment).build();
+        when(encounterRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(encounter));
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        // Act
+        EncounterResponse response = encounterService.getEncounterById(1L, "environment", authentication);
+
+        // Assert
+        assertThat(response.getRestricted()).isNull();
+        assertThat(response.getName()).isEqualTo("Test Encounter");
+        assertThat(response.getEnvironment().getRestricted()).isTrue();
+        assertThat(response.getEnvironment().getId()).isEqualTo(9L);
+        assertThat(response.getEnvironment().getExpansionName()).isEqualTo("Core");
+        assertThat(response.getEnvironment().getName()).isNull();
+    }
+
+    @Test
+    void getAllEncounters_ForwardsIncludeNonSrdToRepository() {
+        setupAuthenticationWith(regularUserDetails);
+        when(contentAccessService.includeNonSrd()).thenReturn(false);
+
+        Page<Encounter> page = new PageImpl<>(List.of());
+        when(encounterRepository.findAccessibleWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(page);
+
+        encounterService.getAllEncounters(0, 20, false, null, null, null, null, null, null, authentication);
+
+        verify(encounterRepository).findAccessibleWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class));
     }
 
     // ==================== CREATE ====================
