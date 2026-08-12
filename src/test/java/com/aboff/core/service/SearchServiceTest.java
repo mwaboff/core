@@ -8,6 +8,7 @@ import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.Role;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.repository.SearchIndexRepository;
+import com.aboff.core.service.dh.ContentAccessService;
 import com.aboff.core.service.dh.ItemAccessService;
 import com.aboff.core.service.search.SearchTypeRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -57,6 +58,8 @@ class SearchServiceTest {
     private SearchTypeRegistry searchTypeRegistry;
     @Mock
     private ItemAccessService itemAccessService;
+    @Mock
+    private ContentAccessService contentAccessService;
 
     @InjectMocks
     private SearchService searchService;
@@ -69,6 +72,17 @@ class SearchServiceTest {
     void stubVisibilityScope() {
         lenient().when(itemAccessService.visibilityScope(any(Authentication.class)))
                 .thenReturn(new ItemAccessService.VisibilityScope(1L, List.of(-1L), false));
+    }
+
+    /**
+     * Every search binds {@code :includeNonSrd} from {@link ContentAccessService#includeNonSrd()},
+     * so the stub is shared like {@link #stubVisibilityScope()} above. Lenient for the same reason:
+     * the query-validation tests throw before reaching it. Defaults to {@code true} (SRD gating
+     * inert) since none of the existing tests below exercise SRD-specific behavior.
+     */
+    @BeforeEach
+    void stubIncludeNonSrd() {
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
     }
 
     // ==================== HELPER METHODS ====================
@@ -114,7 +128,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
     }
 
@@ -169,7 +183,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         ArgumentCaptor<Pageable> pageableCaptor = ArgumentCaptor.forClass(Pageable.class);
@@ -182,7 +196,7 @@ class SearchServiceTest {
         verify(searchIndexRepository).search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), pageableCaptor.capture());
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), pageableCaptor.capture());
         assertThat(pageableCaptor.getValue().getPageSize()).isEqualTo(100);
     }
 
@@ -196,7 +210,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), eq(true), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), eq(true), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         // Act
@@ -207,7 +221,7 @@ class SearchServiceTest {
         verify(searchIndexRepository).search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), eq(1L), anyString(), eq(true), any(Pageable.class));
+                isNull(), eq(1L), anyString(), eq(true), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -218,7 +232,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), eq(false), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), eq(false), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         // Act
@@ -229,7 +243,7 @@ class SearchServiceTest {
         verify(searchIndexRepository).search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), eq(1L), anyString(), eq(false), any(Pageable.class));
+                isNull(), eq(1L), anyString(), eq(false), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== CAMPAIGN VISIBILITY TESTS ====================
@@ -246,7 +260,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         // Act
@@ -257,7 +271,7 @@ class SearchServiceTest {
         verify(searchIndexRepository).search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), eq("{3,7}"), anyBoolean(), any(Pageable.class));
+                isNull(), anyLong(), eq("{3,7}"), anyBoolean(), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== ENTITY TYPE FILTER TESTS ====================
@@ -271,7 +285,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), eq(true), eq(List.of("WEAPON", "ARMOR")), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), isNull(), isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(emptyPage());
 
         // Act
@@ -282,7 +296,7 @@ class SearchServiceTest {
         verify(searchIndexRepository).search(
                 anyString(), eq(true), eq(List.of("WEAPON", "ARMOR")), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), isNull(), isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class));
+                isNull(), isNull(), isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -301,7 +315,7 @@ class SearchServiceTest {
         verify(searchIndexRepository).search(
                 anyString(), eq(false), eq(List.of("")), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class));
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== PAGINATION METADATA TESTS ====================
@@ -315,7 +329,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -336,7 +350,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -357,7 +371,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -378,7 +392,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -433,7 +447,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
         when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.WEAPON), eq(42L), anyString(), any()))
                 .thenReturn(WeaponResponse.builder().build());
@@ -455,7 +469,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act
@@ -475,7 +489,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
 
         // Act — 'other' doesn't contain 'entity' or 'all', so entity should not be resolved
@@ -495,7 +509,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
         when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.WEAPON), eq(42L), anyString(), any()))
                 .thenReturn(WeaponResponse.builder().build());
@@ -519,7 +533,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
         when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.BEASTFORM), eq(7L), anyString(), any()))
                 .thenReturn(BeastformResponse.builder().id(7L).name("Wolf").build());
@@ -545,7 +559,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
         when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.CONDITION), eq(9L), anyString(), any()))
                 .thenReturn(ConditionResponse.builder().id(9L).name("Restrained").build());
@@ -570,7 +584,7 @@ class SearchServiceTest {
         when(searchIndexRepository.search(
                 anyString(), anyBoolean(), any(), isNull(), isNull(), isNull(), isNull(),
                 isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
-                isNull(), anyLong(), anyString(), anyBoolean(), any(Pageable.class)))
+                isNull(), anyLong(), anyString(), anyBoolean(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(singleRowPage(row));
         when(searchTypeRegistry.resolveEntity(eq(SearchableEntityType.WEAPON), eq(42L), anyString(), any(Authentication.class)))
                 .thenThrow(new jakarta.persistence.EntityNotFoundException("gone"));

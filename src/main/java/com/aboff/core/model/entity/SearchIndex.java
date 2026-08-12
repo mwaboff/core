@@ -108,6 +108,15 @@ public class SearchIndex extends BaseEntity {
     private Long createdByUserId;
 
     /**
+     * Whether this entity is SRD-licensed (freely usable) rather than exclusive to a paid
+     * expansion book. {@code null} for entity types that carry no SRD/paid-expansion
+     * distinction (e.g. {@code EXPANSION}) and is treated the same as {@code false} by the
+     * access predicate.
+     */
+    @Column(name = "srd")
+    private Boolean srd;
+
+    /**
      * The card type discriminator (e.g., "ANCESTRY", "COMMUNITY", "DOMAIN", "SUBCLASS").
      * Applicable to card entity types only.
      */

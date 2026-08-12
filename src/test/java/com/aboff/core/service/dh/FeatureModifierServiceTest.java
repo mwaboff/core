@@ -42,6 +42,9 @@ class FeatureModifierServiceTest {
     private FeatureModifierRepository featureModifierRepository;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private AuditLogger auditLogger;
 
     @Mock
@@ -99,6 +102,7 @@ class FeatureModifierServiceTest {
                 .build();
 
         Page<FeatureModifier> modifierPage = new PageImpl<>(List.of(modifier));
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         when(featureModifierRepository.findAll(any(Pageable.class)))
                 .thenReturn(modifierPage);
 
@@ -109,6 +113,24 @@ class FeatureModifierServiceTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDeletedAt()).isNotNull();
         verify(featureModifierRepository).findAll(any(Pageable.class));
+    }
+
+    @Test
+    void getAllModifiers_IncludeDeletedRequestedButNotResolved_UsesActiveOnlyQuery() {
+        // Arrange — caller requests includeDeleted=true but ContentAccessService coerces it to
+        // false (caller below MODERATOR); regression test for a gap where this service never
+        // called resolveIncludeDeleted at all and used the caller's raw flag directly.
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(false);
+        Page<FeatureModifier> modifierPage = new PageImpl<>(List.of());
+        when(featureModifierRepository.findAllByDeletedAtIsNull(any(Pageable.class)))
+                .thenReturn(modifierPage);
+
+        // Act
+        featureModifierService.getAllModifiers(0, 20, true);
+
+        // Assert — the includeDeleted=true (unfiltered) query is never reached
+        verify(featureModifierRepository, never()).findAll(any(Pageable.class));
+        verify(featureModifierRepository).findAllByDeletedAtIsNull(any(Pageable.class));
     }
 
     @Test

@@ -24,17 +24,21 @@ public interface MartialStanceRepository extends JpaRepository<MartialStance, Lo
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for stance tier (1–4)
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) official content;
+     *                      see {@code ContentAccessService#includeNonSrd()}
      * @param pageable Pagination information
      * @return Page of non-deleted martial stances matching the criteria
      */
     @Query("SELECT m FROM MartialStance m WHERE m.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR m.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR m.isOfficial = :isOfficial) " +
-           "AND (:tier IS NULL OR m.tier = :tier)")
+           "AND (:tier IS NULL OR m.tier = :tier) " +
+           "AND (:includeNonSrd = true OR m.isOfficial = false OR m.srd = true)")
     Page<MartialStance> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

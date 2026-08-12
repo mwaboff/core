@@ -32,6 +32,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class ExpansionService {
 
     private final ExpansionRepository expansionRepository;
+    private final ContentAccessService contentAccessService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -40,7 +41,8 @@ public class ExpansionService {
      *
      * @param page Zero-based page number
      * @param size Number of items per page
-     * @param includeDeleted Whether to include soft-deleted expansions
+     * @param includeDeleted Whether to include soft-deleted expansions; coerced to false below
+     *                       MODERATOR by {@link ContentAccessService#resolveIncludeDeleted}
      * @param published Optional filter for published status
      * @return Paginated response containing expansions
      */
@@ -57,7 +59,7 @@ public class ExpansionService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<Expansion> expansionPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             // Include deleted items (admin only)
             expansionPage = expansionRepository.findAllWithPublished(published, pageable);
         } else {

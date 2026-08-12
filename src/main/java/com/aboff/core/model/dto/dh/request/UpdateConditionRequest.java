@@ -36,4 +36,11 @@ public class UpdateConditionRequest {
      * Whether this condition is from official game content.
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this condition is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Optional; only ADMIN+ callers may actually set it to true --
+     * see {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
 }

@@ -71,6 +71,9 @@ class BeastformServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
     @InjectMocks
     private BeastformService beastformService;
 
@@ -85,6 +88,9 @@ class BeastformServiceTest {
         creator = User.builder().id(1L).username("admin").email("admin@test.com").role(Role.ADMIN).build();
         creatorDetails = new CustomUserDetails(creator);
         when(authentication.getPrincipal()).thenReturn(creatorDetails);
+
+        // Default: content is visible unless a test overrides this to exercise SRD redaction.
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
     }
 
     // ==================== GET ALL BEASTFORMS TESTS ====================
@@ -96,7 +102,7 @@ class BeastformServiceTest {
         Beastform beastform2 = createTestBeastform(2L, "Bear", expansion);
 
         Page<Beastform> beastformPage = new PageImpl<>(List.of(beastform1, beastform2));
-        when(beastformRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(beastformRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(beastformPage);
 
         // Act
@@ -113,6 +119,7 @@ class BeastformServiceTest {
     @Test
     void getAllBeastforms_WithIncludeDeleted_UsesFindAllWithFilters() {
         // Arrange
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         Beastform beastform = createTestBeastform(1L, "Wolf", expansion);
         Page<Beastform> beastformPage = new PageImpl<>(List.of(beastform));
         when(beastformRepository.findAllWithFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
@@ -124,14 +131,14 @@ class BeastformServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         verify(beastformRepository).findAllWithFilters(isNull(), isNull(), isNull(), any(Pageable.class));
-        verify(beastformRepository, never()).findByDeletedAtIsNullAndFilters(any(), any(), any(), any());
+        verify(beastformRepository, never()).findByDeletedAtIsNullAndFilters(any(), any(), any(), anyBoolean(), any());
     }
 
     @Test
     void getAllBeastforms_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Beastform> beastformPage = new PageImpl<>(List.of());
-        when(beastformRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(beastformRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(beastformPage);
 
         // Act
@@ -139,7 +146,7 @@ class BeastformServiceTest {
 
         // Assert
         verify(beastformRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
+                isNull(), isNull(), isNull(), anyBoolean(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
@@ -152,7 +159,7 @@ class BeastformServiceTest {
         beastform.setFeatures(Set.of(feature));
 
         Page<Beastform> beastformPage = new PageImpl<>(List.of(beastform));
-        when(beastformRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(beastformRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(beastformPage);
 
         // Act
@@ -192,6 +199,43 @@ class BeastformServiceTest {
         assertThatThrownBy(() -> beastformService.getBeastformById(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Beastform not found with id: 999");
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void getBeastformById_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange -- an official, non-SRD beastform the caller may not view in full
+        Beastform beastform = createTestBeastform(1L, "Paid Expansion Wyrm", expansion);
+        beastform.setIsOfficial(true);
+        beastform.setSrd(false);
+
+        when(beastformRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(beastform));
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        // Act
+        BeastformResponse result = beastformService.getBeastformById(1L, null);
+
+        // Assert
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getExpansionName()).isEqualTo("Core Rulebook");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getIsOfficial()).isNull();
+        assertThat(result.getSrd()).isNull();
+    }
+
+    @Test
+    void getAllBeastforms_ForwardsIncludeNonSrdToRepository() {
+        when(contentAccessService.includeNonSrd()).thenReturn(false);
+
+        Page<Beastform> beastformPage = new PageImpl<>(List.of());
+        when(beastformRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(beastformPage);
+
+        beastformService.getAllBeastforms(0, 20, false, null, null, null, null);
+
+        verify(beastformRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(false), any(Pageable.class));
     }
 
     // ==================== CREATE BEASTFORM TESTS ====================

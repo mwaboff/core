@@ -87,4 +87,11 @@ public class UserResponse {
      * username selection flow.
      */
     private Boolean usernameChosen;
+
+    /**
+     * Whether this user has been manually granted visibility into non-SRD
+     * (paid expansion) content, independent of {@code role}. ADMIN and OWNER
+     * always see non-SRD content regardless of this flag.
+     */
+    private Boolean accessAllExpansions;
 }

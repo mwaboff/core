@@ -6,13 +6,16 @@ import com.aboff.core.model.dto.dh.request.UpdateConditionRequest;
 import com.aboff.core.model.dto.dh.response.ConditionResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Condition;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.ConditionRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -52,6 +55,7 @@ public class ConditionService {
     private final ExpansionRepository expansionRepository;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of conditions.
@@ -77,10 +81,11 @@ public class ConditionService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<Condition> conditionPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             conditionPage = conditionRepository.findAllWithFilters(expansionId, isOfficial, pageable);
         } else {
-            conditionPage = conditionRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
+            conditionPage = conditionRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, isOfficial, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -123,6 +128,9 @@ public class ConditionService {
      */
     @Transactional
     public ConditionResponse createCondition(CreateConditionRequest request, Authentication authentication) {
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
@@ -132,6 +140,7 @@ public class ConditionService {
                 .description(request.getDescription())
                 .expansion(expansion)
                 .isOfficial(request.getIsOfficial())
+                .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                 .build();
 
         Condition savedCondition = conditionRepository.save(condition);
@@ -175,6 +184,9 @@ public class ConditionService {
         Condition condition = conditionRepository.findByIdAndDeletedAtIsNull(id)
                 .orElseThrow(() -> new EntityNotFoundException("Condition not found with id: " + id));
 
+        CustomUserDetails userDetails = (CustomUserDetails) authentication.getPrincipal();
+        User user = userDetails.getUser();
+
         if (request.getName() != null && !request.getName().isBlank()) {
             condition.setName(request.getName());
         }
@@ -189,6 +201,9 @@ public class ConditionService {
         }
         if (request.getIsOfficial() != null) {
             condition.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getSrd() != null) {
+            condition.setSrd(contentAccessService.resolveSrd(user, request.getSrd()));
         }
 
         Condition updatedCondition = conditionRepository.save(condition);
@@ -253,12 +268,19 @@ public class ConditionService {
      * @return ConditionResponse DTO
      */
     public ConditionResponse toResponse(Condition condition, Set<String> expand) {
+        if (!contentAccessService.mayView(condition.getIsOfficial(), condition.getSrd())) {
+            return ContentRedaction.stub(ConditionResponse::new, condition.getId(),
+                    condition.getExpansion() != null ? condition.getExpansion().getName() : null);
+        }
+
         ConditionResponse.ConditionResponseBuilder builder = ConditionResponse.builder()
                 .id(condition.getId())
                 .name(condition.getName())
                 .description(condition.getDescription())
                 .expansionId(condition.getExpansion().getId())
+                .expansionName(condition.getExpansion().getName())
                 .isOfficial(condition.getIsOfficial())
+                .srd(condition.getSrd())
                 .createdAt(condition.getCreatedAt())
                 .lastModifiedAt(condition.getLastModifiedAt())
                 .deletedAt(condition.getDeletedAt());

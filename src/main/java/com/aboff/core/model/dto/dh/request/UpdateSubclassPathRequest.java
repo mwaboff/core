@@ -40,6 +40,15 @@ public class UpdateSubclassPathRequest {
     private Trait spellcastingTrait;
 
     /**
+     * Whether this path (and by cascade, its Foundation/Specialization/Mastery cards) is
+     * SRD-licensed content. Optional and ADMIN+ only — see
+     * {@code ContentAccessService#resolveSrd}. This is the only writable {@code srd} flag for
+     * the group: setting it here cascades to every non-deleted card in the path in the same
+     * transaction, so the path and its cards can never disagree.
+     */
+    private Boolean srd;
+
+    /**
      * IDs of domains to associate with this path.
      */
     private List<Long> associatedDomainIds;

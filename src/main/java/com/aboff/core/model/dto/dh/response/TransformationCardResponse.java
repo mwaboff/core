@@ -24,7 +24,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class TransformationCardResponse {
+public class TransformationCardResponse implements Restrictable {
 
     /**
      * Unique identifier for the transformation card.
@@ -40,6 +40,17 @@ public class TransformationCardResponse {
      * Detailed description of the transformation card and its effects.
      */
     private String description;
+
+    /**
+     * Whether this transformation card is from official game content.
+     */
+    private Boolean isOfficial;
+
+    /**
+     * Whether this transformation card is SRD-licensed content, freely usable without owning
+     * the sourcebook it was printed in.
+     */
+    private Boolean srd;
 
     /**
      * ID of the expansion this transformation card belongs to (always included).
@@ -85,4 +96,18 @@ public class TransformationCardResponse {
      * Timestamp when the transformation card was soft-deleted (null if not deleted).
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * The display name of the expansion this transformation card belongs to. Set on a redacted
+     * stub so the caller can tell which book to buy, even though {@link #expansion} itself is
+     * unset.
+     */
+    private String expansionName;
+
+    /**
+     * True if this response is a redacted stub for gated non-SRD content the caller may not
+     * view. When true, every other field except {@link #id} and {@link #expansionName} is
+     * unset.
+     */
+    private Boolean restricted;
 }

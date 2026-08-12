@@ -50,6 +50,18 @@ public class CreateFeatureRequest {
     private Long expansionId;
 
     /**
+     * Whether this feature is SRD-licensed content. Optional and ADMIN+ only — see
+     * {@code ContentAccessService#resolveSrd}. Deliberately not {@code @NotNull}: bulk import
+     * payloads omit this field and must keep working unchanged.
+     * <p>
+     * Note there is deliberately no {@code isOfficial} field here — a feature has no
+     * official/custom distinction of its own; {@code FeatureService} always derives it from
+     * whatever the feature is attached to.
+     * </p>
+     */
+    private Boolean srd;
+
+    /**
      * IDs of cost tags associated with this feature
      */
     private List<Long> costTagIds;

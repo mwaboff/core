@@ -50,6 +50,14 @@ public class CreateMartialStanceRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this martial stance is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Optional and honoured only for ADMIN+ — see
+     * {@code ContentAccessService#resolveSrd}. Omitted by existing bulk-import payloads, which
+     * must keep working, so this is never required.
+     */
+    private Boolean srd;
+
+    /**
      * Effect text of the martial stance.
      */
     private String description;

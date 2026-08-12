@@ -34,7 +34,7 @@ Retrieves a paginated list of encounters. Returns encounters that are official, 
 |----------------|---------|---------|-------------------------------------------------------|
 | page           | int     | 0       | Zero-based page number                                |
 | size           | int     | 20      | Items per page (max: 100)                             |
-| includeDeleted | boolean | false   | Include soft-deleted encounters (ADMIN+ only)         |
+| includeDeleted | boolean | false   | Include soft-deleted encounters (MODERATOR+ only; see [Content Gating](#content-gating)) |
 | creatorId      | Long    | -       | Filter by creator. Narrows within the usual official/public/own visibility rules -- it never widens them: filtering to another user's ID returns only that user's official or public encounters, not their private ones |
 | campaignId     | Long    | -       | Filter by campaign ID                                 |
 | tier           | Integer | -       | Filter by tier (1-4)                                  |
@@ -265,6 +265,7 @@ Creates a new encounter. The authenticated user becomes the creator.
 | campaignId               | Long                    | No       | -       | Must reference existing campaign                 |
 | environmentId            | Long                    | No       | -       | Must reference existing environment              |
 | isPublic                 | Boolean                 | No       | false   | -                                                 |
+| srd                      | Boolean                 | No       | -       | SRD-licensed content flag; silently coerced to false for non-ADMIN callers. Currently inert -- see [Content Gating](#content-gating) |
 | partySize                | Integer                 | No       | -       | 1-12; manually entered, never derived from a campaign roster |
 | adjustmentEasier         | Boolean                 | No       | false   | -1 Battle Point                                   |
 | adjustmentTwoPlusSolos   | Boolean                 | No       | false   | -2 Battle Points                                  |
@@ -592,7 +593,8 @@ Computed on read from the static retier table (`ImprovisedTierStatistics`) -- ne
 | name                        | VARCHAR(200) | No       |                                          |
 | description                 | TEXT         | Yes      |                                          |
 | tier                        | INTEGER      | Yes      | 1-4, null for multi-tier                |
-| is_official                 | BOOLEAN      | No       | Default false                           |
+| is_official                 | BOOLEAN      | No       | Default false; always false for encounters created through this API (see [Content Gating](#content-gating)) |
+| srd                         | BOOLEAN      | No       | Default false; SRD-licensed content flag, see [Content Gating](#content-gating) |
 | is_public                   | BOOLEAN      | No       | Default false                           |
 | original_encounter_id       | BIGINT       | Yes      | FK to encounters (SET NULL on delete)   |
 | creator_id                  | BIGINT       | No       | FK to users (CASCADE)                   |
@@ -640,6 +642,32 @@ Two values are calculated server-side and returned read-only:
 - **`spentBattlePoints`** -- what the encounter's adversary instances actually cost. Every non-Minion instance costs its `adversaryType`'s fixed Battle Point value (1 for Social/Support, 2 for Horde/Ranged/Skulk/Standard, 3 for Leader, 4 for Bruiser, 5 for Solo). **Minions are billed per group**, not individually: `ceil(minionCount / partySize)`, so a party of 4 facing 8 Minions spends 2 points, not 8. A null or non-positive `partySize` is treated as 1 for this grouping, so it never divides by zero.
 
 Both are computed by `BattlePointCalculator`, the single place this math lives (mirrored in the frontend for instant feedback, but the server value always wins on save).
+
+---
+
+## Content Gating
+
+Encounters are user-authored GM tools that *embed* official adversaries and an environment,
+which is a different shape from the other four GM content types:
+
+- **The encounter row itself** is only gated when it is both `isOfficial: true` and `srd: false`
+  -- never for a user's own custom encounter, since `isOfficial` is always `false` for encounters
+  created through `POST /api/dh/encounters` (there is no `isOfficial` field on
+  `CreateEncounterRequest`/`UpdateEncounterRequest`, unlike the other four types). A gated
+  encounter returns as a redacted stub: `id`, `expansionName` (always `null` for Encounter, which
+  has no `Expansion` relation of its own), and `restricted: true`. The optional `srd` field on
+  create/update exists for schema completeness and is currently inert in practice, since no
+  encounter created through this API can be `isOfficial: true`.
+- **Embedded adversaries** (`?expand=adversaryDetails`) and the **embedded environment**
+  (`?expand=environment`) redact independently of the encounter row: a restricted adversary
+  instance's `adversary` field becomes a stub (`id`, `expansionName`, `restricted: true`), and a
+  restricted `environment` becomes the same shape, while everything else about the encounter
+  (including its other, non-restricted adversary instances) stays fully visible. This means a
+  user's own encounter is never hidden or blanked out wholesale just because it references a
+  paid-expansion adversary or environment they can't otherwise browse -- only that one reference
+  redacts.
+- **`includeDeleted=true` now requires MODERATOR+** and is coerced to `false` below that role.
+  The admin listing this unlocks (`findAllWithFilters`) bypasses SRD filtering entirely.
 
 ---
 

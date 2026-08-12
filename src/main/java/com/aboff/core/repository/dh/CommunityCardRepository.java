@@ -23,19 +23,28 @@ public interface CommunityCardRepository extends JpaRepository<CommunityCard, Lo
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) cards; when
+     *                      false, only custom (non-official) or SRD-flagged cards are returned
      * @param pageable Pagination information
      * @return Page of non-deleted community cards matching the criteria
      */
     @Query("SELECT c FROM CommunityCard c WHERE c.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR c.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR c.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR c.isOfficial = :isOfficial) " +
+           "AND (:includeNonSrd = true OR c.isOfficial = false OR c.srd = true)")
     Page<CommunityCard> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**
      * Finds all community cards with optional filters, including soft-deleted ones.
+     * <p>
+     * ADMIN-only per the controller's {@code includeDeleted} contract; carries no SRD
+     * visibility clause because {@code ContentAccessService#resolveIncludeDeleted} already
+     * restricts this path to privileged callers.
+     * </p>
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status

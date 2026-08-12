@@ -33,17 +33,22 @@ public interface BeastformRepository extends JpaRepository<Beastform, Long> {
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
      * @param isPublic Optional filter for public visibility
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) content; official
+     *                      rows that are not SRD-licensed are excluded when false. See
+     *                      {@code ContentAccessService#includeNonSrd()}.
      * @param pageable Pagination information
      * @return Page of non-deleted beastforms matching the criteria
      */
     @Query("SELECT b FROM Beastform b WHERE b.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR b.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR b.isOfficial = :isOfficial) " +
-           "AND (:isPublic IS NULL OR b.isPublic = :isPublic)")
+           "AND (:isPublic IS NULL OR b.isPublic = :isPublic) " +
+           "AND (:includeNonSrd = true OR b.isOfficial = false OR b.srd = true)")
     Page<Beastform> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("isPublic") Boolean isPublic,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

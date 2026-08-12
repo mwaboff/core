@@ -4,23 +4,29 @@ import com.aboff.core.model.dto.dh.request.CreateDomainCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateDomainCardRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.DomainCardResponse;
+import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.Card;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.FeatureModifier;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.DomainCardType;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.DomainCardRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -67,6 +73,9 @@ class DomainCardServiceTest {
     private DomainRepository domainRepository;
 
     @Mock
+    private DomainService domainService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -75,8 +84,26 @@ class DomainCardServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
     @InjectMocks
     private DomainCardService domainCardService;
+
+    /**
+     * Defaults every test to "caller may see everything" so pre-existing assertions on full
+     * card content keep passing without each test having to stub SRD gating explicitly. Tests
+     * exercising gating override these with their own stubbing.
+     */
+    @BeforeEach
+    void setUpContentAccess() {
+        lenient().when(contentAccessService.mayView(any(Card.class))).thenReturn(true);
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenAnswer(invocation -> invocation.getArgument(0));
+        lenient().when(contentAccessService.resolveSrd(any(), any())).thenAnswer(invocation -> Boolean.TRUE.equals(invocation.getArgument(1)));
+        lenient().when(authentication.getPrincipal())
+                .thenReturn(new CustomUserDetails(User.builder().id(1L).username("tester").role(Role.ADMIN).build()));
+    }
 
     // ==================== GET ALL DOMAIN CARDS TESTS ====================
 
@@ -115,7 +142,7 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card1, card2));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -149,7 +176,7 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(DomainCardType.SPELL), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(DomainCardType.SPELL), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -158,7 +185,7 @@ class DomainCardServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getType()).isEqualTo(DomainCardType.SPELL);
-        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(DomainCardType.SPELL), isNull(), any(Pageable.class));
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), eq(DomainCardType.SPELL), isNull(), eq(true), any(Pageable.class));
     }
 
     @Test
@@ -181,7 +208,7 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(List.of(1L)), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(List.of(1L)), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -190,7 +217,7 @@ class DomainCardServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getAssociatedDomainId()).isEqualTo(1L);
-        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(List.of(1L)), isNull(), isNull(), any(Pageable.class));
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(List.of(1L)), isNull(), isNull(), eq(true), any(Pageable.class));
     }
 
     @Test
@@ -213,7 +240,7 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(List.of(3)), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(List.of(3)), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -222,14 +249,14 @@ class DomainCardServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getLevel()).isEqualTo(3);
-        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(List.of(3)), any(Pageable.class));
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(List.of(3)), eq(true), any(Pageable.class));
     }
 
     @Test
     void getAllDomainCards_WithLargePage_LimitsTo100() {
         // Arrange
         Page<DomainCard> cardPage = new PageImpl<>(List.of());
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -241,7 +268,7 @@ class DomainCardServiceTest {
                 isNull(),
                 isNull(),
                 isNull(),
-                isNull(),
+                isNull(), eq(true),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -270,8 +297,10 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
+        when(domainService.toResponse(domain, Set.of())).thenReturn(DomainResponse.builder()
+                .id(domain.getId()).name(domain.getName()).build());
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
             Set<String> exp = invocation.getArgument(1);
@@ -308,6 +337,10 @@ class DomainCardServiceTest {
         assertThat(result.getContent().get(0).getExpansion()).isNotNull();
         assertThat(result.getContent().get(0).getFeatures()).isNotNull();
         assertThat(result.getContent().get(0).getAssociatedDomain()).isNotNull();
+        assertThat(result.getContent().get(0).getAssociatedDomain().getName()).isEqualTo("Arcana");
+        // Routed through DomainService#toResponse (not built inline) so a gated non-SRD domain
+        // redacts to a stub here too.
+        verify(domainService).toResponse(domain, Set.of());
         // Cost tag IDs should always be present in expanded features
         FeatureResponse featureResponse = result.getContent().get(0).getFeatures().get(0);
         assertThat(featureResponse.getCostTagIds()).containsExactly(10L);
@@ -339,7 +372,7 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -406,7 +439,7 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -469,7 +502,7 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -531,7 +564,7 @@ class DomainCardServiceTest {
                 .build();
 
         Page<DomainCard> cardPage = new PageImpl<>(List.of(card));
-        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -939,5 +972,166 @@ class DomainCardServiceTest {
         assertThatThrownBy(() -> domainCardService.restoreDomainCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("DomainCard not found with id: 999");
+    }
+
+    // ==================== SRD GATING TESTS ====================
+
+    @Test
+    void toResponse_WhenNotViewable_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).build();
+        DomainCard card = DomainCard.builder()
+                .id(7L)
+                .name("Forbidden Rite")
+                .description("A secretive spell")
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(false)
+                .associatedDomain(domain)
+                .level(3)
+                .recallCost(1)
+                .type(DomainCardType.SPELL)
+                .build();
+
+        when(contentAccessService.mayView(card)).thenReturn(false);
+
+        // Act
+        DomainCardResponse response = domainCardService.toResponse(card, Set.of());
+
+        // Assert — only id, cardType, expansionName, restricted are carried
+        assertThat(response.getId()).isEqualTo(7L);
+        assertThat(response.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(response.getRestricted()).isTrue();
+        assertThat(response.getName()).isNull();
+        assertThat(response.getDescription()).isNull();
+        assertThat(response.getIsOfficial()).isNull();
+        assertThat(response.getSrd()).isNull();
+        assertThat(response.getFeatureIds()).isNull();
+        assertThat(response.getAssociatedDomainId()).isNull();
+    }
+
+    @Test
+    void getAllDomainCards_PassesIncludeNonSrdFromContentAccessService() {
+        // Arrange
+        when(contentAccessService.includeNonSrd()).thenReturn(false);
+        Page<DomainCard> cardPage = new PageImpl<>(List.of());
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        domainCardService.getAllDomainCards(0, 20, false, null, null, null, null, null, null);
+
+        // Assert
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class));
+    }
+
+    @Test
+    void getAllDomainCards_IncludeDeletedRequestedButNotResolved_UsesActiveOnlyQuery() {
+        // Arrange — caller requests includeDeleted=true but ContentAccessService coerces it to false
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(false);
+        Page<DomainCard> cardPage = new PageImpl<>(List.of());
+        when(domainCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        domainCardService.getAllDomainCards(0, 20, true, null, null, null, null, null, null);
+
+        // Assert — the includeDeleted=true (unfiltered) query is never reached
+        verify(domainCardRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), any());
+        verify(domainCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class));
+    }
+
+    @Test
+    void createDomainCard_UsesResolveSrdResult() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).build();
+        CreateDomainCardRequest request = CreateDomainCardRequest.builder()
+                .name("Fireball")
+                .description("Cast fire spell")
+                .expansionId(1L)
+                .isOfficial(true)
+                .srd(true)
+                .associatedDomainId(1L)
+                .level(1)
+                .recallCost(2)
+                .type(DomainCardType.SPELL)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(domainRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(domain));
+        when(contentAccessService.resolveSrd(any(), eq(true))).thenReturn(false);
+        when(domainCardRepository.save(any(DomainCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        DomainCardResponse result = domainCardService.createDomainCard(request, authentication);
+
+        // Assert — the coerced (not the requested) value is what gets persisted
+        assertThat(result.getSrd()).isFalse();
+        verify(domainCardRepository).save(argThat(c -> Boolean.FALSE.equals(c.getSrd())));
+    }
+
+    @Test
+    void updateDomainCard_WithSrdProvided_UsesResolveSrdResult() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).build();
+        DomainCard existingCard = DomainCard.builder()
+                .id(1L)
+                .name("Fireball")
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(false)
+                .associatedDomain(domain)
+                .level(1)
+                .recallCost(2)
+                .type(DomainCardType.SPELL)
+                .build();
+
+        UpdateDomainCardRequest request = UpdateDomainCardRequest.builder()
+                .srd(true)
+                .build();
+
+        when(domainCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
+        when(contentAccessService.resolveSrd(any(), eq(true))).thenReturn(true);
+        when(domainCardRepository.save(any(DomainCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        DomainCardResponse result = domainCardService.updateDomainCard(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isTrue();
+        verify(contentAccessService).resolveSrd(any(), eq(true));
+    }
+
+    @Test
+    void updateDomainCard_WithoutSrdProvided_LeavesSrdUnchanged() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Domain domain = Domain.builder().id(1L).name("Arcana").expansion(expansion).build();
+        DomainCard existingCard = DomainCard.builder()
+                .id(1L)
+                .name("Fireball")
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(true)
+                .associatedDomain(domain)
+                .level(1)
+                .recallCost(2)
+                .type(DomainCardType.SPELL)
+                .build();
+
+        UpdateDomainCardRequest request = UpdateDomainCardRequest.builder().build();
+
+        when(domainCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
+        when(domainCardRepository.save(any(DomainCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        DomainCardResponse result = domainCardService.updateDomainCard(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isTrue();
+        verify(contentAccessService, never()).resolveSrd(any(), any());
     }
 }

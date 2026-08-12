@@ -46,6 +46,13 @@ public class UpdateArmorRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this armor is SRD-licensed content, freely usable without owning the sourcebook
+     * it was printed in. Optional and honoured only for ADMIN+ — see
+     * {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
+
+    /**
      * Whether this armor should be visible to every user. Honoured only for MODERATOR+;
      * coerced to false otherwise.
      */

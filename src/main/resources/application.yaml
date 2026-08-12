@@ -48,6 +48,12 @@ application:
   user:
     default-avatar-url: https://api.dicebear.com/7.x/avatars/svg?seed=default
     default-timezone: UTC
+  content:
+    # Kill switch for SRD vs. paid-expansion content gating. Defaults false: the schema
+    # backfill leaves every row srd=false, so turning this on before the SRD subset has been
+    # flagged would empty the catalogue for every non-privileged user. Rollout order is ship
+    # inert, flag content with the bulk SRD-flagging tool, then flip this to true.
+    srd-gating-enabled: ${SRD_GATING_ENABLED:false}
 
 # Daggerheart game configuration
 daggerheart:

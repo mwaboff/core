@@ -116,6 +116,7 @@ public class AuthController {
                 .createdAt(user.getCreatedAt())
                 .lastModifiedAt(user.getLastModifiedAt())
                 .usernameChosen(user.getUsernameChosen())
+                .accessAllExpansions(user.getAccessAllExpansions())
                 .build();
 
         auditLogger.requestCompleted(ctx, "GET", "/api/auth/me", startTime);

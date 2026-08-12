@@ -26,6 +26,13 @@ public class UpdateClassRequest {
     /** Whether this class is from official game content. */
     private Boolean isOfficial;
 
+    /**
+     * Whether this class is SRD-licensed content. Optional and ADMIN+ only — see
+     * {@code ContentAccessService#resolveSrd}. Deliberately not {@code @NotNull}: bulk import
+     * payloads omit this field and must keep working unchanged.
+     */
+    private Boolean srd;
+
     private Long expansionId;
 
     private String startingClassItems;

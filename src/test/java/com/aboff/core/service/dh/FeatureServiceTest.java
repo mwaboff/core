@@ -5,6 +5,7 @@ import com.aboff.core.model.dto.dh.request.CreateFeatureRequest;
 import com.aboff.core.model.dto.dh.request.FeatureInput;
 import com.aboff.core.model.dto.dh.request.FeatureModifierInput;
 import com.aboff.core.model.dto.dh.request.UpdateFeatureRequest;
+import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.User;
@@ -16,11 +17,14 @@ import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.ModifierOperation;
 import com.aboff.core.model.enums.ModifierTarget;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -62,6 +66,9 @@ class FeatureServiceTest {
     private FeatureModifierService featureModifierService;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -72,6 +79,23 @@ class FeatureServiceTest {
 
     @InjectMocks
     private FeatureService featureService;
+
+    @BeforeEach
+    void stubDefaultVisibility() {
+        // Every non-admin list call resolves includeDeleted through the SRD gate; default to
+        // the ordinary (non-deleted) browse path unless a test overrides it.
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        // toResponse redacts anything mayView() rejects; default to visible so existing
+        // assertions on full response fields keep working. Redaction itself is covered by a
+        // dedicated test below.
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
+        // Default to a caller who may see non-SRD content, matching existing test expectations
+        // that predate SRD gating.
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        // currentUser(authentication) is now invoked on every create/update path.
+        lenient().when(authentication.getPrincipal())
+                .thenReturn(new CustomUserDetails(User.builder().id(1L).username("tester").role(Role.ADMIN).build()));
+    }
 
     // ==================== GET ALL FEATURES TESTS ====================
 
@@ -103,7 +127,7 @@ class FeatureServiceTest {
                 .build();
 
         Page<Feature> featurePage = new PageImpl<>(List.of(feature1, feature2));
-        when(featureRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(featureRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(featurePage);
 
         // Act
@@ -138,7 +162,7 @@ class FeatureServiceTest {
                 .build();
 
         Page<Feature> featurePage = new PageImpl<>(List.of(feature));
-        when(featureRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
+        when(featureRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(featurePage);
 
         // Act
@@ -147,7 +171,7 @@ class FeatureServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(featureRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
+        verify(featureRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -169,7 +193,7 @@ class FeatureServiceTest {
                 .build();
 
         Page<Feature> featurePage = new PageImpl<>(List.of(feature));
-        when(featureRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(FeatureType.HOPE), any(Pageable.class)))
+        when(featureRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(FeatureType.HOPE), anyBoolean(), any(Pageable.class)))
                 .thenReturn(featurePage);
 
         // Act
@@ -178,7 +202,7 @@ class FeatureServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getFeatureType()).isEqualTo(FeatureType.HOPE);
-        verify(featureRepository).findByDeletedAtIsNullAndFilters(isNull(), eq(FeatureType.HOPE), any(Pageable.class));
+        verify(featureRepository).findByDeletedAtIsNullAndFilters(isNull(), eq(FeatureType.HOPE), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -200,6 +224,7 @@ class FeatureServiceTest {
                 .build();
 
         Page<Feature> featurePage = new PageImpl<>(List.of(feature));
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         when(featureRepository.findAllWithFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(featurePage);
 
@@ -216,7 +241,7 @@ class FeatureServiceTest {
     void getAllFeatures_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Feature> featurePage = new PageImpl<>(List.of());
-        when(featureRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(featureRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(featurePage);
 
         // Act
@@ -226,6 +251,7 @@ class FeatureServiceTest {
         verify(featureRepository).findByDeletedAtIsNullAndFilters(
                 isNull(),
                 isNull(),
+                anyBoolean(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -250,7 +276,7 @@ class FeatureServiceTest {
                 .build();
 
         Page<Feature> featurePage = new PageImpl<>(List.of(feature));
-        when(featureRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(featureRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(featurePage);
 
         // Act
@@ -919,6 +945,8 @@ class FeatureServiceTest {
                 .build();
 
         when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(feature));
+        when(cardCostTagService.toResponse(costTag)).thenReturn(CardCostTagResponse.builder()
+                .id(1L).label("3 Hope").category(CostTagCategory.COST).build());
 
         // Act
         FeatureResponse result = featureService.getFeatureById(1L, "costTags");
@@ -2011,5 +2039,242 @@ class FeatureServiceTest {
 
         assertThat(result.getExpansionId()).isNull();
         assertThat(result.getExpansion()).isNull();
+    }
+
+    // ==================== SRD GATING TESTS ====================
+
+    @Test
+    void toResponse_WhenNotViewable_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Feature feature = Feature.builder()
+                .id(7L)
+                .name("Sealed Rite")
+                .description("A secretive rite")
+                .featureType(FeatureType.CLASS)
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(false)
+                .build();
+
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        // Act
+        FeatureResponse result = featureService.toResponse(feature, Set.of());
+
+        // Assert — only id, restricted, and expansionName are carried (see ContentRedaction.stub)
+        assertThat(result.getId()).isEqualTo(7L);
+        assertThat(result.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getName()).isNull();
+        assertThat(result.getDescription()).isNull();
+        assertThat(result.getIsOfficial()).isNull();
+        assertThat(result.getSrd()).isNull();
+    }
+
+    @Test
+    void createFeature_SetsIsOfficialTrue() {
+        // Standalone create is ADMIN/OWNER-only with a required expansionId, so an expansion
+        // always resolves and isOfficial is always true.
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void createFeaturesBulk_SetsIsOfficialTrueForEachFeature() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        List<FeatureResponse> results = featureService.createFeaturesBulk(List.of(request), authentication);
+
+        // Assert
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).getIsOfficial()).isTrue();
+    }
+
+    @Test
+    void createFeature_UsesResolveSrdResult() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        CreateFeatureRequest request = CreateFeatureRequest.builder()
+                .name("Healing Touch")
+                .featureType(FeatureType.HOPE)
+                .expansionId(1L)
+                .srd(true)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(contentAccessService.resolveSrd(any(), eq(true))).thenReturn(false);
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.createFeature(request, authentication);
+
+        // Assert — the coerced (not the requested) value is what gets persisted
+        assertThat(result.getSrd()).isFalse();
+        verify(featureRepository).save(argThat(feature -> Boolean.FALSE.equals(feature.getSrd())));
+    }
+
+    @Test
+    void updateFeature_WithSrdProvided_UsesResolveSrdResult() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(false)
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder()
+                .srd(true)
+                .build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(contentAccessService.resolveSrd(any(), eq(true))).thenReturn(true);
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isTrue();
+        verify(contentAccessService).resolveSrd(any(), eq(true));
+    }
+
+    @Test
+    void updateFeature_WithoutSrdProvided_LeavesSrdUnchanged() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(true)
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder().build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isTrue();
+        verify(contentAccessService, never()).resolveSrd(any(), any());
+    }
+
+    @Test
+    void updateFeature_NeverTouchesIsOfficial() {
+        // isOfficial is derived once at creation and is never re-derivable from an update
+        // request — UpdateFeatureRequest deliberately carries no isOfficial field at all.
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Feature existingFeature = Feature.builder()
+                .id(1L)
+                .name("Healing Touch")
+                .featureType(FeatureType.HOPE)
+                .expansion(expansion)
+                .isOfficial(false)
+                .srd(false)
+                .build();
+
+        UpdateFeatureRequest request = UpdateFeatureRequest.builder().name("Renamed").build();
+
+        when(featureRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingFeature));
+        when(featureRepository.save(any(Feature.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        FeatureResponse result = featureService.updateFeature(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+    }
+
+    @Test
+    void findOrCreate_ForParentOrigin_CustomParent_InheritsIsOfficialAndSrdFromParent() {
+        // A feature created inline on a Class or TransformationCard inherits both isOfficial and
+        // srd from that already-resolved parent, rather than unconditionally defaulting to
+        // official via imported().
+        FeatureInput input = FeatureInput.builder()
+                .name("Beastform Trait").featureType(FeatureType.CLASS).build();
+        User user = User.builder().id(3L).username("homebrewer").build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                "Beastform Trait", null, FeatureType.CLASS, null)).thenReturn(Optional.empty());
+        when(featureRepository.save(any(Feature.class))).thenAnswer(i -> i.getArgument(0));
+
+        // Act
+        Feature result = featureService.findOrCreate(
+                input, FeatureService.FeatureOrigin.forParent(user, false, true));
+
+        // Assert
+        assertThat(result.getIsOfficial()).isFalse();
+        assertThat(result.getSrd()).isTrue();
+        assertThat(result.getCreatedBy()).isEqualTo(user);
+    }
+
+    @Test
+    void findOrCreate_ForParentOrigin_OfficialParent_KeepsSourcebookAndRecordsNoAuthor() {
+        // The other half of forParent: an official parent's feature keeps its sourcebook and
+        // belongs to no individual, mirroring imported().
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        FeatureInput input = FeatureInput.builder()
+                .name("Class Feature").featureType(FeatureType.CLASS).expansionId(1L).build();
+
+        when(featureRepository.findByNameIgnoreCaseAndExpansionIdAndFeatureTypeAndDescriptionAndDeletedAtIsNull(
+                "Class Feature", 1L, FeatureType.CLASS, null)).thenReturn(Optional.empty());
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(featureRepository.save(any(Feature.class))).thenAnswer(i -> i.getArgument(0));
+
+        // Act
+        Feature result = featureService.findOrCreate(
+                input, FeatureService.FeatureOrigin.forParent(null, true, true));
+
+        // Assert
+        assertThat(result.getIsOfficial()).isTrue();
+        assertThat(result.getSrd()).isTrue();
+        assertThat(result.getCreatedBy()).isNull();
+        assertThat(result.getExpansion()).isEqualTo(expansion);
+    }
+
+    // ==================== REQUEST DTO INVARIANT TESTS ====================
+
+    @Test
+    void requestDtos_NeverDeclareIsOfficialField() {
+        // A feature has no official/custom distinction of its own — it is always derived by
+        // FeatureService from whatever it is attached to (a card, a class, an item, ...) — never
+        // settable from a request. This guards against that invariant silently regressing.
+        assertThatThrownBy(() -> CreateFeatureRequest.class.getDeclaredField("isOfficial"))
+                .isInstanceOf(NoSuchFieldException.class);
+        assertThatThrownBy(() -> UpdateFeatureRequest.class.getDeclaredField("isOfficial"))
+                .isInstanceOf(NoSuchFieldException.class);
     }
 }

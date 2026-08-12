@@ -102,6 +102,20 @@ public class User extends BaseEntity {
     private Boolean usernameChosen = false;
 
     /**
+     * Manually-granted per-user override for paid-expansion content.
+     * <p>
+     * Lets an admin give a specific USER-role account visibility into non-SRD content
+     * (paid expansion books) without changing their role. Independent of {@link #role} --
+     * ADMIN and OWNER always see non-SRD content regardless of this flag; it exists solely
+     * to extend that visibility to individual users below MODERATOR. See
+     * {@code ContentAccessService#mayViewNonSrd()}.
+     * </p>
+     */
+    @Column(name = "access_all_expansions", nullable = false)
+    @Builder.Default
+    private Boolean accessAllExpansions = false;
+
+    /**
      * Returns whether this user has been soft-deleted.
      *
      * @return true if the user is deleted, false otherwise

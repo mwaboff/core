@@ -6,13 +6,15 @@ import com.aboff.core.model.dto.dh.response.CommunityCardResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
-import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.repository.dh.CommunityCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -50,6 +52,7 @@ public class CommunityCardService {
     private final CardCostTagService cardCostTagService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of community cards.
@@ -71,6 +74,7 @@ public class CommunityCardService {
             Boolean isOfficial,
             String expand) {
 
+        includeDeleted = contentAccessService.resolveIncludeDeleted(includeDeleted);
         size = Math.min(size, 100);
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<CommunityCard> cardPage;
@@ -78,7 +82,8 @@ public class CommunityCardService {
         if (includeDeleted) {
             cardPage = communityCardRepository.findAllWithFilters(expansionId, isOfficial, pageable);
         } else {
-            cardPage = communityCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
+            cardPage = communityCardRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, isOfficial, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -131,6 +136,7 @@ public class CommunityCardService {
                 .description(request.getDescription())
                 .expansion(expansion)
                 .isOfficial(request.getIsOfficial())
+                .srd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()))
                 .backgroundImageUrl(request.getBackgroundImageUrl())
                 .build();
 
@@ -164,6 +170,7 @@ public class CommunityCardService {
     @Transactional
     public List<CommunityCardResponse> createCommunityCardsBulk(List<CreateCommunityCardRequest> requests, Authentication authentication) {
 
+        User user = currentUser(authentication);
         List<CommunityCard> cards = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -175,6 +182,7 @@ public class CommunityCardService {
                             .description(request.getDescription())
                             .expansion(expansion)
                             .isOfficial(request.getIsOfficial())
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .backgroundImageUrl(request.getBackgroundImageUrl())
                             .build();
 
@@ -231,6 +239,9 @@ public class CommunityCardService {
         }
         if (request.getIsOfficial() != null) {
             card.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getSrd() != null) {
+            card.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
         }
         if (request.getBackgroundImageUrl() != null) {
             card.setBackgroundImageUrl(request.getBackgroundImageUrl());
@@ -304,19 +315,35 @@ public class CommunityCardService {
 
     /**
      * Converts a CommunityCard entity to CommunityCardResponse DTO.
+     * <p>
+     * If the caller may not view this card (gated non-SRD content outside their access), returns
+     * a redacted stub instead — see {@link ContentRedaction#stub}. This is the universal funnel:
+     * list endpoints, single-get, and embedded-content resolution (e.g. character sheets, search
+     * {@code ?expand=}) all route through this method, so it is the one place redaction can be
+     * enforced without every caller having to remember to check.
+     * </p>
      *
      * @param card The card entity
      * @param expand Set of relationships to expand
-     * @return CommunityCardResponse DTO
+     * @return CommunityCardResponse DTO, or a redacted stub if the caller may not view it
      */
     public CommunityCardResponse toResponse(CommunityCard card, Set<String> expand) {
+        if (!contentAccessService.mayView(card)) {
+            CommunityCardResponse stub = ContentRedaction.stub(CommunityCardResponse::new, card.getId(),
+                    card.getExpansion() != null ? card.getExpansion().getName() : null);
+            stub.setCardType(card.getCardType());
+            return stub;
+        }
+
         CommunityCardResponse.CommunityCardResponseBuilder builder = CommunityCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())
                 .description(card.getDescription())
                 .cardType(card.getCardType())
                 .expansionId(card.getExpansion().getId())
+                .expansionName(card.getExpansion() != null ? card.getExpansion().getName() : null)
                 .isOfficial(card.getIsOfficial())
+                .srd(card.getSrd())
                 .backgroundImageUrl(card.getBackgroundImageUrl())
                 .createdAt(card.getCreatedAt())
                 .lastModifiedAt(card.getLastModifiedAt())
@@ -356,20 +383,24 @@ public class CommunityCardService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand cost tags if requested
+        // Expand cost tags if requested. Routed through CardCostTagService#toResponse (not built
+        // inline) so a gated non-SRD cost tag redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "costTags") && card.getCostTags() != null) {
             builder.costTags(card.getCostTags().stream()
-                    .map(tag -> CardCostTagResponse.builder()
-                            .id(tag.getId())
-                            .label(tag.getLabel())
-                            .category(tag.getCategory())
-                            .createdAt(tag.getCreatedAt())
-                            .lastModifiedAt(tag.getLastModifiedAt())
-                            .deletedAt(tag.getDeletedAt())
-                            .build())
+                    .map(cardCostTagService::toResponse)
                     .collect(Collectors.toList()));
         }
 
         return builder.build();
+    }
+
+    /**
+     * Extracts the authenticated user from the security context principal.
+     *
+     * @param authentication the current authentication
+     * @return the authenticated user
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

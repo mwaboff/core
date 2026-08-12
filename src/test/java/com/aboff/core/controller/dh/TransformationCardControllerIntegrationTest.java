@@ -324,6 +324,7 @@ class TransformationCardControllerIntegrationTest {
                 .name(name)
                 .description(description)
                 .expansion(expansion)
+                .isOfficial(false)
                 .build();
         return transformationCardRepository.save(card);
     }

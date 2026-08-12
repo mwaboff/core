@@ -55,6 +55,23 @@ public class TransformationCard extends BaseEntity {
     private Expansion expansion;
 
     /**
+     * Indicates whether this transformation card is from official game content, mirroring
+     * how {@link Card} declares the same flag.
+     */
+    @Column(name = "is_official", nullable = false)
+    private Boolean isOfficial;
+
+    /**
+     * Indicates whether this transformation card is SRD-licensed content, freely usable
+     * without owning the sourcebook it was printed in. Defaults to false at creation time;
+     * only an explicit SRD flag opens the transformation card to users who have not been
+     * granted expansion access. See {@code ContentAccessService} for how this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
+
+    /**
      * Features associated with this transformation card.
      */
     @ManyToMany(fetch = FetchType.LAZY)

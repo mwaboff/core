@@ -4,12 +4,16 @@ import com.aboff.core.model.dto.dh.request.CreateDomainRequest;
 import com.aboff.core.model.dto.dh.request.UpdateDomainRequest;
 import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,10 +54,24 @@ class DomainServiceTest {
     private AuditLogger auditLogger;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
     private DomainService domainService;
+
+    @BeforeEach
+    void stubDefaultVisibility() {
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        // DomainService.currentUser(authentication) is real (non-mocked) code invoked
+        // unconditionally on the create paths, so the principal must resolve to a real user.
+        lenient().when(authentication.getPrincipal())
+                .thenReturn(new CustomUserDetails(User.builder().id(1L).username("tester").role(Role.ADMIN).build()));
+    }
 
     // ==================== GET ALL DOMAINS TESTS ====================
 
@@ -85,7 +103,7 @@ class DomainServiceTest {
                 .build();
 
         Page<Domain> domainPage = new PageImpl<>(List.of(domain1, domain2));
-        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
@@ -120,7 +138,7 @@ class DomainServiceTest {
                 .build();
 
         Page<Domain> domainPage = new PageImpl<>(List.of(domain));
-        when(domainRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
+        when(domainRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
@@ -129,7 +147,7 @@ class DomainServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(domainRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
+        verify(domainRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -151,6 +169,7 @@ class DomainServiceTest {
                 .build();
 
         Page<Domain> domainPage = new PageImpl<>(List.of(domain));
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         when(domainRepository.findAllWithFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
@@ -167,7 +186,7 @@ class DomainServiceTest {
     void getAllDomains_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Domain> domainPage = new PageImpl<>(List.of());
-        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
@@ -177,6 +196,7 @@ class DomainServiceTest {
         verify(domainRepository).findByDeletedAtIsNullAndFilters(
                 isNull(),
                 isNull(),
+                anyBoolean(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -201,7 +221,7 @@ class DomainServiceTest {
                 .build();
 
         Page<Domain> domainPage = new PageImpl<>(List.of(domain));
-        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(domainRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(domainPage);
 
         // Act
@@ -767,5 +787,43 @@ class DomainServiceTest {
         assertThatThrownBy(() -> domainService.restoreDomain(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Domain not found with id: 999");
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void getDomainById_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder()
+                .id(1L)
+                .name("Hope & Fear")
+                .isPublished(true)
+                .build();
+
+        Domain domain = Domain.builder()
+                .id(1L)
+                .name("Restricted Domain")
+                .iconUrl("https://icon.url/restricted")
+                .description("Should not leak")
+                .isOfficial(true)
+                .srd(false)
+                .expansion(expansion)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(domainRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(domain));
+        when(contentAccessService.mayView(domain.getIsOfficial(), domain.getSrd())).thenReturn(false);
+
+        // Act
+        DomainResponse result = domainService.getDomainById(1L, null);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getSrd()).isNull();
+        assertThat(result.getIsOfficial()).isNull();
     }
 }

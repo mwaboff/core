@@ -70,6 +70,9 @@ class EnvironmentServiceTest {
     @Mock
     private AuditLogger auditLogger;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
     @InjectMocks
     private EnvironmentService environmentService;
 
@@ -101,6 +104,9 @@ class EnvironmentServiceTest {
                 .isPublished(true)
                 .createdAt(LocalDateTime.now())
                 .build();
+
+        // Default: content is visible unless a test overrides this to exercise SRD redaction.
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
     }
 
     // ==================== GET ALL ENVIRONMENTS TESTS ====================
@@ -114,7 +120,7 @@ class EnvironmentServiceTest {
 
         Page<Environment> page = new PageImpl<>(List.of(environment1, environment2));
         when(environmentRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(page);
 
         PagedResponse<EnvironmentResponse> result = environmentService.getAllEnvironments(
@@ -134,7 +140,7 @@ class EnvironmentServiceTest {
 
         Page<Environment> page = new PageImpl<>(List.of(environment));
         when(environmentRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), eq(EnvironmentType.EVENT), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), eq(EnvironmentType.EVENT), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(page);
 
         PagedResponse<EnvironmentResponse> result = environmentService.getAllEnvironments(
@@ -183,6 +189,48 @@ class EnvironmentServiceTest {
 
         assertThat(result.getDifficulty()).isNull();
         assertThat(result.getDifficultySpecial()).isEqualTo("Special (see \"Relative Strength\")");
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void getEnvironmentById_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange -- an official, non-SRD environment the caller may not view in full
+        setupAuthenticationWith(regularUserDetails);
+
+        Environment environment = createTestEnvironment(1L, "Paid Expansion Ruin", expansion, regularUser, 11, null);
+        environment.setIsOfficial(true);
+        environment.setIsPublic(true);
+        environment.setSrd(false);
+
+        when(environmentRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(environment));
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        EnvironmentResponse result = environmentService.getEnvironmentById(1L, null, authentication);
+
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getExpansionName()).isEqualTo("Core Rulebook");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getDescription()).isNull();
+        assertThat(result.getIsOfficial()).isNull();
+        assertThat(result.getSrd()).isNull();
+    }
+
+    @Test
+    void getAllEnvironments_ForwardsIncludeNonSrdToRepository() {
+        setupAuthenticationWith(regularUserDetails);
+        when(contentAccessService.includeNonSrd()).thenReturn(false);
+
+        Page<Environment> page = new PageImpl<>(List.of());
+        when(environmentRepository.findAccessibleWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(page);
+
+        environmentService.getAllEnvironments(0, 20, false, null, null, null, null, null, null, authentication);
+
+        verify(environmentRepository).findAccessibleWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class));
     }
 
     // ==================== CREATE ENVIRONMENT TESTS ====================

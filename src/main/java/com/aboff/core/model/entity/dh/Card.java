@@ -4,6 +4,7 @@ import com.aboff.core.model.entity.BaseEntity;
 import com.aboff.core.model.enums.CardType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -66,6 +67,17 @@ public abstract class Card extends BaseEntity {
      */
     @Column(name = "is_official", nullable = false)
     private Boolean isOfficial;
+
+    /**
+     * Indicates whether this card is SRD-licensed content, freely usable without owning
+     * the sourcebook it was printed in. Custom cards and paid-expansion cards that have not
+     * been flagged both leave this false; only an explicit SRD flag opens the card to users
+     * who have not been granted expansion access. See {@code ContentAccessService} for how
+     * this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
 
     /**
      * URL to the background image for this card.

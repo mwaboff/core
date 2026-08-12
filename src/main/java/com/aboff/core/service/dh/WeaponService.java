@@ -35,6 +35,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.aboff.core.event.EntityChangeEvent;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import org.springframework.context.ApplicationEventPublisher;
 
@@ -58,13 +59,17 @@ public class WeaponService {
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
     private final ItemAccessService itemAccessService;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of weapons.
      *
      * @param page Zero-based page number
      * @param size Number of items per page
-     * @param includeDeleted Whether to include soft-deleted weapons
+     * @param includeDeleted Whether to include soft-deleted weapons; coerced to false for callers
+     *                       below MODERATOR by {@link ContentAccessService#resolveIncludeDeleted},
+     *                       which also logs a warning -- the request still succeeds, it simply
+     *                       narrows to non-deleted rows rather than being rejected
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
      * @param trait Optional filter for weapon trait
@@ -79,8 +84,6 @@ public class WeaponService {
      * @param expand Comma-separated list of relationships to expand
      * @param authentication The current authentication, used to resolve what the caller may see
      * @return Paginated response containing weapons
-     * @throws com.aboff.core.exception.InsufficientPermissionsException if a non-moderator
-     *         requests soft-deleted weapons
      */
     @Transactional(readOnly = true)
     public PagedResponse<WeaponResponse> getAllWeapons(
@@ -105,13 +108,15 @@ public class WeaponService {
         Pageable pageable = PageRequest.of(page, size,
                 (sort == null ? ItemSort.ID : sort).toSort());
         ItemAccessService.VisibilityScope scope = itemAccessService.visibilityScope(authentication);
+        boolean effectiveIncludeDeleted = contentAccessService.resolveIncludeDeleted(includeDeleted);
         Page<Weapon> weaponPage;
 
-        if (includeDeleted) {
-            // Soft-deleted rows are a moderation surface, not a browse surface. This was
-            // previously ungated, which was harmless while every weapon was official but would
-            // expose other users' private homebrew now that anyone can author one.
-            itemAccessService.requireModerator(authentication);
+        if (effectiveIncludeDeleted) {
+            // Soft-deleted rows are a moderation surface, not a browse surface --
+            // resolveIncludeDeleted() above already coerced this branch to be unreachable for
+            // anyone below MODERATOR, so no further permission check belongs here. This was
+            // previously ungated entirely, which was harmless while every weapon was official
+            // but would expose other users' private homebrew now that anyone can author one.
             weaponPage = weaponRepository.findAllWithFilters(expansionId, createdByUserId, name, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
         } else {
             // Moderators are not branched to a separate query: findAccessibleWithFilters
@@ -119,7 +124,8 @@ public class WeaponService {
             // duplicate the filter list a second time.
             weaponPage = weaponRepository.findAccessibleWithFilters(
                     scope.userId(), scope.memberCampaignIds(), scope.privileged(),
-                    expansionId, createdByUserId, name, isOfficial, trait, range, burden, isPrimary, tier, damageType, pageable);
+                    expansionId, createdByUserId, name, isOfficial, trait, range, burden, isPrimary, tier, damageType,
+                    contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -267,12 +273,14 @@ public class WeaponService {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
+        User user = itemAccessService.currentUser(authentication);
 
         Weapon weapon = Weapon.builder()
                 .name(request.getName())
                 .expansion(expansion)
                 .tier(request.getTier())
                 .isOfficial(request.getIsOfficial())
+                .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                 .isPrimary(request.getIsPrimary())
                 .trait(request.getTrait())
                 .range(request.getRange())
@@ -309,6 +317,7 @@ public class WeaponService {
      */
     @Transactional
     public List<WeaponResponse> createWeaponsBulk(List<CreateWeaponRequest> requests, Authentication authentication) {
+        User user = itemAccessService.currentUser(authentication);
         List<Weapon> weapons = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -320,6 +329,7 @@ public class WeaponService {
                             .expansion(expansion)
                             .tier(request.getTier())
                             .isOfficial(request.getIsOfficial())
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .isPrimary(request.getIsPrimary())
                             .trait(request.getTrait())
                             .range(request.getRange())
@@ -379,6 +389,9 @@ public class WeaponService {
             weapon.setIsOfficial(itemAccessService.resolveIsOfficial(user, request.getIsOfficial()));
         }
         boolean isOfficial = Boolean.TRUE.equals(weapon.getIsOfficial());
+        if (request.getSrd() != null) {
+            weapon.setSrd(contentAccessService.resolveSrd(user, request.getSrd()));
+        }
 
         if (Boolean.TRUE.equals(request.getClearExpansion())) {
             // A JSON null for expansionId is indistinguishable from an omitted field, so
@@ -522,12 +535,19 @@ public class WeaponService {
      * @return WeaponResponse DTO
      */
     public WeaponResponse toResponse(Weapon weapon, Set<String> expand) {
+        if (!contentAccessService.mayView(weapon)) {
+            return ContentRedaction.stub(WeaponResponse::new, weapon.getId(),
+                    weapon.getExpansion() != null ? weapon.getExpansion().getName() : null);
+        }
+
         WeaponResponse.WeaponResponseBuilder builder = WeaponResponse.builder()
                 .id(weapon.getId())
                 .name(weapon.getName())
                 .expansionId(weapon.getExpansion() != null ? weapon.getExpansion().getId() : null)
+                .expansionName(weapon.getExpansion() != null ? weapon.getExpansion().getName() : null)
                 .tier(weapon.getTier())
                 .isOfficial(weapon.getIsOfficial())
+                .srd(weapon.getSrd())
                 .isPublic(weapon.getIsPublic())
                 .createdByUserId(weapon.getCreatedBy() != null ? weapon.getCreatedBy().getId() : null)
                 .isPrimary(weapon.getIsPrimary())

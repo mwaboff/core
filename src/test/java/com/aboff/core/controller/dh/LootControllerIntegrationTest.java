@@ -436,6 +436,7 @@ class LootControllerIntegrationTest {
                 .description("Grants healing over time")
                 .featureType(FeatureType.OTHER)
                 .expansion(testExpansion)
+                .isOfficial(false)
                 .build();
         feature = featureRepository.save(feature);
 
@@ -506,6 +507,7 @@ class LootControllerIntegrationTest {
                 .description("Grants luck")
                 .featureType(FeatureType.OTHER)
                 .expansion(testExpansion)
+                .isOfficial(false)
                 .build();
         feature = featureRepository.save(feature);
 

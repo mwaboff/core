@@ -24,15 +24,19 @@ public interface FeatureRepository extends JpaRepository<Feature, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param featureType Optional filter for feature type
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) features; when
+     *                      false, only custom (non-official) or SRD-flagged features are returned
      * @param pageable Pagination information
      * @return Page of non-deleted features matching the criteria
      */
     @Query("SELECT f FROM Feature f WHERE f.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR f.expansion.id = :expansionId) " +
-           "AND (:featureType IS NULL OR f.featureType = :featureType)")
+           "AND (:featureType IS NULL OR f.featureType = :featureType) " +
+           "AND (:includeNonSrd = true OR f.isOfficial = false OR f.srd = true)")
     Page<Feature> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("featureType") FeatureType featureType,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

@@ -88,6 +88,9 @@ class AdversaryServiceTest {
     @Mock
     private AuditLogger auditLogger;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
     @InjectMocks
     private AdversaryService adversaryService;
 
@@ -144,6 +147,9 @@ class AdversaryServiceTest {
                 .isPublished(true)
                 .createdAt(LocalDateTime.now())
                 .build();
+
+        // Default: content is visible unless a test overrides this to exercise SRD redaction.
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
     }
 
     // ==================== GET ALL ADVERSARIES TESTS ====================
@@ -158,7 +164,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(adversary1, adversary2));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -183,7 +189,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(adversary));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), eq(List.of(4)), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), eq(List.of(4)), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -207,7 +213,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(tierOne, tierTwo));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), eq(List.of(1, 2)), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), eq(List.of(1, 2)), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -230,7 +236,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(adversary));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), eq(AdversaryType.SOLO), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), eq(AdversaryType.SOLO), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -251,7 +257,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(adversary));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), eq("goblin"), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), isNull(), eq("goblin"), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -273,7 +279,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(adversary));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), eq(true), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), eq(true), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -294,7 +300,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(adversary));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), eq(1L), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -313,7 +319,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of());
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -322,6 +328,7 @@ class AdversaryServiceTest {
         // Assert
         verify(adversaryRepository).findAccessibleWithFilters(
                 eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(),
+                anyBoolean(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -330,7 +337,7 @@ class AdversaryServiceTest {
     void getAllAdversaries_IncludeDeletedAsAdmin_ReturnsAllIncludingDeleted() {
         // Arrange
         setupAuthenticationWith(adminUserDetails);
-        when(roleHierarchyService.hasRoleOrHigher(adminUser, Role.ADMIN)).thenReturn(true);
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
 
         Adversary adversary1 = createTestAdversary(1L, "Active Goblin", expansion, adminUser);
         Adversary adversary2 = createTestAdversary(2L, "Deleted Orc", expansion, adminUser);
@@ -359,7 +366,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of());
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -367,7 +374,7 @@ class AdversaryServiceTest {
 
         // Assert - Should use accessible query, not all query
         verify(adversaryRepository).findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
         verify(adversaryRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), anyBoolean(), any());
     }
 
@@ -397,7 +404,7 @@ class AdversaryServiceTest {
 
         Page<Adversary> adversaryPage = new PageImpl<>(List.of(adversary));
         when(adversaryRepository.findAccessibleWithFilters(
-                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(adversaryPage);
 
         // Act
@@ -558,6 +565,55 @@ class AdversaryServiceTest {
         // Assert
         assertThat(result.getCreator()).isNotNull();
         assertThat(result.getCreator().getUsername()).isEqualTo("regularuser");
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void getAdversaryById_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange -- an official, non-SRD adversary the caller may not view in full
+        setupAuthenticationWith(regularUserDetails);
+
+        Adversary adversary = createTestAdversary(1L, "Paid Expansion Boss", expansion, ownerUser);
+        adversary.setIsOfficial(true);
+        adversary.setIsPublic(true);
+        adversary.setSrd(false);
+
+        when(adversaryRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(adversary));
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        // Act
+        AdversaryResponse result = adversaryService.getAdversaryById(1L, null, authentication);
+
+        // Assert -- only id, expansionName, and restricted survive; everything else is stripped
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getExpansionName()).isEqualTo("Core Rulebook");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getDescription()).isNull();
+        assertThat(result.getIsOfficial()).isNull();
+        assertThat(result.getSrd()).isNull();
+        assertThat(result.getDifficulty()).isNull();
+    }
+
+    @Test
+    void getAllAdversaries_ForwardsIncludeNonSrdToRepository() {
+        // Arrange -- the caller's non-SRD access decision is threaded through as a bind param,
+        // not re-derived by the repository
+        setupAuthenticationWith(regularUserDetails);
+        when(contentAccessService.includeNonSrd()).thenReturn(false);
+
+        Page<Adversary> adversaryPage = new PageImpl<>(List.of());
+        when(adversaryRepository.findAccessibleWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(adversaryPage);
+
+        // Act
+        adversaryService.getAllAdversaries(0, 20, false, null, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(adversaryRepository).findAccessibleWithFilters(
+                eq(1L), isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class));
     }
 
     // ==================== CREATE ADVERSARY TESTS ====================

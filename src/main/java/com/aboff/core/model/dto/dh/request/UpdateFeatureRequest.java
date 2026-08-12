@@ -47,6 +47,16 @@ public class UpdateFeatureRequest {
     private Long expansionId;
 
     /**
+     * Whether this feature is SRD-licensed content. Optional and ADMIN+ only — see
+     * {@code ContentAccessService#resolveSrd}.
+     * <p>
+     * Note there is deliberately no {@code isOfficial} field here — see
+     * {@link CreateFeatureRequest#getSrd()}'s Javadoc for why.
+     * </p>
+     */
+    private Boolean srd;
+
+    /**
      * IDs of cost tags associated with this feature
      */
     private List<Long> costTagIds;

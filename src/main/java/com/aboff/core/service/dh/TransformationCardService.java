@@ -5,17 +5,19 @@ import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.dto.dh.request.CreateTransformationCardRequest;
 import com.aboff.core.model.dto.dh.request.UpdateTransformationCardRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
-import com.aboff.core.model.dto.dh.response.QuestionResponse;
 import com.aboff.core.model.dto.dh.response.TransformationCardResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Question;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.TransformationCardRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.util.ContentRedaction;
 import com.aboff.core.util.ExpandUtil;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
@@ -50,6 +52,7 @@ public class TransformationCardService {
     private final ExpansionRepository expansionRepository;
     private final FeatureService featureService;
     private final QuestionService questionService;
+    private final ContentAccessService contentAccessService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -75,10 +78,11 @@ public class TransformationCardService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<TransformationCard> cardPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             cardPage = transformationCardRepository.findAllWithExpansion(expansionId, pageable);
         } else {
-            cardPage = transformationCardRepository.findByDeletedAtIsNullAndExpansion(expansionId, pageable);
+            cardPage = transformationCardRepository.findByDeletedAtIsNullAndExpansion(
+                    expansionId, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -122,7 +126,7 @@ public class TransformationCardService {
     @Transactional
     public TransformationCardResponse createTransformationCard(
             CreateTransformationCardRequest request, Authentication authentication) {
-        TransformationCard card = buildFromRequest(request);
+        TransformationCard card = buildFromRequest(request, currentUser(authentication));
         TransformationCard savedCard = transformationCardRepository.save(card);
         eventPublisher.publishEvent(new EntityChangeEvent(this, savedCard, EntityChangeEvent.ChangeType.CREATED));
         auditLogger.log(AuditAction.CONTENT_CREATED,
@@ -142,8 +146,9 @@ public class TransformationCardService {
     @Transactional
     public List<TransformationCardResponse> createTransformationCardsBulk(
             List<CreateTransformationCardRequest> requests, Authentication authentication) {
+        User user = currentUser(authentication);
         List<TransformationCard> cards = requests.stream()
-                .map(this::buildFromRequest)
+                .map(request -> buildFromRequest(request, user))
                 .toList();
 
         List<TransformationCard> savedCards = transformationCardRepository.saveAll(cards);
@@ -185,9 +190,16 @@ public class TransformationCardService {
                             "Expansion not found with id: " + request.getExpansionId()));
             card.setExpansion(expansion);
         }
+        if (request.getSrd() != null) {
+            card.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
+        }
 
+        // Inline features inherit isOfficial and srd from this card's now-current values,
+        // rather than defaulting to official via FeatureService's default origin.
         Set<Feature> resolvedFeatures = featureService.resolveFeatures(
-                request.getFeatureIds(), request.getFeatures());
+                request.getFeatureIds(), request.getFeatures(),
+                FeatureService.FeatureOrigin.forParent(
+                        currentUser(authentication), card.getIsOfficial(), card.getSrd()));
         if (resolvedFeatures != null) {
             card.setFeatures(resolvedFeatures);
         }
@@ -257,12 +269,18 @@ public class TransformationCardService {
 
     /**
      * Builds a TransformationCard entity from a CreateTransformationCardRequest, resolving all relationships.
+     * <p>
+     * {@code isOfficial} is hardcoded {@code true}: unlike weapons, armor, or loot, transformation
+     * cards have no {@code /custom} authoring endpoint — every create/bulk-create call is
+     * ADMIN/OWNER-only catalogue content, so there is no case where {@code false} applies.
+     * </p>
      *
      * @param request The creation request containing transformation card details
+     * @param user The user performing the create, used to resolve the requested srd flag
      * @return The built TransformationCard entity (not yet persisted)
      * @throws EntityNotFoundException if the referenced expansion is not found
      */
-    private TransformationCard buildFromRequest(CreateTransformationCardRequest request) {
+    private TransformationCard buildFromRequest(CreateTransformationCardRequest request, User user) {
         Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
                 .orElseThrow(() -> new EntityNotFoundException(
                         "Expansion not found with id: " + request.getExpansionId()));
@@ -271,10 +289,13 @@ public class TransformationCardService {
                 .name(request.getName())
                 .description(request.getDescription())
                 .expansion(expansion)
+                .isOfficial(true)
+                .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                 .build();
 
         Set<Feature> resolvedFeatures = featureService.resolveFeatures(
-                request.getFeatureIds(), request.getFeatures());
+                request.getFeatureIds(), request.getFeatures(),
+                FeatureService.FeatureOrigin.forParent(user, card.getIsOfficial(), card.getSrd()));
         if (resolvedFeatures != null) {
             card.setFeatures(resolvedFeatures);
         }
@@ -290,16 +311,29 @@ public class TransformationCardService {
 
     /**
      * Converts a TransformationCard entity to TransformationCardResponse DTO.
+     * <p>
+     * This is the universal funnel — every caller (list, single-get, and any sibling type
+     * expanding its transformation cards) must route through this method rather than building a
+     * {@link TransformationCardResponse} directly, so a gated non-SRD card redacts to a stub
+     * instead of leaking through an expand.
+     * </p>
      *
      * @param card The transformation card entity
      * @param expand Set of relationships to expand
-     * @return TransformationCardResponse DTO
+     * @return TransformationCardResponse DTO, or a redacted stub if the caller may not view it
      */
     public TransformationCardResponse toResponse(TransformationCard card, Set<String> expand) {
+        if (!contentAccessService.mayView(card.getIsOfficial(), card.getSrd())) {
+            return ContentRedaction.stub(TransformationCardResponse::new, card.getId(),
+                    card.getExpansion() != null ? card.getExpansion().getName() : null);
+        }
+
         TransformationCardResponse.TransformationCardResponseBuilder builder = TransformationCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())
                 .description(card.getDescription())
+                .isOfficial(card.getIsOfficial())
+                .srd(card.getSrd())
                 .expansionId(card.getExpansion().getId())
                 .createdAt(card.getCreatedAt())
                 .lastModifiedAt(card.getLastModifiedAt())
@@ -335,20 +369,25 @@ public class TransformationCardService {
                     .collect(Collectors.toList()));
         }
 
+        // Routed through QuestionService#toResponse (not built inline) so a gated non-SRD
+        // question redacts to a stub here too, instead of leaking through this expand.
         if (ExpandUtil.shouldExpand(expand, "questions") && card.getQuestions() != null) {
             builder.questions(card.getQuestions().stream()
-                    .map(question -> QuestionResponse.builder()
-                            .id(question.getId())
-                            .questionText(question.getQuestionText())
-                            .questionType(question.getQuestionType())
-                            .expansionId(question.getExpansion().getId())
-                            .createdAt(question.getCreatedAt())
-                            .lastModifiedAt(question.getLastModifiedAt())
-                            .deletedAt(question.getDeletedAt())
-                            .build())
+                    .map(question -> questionService.toResponse(question, Set.of()))
                     .collect(Collectors.toList()));
         }
 
         return builder.build();
+    }
+
+    /**
+     * Resolves the authenticated user from an {@link Authentication}, matching the
+     * {@link CustomUserDetails} extraction pattern used throughout {@code service.dh}.
+     *
+     * @param authentication the authentication context of the requesting user
+     * @return the authenticated {@link User}
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

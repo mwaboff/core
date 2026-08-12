@@ -8,6 +8,7 @@ import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.WeaponResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.embeddable.DamageRoll;
+import com.aboff.core.model.entity.dh.BaseItem;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
@@ -67,6 +68,9 @@ class WeaponServiceTest {
     private ItemAccessService itemAccessService;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
@@ -80,6 +84,13 @@ class WeaponServiceTest {
         // non-privileged user who belongs to no campaigns; tests that care override it.
         lenient().when(itemAccessService.visibilityScope(any()))
                 .thenReturn(new ItemAccessService.VisibilityScope(1L, List.of(-1L), false));
+        // Every list call also resolves includeDeleted through the SRD gate; default to the
+        // ordinary (non-deleted) browse path unless a test overrides it.
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        // toResponse redacts anything mayView() rejects; default to visible so existing
+        // assertions on full response fields keep working. Redaction itself is covered by a
+        // dedicated test below.
+        lenient().when(contentAccessService.mayView(any(BaseItem.class))).thenReturn(true);
     }
 
     @Test
@@ -93,7 +104,7 @@ class WeaponServiceTest {
         weapon2.setTrait(Trait.FINESSE);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon1, weapon2));
-        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
@@ -115,7 +126,7 @@ class WeaponServiceTest {
         Weapon weapon = createTestWeapon(1L, "Longsword", expansion);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
@@ -124,7 +135,7 @@ class WeaponServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getTrait()).isEqualTo(Trait.STRENGTH);
-        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -136,7 +147,7 @@ class WeaponServiceTest {
         weapon.setRange(Range.FAR);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(Range.FAR), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(Range.FAR), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
@@ -151,14 +162,14 @@ class WeaponServiceTest {
     void getAllWeapons_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Weapon> weaponPage = new PageImpl<>(List.of());
-        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
         weaponService.getAllWeapons(0, 500, false, null, null, null, null, null, null, null, null, null, null, null, null, authentication);
 
         // Assert
-        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
@@ -171,7 +182,7 @@ class WeaponServiceTest {
         weapon.setFeatures(Set.of(feature));
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(weaponPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -219,7 +230,7 @@ class WeaponServiceTest {
         Weapon weapon = createTestWeapon(1L, "Longsword", expansion);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), anyBoolean(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
@@ -228,7 +239,7 @@ class WeaponServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDamage().getDamageType()).isEqualTo(DamageType.PHYSICAL);
-        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -245,7 +256,7 @@ class WeaponServiceTest {
                 .build());
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.MAGIC), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.MAGIC), anyBoolean(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
@@ -254,7 +265,7 @@ class WeaponServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getDamage().getDamageType()).isEqualTo(DamageType.MAGIC);
-        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.MAGIC), any(Pageable.class));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), eq(DamageType.MAGIC), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -265,7 +276,7 @@ class WeaponServiceTest {
         Weapon weapon = createTestWeapon(1L, "Longsword", expansion);
 
         Page<Weapon> weaponPage = new PageImpl<>(List.of(weapon));
-        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class)))
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), anyBoolean(), any(Pageable.class)))
                 .thenReturn(weaponPage);
 
         // Act
@@ -275,7 +286,7 @@ class WeaponServiceTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getTrait()).isEqualTo(Trait.STRENGTH);
         assertThat(result.getContent().get(0).getDamage().getDamageType()).isEqualTo(DamageType.PHYSICAL);
-        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), any(Pageable.class));
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), eq(Trait.STRENGTH), isNull(), isNull(), isNull(), isNull(), eq(DamageType.PHYSICAL), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== GET WEAPON BY ID TESTS ====================
@@ -677,6 +688,47 @@ class WeaponServiceTest {
         assertThat(result.getDamage().getDiceCount()).isNull();
         assertThat(result.getDamage().getDiceType()).isEqualTo(DiceType.D6);
         assertThat(result.getDamage().getNotation()).isEqualTo("d6+2 mag");
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void toResponse_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Weapon weapon = createTestWeapon(1L, "Restricted Blade", expansion);
+
+        when(weaponRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(weapon));
+        when(contentAccessService.mayView(weapon)).thenReturn(false);
+
+        // Act
+        WeaponResponse result = weaponService.getWeaponById(1L, null);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getTrait()).isNull();
+        assertThat(result.getSrd()).isNull();
+        assertThat(result.getIsOfficial()).isNull();
+    }
+
+    @Test
+    void getAllWeapons_IncludeDeletedRequestedByNonModerator_CoercesToFalse() {
+        // Arrange: resolveIncludeDeleted is what enforces the role check now, so a coercion to
+        // false must route through the ordinary (non-deleted) query rather than findAllWithFilters.
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(false);
+        Page<Weapon> weaponPage = new PageImpl<>(List.of());
+        when(weaponRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
+                .thenReturn(weaponPage);
+
+        // Act
+        weaponService.getAllWeapons(0, 20, true, null, null, null, null, null, null, null, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(weaponRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), any(), any(), any(), any(), any(), any());
+        verify(weaponRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== HELPER METHODS ====================

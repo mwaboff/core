@@ -7,14 +7,16 @@ import com.aboff.core.model.dto.dh.response.AncestryCardResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
-import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.entity.dh.AncestryCard;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.repository.dh.AncestryCardRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.FeatureRepository;
+import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -54,6 +56,7 @@ public class AncestryCardService {
     private final CardCostTagService cardCostTagService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
+    private final ContentAccessService contentAccessService;
 
     /**
      * Retrieves a paginated list of ancestry cards.
@@ -77,6 +80,7 @@ public class AncestryCardService {
             Boolean isMixed,
             String expand) {
 
+        includeDeleted = contentAccessService.resolveIncludeDeleted(includeDeleted);
         Boolean effectiveIsMixed = (isMixed == null) ? false : isMixed;
 
         size = Math.min(size, 100);
@@ -86,7 +90,8 @@ public class AncestryCardService {
         if (includeDeleted) {
             cardPage = ancestryCardRepository.findAllWithFilters(expansionId, isOfficial, effectiveIsMixed, pageable);
         } else {
-            cardPage = ancestryCardRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, effectiveIsMixed, pageable);
+            cardPage = ancestryCardRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, isOfficial, effectiveIsMixed, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -139,6 +144,7 @@ public class AncestryCardService {
                 .description(request.getDescription())
                 .expansion(expansion)
                 .isOfficial(request.getIsOfficial())
+                .srd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()))
                 .backgroundImageUrl(request.getBackgroundImageUrl())
                 .build();
 
@@ -172,6 +178,7 @@ public class AncestryCardService {
     @Transactional
     public List<AncestryCardResponse> createAncestryCardsBulk(List<CreateAncestryCardRequest> requests, Authentication authentication) {
 
+        User user = currentUser(authentication);
         List<AncestryCard> cards = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -183,6 +190,7 @@ public class AncestryCardService {
                             .description(request.getDescription())
                             .expansion(expansion)
                             .isOfficial(request.getIsOfficial())
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .backgroundImageUrl(request.getBackgroundImageUrl())
                             .build();
 
@@ -284,6 +292,9 @@ public class AncestryCardService {
         if (request.getIsOfficial() != null) {
             card.setIsOfficial(request.getIsOfficial());
         }
+        if (request.getSrd() != null) {
+            card.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
+        }
         if (request.getBackgroundImageUrl() != null) {
             card.setBackgroundImageUrl(request.getBackgroundImageUrl());
         }
@@ -356,19 +367,35 @@ public class AncestryCardService {
 
     /**
      * Converts an AncestryCard entity to AncestryCardResponse DTO.
+     * <p>
+     * If the caller may not view this card (gated non-SRD content outside their access), returns
+     * a redacted stub instead — see {@link ContentRedaction#stub}. This is the universal funnel:
+     * list endpoints, single-get, and embedded-content resolution (e.g. character sheets, search
+     * {@code ?expand=}) all route through this method, so it is the one place redaction can be
+     * enforced without every caller having to remember to check.
+     * </p>
      *
      * @param card The card entity
      * @param expand Set of relationships to expand
-     * @return AncestryCardResponse DTO
+     * @return AncestryCardResponse DTO, or a redacted stub if the caller may not view it
      */
     public AncestryCardResponse toResponse(AncestryCard card, Set<String> expand) {
+        if (!contentAccessService.mayView(card)) {
+            AncestryCardResponse stub = ContentRedaction.stub(AncestryCardResponse::new, card.getId(),
+                    card.getExpansion() != null ? card.getExpansion().getName() : null);
+            stub.setCardType(card.getCardType());
+            return stub;
+        }
+
         AncestryCardResponse.AncestryCardResponseBuilder builder = AncestryCardResponse.builder()
                 .id(card.getId())
                 .name(card.getName())
                 .description(card.getDescription())
                 .cardType(card.getCardType())
                 .expansionId(card.getExpansion().getId())
+                .expansionName(card.getExpansion() != null ? card.getExpansion().getName() : null)
                 .isOfficial(card.getIsOfficial())
+                .srd(card.getSrd())
                 .isMixed(card.getIsMixed())
                 .backgroundImageUrl(card.getBackgroundImageUrl())
                 .createdAt(card.getCreatedAt())
@@ -409,20 +436,24 @@ public class AncestryCardService {
                     .collect(Collectors.toList()));
         }
 
-        // Expand cost tags if requested
+        // Expand cost tags if requested. Routed through CardCostTagService#toResponse (not built
+        // inline) so a gated non-SRD cost tag redacts to a stub here too.
         if (ExpandUtil.shouldExpand(expand, "costTags") && card.getCostTags() != null) {
             builder.costTags(card.getCostTags().stream()
-                    .map(tag -> CardCostTagResponse.builder()
-                            .id(tag.getId())
-                            .label(tag.getLabel())
-                            .category(tag.getCategory())
-                            .createdAt(tag.getCreatedAt())
-                            .lastModifiedAt(tag.getLastModifiedAt())
-                            .deletedAt(tag.getDeletedAt())
-                            .build())
+                    .map(cardCostTagService::toResponse)
                     .collect(Collectors.toList()));
         }
 
         return builder.build();
+    }
+
+    /**
+     * Extracts the authenticated user from the security context principal.
+     *
+     * @param authentication the current authentication
+     * @return the authenticated user
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

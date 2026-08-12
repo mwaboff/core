@@ -6,6 +6,7 @@ import com.aboff.core.model.enums.QuestionType;
 import com.aboff.core.model.enums.SearchableEntityType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -49,6 +50,16 @@ public class Question extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "expansion_id", nullable = false)
     private Expansion expansion;
+
+    /**
+     * Indicates whether this question is SRD-licensed content, freely usable without
+     * owning the sourcebook it was printed in. Defaults to false at creation time; only an
+     * explicit SRD flag opens the question to users who have not been granted expansion
+     * access. See {@code ContentAccessService} for how this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
 
     /**
      * Timestamp indicating when this question was soft-deleted.

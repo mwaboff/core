@@ -8,6 +8,7 @@ import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.dh.response.SubclassCardResponse;
 import com.aboff.core.model.dto.dh.response.SubclassPathResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.dh.Card;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Domain;
@@ -25,7 +26,9 @@ import com.aboff.core.repository.dh.SubclassCardRepository;
 import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.context.ApplicationEventPublisher;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
@@ -78,8 +81,23 @@ class SubclassCardServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
     @InjectMocks
     private SubclassCardService subclassCardService;
+
+    /**
+     * Defaults every test to "caller may see everything" so pre-existing assertions on full
+     * card content keep passing without each test having to stub SRD gating explicitly. Tests
+     * exercising gating override these with their own stubbing.
+     */
+    @BeforeEach
+    void setUpContentAccess() {
+        lenient().when(contentAccessService.mayView(any(Card.class))).thenReturn(true);
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenAnswer(invocation -> invocation.getArgument(0));
+    }
 
     // ==================== GET ALL SUBCLASS CARDS TESTS ====================
 
@@ -115,7 +133,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card1, card2));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -148,7 +166,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(SubclassLevel.FOUNDATION), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(SubclassLevel.FOUNDATION), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -157,7 +175,7 @@ class SubclassCardServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getLevel()).isEqualTo(SubclassLevel.FOUNDATION);
-        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(SubclassLevel.FOUNDATION), any(Pageable.class));
+        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), eq(SubclassLevel.FOUNDATION), eq(true), any(Pageable.class));
     }
 
     @Test
@@ -179,7 +197,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -188,14 +206,14 @@ class SubclassCardServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getSubclassPathId()).isEqualTo(1L);
-        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), any(Pageable.class));
+        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(1L), isNull(), isNull(), eq(true), any(Pageable.class));
     }
 
     @Test
     void getAllSubclassCards_WithLargePage_LimitsTo100() {
         // Arrange
         Page<SubclassCard> cardPage = new PageImpl<>(List.of());
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -207,7 +225,7 @@ class SubclassCardServiceTest {
                 isNull(),
                 isNull(),
                 isNull(),
-                isNull(),
+                isNull(), eq(true),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -234,7 +252,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         SubclassPathResponse pathResponse = SubclassPathResponse.builder()
@@ -303,7 +321,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -365,7 +383,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -430,7 +448,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -491,7 +509,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -552,7 +570,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -589,7 +607,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -623,7 +641,7 @@ class SubclassCardServiceTest {
                 .build();
 
         Page<SubclassCard> cardPage = new PageImpl<>(List.of(card));
-        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
                 .thenReturn(cardPage);
 
         // Act
@@ -959,5 +977,228 @@ class SubclassCardServiceTest {
         assertThatThrownBy(() -> subclassCardService.restoreSubclassCard(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("SubclassCard not found with id: 999");
+    }
+
+    // ==================== SRD GATING TESTS ====================
+
+    @Test
+    void toResponse_WhenNotViewable_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).srd(false).build();
+        SubclassCard card = SubclassCard.builder()
+                .id(7L)
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(false)
+                .subclassPath(path)
+                .level(SubclassLevel.FOUNDATION)
+                .build();
+
+        when(contentAccessService.mayView(card)).thenReturn(false);
+
+        // Act
+        SubclassCardResponse response = subclassCardService.toResponse(card, Set.of());
+
+        // Assert — only id, cardType, expansionName, restricted are carried
+        assertThat(response.getId()).isEqualTo(7L);
+        assertThat(response.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(response.getRestricted()).isTrue();
+        assertThat(response.getName()).isNull();
+        assertThat(response.getDescription()).isNull();
+        assertThat(response.getIsOfficial()).isNull();
+        assertThat(response.getSrd()).isNull();
+        assertThat(response.getSubclassPathId()).isNull();
+    }
+
+    @Test
+    void getAllSubclassCards_PassesIncludeNonSrdFromContentAccessService() {
+        // Arrange
+        when(contentAccessService.includeNonSrd()).thenReturn(false);
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of());
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        subclassCardService.getAllSubclassCards(0, 20, false, null, null, null, null, null, null);
+
+        // Assert
+        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(false), any(Pageable.class));
+    }
+
+    @Test
+    void getAllSubclassCards_IncludeDeletedRequestedButNotResolved_UsesActiveOnlyQuery() {
+        // Arrange — caller requests includeDeleted=true but ContentAccessService coerces it to false
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(false);
+        Page<SubclassCard> cardPage = new PageImpl<>(List.of());
+        when(subclassCardRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class)))
+                .thenReturn(cardPage);
+
+        // Act
+        subclassCardService.getAllSubclassCards(0, 20, true, null, null, null, null, null, null);
+
+        // Assert — the includeDeleted=true (unfiltered) query is never reached
+        verify(subclassCardRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), any());
+        verify(subclassCardRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), isNull(), isNull(), isNull(), eq(true), any(Pageable.class));
+    }
+
+    /**
+     * A subclass card's {@code srd} is always derived from its {@code subclassPath}, never from
+     * the request — this is what makes it structurally impossible for a card to disagree with
+     * its path. Exercises both a true-srd path (ignoring a false request value) and a false-srd
+     * path (ignoring a true request value).
+     */
+    @Test
+    void createSubclassCard_IgnoresRequestSrd_DerivesFromPathSrdTrue() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).srd(true).build();
+
+        CreateSubclassCardRequest request = CreateSubclassCardRequest.builder()
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansionId(1L)
+                .isOfficial(true)
+                .subclassPathId(1L)
+                .level(SubclassLevel.FOUNDATION)
+                .srd(false)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(subclassPathService.resolvePath(eq(1L), isNull(), isNull(), eq(1L))).thenReturn(path);
+        when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassCardResponse result = subclassCardService.createSubclassCard(request, authentication);
+
+        // Assert — path.srd=true wins over request.srd=false
+        assertThat(result.getSrd()).isTrue();
+        verify(subclassCardRepository).save(argThat(c -> Boolean.TRUE.equals(c.getSrd())));
+    }
+
+    @Test
+    void createSubclassCard_IgnoresRequestSrd_DerivesFromPathSrdFalse() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).srd(false).build();
+
+        CreateSubclassCardRequest request = CreateSubclassCardRequest.builder()
+                .name("Berserker")
+                .description("Rage fighter")
+                .expansionId(1L)
+                .isOfficial(true)
+                .subclassPathId(1L)
+                .level(SubclassLevel.FOUNDATION)
+                .srd(true)
+                .build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(subclassPathService.resolvePath(eq(1L), isNull(), isNull(), eq(1L))).thenReturn(path);
+        when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassCardResponse result = subclassCardService.createSubclassCard(request, authentication);
+
+        // Assert — path.srd=false wins over request.srd=true
+        assertThat(result.getSrd()).isFalse();
+        verify(subclassCardRepository).save(argThat(c -> Boolean.FALSE.equals(c.getSrd())));
+    }
+
+    @Test
+    void createSubclassCardsBulk_EachCardDerivesSrdFromItsOwnPath_NeverDisagrees() {
+        // Arrange — two paths with opposite srd flags, one bulk request per path
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath srdPath = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).srd(true).build();
+        SubclassPath nonSrdPath = SubclassPath.builder().id(2L).name("Warden of the Elements").associatedClass(clazz).expansion(expansion).srd(false).build();
+
+        CreateSubclassCardRequest request1 = CreateSubclassCardRequest.builder()
+                .name("Berserker").description("Rage fighter").expansionId(1L).isOfficial(true)
+                .subclassPathId(1L).level(SubclassLevel.FOUNDATION).build();
+        CreateSubclassCardRequest request2 = CreateSubclassCardRequest.builder()
+                .name("Elementalist").description("Elemental fighter").expansionId(1L).isOfficial(true)
+                .subclassPathId(2L).level(SubclassLevel.FOUNDATION).build();
+
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(subclassPathService.resolvePath(eq(1L), isNull(), isNull(), eq(1L))).thenReturn(srdPath);
+        when(subclassPathService.resolvePath(eq(2L), isNull(), isNull(), eq(1L))).thenReturn(nonSrdPath);
+        when(subclassCardRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        List<SubclassCardResponse> results = subclassCardService.createSubclassCardsBulk(List.of(request1, request2), authentication);
+
+        // Assert — each card's srd matches its own path's srd, never the other's
+        assertThat(results).hasSize(2);
+        assertThat(results.get(0).getSrd()).isTrue();
+        assertThat(results.get(1).getSrd()).isFalse();
+    }
+
+    @Test
+    void updateSubclassCard_IgnoresRequestSrd_RederivesFromPath() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath path = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).srd(true).build();
+
+        SubclassCard existingCard = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(true)
+                .subclassPath(path)
+                .level(SubclassLevel.FOUNDATION)
+                .build();
+
+        UpdateSubclassCardRequest request = UpdateSubclassCardRequest.builder()
+                .srd(false)
+                .build();
+
+        when(subclassCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
+        when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act — request.srd=false is supplied but must not override the path-derived value
+        SubclassCardResponse result = subclassCardService.updateSubclassCard(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isTrue();
+    }
+
+    @Test
+    void updateSubclassCard_ReassignedToDifferentPath_RederivesSrdFromNewPath() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Warrior").expansion(expansion).startingEvasion(10).startingHitPoints(20).build();
+        SubclassPath oldPath = SubclassPath.builder().id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion).srd(true).build();
+        SubclassPath newPath = SubclassPath.builder().id(2L).name("Warden of the Elements").associatedClass(clazz).expansion(expansion).srd(false).build();
+
+        SubclassCard existingCard = SubclassCard.builder()
+                .id(1L)
+                .name("Berserker")
+                .expansion(expansion)
+                .isOfficial(true)
+                .srd(true)
+                .subclassPath(oldPath)
+                .level(SubclassLevel.FOUNDATION)
+                .build();
+
+        UpdateSubclassCardRequest request = UpdateSubclassCardRequest.builder()
+                .subclassPathId(2L)
+                .build();
+
+        when(subclassCardRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingCard));
+        when(subclassPathService.resolvePath(eq(2L), isNull(), isNull(), isNull())).thenReturn(newPath);
+        when(subclassCardRepository.save(any(SubclassCard.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassCardResponse result = subclassCardService.updateSubclassCard(1L, request, authentication);
+
+        // Assert — the card now carries the new path's srd, not the old one's
+        assertThat(result.getSrd()).isFalse();
     }
 }

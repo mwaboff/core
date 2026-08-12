@@ -8,6 +8,7 @@ import com.aboff.core.model.dto.dh.response.FeatureModifierResponse;
 import com.aboff.core.model.dto.dh.response.FeatureResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
 import com.aboff.core.model.entity.dh.Armor;
+import com.aboff.core.model.entity.dh.BaseItem;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
@@ -66,6 +67,9 @@ class ArmorServiceTest {
     private ItemAccessService itemAccessService;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
@@ -79,6 +83,13 @@ class ArmorServiceTest {
         // non-privileged user who belongs to no campaigns; tests that care override it.
         lenient().when(itemAccessService.visibilityScope(any()))
                 .thenReturn(new ItemAccessService.VisibilityScope(1L, List.of(-1L), false));
+        // Every list call also resolves includeDeleted through the SRD gate; default to the
+        // ordinary (non-deleted) browse path unless a test overrides it.
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        // toResponse redacts anything mayView() rejects; default to visible so existing
+        // assertions on full response fields keep working. Redaction itself is covered by a
+        // dedicated test below.
+        lenient().when(contentAccessService.mayView(any(BaseItem.class))).thenReturn(true);
     }
 
     @Test
@@ -91,7 +102,7 @@ class ArmorServiceTest {
         armor2.setBaseScore(3);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor1, armor2));
-        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
@@ -113,7 +124,7 @@ class ArmorServiceTest {
         Armor armor = createTestArmor(1L, "Leather Armor", expansion);
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor));
-        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
@@ -122,21 +133,21 @@ class ArmorServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(armorRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), any(Pageable.class));
+        verify(armorRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), eq(1L), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
     void getAllArmors_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Armor> armorPage = new PageImpl<>(List.of());
-        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(armorPage);
 
         // Act
         armorService.getAllArmors(0, 500, false, null, null, null, null, null, null, null, authentication);
 
         // Assert
-        verify(armorRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
+        verify(armorRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
@@ -149,7 +160,7 @@ class ArmorServiceTest {
         armor.setFeatures(Set.of(feature));
 
         Page<Armor> armorPage = new PageImpl<>(List.of(armor));
-        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), any(Pageable.class)))
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(armorPage);
         when(featureService.toResponse(any(Feature.class), anySet())).thenAnswer(invocation -> {
             Feature f = invocation.getArgument(0);
@@ -492,6 +503,46 @@ class ArmorServiceTest {
         assertThatThrownBy(() -> armorService.restoreArmor(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Armor not found with id: 999");
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void toResponse_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Armor armor = createTestArmor(1L, "Restricted Plate", expansion);
+
+        when(armorRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(armor));
+        when(contentAccessService.mayView(armor)).thenReturn(false);
+
+        // Act
+        ArmorResponse result = armorService.getArmorById(1L, null);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getBaseScore()).isNull();
+        assertThat(result.getSrd()).isNull();
+    }
+
+    @Test
+    void getAllArmors_IncludeDeletedRequestedByNonModerator_CoercesToFalse() {
+        // Arrange: resolveIncludeDeleted is what enforces the role check now, so a coercion to
+        // false must route through the ordinary (non-deleted) query rather than findAllWithFilters.
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(false);
+        Page<Armor> armorPage = new PageImpl<>(List.of());
+        when(armorRepository.findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class)))
+                .thenReturn(armorPage);
+
+        // Act
+        armorService.getAllArmors(0, 20, true, null, null, null, null, null, null, null, authentication);
+
+        // Assert
+        verify(armorRepository, never()).findAllWithFilters(any(), any(), any(), any(), any(), any());
+        verify(armorRepository).findAccessibleWithFilters(any(), any(), anyBoolean(), isNull(), isNull(), isNull(), isNull(), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     // ==================== HELPER METHODS ====================

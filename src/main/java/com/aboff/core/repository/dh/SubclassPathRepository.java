@@ -40,15 +40,24 @@ public interface SubclassPathRepository extends JpaRepository<SubclassPath, Long
 
     /**
      * Finds all non-deleted subclass paths with optional class filter.
+     * <p>
+     * {@code SubclassPath} carries no {@code isOfficial} distinction of its own (see the
+     * entity), so the predicate below gates on {@code srd} alone — matching the shape used by
+     * {@code QuestionRepository}/{@code CardCostTagRepository}.
+     * </p>
      *
      * @param classId optional filter for associated class ID (null to include all)
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) paths; when
+     *                      false, only SRD-flagged paths are returned
      * @param pageable pagination information
      * @return Page of non-deleted subclass paths matching the criteria
      */
     @Query("SELECT sp FROM SubclassPath sp WHERE sp.deletedAt IS NULL " +
-           "AND (:classId IS NULL OR sp.associatedClass.id = :classId)")
+           "AND (:classId IS NULL OR sp.associatedClass.id = :classId) " +
+           "AND (:includeNonSrd = true OR sp.srd = true)")
     Page<SubclassPath> findByDeletedAtIsNullAndFilters(
             @Param("classId") Long classId,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

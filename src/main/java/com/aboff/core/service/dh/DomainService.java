@@ -6,12 +6,15 @@ import com.aboff.core.model.dto.dh.request.UpdateDomainRequest;
 import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.enums.AuditAction;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -43,6 +46,7 @@ public class DomainService {
 
     private final DomainRepository domainRepository;
     private final ExpansionRepository expansionRepository;
+    private final ContentAccessService contentAccessService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -72,12 +76,13 @@ public class DomainService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<Domain> domainPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             // Include deleted items (admin only)
             domainPage = domainRepository.findAllWithFilters(expansionId, isOfficial, pageable);
         } else {
             // Exclude deleted items (default)
-            domainPage = domainRepository.findByDeletedAtIsNullAndFilters(expansionId, isOfficial, pageable);
+            domainPage = domainRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, isOfficial, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -129,6 +134,7 @@ public class DomainService {
                 .iconUrl(request.getIconUrl())
                 .description(request.getDescription())
                 .isOfficial(request.getIsOfficial() != null ? request.getIsOfficial() : true)
+                .srd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()))
                 .expansion(expansion)
                 .build();
 
@@ -150,6 +156,7 @@ public class DomainService {
      */
     @Transactional
     public List<DomainResponse> createDomainsBulk(List<CreateDomainRequest> requests, Authentication authentication) {
+        User user = currentUser(authentication);
         List<Domain> domains = requests.stream()
                 .map(request -> {
                     Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -161,6 +168,7 @@ public class DomainService {
                             .iconUrl(request.getIconUrl())
                             .description(request.getDescription())
                             .isOfficial(request.getIsOfficial() != null ? request.getIsOfficial() : true)
+                            .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                             .expansion(expansion)
                             .build();
                 })
@@ -202,6 +210,9 @@ public class DomainService {
         }
         if (request.getIsOfficial() != null) {
             domain.setIsOfficial(request.getIsOfficial());
+        }
+        if (request.getSrd() != null) {
+            domain.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
         }
         if (request.getExpansionId() != null) {
             Expansion expansion = expansionRepository.findByIdAndDeletedAtIsNull(request.getExpansionId())
@@ -269,18 +280,30 @@ public class DomainService {
 
     /**
      * Converts a Domain entity to DomainResponse DTO.
+     * <p>
+     * This is the universal funnel — every caller (list, single-get, and any sibling type
+     * expanding its domains, e.g. {@code ClassService}, {@code SubclassPathService}) must route
+     * through this method rather than building a {@link DomainResponse} directly, so gated
+     * non-SRD domains redact to a stub instead of leaking through an expand.
+     * </p>
      *
      * @param domain The domain entity
      * @param expand Set of relationships to expand
-     * @return DomainResponse DTO
+     * @return DomainResponse DTO, or a redacted stub if the caller may not view it
      */
-    private DomainResponse toResponse(Domain domain, Set<String> expand) {
+    public DomainResponse toResponse(Domain domain, Set<String> expand) {
+        if (!contentAccessService.mayView(domain.getIsOfficial(), domain.getSrd())) {
+            return ContentRedaction.stub(DomainResponse::new, domain.getId(),
+                    domain.getExpansion() != null ? domain.getExpansion().getName() : null);
+        }
+
         DomainResponse.DomainResponseBuilder builder = DomainResponse.builder()
                 .id(domain.getId())
                 .name(domain.getName())
                 .iconUrl(domain.getIconUrl())
                 .description(domain.getDescription())
                 .isOfficial(domain.getIsOfficial())
+                .srd(domain.getSrd())
                 .expansionId(domain.getExpansion().getId())
                 .createdAt(domain.getCreatedAt())
                 .lastModifiedAt(domain.getLastModifiedAt())
@@ -300,5 +323,16 @@ public class DomainService {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Resolves the authenticated user from an {@link Authentication}, matching the
+     * {@link CustomUserDetails} extraction pattern used throughout {@code service.dh}.
+     *
+     * @param authentication the authentication context of the requesting user
+     * @return the authenticated {@link User}
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

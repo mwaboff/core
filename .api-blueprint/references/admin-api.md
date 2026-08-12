@@ -203,6 +203,7 @@ Additional constraint — the unified role-change rule: for a `role` change, the
 | `username`  | String | `@Size(min=3, max=100)`         | New username. Also sets `usernameChosen=true`. |
 | `avatarUrl` | String | `@Size(max=500)`                | New avatar URL.                                |
 | `role`      | `Role` | must be a valid `Role` value   | New role. Revokes all active tokens on success.|
+| `accessAllExpansions` | Boolean | — | Grants (`true`) or revokes (`false`) the target's non-SRD (paid expansion) content override, independent of `role`. `null`/omitted leaves the existing grant unchanged — never defaulted to `false`, so a PATCH that only edits `username` or `role` cannot silently revoke it. |
 
 **Response:** `200 OK` — `AdminUserDetailResponse` with all collections populated (as if called with `?expand=all`).
 
@@ -221,6 +222,7 @@ Additional constraint — the unified role-change rule: for a `role` change, the
 - `username` change: writes one row to `username_history` (attributed to the admin) and one `USER_USERNAME_CHANGED` row to `admin_action_log`.
 - `avatarUrl` change: writes one `USER_AVATAR_CHANGED` row.
 - `role` change: writes one `USER_ROLE_CHANGED` row and revokes **all** active JWT tokens for the target user via `invalidateAllUserTokens`.
+- `accessAllExpansions` change (only when it actually differs from the current value): writes one `USER_EXPANSION_ACCESS_CHANGED` row recording the previous and new value.
 
 **curl**
 
@@ -332,6 +334,63 @@ curl -s -X POST -b "AUTH_TOKEN=<jwt>" \
 
 ---
 
+## PATCH `/api/admin/content/srd`
+
+Bulk-flags or unflags game content as SRD-licensed. This is the only way `srd` is ever set `true` for content — every row was backfilled to `srd = false` when the column was added. Backs the admin bulk SRD-flagging tool.
+
+**Required Role:** OWNER or ADMIN (deliberately not MODERATOR — SRD licensing is a legal classification of the content, not a moderation judgment call).
+
+**Request body:** `application/json` — `BulkSrdUpdateRequest`
+
+| Field  | Type      | Validation                    | Description                                                                                     |
+|--------|-----------|--------------------------------|---------------------------------------------------------------------------------------------------|
+| `type` | String    | `@NotNull`                     | A `SearchableEntityType` constant name (e.g. `"WEAPON"`, `"DOMAIN"`), case-insensitive. `EXPANSION` and `SUBCLASS_CARD` are rejected — see below. |
+| `ids`  | `Long[]`  | `@NotEmpty`                    | The ids to flag or unflag. Ids that don't exist for `type` are reported back, not rejected.       |
+| `srd`  | Boolean   | `@NotNull`                     | `true` to mark the matched rows SRD, `false` to unmark them.                                      |
+
+`type=EXPANSION` is rejected (a sourcebook is not content; carries no `srd` column). `type=SUBCLASS_CARD` is rejected with a redirect hint — a subclass card's `srd` is always re-derived from its subclass path, so flagging cards directly would either be silently overwritten on their next save or drift out of sync with the path; flag `type=SUBCLASS_PATH` instead, and its three Foundation/Specialization/Mastery cards follow automatically in the same transaction.
+
+**Response:** `200 OK` — `BulkSrdUpdateResponse`
+
+```json
+{
+  "type": "DOMAIN",
+  "srd": true,
+  "updatedIds": [1, 2],
+  "unknownIds": [999]
+}
+```
+
+Unknown ids are a **partial success**, not an error — the ids that did resolve are still updated, and `unknownIds` lets the admin UI show a partial-success summary rather than failing the whole batch.
+
+**Errors**
+
+| Status | Condition                                                                 |
+|--------|-----------------------------------------------------------------------------|
+| 400    | Validation failure (missing `type`/`ids`/`srd`), unrecognized `type` string, or `type` is `EXPANSION`/`SUBCLASS_CARD` |
+| 401    | No `AUTH_TOKEN` cookie                                                    |
+| 403    | Caller's role is below `ADMIN`                                           |
+
+**Side effects:** writes one `CONTENT_SRD_CHANGED` row to `admin_action_log` for the whole batch (not one per id), with `details=type=…; srd=…; requested=N; updated=M; unknown=[...]`. For `type=SUBCLASS_PATH`, every matched path's cards are re-derived from the path's new `srd` in the same transaction.
+
+**curl**
+
+```bash
+# Flag two domains as SRD
+curl -s -X PATCH -b "AUTH_TOKEN=<jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"DOMAIN","ids":[1,2],"srd":true}' \
+  "http://localhost:8080/api/admin/content/srd"
+
+# Unflag a subclass path (cascades to its Foundation/Specialization/Mastery cards)
+curl -s -X PATCH -b "AUTH_TOKEN=<jwt>" \
+  -H "Content-Type: application/json" \
+  -d '{"type":"SUBCLASS_PATH","ids":[7],"srd":false}' \
+  "http://localhost:8080/api/admin/content/srd"
+```
+
+---
+
 ## POST `/api/admin/search/reindex`
 
 Rebuild the full-text search index by clearing all entries and re-indexing every active entity from the source repositories. An expensive admin-only operation intended for recovery scenarios. Requires `OWNER` role.
@@ -385,6 +444,7 @@ curl -s -X POST -b "AUTH_TOKEN=<jwt>" "http://localhost:8080/api/admin/search/re
 |---------------|---------------|---------------------------------------------------------------|
 | `banReason`   | String        | Populated only for privileged callers. Omitted when null.     |
 | `lastSeenAt`  | LocalDateTime | Populated only for privileged callers. Omitted when null.     |
+| `accessAllExpansions` | Boolean | Whether this user is manually granted non-SRD content visibility, independent of `role`. Always present here since this table backs the admin (privileged) detail view. On the general-purpose `UserResponse` used by `users-api.md`/`auth-api.md`, this field is gated self-or-privileged like `email`/`timezone` — an arbitrary other USER cannot see it. Omitted when null. |
 
 ### `UserIdentityResponse`
 
@@ -443,6 +503,23 @@ Note: `providerSub` and identity-level `email` are deliberately omitted.
 |----------|--------|---------------------|
 | `reason` | String | `@Size(max=500)`    |
 
+### `BulkSrdUpdateRequest`
+
+| Field  | Type      | Validation      |
+|--------|-----------|-----------------|
+| `type` | String    | `@NotNull`      |
+| `ids`  | `Long[]`  | `@NotEmpty`     |
+| `srd`  | Boolean   | `@NotNull`      |
+
+### `BulkSrdUpdateResponse`
+
+| Field        | Type      | Notes                                        |
+|--------------|-----------|-----------------------------------------------|
+| `type`       | String    | The resolved `SearchableEntityType` name.      |
+| `srd`        | Boolean   | The srd value the batch applied.               |
+| `updatedIds` | `Long[]`  | Ids that were found and updated.                |
+| `unknownIds` | `Long[]`  | Ids from the request that don't exist for `type`. Not an error. |
+
 ---
 
 ## Enums
@@ -462,6 +539,8 @@ Values written to `admin_action_log.action`. A PostgreSQL `CHECK` constraint enf
 | `USER_ROLE_CHANGED`       | `PATCH /api/admin/users/{id}` (role change) or `/change-role` |
 | `USER_USERNAME_CHANGED`   | `PATCH /api/admin/users/{id}` (username change)             |
 | `USER_AVATAR_CHANGED`     | `PATCH /api/admin/users/{id}` (avatarUrl change)            |
+| `USER_EXPANSION_ACCESS_CHANGED` | `PATCH /api/admin/users/{id}` (accessAllExpansions change) |
+| `CONTENT_SRD_CHANGED`     | `PATCH /api/admin/content/srd`. Unlike every other value, this one has no target user — one row per batch, not per id. |
 
 ---
 
@@ -475,6 +554,7 @@ Values written to `admin_action_log.action`. A PostgreSQL `CHECK` constraint enf
 | `POST /api/admin/users/{id}/ban`                | Yes   | Yes\*     | Yes\*     | No (403) |
 | `POST /api/admin/users/{id}/unban`              | Yes   | Yes\*     | Yes\*     | No (403) |
 | `POST /api/admin/users/{id}/change-role` (deprecated) | Yes | No (403) | No (403) | No (403) |
+| `PATCH /api/admin/content/srd`                  | Yes   | Yes       | No (403)  | No (403) |
 | `POST /api/admin/search/reindex`                | Yes   | No (403)  | No (403)  | No (403) |
 
 \* Mutations additionally require the actor's role to be strictly higher than the target user's role. Role changes further require the actor to be strictly higher than the proposed new role — so an ADMIN cannot grant `ADMIN` even though ADMIN is an allowed caller on `PATCH`.

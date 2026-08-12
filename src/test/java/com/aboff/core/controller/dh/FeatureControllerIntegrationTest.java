@@ -75,39 +75,74 @@ class FeatureControllerIntegrationTest {
 
     private User adminUser;
     private User regularUser;
+    private User moderatorUser;
     private String adminToken;
     private String userToken;
+    private String moderatorToken;
     private Expansion testExpansion;
 
     @BeforeEach
     void setUp() {
         adminUser = createUserWithRole("admin", "admin@example.com", Role.ADMIN);
         regularUser = createUserWithRole("user", "user@example.com", Role.USER);
+        moderatorUser = createUserWithRole("moderator", "moderator@example.com", Role.MODERATOR);
 
         adminToken = jwtTokenProvider.generateToken(adminUser);
         userToken = jwtTokenProvider.generateToken(regularUser);
+        moderatorToken = jwtTokenProvider.generateToken(moderatorUser);
 
         storeTokenInDatabase(adminUser.getId(), adminToken);
         storeTokenInDatabase(regularUser.getId(), userToken);
+        storeTokenInDatabase(moderatorUser.getId(), moderatorToken);
 
         testExpansion = createExpansion("Core Rulebook", true);
     }
 
     // ==================== GET ALL FEATURES TESTS ====================
+    //
+    // The standalone feature browse endpoints are restricted to MODERATOR+: a Feature's
+    // srd/isOfficial flags are stamped once at creation and never re-derived from a parent that
+    // is later re-flagged, so this endpoint cannot be trusted to reflect a parent's current
+    // gating on its own. Most read tests below therefore authenticate as moderatorToken rather
+    // than userToken; the authorization boundary itself is asserted by the *_AsUser_Returns403 /
+    // *_AsModerator_Returns200 / *_AsAdmin_Returns200 tests.
 
     @Test
-    void getAllFeatures_AsAuthenticatedUser_Returns200() throws Exception {
+    void getAllFeatures_AsModerator_Returns200() throws Exception {
         // Arrange
         createFeature("Hope Feature", FeatureType.HOPE, testExpansion);
         createFeature("Class Feature", FeatureType.CLASS, testExpansion);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/features")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content").isArray())
                 .andExpect(jsonPath("$.content.length()").value(2))
                 .andExpect(jsonPath("$.totalElements").value(2));
+    }
+
+    @Test
+    void getAllFeatures_AsAdmin_Returns200() throws Exception {
+        // Arrange
+        createFeature("Hope Feature", FeatureType.HOPE, testExpansion);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/features")
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content.length()").value(1));
+    }
+
+    @Test
+    void getAllFeatures_AsUser_Returns403() throws Exception {
+        // Arrange
+        createFeature("Hope Feature", FeatureType.HOPE, testExpansion);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/features")
+                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -127,7 +162,7 @@ class FeatureControllerIntegrationTest {
         mockMvc.perform(get("/api/dh/features")
                         .param("page", "1")
                         .param("size", "2")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(2))
                 .andExpect(jsonPath("$.totalElements").value(5))
@@ -144,7 +179,7 @@ class FeatureControllerIntegrationTest {
         // Act & Assert
         mockMvc.perform(get("/api/dh/features")
                         .param("expansionId", testExpansion.getId().toString())
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].name").value("Feature 1"));
@@ -159,7 +194,7 @@ class FeatureControllerIntegrationTest {
         // Act & Assert
         mockMvc.perform(get("/api/dh/features")
                         .param("featureType", "HOPE")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].featureType").value("HOPE"));
@@ -173,7 +208,7 @@ class FeatureControllerIntegrationTest {
         // Act & Assert
         mockMvc.perform(get("/api/dh/features")
                         .param("expand", "expansion")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].expansion").exists())
                 .andExpect(jsonPath("$.content[0].expansion.name").value("Core Rulebook"));
@@ -189,7 +224,7 @@ class FeatureControllerIntegrationTest {
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/features")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.length()").value(1))
                 .andExpect(jsonPath("$.content[0].name").value("Active Feature"));
@@ -198,17 +233,40 @@ class FeatureControllerIntegrationTest {
     // ==================== GET FEATURE BY ID TESTS ====================
 
     @Test
-    void getFeatureById_AsAuthenticatedUser_Returns200() throws Exception {
+    void getFeatureById_AsModerator_Returns200() throws Exception {
+        // Arrange
+        Feature feature = createFeature("Hope Feature", FeatureType.HOPE, testExpansion);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/features/{id}", feature.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(feature.getId()))
+                .andExpect(jsonPath("$.name").value("Hope Feature"))
+                .andExpect(jsonPath("$.featureType").value("HOPE"));
+    }
+
+    @Test
+    void getFeatureById_AsAdmin_Returns200() throws Exception {
+        // Arrange
+        Feature feature = createFeature("Hope Feature", FeatureType.HOPE, testExpansion);
+
+        // Act & Assert
+        mockMvc.perform(get("/api/dh/features/{id}", feature.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", adminToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(feature.getId()));
+    }
+
+    @Test
+    void getFeatureById_AsUser_Returns403() throws Exception {
         // Arrange
         Feature feature = createFeature("Hope Feature", FeatureType.HOPE, testExpansion);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/features/{id}", feature.getId())
                         .cookie(new Cookie("AUTH_TOKEN", userToken)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.id").value(feature.getId()))
-                .andExpect(jsonPath("$.name").value("Hope Feature"))
-                .andExpect(jsonPath("$.featureType").value("HOPE"));
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -219,7 +277,7 @@ class FeatureControllerIntegrationTest {
         // Act & Assert
         mockMvc.perform(get("/api/dh/features/{id}", feature.getId())
                         .param("expand", "expansion")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.expansion").exists())
                 .andExpect(jsonPath("$.expansion.name").value("Core Rulebook"));
@@ -228,7 +286,7 @@ class FeatureControllerIntegrationTest {
     @Test
     void getFeatureById_NotFound_Returns404() throws Exception {
         mockMvc.perform(get("/api/dh/features/{id}", 99999L)
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isNotFound());
     }
 
@@ -528,13 +586,14 @@ class FeatureControllerIntegrationTest {
                 .featureType(FeatureType.CLASS)
                 .expansion(testExpansion)
                 .modifiers(new java.util.HashSet<>(Set.of(modifier)))
+                .isOfficial(false)
                 .build();
         feature = featureRepository.save(feature);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/features/{id}", feature.getId())
                         .param("expand", "modifiers")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.modifierIds").isArray())
                 .andExpect(jsonPath("$.modifierIds.length()").value(1))
@@ -555,12 +614,13 @@ class FeatureControllerIntegrationTest {
                 .featureType(FeatureType.OTHER)
                 .expansion(testExpansion)
                 .modifiers(new java.util.HashSet<>(Set.of(modifier)))
+                .isOfficial(false)
                 .build();
         feature = featureRepository.save(feature);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/features/{id}", feature.getId())
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.modifierIds").isArray())
                 .andExpect(jsonPath("$.modifierIds.length()").value(1))
@@ -577,13 +637,14 @@ class FeatureControllerIntegrationTest {
                 .featureType(FeatureType.HOPE)
                 .expansion(testExpansion)
                 .modifiers(new java.util.HashSet<>(Set.of(modifier)))
+                .isOfficial(false)
                 .build();
         featureRepository.save(feature);
 
         // Act & Assert
         mockMvc.perform(get("/api/dh/features")
                         .param("expand", "modifiers")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[0].modifiers").isArray())
                 .andExpect(jsonPath("$.content[0].modifiers[0].target").value("HIT_POINT_MAX"));
@@ -601,6 +662,7 @@ class FeatureControllerIntegrationTest {
                 .featureType(FeatureType.CLASS)
                 .expansion(testExpansion)
                 .modifiers(new java.util.HashSet<>(Set.of(originalModifier)))
+                .isOfficial(false)
                 .build();
         feature = featureRepository.save(feature);
 
@@ -638,6 +700,7 @@ class FeatureControllerIntegrationTest {
                 .featureType(FeatureType.HOPE)
                 .expansion(testExpansion)
                 .modifiers(new java.util.HashSet<>(Set.of(modifier)))
+                .isOfficial(false)
                 .build();
         feature = featureRepository.save(feature);
 
@@ -698,6 +761,7 @@ class FeatureControllerIntegrationTest {
                 .description("Description for " + name)
                 .featureType(featureType)
                 .expansion(expansion)
+                .isOfficial(false)
                 .build();
         return featureRepository.save(feature);
     }
@@ -729,6 +793,7 @@ class FeatureControllerIntegrationTest {
                 .description("Authored alongside a custom item.")
                 .featureType(FeatureType.ITEM)
                 .expansion(null)
+                .isOfficial(false)
                 .build());
     }
 
@@ -737,7 +802,7 @@ class FeatureControllerIntegrationTest {
         Feature homebrew = createExpansionlessFeature("Homebrew Serrated");
 
         mockMvc.perform(get("/api/dh/features/" + homebrew.getId())
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.name").value("Homebrew Serrated"))
                 .andExpect(jsonPath("$.expansionId").doesNotExist());
@@ -749,7 +814,7 @@ class FeatureControllerIntegrationTest {
 
         mockMvc.perform(get("/api/dh/features/" + homebrew.getId())
                         .param("expand", "expansion")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.expansion").doesNotExist());
     }
@@ -762,7 +827,7 @@ class FeatureControllerIntegrationTest {
 
         mockMvc.perform(get("/api/dh/features")
                         .param("size", "100")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[?(@.name == 'Homebrew Balanced')]").exists());
     }
@@ -774,7 +839,7 @@ class FeatureControllerIntegrationTest {
         mockMvc.perform(get("/api/dh/features")
                         .param("size", "100")
                         .param("expand", "expansion")
-                        .cookie(new Cookie("AUTH_TOKEN", userToken)))
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content[?(@.name == 'Homebrew Hooked')]").exists());
     }

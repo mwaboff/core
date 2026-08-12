@@ -484,6 +484,7 @@ class AncestryCardControllerIntegrationTest {
                 .description("Pre-existing feature")
                 .featureType(com.aboff.core.model.enums.FeatureType.ANCESTRY)
                 .expansion(testExpansion)
+                .isOfficial(false)
                 .build();
         existingFeature = featureRepository.save(existingFeature);
 
@@ -901,6 +902,7 @@ class AncestryCardControllerIntegrationTest {
                 .description(description)
                 .featureType(com.aboff.core.model.enums.FeatureType.ANCESTRY)
                 .expansion(testExpansion)
+                .isOfficial(false)
                 .build();
         return featureRepository.save(feature);
     }

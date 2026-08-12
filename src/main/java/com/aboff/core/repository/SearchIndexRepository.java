@@ -36,6 +36,11 @@ import java.util.Optional;
  *       ({@code shared_campaign_ids && :memberCampaignIds})</li>
  *   <li>Privileged users (MODERATOR or above) bypass access control entirely</li>
  * </ul>
+ * Independently of the above, official rows are further gated on SRD licensing: a row with
+ * {@code is_official = true} and {@code srd} not true (paid-expansion content) is excluded
+ * unless {@code :includeNonSrd} is {@code true}. Non-official rows (custom content) are never
+ * subject to this gate. {@code srd IS NULL} fails the {@code srd = true} check, which is the
+ * fail-closed direction for rows an earlier backfill has not yet reached.
  *
  * <h2>Upsert</h2>
  * The {@link #upsertSearchIndex} method performs a PostgreSQL {@code INSERT ... ON CONFLICT}
@@ -89,6 +94,10 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
      *                         {@link com.aboff.core.util.PostgresArrayUtil}
      * @param isPrivileged     {@code true} if the requesting user is MODERATOR or above,
      *                         bypassing ownership-based access restrictions
+     * @param includeNonSrd    {@code true} if the requesting user may view paid-expansion
+     *                         (non-SRD) content; {@code false} excludes official rows that are
+     *                         not flagged {@code srd}. Bound from
+     *                         {@link com.aboff.core.service.dh.ContentAccessService#includeNonSrd()}
      * @param pageable         pagination and sort parameters
      * @return a page of raw {@code Object[]} rows, each row containing all
      *         {@code search_index} columns plus a trailing {@code relevance_score} double
@@ -107,6 +116,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                     OR si.shared_campaign_ids && CAST(:memberCampaignIds AS bigint[])
                     OR :isPrivileged = true
               )
+              AND (:includeNonSrd = true OR si.is_official IS NOT TRUE OR si.srd = true)
               AND (:filterByEntityTypes = false OR si.entity_type IN (:entityTypes))
               AND (CAST(:tier AS integer) IS NULL OR si.tier = :tier)
               AND (CAST(:expansionId AS bigint) IS NULL OR si.expansion_id = :expansionId)
@@ -135,6 +145,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                     OR si.shared_campaign_ids && CAST(:memberCampaignIds AS bigint[])
                     OR :isPrivileged = true
               )
+              AND (:includeNonSrd = true OR si.is_official IS NOT TRUE OR si.srd = true)
               AND (:filterByEntityTypes = false OR si.entity_type IN (:entityTypes))
               AND (CAST(:tier AS integer) IS NULL OR si.tier = :tier)
               AND (CAST(:expansionId AS bigint) IS NULL OR si.expansion_id = :expansionId)
@@ -170,6 +181,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
             @Param("userId") Long userId,
             @Param("memberCampaignIds") String memberCampaignIds,
             @Param("isPrivileged") boolean isPrivileged,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable
     );
 
@@ -274,6 +286,9 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
      *                           because Hibernate expands a bound collection into one placeholder
      *                           per element — see
      *                           {@link com.aboff.core.util.PostgresArrayUtil}
+     * @param srd                whether the entity is SRD-licensed rather than exclusive to a
+     *                           paid expansion book; may be {@code null} for entity types with
+     *                           no SRD/paid-expansion distinction (e.g. {@code EXPANSION})
      */
     @Modifying
     @Query(value = """
@@ -282,7 +297,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                 card_type, feature_type, adversary_type, domain_card_type,
                 associated_domain_id, trait, range, burden, is_primary,
                 damage_type, is_consumable, is_mixed, subclass_level,
-                cost_tag_category, shared_campaign_ids, created_at, last_modified_at)
+                cost_tag_category, shared_campaign_ids, srd, created_at, last_modified_at)
             VALUES (:entityType, :entityId, :name,
                 setweight(to_tsvector('english', :nameText), 'A') ||
                 setweight(to_tsvector('english', COALESCE(:descriptionText, '')), 'B') ||
@@ -291,7 +306,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                 :cardType, :featureType, :adversaryType, :domainCardType,
                 :associatedDomainId, :trait, :range, :burden, :isPrimary,
                 :damageType, :isConsumable, :isMixed, :subclassLevel,
-                :costTagCategory, CAST(:sharedCampaignIds AS bigint[]), NOW(), NOW())
+                :costTagCategory, CAST(:sharedCampaignIds AS bigint[]), :srd, NOW(), NOW())
             ON CONFLICT (entity_type, entity_id) DO UPDATE SET
                 name = EXCLUDED.name,
                 search_vector = EXCLUDED.search_vector,
@@ -315,6 +330,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
                 subclass_level = EXCLUDED.subclass_level,
                 cost_tag_category = EXCLUDED.cost_tag_category,
                 shared_campaign_ids = EXCLUDED.shared_campaign_ids,
+                srd = EXCLUDED.srd,
                 deleted_at = NULL,
                 last_modified_at = NOW()
             """, nativeQuery = true)
@@ -344,6 +360,7 @@ public interface SearchIndexRepository extends JpaRepository<SearchIndex, Long> 
             @Param("isMixed") Boolean isMixed,
             @Param("subclassLevel") String subclassLevel,
             @Param("costTagCategory") String costTagCategory,
-            @Param("sharedCampaignIds") String sharedCampaignIds
+            @Param("sharedCampaignIds") String sharedCampaignIds,
+            @Param("srd") Boolean srd
     );
 }

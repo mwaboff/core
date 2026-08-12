@@ -142,6 +142,7 @@ class UserServiceTest {
                                 .email("test@example.com")
                                 .role(com.aboff.core.model.enums.Role.USER)
                                 .createdAt(LocalDateTime.now())
+                                .accessAllExpansions(true)
                                 .build();
 
                 CustomUserDetails userDetails = new CustomUserDetails(user);
@@ -155,6 +156,9 @@ class UserServiceTest {
                 assertThat(result.getEmail()).isEqualTo("test@example.com");
                 assertThat(result.getUsername()).isEqualTo("testuser");
                 assertThat(result.getRole()).isEqualTo(com.aboff.core.model.enums.Role.USER);
+                // Self + privileged, same gate as email/timezone -- the user can always see their
+                // own accessAllExpansions grant.
+                assertThat(result.getAccessAllExpansions()).isTrue();
         }
 
         @Test
@@ -189,6 +193,7 @@ class UserServiceTest {
                                 .email("other@example.com")
                                 .avatarUrl("https://other.avatar")
                                 .createdAt(LocalDateTime.now())
+                                .accessAllExpansions(true)
                                 .build();
 
                 CustomUserDetails userDetails = new CustomUserDetails(currentUser);
@@ -205,6 +210,9 @@ class UserServiceTest {
                 assertThat(result.getAvatarUrl()).isEqualTo("https://other.avatar");
                 assertThat(result.getEmail()).isNull(); // Limited info
                 assertThat(result.getTimezone()).isNull();
+                // A plain USER viewing another user's profile must not learn whether that user
+                // holds an accessAllExpansions grant -- account-state with no reason to be public.
+                assertThat(result.getAccessAllExpansions()).isNull();
         }
 
         @Test
@@ -216,6 +224,7 @@ class UserServiceTest {
                                 .username("otheruser")
                                 .email("other@example.com")
                                 .createdAt(LocalDateTime.now())
+                                .accessAllExpansions(true)
                                 .build();
 
                 CustomUserDetails userDetails = new CustomUserDetails(moderator);
@@ -230,6 +239,9 @@ class UserServiceTest {
                 // Assert
                 assertThat(result.getEmail()).isEqualTo("other@example.com");
                 assertThat(result.getUsername()).isEqualTo("otheruser");
+                // A MODERATOR+ viewer is privileged, so fullInfo is true even for someone else's
+                // profile.
+                assertThat(result.getAccessAllExpansions()).isTrue();
         }
 
         @Test
@@ -306,6 +318,7 @@ class UserServiceTest {
                                 .email("player2@example.com")
                                 .avatarUrl("https://avatar.url")
                                 .role(com.aboff.core.model.enums.Role.USER)
+                                .accessAllExpansions(true)
                                 .build();
                 User viewer = User.builder().id(3L).role(com.aboff.core.model.enums.Role.USER).build();
 
@@ -321,6 +334,10 @@ class UserServiceTest {
                 assertThat(result.getAvatarUrl()).isEqualTo("https://avatar.url");
                 assertThat(result.getEmail()).isNull();
                 assertThat(result.getTimezone()).isNull();
+                // This is the same path used to embed a redacted user into e.g. ?expand=owner on
+                // another user's content -- an arbitrary non-privileged viewer must not learn
+                // whether the embedded user holds an accessAllExpansions grant.
+                assertThat(result.getAccessAllExpansions()).isNull();
         }
 
         @Test

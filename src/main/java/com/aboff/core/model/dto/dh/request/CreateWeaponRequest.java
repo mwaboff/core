@@ -55,6 +55,14 @@ public class CreateWeaponRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this weapon is SRD-licensed content, freely usable without owning the sourcebook
+     * it was printed in. Optional and honoured only for ADMIN+ — see
+     * {@code ContentAccessService#resolveSrd}. Omitted by existing bulk-import payloads, which
+     * must keep working, so this is never required.
+     */
+    private Boolean srd;
+
+    /**
      * Whether this is a primary weapon (true) or secondary weapon (false).
      */
     @NotNull(message = "isPrimary is required")

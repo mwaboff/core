@@ -38,6 +38,9 @@ public interface EnvironmentRepository extends JpaRepository<Environment, Long> 
      * @param environmentType Optional filter for environment type
      * @param isOfficial Optional filter for official status
      * @param name Optional filter for name (partial match, case-insensitive)
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) content; official
+     *                      rows that are not SRD-licensed are excluded when false. See
+     *                      {@code ContentAccessService#includeNonSrd()}.
      * @param pageable Pagination information
      * @return Page of accessible non-deleted environments matching the criteria
      */
@@ -47,7 +50,8 @@ public interface EnvironmentRepository extends JpaRepository<Environment, Long> 
            "AND (:tier IS NULL OR e.tier = :tier) " +
            "AND (:environmentType IS NULL OR e.environmentType = :environmentType) " +
            "AND (:isOfficial IS NULL OR e.isOfficial = :isOfficial) " +
-           "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
+           "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
+           "AND (:includeNonSrd = true OR e.isOfficial = false OR e.srd = true)")
     Page<Environment> findAccessibleWithFilters(
             @Param("userId") Long userId,
             @Param("expansionId") Long expansionId,
@@ -55,6 +59,7 @@ public interface EnvironmentRepository extends JpaRepository<Environment, Long> 
             @Param("environmentType") EnvironmentType environmentType,
             @Param("isOfficial") Boolean isOfficial,
             @Param("name") String name,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

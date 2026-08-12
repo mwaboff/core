@@ -44,6 +44,13 @@ public class CreateCommunityCardRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this card is SRD-licensed content. Optional and defaults to false; only ADMIN+
+     * callers may actually set it true — see {@code ContentAccessService#resolveSrd}. Left
+     * optional (not {@code @NotNull}) because existing bulk-import payloads omit it.
+     */
+    private Boolean srd;
+
+    /**
      * URL to the background image for this card
      */
     @Size(max = 500, message = "Background image URL must not exceed 500 characters")

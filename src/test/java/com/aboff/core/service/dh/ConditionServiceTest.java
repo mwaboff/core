@@ -60,6 +60,9 @@ class ConditionServiceTest {
     @Mock
     private Authentication authentication;
 
+    @Mock
+    private ContentAccessService contentAccessService;
+
     @InjectMocks
     private ConditionService conditionService;
 
@@ -71,6 +74,9 @@ class ConditionServiceTest {
 
         User admin = User.builder().id(1L).username("admin").email("admin@test.com").role(Role.ADMIN).build();
         when(authentication.getPrincipal()).thenReturn(new CustomUserDetails(admin));
+
+        // Default: content is visible unless a test overrides this to exercise SRD redaction.
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
     }
 
     // ==================== GET ALL CONDITIONS TESTS ====================
@@ -81,7 +87,7 @@ class ConditionServiceTest {
         Condition c2 = createTestCondition(2L, "Vulnerable", expansion);
 
         Page<Condition> conditionPage = new PageImpl<>(List.of(c1, c2));
-        when(conditionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(conditionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(conditionPage);
 
         PagedResponse<ConditionResponse> result = conditionService.getAllConditions(0, 20, false, null, null, null);
@@ -94,6 +100,7 @@ class ConditionServiceTest {
 
     @Test
     void getAllConditions_WithIncludeDeleted_UsesFindAllWithFilters() {
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         Condition c = createTestCondition(1L, "Restrained", expansion);
         Page<Condition> conditionPage = new PageImpl<>(List.of(c));
         when(conditionRepository.findAllWithFilters(isNull(), isNull(), any(Pageable.class)))
@@ -103,26 +110,26 @@ class ConditionServiceTest {
 
         assertThat(result.getContent()).hasSize(1);
         verify(conditionRepository).findAllWithFilters(isNull(), isNull(), any(Pageable.class));
-        verify(conditionRepository, never()).findByDeletedAtIsNullAndFilters(any(), any(), any());
+        verify(conditionRepository, never()).findByDeletedAtIsNullAndFilters(any(), any(), anyBoolean(), any());
     }
 
     @Test
     void getAllConditions_WithLargePage_LimitsTo100() {
         Page<Condition> conditionPage = new PageImpl<>(List.of());
-        when(conditionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(conditionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(conditionPage);
 
         conditionService.getAllConditions(0, 500, false, null, null, null);
 
         verify(conditionRepository).findByDeletedAtIsNullAndFilters(
-                isNull(), isNull(), argThat(pageable -> pageable.getPageSize() == 100));
+                isNull(), isNull(), anyBoolean(), argThat(pageable -> pageable.getPageSize() == 100));
     }
 
     @Test
     void getAllConditions_WithExpandExpansion_ExpandsExpansion() {
         Condition c = createTestCondition(1L, "Restrained", expansion);
         Page<Condition> conditionPage = new PageImpl<>(List.of(c));
-        when(conditionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(conditionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(conditionPage);
 
         PagedResponse<ConditionResponse> result = conditionService.getAllConditions(0, 20, false, null, null, "expansion");
@@ -152,6 +159,41 @@ class ConditionServiceTest {
         assertThatThrownBy(() -> conditionService.getConditionById(999L, null))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Condition not found with id: 999");
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void getConditionById_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange -- an official, non-SRD condition the caller may not view in full
+        Condition condition = createTestCondition(1L, "Paid Expansion Hexed", expansion);
+        condition.setIsOfficial(true);
+        condition.setSrd(false);
+
+        when(conditionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(condition));
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        ConditionResponse result = conditionService.getConditionById(1L, null);
+
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getExpansionName()).isEqualTo("Core Rulebook");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getIsOfficial()).isNull();
+        assertThat(result.getSrd()).isNull();
+    }
+
+    @Test
+    void getAllConditions_ForwardsIncludeNonSrdToRepository() {
+        when(contentAccessService.includeNonSrd()).thenReturn(false);
+
+        Page<Condition> conditionPage = new PageImpl<>(List.of());
+        when(conditionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class)))
+                .thenReturn(conditionPage);
+
+        conditionService.getAllConditions(0, 20, false, null, null, null);
+
+        verify(conditionRepository).findByDeletedAtIsNullAndFilters(isNull(), isNull(), eq(false), any(Pageable.class));
     }
 
     // ==================== CREATE CONDITION TESTS ====================

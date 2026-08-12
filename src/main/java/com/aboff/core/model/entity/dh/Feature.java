@@ -8,6 +8,7 @@ import com.aboff.core.model.enums.FeatureType;
 import com.aboff.core.model.enums.SearchableEntityType;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -83,6 +84,25 @@ public class Feature extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "created_by_user_id")
     private User createdBy;
+
+    /**
+     * Indicates whether this feature is from official game content, mirroring how
+     * {@link Card} declares the same flag. A feature has no official/custom distinction of
+     * its own — it is derived by {@code FeatureService} from whatever it is attached to (a
+     * card, a class, an item, ...) and is never settable from a request DTO.
+     */
+    @Column(name = "is_official", nullable = false)
+    private Boolean isOfficial;
+
+    /**
+     * Indicates whether this feature is SRD-licensed content, freely usable without owning
+     * the sourcebook it was printed in. Defaults to false at creation time; only an explicit
+     * SRD flag opens the feature to users who have not been granted expansion access. See
+     * {@code ContentAccessService} for how this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
 
     /**
      * The cost/limitation tags associated with this feature.

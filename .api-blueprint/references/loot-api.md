@@ -13,9 +13,18 @@ explicitly tagged to a campaign they are involved in. MODERATOR+ bypasses this f
 no derived "we share a campaign so you see my things" rule; sharing is always a deliberate act
 by the author.
 
+SRD content gating: among official content, paid-expansion ("non-SRD") loot is further gated
+behind ADMIN/OWNER role or a per-user "Access All Expansions" grant; SRD-licensed loot stays
+visible to everyone. List endpoints filter restricted rows out entirely. `GET /{id}` cannot
+filter (see below), so restricted loot fetched directly, or embedded on a character sheet the
+caller owns, comes back as a redacted stub: only `id`, `restricted: true`, and `expansionName`
+are present. This gate is currently off by default (kill-switched) until the catalogue's SRD
+flags are populated.
+
 `GET /{id}` is deliberately not filtered: any authenticated user can fetch any record by ID.
 Custom items have to render on other people's character sheets and profiles, and they carry no
-secrets. Restricting it would silently blank those pages.
+secrets. Restricting it would silently blank those pages. SRD gating is instead enforced by
+redacting the response body, not by a 403/404.
 
 ---
 
@@ -33,7 +42,7 @@ Retrieve a paginated list of loot items with optional filters.
 |------------------|---------|----------|---------|----------------------------------------------------------|
 | `page`           | Integer | No       | 0       | Zero-based page number                                   |
 | `size`           | Integer | No       | 20      | Number of items per page (max: 100)                      |
-| `includeDeleted` | Boolean | No       | false   | Whether to include soft-deleted loot (ADMIN+ only)       |
+| `includeDeleted` | Boolean | No       | false   | Whether to include soft-deleted loot (MODERATOR+ only; silently coerced to `false` below that role, no error) |
 | `expansionId`    | Long    | No       | —       | Filter by expansion ID                                   |
 | `isOfficial`     | Boolean | No       | —       | Filter by official status                                |
 | `tier`           | Integer | No       | —       | Filter by tier (1–4)                                     |
@@ -145,6 +154,7 @@ Create a new loot item.
 | `expansionId`    | Long            | Yes      | Not null                            | ID of the expansion this loot belongs to         |
 | `tier`           | Integer         | Yes      | Not null, 1–4                       | Tier/rarity: 1=Common, 2=Uncommon, 3=Rare, 4=Legendary |
 | `isOfficial`     | Boolean         | Yes      | Not null                            | Whether this is official game content            |
+| `srd`            | Boolean         | No       | —                                    | SRD-licensed flag. Honoured only for ADMIN+, coerced to `false` otherwise (no error). Omitted by existing bulk-import payloads, which keep working |
 | `isConsumable`   | Boolean         | Yes      | Not null                            | Whether the item is consumable (single-use)      |
 | `description`    | String          | No       | —                                   | Description of the loot item                     |
 | `featureIds`     | List\<Long\>    | No       | —                                   | IDs of existing features to attach               |
@@ -318,6 +328,7 @@ Update an existing loot item. All required fields must be provided (full replace
 | `expansionId`    | Long            | Yes      | Not null                            | ID of the expansion this loot belongs to         |
 | `tier`           | Integer         | Yes      | Not null, 1–4                       | Tier/rarity: 1=Common, 2=Uncommon, 3=Rare, 4=Legendary |
 | `isOfficial`     | Boolean         | Yes      | Not null                            | Whether this is official game content            |
+| `srd`            | Boolean         | No       | —                                    | SRD-licensed flag; ADMIN+ only, coerced otherwise |
 | `isConsumable`   | Boolean         | Yes      | Not null                            | Whether the item is consumable (single-use)      |
 | `description`    | String          | No       | —                                   | Description of the loot item                     |
 | `featureIds`     | List\<Long\>    | No       | —                                   | IDs of existing features to attach               |
@@ -485,9 +496,12 @@ Returned by all endpoints that return loot data. Null fields are omitted from JS
 | `id`             | Long                    | No       | Unique identifier                                |
 | `name`           | String                  | No       | Name of the loot item                            |
 | `expansionId`    | Long                    | No       | ID of the parent expansion                       |
+| `expansionName`  | String                  | No       | Expansion display name (always included). On a redacted stub this is the only content-identifying field carried |
+| `restricted`     | Boolean                 | Yes      | `true` when this response is a redacted stub for gated non-SRD content the caller may not view. When present, every field below except `id` and `expansionName` is absent |
 | `expansion`      | ExpansionResponse       | Yes      | Full expansion (only with `?expand=expansion`)   |
 | `tier`           | Integer                 | No       | Tier/rarity level (1–4)                          |
 | `isOfficial`     | Boolean                 | No       | Whether this is official game content            |
+| `srd`            | Boolean                 | No       | Whether this is SRD-licensed content             |
 | `isConsumable`   | Boolean                 | No       | Whether the item is consumable                   |
 | `description`    | String                  | Yes      | Description of the loot item                     |
 | `featureIds`     | List\<Long\>            | Yes      | IDs of attached features (when features exist)   |
@@ -777,8 +791,10 @@ still fails loudly rather than silently landing as un-attributed homebrew.
 | `features` | FeatureInput[] | No | Inline features, max 20 |
 
 **Fields deliberately absent:** `isOfficial` and `expansionId` (custom content is never canon and
-belongs to no sourcebook) and `originalLootId` (set only by the copy endpoint, so a caller cannot
-claim their creation derives from something it does not).
+belongs to no sourcebook), `srd` (SRD-ness is a property of published book content — homebrew loot
+came from no book, and the SRD gate already exempts custom content via `isOfficial = false`
+regardless), and `originalLootId` (set only by the copy endpoint, so a caller cannot claim their
+creation derives from something it does not).
 
 ### Response: `201 Created`
 

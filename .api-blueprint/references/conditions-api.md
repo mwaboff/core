@@ -45,7 +45,7 @@ List all active conditions with optional filters and pagination.
 |-----------|------|---------|----------|-------------|
 | `page` | int | `0` | No | Zero-based page number |
 | `size` | int | `20` | No | Items per page (max: 100; values >100 are clamped) |
-| `includeDeleted` | boolean | `false` | No | Include soft-deleted conditions (ADMIN+ only) |
+| `includeDeleted` | boolean | `false` | No | Include soft-deleted conditions (MODERATOR+ only; see [Content Gating](#content-gating)) |
 | `expansionId` | Long | -- | No | Filter by expansion ID |
 | `isOfficial` | Boolean | -- | No | Filter by official status |
 | `expand` | String | -- | No | Comma-separated relationships to expand (`expansion`) |
@@ -114,6 +114,7 @@ Create a new condition. Requires ADMIN or OWNER role.
 | `description` | String | No | Rules text |
 | `expansionId` | Long | Yes | Must reference an active expansion |
 | `isOfficial` | Boolean | Yes | |
+| `srd` | Boolean | No | SRD-licensed content flag. Silently coerced to false for non-ADMIN callers; see [Content Gating](#content-gating) |
 
 ### Response: `201 Created`
 
@@ -197,13 +198,35 @@ Returns the restored `ConditionResponse`.
 | `name` | String | Yes | Condition name |
 | `description` | String | If non-null | Rules text |
 | `expansionId` | Long | Yes | Owning expansion ID |
+| `expansionName` | String | Yes | Owning expansion name (the only content-identifying field on a redacted stub) |
 | `expansion` | ExpansionResponse | Only with `?expand=expansion` | Full expansion object |
 | `isOfficial` | Boolean | Yes | Official game content flag |
+| `srd` | Boolean | Yes | SRD-licensed content flag; never present on a redacted stub -- see [Content Gating](#content-gating) |
 | `createdAt` | LocalDateTime | Yes | Creation timestamp |
 | `lastModifiedAt` | LocalDateTime | Yes | Last update timestamp |
 | `deletedAt` | LocalDateTime | If non-null | Soft-deletion timestamp |
 
 `@JsonInclude(NON_NULL)` is applied — null fields are omitted from the JSON response.
+
+---
+
+## Content Gating
+
+Official conditions that are not SRD-licensed (`isOfficial: true`, `srd: false`) are only visible
+to ADMIN/OWNER or a user with an explicit "Access All Expansions" grant -- see
+`ContentAccessService`. This applies while gating is enabled via the
+`application.content.srd-gating-enabled` flag; while disabled, every row is visible to every
+authenticated user regardless of `srd`.
+
+- **List/get endpoints** silently exclude restricted rows from `GET /api/dh/conditions`, and
+  return a redacted stub (`id`, `expansionName`, `restricted: true` only) from
+  `GET /api/dh/conditions/{id}` for a restricted condition.
+- **Custom conditions are never gated** -- `isOfficial = false` always passes, regardless of
+  `srd`.
+- **`includeDeleted=true` now requires MODERATOR+** and is coerced to `false` below that role.
+  Previously this parameter had no role check at all despite the Javadoc claiming ADMIN-only.
+  The admin listing this unlocks bypasses SRD filtering entirely -- a MODERATOR+ caller sees
+  every row regardless of licensing.
 
 ---
 

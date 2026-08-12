@@ -32,15 +32,20 @@ public interface ConditionRepository extends JpaRepository<Condition, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) content; official
+     *                      rows that are not SRD-licensed are excluded when false. See
+     *                      {@code ContentAccessService#includeNonSrd()}.
      * @param pageable Pagination information
      * @return Page of non-deleted conditions matching the criteria
      */
     @Query("SELECT c FROM Condition c WHERE c.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR c.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR c.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR c.isOfficial = :isOfficial) " +
+           "AND (:includeNonSrd = true OR c.isOfficial = false OR c.srd = true)")
     Page<Condition> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

@@ -59,6 +59,16 @@ public class CreateEncounterRequest {
     private Boolean isPublic = false;
 
     /**
+     * Whether this encounter is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Optional; only ADMIN+ callers may actually set it to true --
+     * see {@code ContentAccessService#resolveSrd}. In practice this is inert for
+     * user-created encounters, since {@code isOfficial} is always false for encounters created
+     * through this endpoint; it exists for schema completeness and any future official-encounter
+     * import path.
+     */
+    private Boolean srd;
+
+    /**
      * The number of PCs in combat, manually entered by the GM.
      * Drives the suggested Battle Point budget and Minion grouping. Never derived from a
      * campaign roster.

@@ -27,7 +27,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class LootResponse {
+public class LootResponse implements Restrictable {
 
     /**
      * Unique identifier for the loot.
@@ -48,6 +48,19 @@ public class LootResponse {
     private Long expansionId;
 
     /**
+     * Name of the expansion this loot belongs to (always included). On a redacted stub, this
+     * is the only content-identifying field carried, so the frontend can tell the viewer which
+     * book to buy without exposing the loot's real content.
+     */
+    private String expansionName;
+
+    /**
+     * True when this response is a redacted stub for gated non-SRD content the caller may not
+     * view; every field but {@code id}, {@code restricted}, and {@code expansionName} is absent.
+     */
+    private Boolean restricted;
+
+    /**
      * Full expansion object (included only when ?expand=expansion is specified).
      */
     private ExpansionResponse expansion;
@@ -61,6 +74,12 @@ public class LootResponse {
      * Whether this loot is from official game content.
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this loot is SRD-licensed content, freely usable without owning the sourcebook
+     * it was printed in.
+     */
+    private Boolean srd;
 
     /**
      * Whether this loot is visible to every user.

@@ -39,6 +39,12 @@ public class UpdateAncestryCardRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this card is SRD-licensed content. Optional; only ADMIN+ callers may actually set
+     * it true — see {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
+
+    /**
      * URL to the background image for this card
      */
     @Size(max = 500, message = "Background image URL must not exceed 500 characters")

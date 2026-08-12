@@ -8,6 +8,34 @@ Features represent special abilities, traits, and bonuses in the Daggerheart TTR
 
 **Authentication:** All endpoints require a valid JWT token in an `AUTH_TOKEN` HttpOnly cookie.
 
+**SRD content gating:** among official content, paid-expansion ("non-SRD") features are further
+gated behind ADMIN/OWNER role or a per-user "Access All Expansions" grant; SRD-licensed features
+stay visible to everyone. Unlike `srd`, `isOfficial` is **never accepted from a request** — a
+feature has no official/custom distinction of its own; it is always derived by the server from
+whatever the feature is attached to:
+- A feature created inline alongside a parent (a class's hope/class features, a weapon's
+  features, ...) inherits that parent's already-resolved `isOfficial` and `srd`.
+- A feature created standalone via `POST /api/dh/features` (ADMIN/OWNER-only, `expansionId`
+  required) is always `isOfficial: true`.
+
+List endpoints filter restricted rows out entirely — they simply do not appear in the page.
+`GET /{id}` cannot filter, so a restricted feature fetched directly, or embedded via `?expand=` on
+any parent type (classes, cards, items, adversaries, ...), comes back as a **redacted stub**: only
+`id`, `restricted: true`, and `expansionName` are present. This gate is currently off by default
+(kill-switched) until the catalogue's SRD flags are populated.
+
+**Standalone feature endpoints are MODERATOR+ only.** A feature's `srd`/`isOfficial` flags are
+stamped once at creation and never re-derived when the parent that granted them is later
+re-flagged (a feature is shared M:N across many parent types with no single owner to inherit
+from). That means `GET /api/dh/features` and `GET /api/dh/features/{id}` can only ever gate on a
+feature's own, possibly-stale row — never on any parent's current, correct gating. Restricting the
+standalone browse surface to MODERATOR or higher keeps that staleness from being reachable as a
+de facto bypass of a parent's gating. This is a separate concern from SRD content gating itself
+(where MODERATOR is deliberately excluded from the non-SRD grant elsewhere in the API) — it is
+about who may use the standalone browse surface at all, not about which content they see once
+they're using it. A parent's own `?expand=` path is unaffected: the parent-level gate returns a
+redacted stub before the expand block runs.
+
 ---
 
 ## Endpoints
@@ -16,7 +44,8 @@ Features represent special abilities, traits, and bonuses in the Daggerheart TTR
 
 Retrieves a paginated list of features.
 
-**Authorization:** Any authenticated user
+**Authorization:** MODERATOR, ADMIN, or OWNER role required (see "Standalone feature endpoints
+are MODERATOR+ only" above)
 
 **Query Parameters:**
 
@@ -98,6 +127,7 @@ Retrieves a paginated list of features.
 
 **Error Responses:**
 - `401 Unauthorized` -- Missing or invalid JWT token
+- `403 Forbidden` -- User does not have MODERATOR, ADMIN, or OWNER role
 
 ---
 
@@ -105,7 +135,8 @@ Retrieves a paginated list of features.
 
 Retrieves a single feature by ID.
 
-**Authorization:** Any authenticated user
+**Authorization:** MODERATOR, ADMIN, or OWNER role required (see "Standalone feature endpoints
+are MODERATOR+ only" above)
 
 **Path Parameters:**
 
@@ -128,6 +159,8 @@ Retrieves a single feature by ID.
   "id": 1,
   "name": "Hope Feature",
   "description": "Description for Hope Feature",
+  "isOfficial": true,
+  "srd": false,
   "featureType": "HOPE",
   "expansionId": 1,
   "costTagIds": [],
@@ -137,8 +170,20 @@ Retrieves a single feature by ID.
 }
 ```
 
+If the caller may not view this feature (gated non-SRD content outside their access), the response
+is instead a **redacted stub**:
+
+```json
+{
+  "id": 1,
+  "expansionName": "Hope & Fear",
+  "restricted": true
+}
+```
+
 **Error Responses:**
 - `401 Unauthorized` -- Missing or invalid JWT token
+- `403 Forbidden` -- User does not have MODERATOR, ADMIN, or OWNER role
 - `404 Not Found` -- Feature with given ID does not exist
 
 ---
@@ -188,6 +233,7 @@ Creates a new feature.
 | description   | String           | No       | -                                        |
 | featureType   | FeatureType      | Yes      | Must be a valid FeatureType enum value   |
 | expansionId   | Long             | Yes      | Must reference an existing expansion     |
+| srd           | Boolean          | No       | ADMIN+ only, coerced to `false` otherwise (no error). There is deliberately no `isOfficial` field here — see the SRD gating note above |
 | costTagIds    | List\<Long\>     | No       | IDs of existing cost tags                |
 | costTags      | List\<CostTagInput\> | No   | Find-or-create by label                  |
 | modifierIds   | List\<Long\>     | No       | IDs of existing modifiers                |
@@ -202,6 +248,8 @@ Creates a new feature.
   "id": 1,
   "name": "New Feature",
   "description": "Feature description",
+  "isOfficial": true,
+  "srd": false,
   "featureType": "HOPE",
   "expansionId": 1,
   "costTagIds": [1, 2, 3],
@@ -281,7 +329,9 @@ Updates an existing feature.
 }
 ```
 
-**Field Validation:** Same as create. `featureType` and `expansionId` are required.
+**Field Validation:** Same as create. `featureType` and `expansionId` are required. `srd`
+(ADMIN+ only) is applied when present, omitted to leave unchanged. `isOfficial` is never
+touched by an update — once derived at create time it is immutable via this endpoint.
 
 **Modifier Behavior:**
 - If `modifierIds` or `modifiers` is provided: replaces existing modifiers
@@ -422,6 +472,8 @@ Restores a soft-deleted feature (clears `deletedAt` timestamp).
 | description   | TEXT         | Yes      |                            |
 | feature_type  | VARCHAR(20)  | No       | FeatureType enum           |
 | expansion_id  | BIGINT       | No       | FK to expansions           |
+| is_official   | BOOLEAN      | No       | Derived by `FeatureService`, never settable from a request. Backfilled from the eleven feature join tables (`card_features`, `class_hope_features`, `class_class_features`, `adversary_features`, `beastform_features`, `weapon_features`, `armor_features`, `loot_features`, `transformation_card_features`, `environment_features`, `martial_stance_features`) — `true` where any linked parent is official |
+| srd           | BOOLEAN      | No       | SRD-licensed flag, gated behind `ContentAccessService`. Defaults `false` |
 | created_at    | TIMESTAMP    | No       | Auto-set                   |
 | last_modified_at | TIMESTAMP | No       | Auto-set                   |
 | deleted_at    | TIMESTAMP    | Yes      | Null = active              |

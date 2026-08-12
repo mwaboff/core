@@ -239,6 +239,16 @@ public class AdminUserService {
                     ipAddress);
         }
 
+        if (request.getAccessAllExpansions() != null
+                && !request.getAccessAllExpansions().equals(target.getAccessAllExpansions())) {
+            Boolean previous = target.getAccessAllExpansions();
+            target.setAccessAllExpansions(request.getAccessAllExpansions());
+            recordAction(actor, target, AdminActionType.USER_EXPANSION_ACCESS_CHANGED,
+                    String.format("previous_access_all_expansions=%s; new_access_all_expansions=%s",
+                            previous, request.getAccessAllExpansions()),
+                    ipAddress);
+        }
+
         userRepository.save(target);
 
         if (roleChanged) {
@@ -315,6 +325,34 @@ public class AdminUserService {
         return updateUser(actor, userId, r, ipAddress);
     }
 
+    // ==================== CONTENT ACTIONS ====================
+
+    /**
+     * Records an admin action that targets game content rather than a specific user, e.g. the
+     * bulk SRD-flagging tool.
+     * <p>
+     * Writes the same {@link AdminActionLog} row shape as {@link #recordAction}, but with a
+     * null {@code targetUserId} — content actions have no user target. Public (unlike
+     * {@link #recordAction}) so other admin services, e.g. {@code AdminContentService}, can
+     * reuse this one write path instead of duplicating it.
+     * </p>
+     *
+     * @param actor     the admin performing the action; may be {@code null}
+     * @param action    the action type
+     * @param details   free-form {@code key=value} description of what changed
+     * @param ipAddress originating ip, captured on the audit row
+     */
+    @Transactional
+    public void recordContentAction(User actor, AdminActionType action, String details, String ipAddress) {
+        adminActionLogRepository.save(AdminActionLog.builder()
+                .actorUserId(actor != null ? actor.getId() : null)
+                .targetUserId(null)
+                .action(action)
+                .details(details)
+                .ipAddress(ipAddress)
+                .build());
+    }
+
     // ==================== INTERNAL HELPERS ====================
 
     private User findUserOrThrow(Long userId) {
@@ -362,6 +400,7 @@ public class AdminUserService {
                 .createdAt(u.getCreatedAt())
                 .lastModifiedAt(u.getLastModifiedAt())
                 .usernameChosen(u.getUsernameChosen())
+                .accessAllExpansions(u.getAccessAllExpansions())
                 .deletedAt(u.getDeletedAt())
                 .bannedAt(u.getBannedAt())
                 .banReason(u.getBanReason())

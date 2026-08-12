@@ -22,13 +22,18 @@ public interface TransformationCardRepository extends JpaRepository<Transformati
      * Finds all non-deleted transformation cards with optional expansion filter.
      *
      * @param expansionId Optional filter for expansion ID
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) transformation
+     *                      cards; when false, only custom (non-official) or SRD-flagged cards
+     *                      are returned
      * @param pageable Pagination information
      * @return Page of non-deleted transformation cards matching the criteria
      */
     @Query("SELECT t FROM TransformationCard t WHERE t.deletedAt IS NULL " +
-           "AND (:expansionId IS NULL OR t.expansion.id = :expansionId)")
+           "AND (:expansionId IS NULL OR t.expansion.id = :expansionId) " +
+           "AND (:includeNonSrd = true OR t.isOfficial = false OR t.srd = true)")
     Page<TransformationCard> findByDeletedAtIsNullAndExpansion(
             @Param("expansionId") Long expansionId,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

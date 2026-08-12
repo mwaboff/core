@@ -460,6 +460,7 @@ class MartialStanceControllerIntegrationTest {
                 .description("Grants extra damage while off-balance")
                 .featureType(FeatureType.OTHER)
                 .expansion(testExpansion)
+                .isOfficial(false)
                 .build();
         feature = featureRepository.save(feature);
 
@@ -493,6 +494,7 @@ class MartialStanceControllerIntegrationTest {
                 .description("Grants luck while in this stance")
                 .featureType(FeatureType.OTHER)
                 .expansion(testExpansion)
+                .isOfficial(false)
                 .build();
         feature = featureRepository.save(feature);
 

@@ -139,6 +139,54 @@ class AdminUserServiceTest {
     }
 
     @Test
+    void updateUser_AccessAllExpansionsGranted_WritesAuditRowAndDoesNotInvalidateTokens() {
+        User actor = userWith(1L, Role.ADMIN);
+        User target = userWith(2L, Role.USER);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.updateUser(actor, 2L,
+                UpdateAdminUserRequest.builder().accessAllExpansions(true).build(), "10.0.0.1");
+
+        assertThat(target.getAccessAllExpansions()).isTrue();
+        ArgumentCaptor<AdminActionLog> log = ArgumentCaptor.forClass(AdminActionLog.class);
+        verify(adminActionLogRepository).save(log.capture());
+        assertThat(log.getValue().getAction()).isEqualTo(AdminActionType.USER_EXPANSION_ACCESS_CHANGED);
+        // Unlike a role change, granting the override does not force re-authentication.
+        verify(authenticationService, never()).invalidateAllUserTokens(anyLong());
+    }
+
+    @Test
+    void updateUser_AccessAllExpansionsNull_LeavesUnchanged() {
+        User actor = userWith(1L, Role.ADMIN);
+        User target = userWith(2L, Role.USER);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(userRepository.existsByUsernameIgnoreCase("new")).thenReturn(false);
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.updateUser(actor, 2L,
+                UpdateAdminUserRequest.builder().username("new").build(), "10.0.0.1");
+
+        assertThat(target.getAccessAllExpansions()).isFalse();
+        ArgumentCaptor<AdminActionLog> log = ArgumentCaptor.forClass(AdminActionLog.class);
+        verify(adminActionLogRepository).save(log.capture());
+        assertThat(log.getValue().getAction()).isEqualTo(AdminActionType.USER_USERNAME_CHANGED);
+    }
+
+    @Test
+    void updateUser_AccessAllExpansionsSameValue_NoAuditRow() {
+        User actor = userWith(1L, Role.ADMIN);
+        User target = userWith(2L, Role.USER);
+        when(userRepository.findById(2L)).thenReturn(Optional.of(target));
+        when(userRepository.save(any(User.class))).thenAnswer(inv -> inv.getArgument(0));
+
+        service.updateUser(actor, 2L,
+                UpdateAdminUserRequest.builder().accessAllExpansions(false).build(), "10.0.0.1");
+
+        verify(adminActionLogRepository, never()).save(any(AdminActionLog.class));
+    }
+
+    @Test
     void updateUser_AdminCannotModifyAdmin() {
         User actor = userWith(1L, Role.ADMIN);
         User target = userWith(2L, Role.ADMIN);

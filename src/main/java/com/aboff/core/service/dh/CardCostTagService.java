@@ -5,13 +5,16 @@ import com.aboff.core.model.dto.dh.request.CreateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.request.UpdateCardCostTagRequest;
 import com.aboff.core.model.dto.dh.response.CardCostTagResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.repository.dh.CardCostTagRepository;
 import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.model.AuditContext;
 import com.aboff.core.model.enums.AuditAction;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -38,6 +41,7 @@ import java.util.Set;
 public class CardCostTagService {
 
     private final CardCostTagRepository cardCostTagRepository;
+    private final ContentAccessService contentAccessService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -46,7 +50,8 @@ public class CardCostTagService {
      *
      * @param page Zero-based page number
      * @param size Number of items per page
-     * @param includeDeleted Whether to include soft-deleted cost tags
+     * @param includeDeleted Whether to include soft-deleted cost tags; coerced to false below
+     *                       MODERATOR by {@link ContentAccessService#resolveIncludeDeleted}
      * @param category Optional filter for cost tag category
      * @return Paginated response containing cost tags
      */
@@ -61,10 +66,11 @@ public class CardCostTagService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<CardCostTag> tagPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             tagPage = cardCostTagRepository.findAllWithFilters(category, pageable);
         } else {
-            tagPage = cardCostTagRepository.findByDeletedAtIsNullAndFilters(category, pageable);
+            tagPage = cardCostTagRepository.findByDeletedAtIsNullAndFilters(
+                    category, contentAccessService.includeNonSrd(), pageable);
         }
 
         return PagedResponse.<CardCostTagResponse>builder()
@@ -102,9 +108,11 @@ public class CardCostTagService {
      */
     @Transactional
     public CardCostTagResponse createCostTag(CreateCardCostTagRequest request, Authentication authentication) {
+        User user = currentUser(authentication);
         CardCostTag tag = CardCostTag.builder()
                 .label(request.getLabel())
                 .category(request.getCategory())
+                .srd(contentAccessService.resolveSrd(user, request.getSrd()))
                 .build();
 
         CardCostTag savedTag = cardCostTagRepository.save(tag);
@@ -134,6 +142,9 @@ public class CardCostTagService {
         }
         if (request.getCategory() != null) {
             tag.setCategory(request.getCategory());
+        }
+        if (request.getSrd() != null) {
+            tag.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
         }
 
         CardCostTag updatedTag = cardCostTagRepository.save(tag);
@@ -249,18 +260,44 @@ public class CardCostTagService {
 
     /**
      * Converts a CardCostTag entity to CardCostTagResponse DTO.
+     * <p>
+     * CardCostTag has no {@code isOfficial} distinction of its own — every tag is catalogue
+     * content, so visibility is decided by {@code srd} alone. {@code true} is passed as the
+     * {@code isOfficial} argument to {@link ContentAccessService#mayView(Boolean, Boolean)} to
+     * force that check rather than short-circuiting it (a {@code false}/null {@code isOfficial}
+     * would make {@code mayView} return {@code true} unconditionally, defeating gating). This is
+     * the universal funnel — every caller (list, single-get, and any sibling type expanding its
+     * cost tags, e.g. {@code FeatureService}) must route through this method rather than
+     * building a {@link CardCostTagResponse} directly.
+     * </p>
      *
      * @param tag The cost tag entity
-     * @return CardCostTagResponse DTO
+     * @return CardCostTagResponse DTO, or a redacted stub if the caller may not view it
      */
-    private CardCostTagResponse toResponse(CardCostTag tag) {
+    public CardCostTagResponse toResponse(CardCostTag tag) {
+        if (!contentAccessService.mayView(true, tag.getSrd())) {
+            return ContentRedaction.stub(CardCostTagResponse::new, tag.getId(), null);
+        }
+
         return CardCostTagResponse.builder()
                 .id(tag.getId())
                 .label(tag.getLabel())
                 .category(tag.getCategory())
+                .srd(tag.getSrd())
                 .createdAt(tag.getCreatedAt())
                 .lastModifiedAt(tag.getLastModifiedAt())
                 .deletedAt(tag.getDeletedAt())
                 .build();
+    }
+
+    /**
+     * Resolves the authenticated user from an {@link Authentication}, matching the
+     * {@link CustomUserDetails} extraction pattern used throughout {@code service.dh}.
+     *
+     * @param authentication the authentication context of the requesting user
+     * @return the authenticated {@link User}
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

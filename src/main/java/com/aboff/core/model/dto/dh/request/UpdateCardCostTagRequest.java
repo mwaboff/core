@@ -25,4 +25,10 @@ public class UpdateCardCostTagRequest {
      * Category of the cost tag
      */
     private CostTagCategory category;
+
+    /**
+     * Whether this cost tag is SRD-licensed content. Only ADMIN/OWNER may set this to true;
+     * see {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
 }

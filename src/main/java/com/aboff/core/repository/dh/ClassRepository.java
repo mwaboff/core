@@ -23,15 +23,19 @@ public interface ClassRepository extends JpaRepository<Class, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) classes; when
+     *                      false, only custom (non-official) or SRD-flagged classes are returned
      * @param pageable Pagination information
      * @return Page of non-deleted classes matching the criteria
      */
     @Query("SELECT c FROM Class c WHERE c.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR c.expansion.id = :expansionId) " +
-           "AND (:isOfficial IS NULL OR c.isOfficial = :isOfficial)")
+           "AND (:isOfficial IS NULL OR c.isOfficial = :isOfficial) " +
+           "AND (:includeNonSrd = true OR c.isOfficial = false OR c.srd = true)")
     Page<Class> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

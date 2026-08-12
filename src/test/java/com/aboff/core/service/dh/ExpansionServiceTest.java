@@ -40,6 +40,9 @@ class ExpansionServiceTest {
     private ExpansionRepository expansionRepository;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -121,6 +124,7 @@ class ExpansionServiceTest {
                 .build();
 
         Page<Expansion> expansionPage = new PageImpl<>(List.of(expansion));
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         when(expansionRepository.findAllWithPublished(isNull(), any(Pageable.class)))
                 .thenReturn(expansionPage);
 
@@ -130,6 +134,24 @@ class ExpansionServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         verify(expansionRepository).findAllWithPublished(isNull(), any(Pageable.class));
+    }
+
+    @Test
+    void getAllExpansions_IncludeDeletedRequestedButNotResolved_UsesActiveOnlyQuery() {
+        // Arrange — caller requests includeDeleted=true but ContentAccessService coerces it to
+        // false (caller below MODERATOR); regression test for a gap where this controller/service
+        // never called resolveIncludeDeleted at all and used the caller's raw flag directly.
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(false);
+        Page<Expansion> expansionPage = new PageImpl<>(List.of());
+        when(expansionRepository.findByDeletedAtIsNullAndPublished(isNull(), any(Pageable.class)))
+                .thenReturn(expansionPage);
+
+        // Act
+        expansionService.getAllExpansions(0, 20, true, null);
+
+        // Assert — the includeDeleted=true (unfiltered) query is never reached
+        verify(expansionRepository, never()).findAllWithPublished(any(), any());
+        verify(expansionRepository).findByDeletedAtIsNullAndPublished(isNull(), any(Pageable.class));
     }
 
     @Test

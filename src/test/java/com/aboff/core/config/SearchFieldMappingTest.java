@@ -1,27 +1,37 @@
 package com.aboff.core.config;
 
 import com.aboff.core.model.embeddable.DamageRoll;
+import com.aboff.core.model.entity.dh.Adversary;
 import com.aboff.core.model.entity.dh.AncestryCard;
 import com.aboff.core.model.entity.dh.Armor;
 import com.aboff.core.model.entity.dh.Beastform;
 import com.aboff.core.model.entity.dh.Campaign;
+import com.aboff.core.model.entity.dh.CardCostTag;
 import com.aboff.core.model.entity.dh.CommunityCard;
 import com.aboff.core.model.entity.dh.Class;
+import com.aboff.core.model.entity.dh.Condition;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.DomainCard;
+import com.aboff.core.model.entity.dh.Encounter;
+import com.aboff.core.model.entity.dh.Environment;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Feature;
 import com.aboff.core.model.entity.dh.Loot;
 import com.aboff.core.model.entity.dh.MartialStance;
+import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.entity.dh.SubclassPath;
 import com.aboff.core.model.entity.dh.TransformationCard;
 import com.aboff.core.model.entity.dh.Weapon;
+import com.aboff.core.model.enums.AdversaryType;
 import com.aboff.core.model.enums.Burden;
+import com.aboff.core.model.enums.CostTagCategory;
 import com.aboff.core.model.enums.DamageType;
 import com.aboff.core.model.enums.DiceType;
 import com.aboff.core.model.enums.DomainCardType;
+import com.aboff.core.model.enums.EnvironmentType;
 import com.aboff.core.model.enums.FeatureType;
+import com.aboff.core.model.enums.QuestionType;
 import com.aboff.core.model.enums.Range;
 import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.model.enums.SubclassLevel;
@@ -1080,5 +1090,411 @@ class SearchFieldMappingTest {
 
         // Assert
         assertThat(data.getCardType()).isNull();
+    }
+
+    // ==================== SRD FILTER COLUMN TESTS ====================
+    //
+    // Workstream H: search_index.srd gates paid-expansion content out of search for callers
+    // who may not view it. Every buildForX method that has a source `srd` field to read from
+    // must map it through unchanged (true stays true, and an unset/null source stays null
+    // rather than being coerced to false) so the ON CONFLICT upsert and the search predicate
+    // downstream have a trustworthy value. EXPANSION is the one type with no srd concept at
+    // all -- see buildForExpansion's Javadoc -- and is covered separately below.
+
+    @Test
+    void buildSearchIndexData_Domain_MapsSrdFilterColumn() {
+        Domain domain = Domain.builder().name("Blade").isOfficial(true).srd(true).build();
+        domain.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(domain, SearchableEntityType.DOMAIN);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Domain_WithUnsetSrd_SrdDefaultsFalse() {
+        // Arrange — Domain.srd is @Builder.Default = false (matching the NOT NULL DB column), so
+        // a builder call that omits .srd(...) produces false, not null; the mapping must pass
+        // that default through unchanged rather than coercing it to something else. This is
+        // distinct from search_index.srd, which is genuinely nullable during a backfill window —
+        // this asserts the source entity's own default, not that column's null-until-backfilled
+        // state.
+        Domain domain = Domain.builder().name("Blade").isOfficial(true).build();
+        domain.setId(201L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(domain, SearchableEntityType.DOMAIN);
+
+        assertThat(data.getSrd()).isFalse();
+    }
+
+    @Test
+    void buildSearchIndexData_Class_MapsSrdFilterColumn() {
+        Class clazz = Class.builder()
+                .name("Warlock")
+                .isOfficial(true)
+                .startingEvasion(10)
+                .startingHitPoints(6)
+                .srd(true)
+                .build();
+        clazz.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(clazz, SearchableEntityType.CLASS);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Feature_MapsSrdFilterColumn() {
+        Feature feature = Feature.builder()
+                .name("Night Vision")
+                .featureType(FeatureType.OTHER)
+                .srd(false)
+                .build();
+        feature.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(feature, SearchableEntityType.FEATURE);
+
+        assertThat(data.getSrd()).isFalse();
+    }
+
+    @Test
+    void buildSearchIndexData_AncestryCard_MapsSrdFilterColumn() {
+        AncestryCard card = AncestryCard.builder()
+                .name("Elf")
+                .isOfficial(true)
+                .isMixed(false)
+                .srd(true)
+                .build();
+        card.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.ANCESTRY_CARD);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_CommunityCard_MapsSrdFilterColumn() {
+        CommunityCard card = CommunityCard.builder()
+                .name("Highborne")
+                .isOfficial(true)
+                .srd(true)
+                .build();
+        card.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.COMMUNITY_CARD);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_SubclassCard_MapsSrdFilterColumn() {
+        SubclassCard card = SubclassCard.builder()
+                .name("Stalwart")
+                .isOfficial(true)
+                .level(SubclassLevel.FOUNDATION)
+                .srd(true)
+                .build();
+        card.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.SUBCLASS_CARD);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_DomainCard_MapsSrdFilterColumn() {
+        DomainCard card = DomainCard.builder()
+                .name("Whirlwind")
+                .isOfficial(true)
+                .level(1)
+                .recallCost(0)
+                .type(DomainCardType.ABILITY)
+                .srd(true)
+                .build();
+        card.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.DOMAIN_CARD);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Weapon_MapsSrdFilterColumn() {
+        Weapon weapon = Weapon.builder()
+                .name("Longsword")
+                .tier(1)
+                .isOfficial(true)
+                .isPrimary(true)
+                .trait(Trait.STRENGTH)
+                .range(Range.MELEE)
+                .burden(Burden.ONE_HANDED)
+                .srd(true)
+                .build();
+        weapon.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(weapon, SearchableEntityType.WEAPON);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Weapon_WithUnsetSrd_SrdDefaultsFalse() {
+        // BaseItem.srd is @Builder.Default = false (matching the NOT NULL DB column), so a
+        // builder call that omits .srd(...) produces false, not null; see the equivalent Domain
+        // test above for why this isn't the same thing as search_index.srd's nullability.
+        Weapon weapon = Weapon.builder()
+                .name("Longsword")
+                .tier(1)
+                .isOfficial(true)
+                .isPrimary(true)
+                .trait(Trait.STRENGTH)
+                .range(Range.MELEE)
+                .burden(Burden.ONE_HANDED)
+                .build();
+        weapon.setId(201L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(weapon, SearchableEntityType.WEAPON);
+
+        assertThat(data.getSrd()).isFalse();
+    }
+
+    @Test
+    void buildSearchIndexData_Armor_MapsSrdFilterColumn() {
+        Armor armor = Armor.builder()
+                .name("Plate")
+                .tier(2)
+                .isOfficial(true)
+                .baseMajorThreshold(7)
+                .baseSevereThreshold(15)
+                .baseScore(4)
+                .srd(true)
+                .build();
+        armor.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(armor, SearchableEntityType.ARMOR);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Loot_MapsSrdFilterColumn() {
+        Loot loot = Loot.builder()
+                .name("Trinket")
+                .tier(1)
+                .isOfficial(true)
+                .srd(true)
+                .build();
+        loot.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(loot, SearchableEntityType.LOOT);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_MartialStance_MapsSrdFilterColumn() {
+        MartialStance stance = MartialStance.builder()
+                .name("Aggressive Stance")
+                .tier(1)
+                .isOfficial(true)
+                .srd(false)
+                .build();
+        stance.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(stance, SearchableEntityType.MARTIAL_STANCE);
+
+        assertThat(data.getSrd()).isFalse();
+    }
+
+    @Test
+    void buildSearchIndexData_Adversary_MapsSrdFilterColumn() {
+        Adversary adversary = Adversary.builder()
+                .name("Bandit")
+                .tier(1)
+                .adversaryType(AdversaryType.STANDARD)
+                .isOfficial(true)
+                .isPublic(true)
+                .srd(true)
+                .build();
+        adversary.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(adversary, SearchableEntityType.ADVERSARY);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Adversary_WithUnsetSrd_SrdDefaultsFalse() {
+        // Adversary.srd is @Builder.Default = false (matching the NOT NULL DB column), so a
+        // builder call that omits .srd(...) produces false, not null; see the equivalent Domain
+        // test above for why this isn't the same thing as search_index.srd's nullability.
+        Adversary adversary = Adversary.builder()
+                .name("Bandit")
+                .tier(1)
+                .adversaryType(AdversaryType.STANDARD)
+                .isOfficial(true)
+                .isPublic(true)
+                .build();
+        adversary.setId(201L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(adversary, SearchableEntityType.ADVERSARY);
+
+        assertThat(data.getSrd()).isFalse();
+    }
+
+    @Test
+    void buildSearchIndexData_Beastform_MapsSrdFilterColumn() {
+        Beastform beastform = Beastform.builder()
+                .name("Agile Scout")
+                .evasion(2)
+                .tier(1)
+                .isOfficial(true)
+                .srd(true)
+                .build();
+        beastform.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(beastform, SearchableEntityType.BEASTFORM);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Encounter_MapsSrdFilterColumn() {
+        Encounter encounter = Encounter.builder()
+                .name("Bridge Ambush")
+                .isOfficial(true)
+                .isPublic(false)
+                .srd(true)
+                .build();
+        encounter.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(encounter, SearchableEntityType.ENCOUNTER);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_SubclassPath_MapsSrdFilterColumn() {
+        SubclassPath path = SubclassPath.builder()
+                .name("Stalwart")
+                .srd(true)
+                .build();
+        path.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(path, SearchableEntityType.SUBCLASS_PATH);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Question_MapsSrdFilterColumn() {
+        Question question = Question.builder()
+                .questionText("What drives you to adventure?")
+                .questionType(QuestionType.BACKGROUND)
+                .srd(false)
+                .build();
+        question.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(question, SearchableEntityType.QUESTION);
+
+        assertThat(data.getSrd()).isFalse();
+    }
+
+    @Test
+    void buildSearchIndexData_CardCostTag_MapsSrdFilterColumn() {
+        CardCostTag tag = CardCostTag.builder()
+                .label("3 Hope")
+                .category(CostTagCategory.COST)
+                .srd(true)
+                .build();
+        tag.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(tag, SearchableEntityType.CARD_COST_TAG);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_TransformationCard_MapsSrdFilterColumn() {
+        Expansion expansion = Expansion.builder().name("Hope & Fear").isPublished(true).build();
+        expansion.setId(6L);
+
+        TransformationCard card = TransformationCard.builder()
+                .name("Feral Transformation")
+                .expansion(expansion)
+                .srd(true)
+                .build();
+        card.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(card, SearchableEntityType.TRANSFORMATION_CARD);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Environment_MapsSrdFilterColumn() {
+        Environment environment = Environment.builder()
+                .name("Ruined Keep")
+                .tier(1)
+                .environmentType(EnvironmentType.EXPLORATION)
+                .isOfficial(true)
+                .srd(true)
+                .build();
+        environment.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(environment, SearchableEntityType.ENVIRONMENT);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Condition_MapsSrdFilterColumn() {
+        Condition condition = Condition.builder()
+                .name("Restrained")
+                .isOfficial(true)
+                .srd(true)
+                .build();
+        condition.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(condition, SearchableEntityType.CONDITION);
+
+        assertThat(data.getSrd()).isTrue();
+    }
+
+    @Test
+    void buildSearchIndexData_Expansion_SrdIsAlwaysNull() {
+        // Arrange — regression guard: `expansions` carries no srd column at all (the book
+        // itself is not gated content, only the cards within it are), so this must stay null
+        // unconditionally rather than defaulting to true/false.
+        Expansion expansion = Expansion.builder().name("Hope & Fear").isPublished(true).build();
+        expansion.setId(200L);
+
+        SearchFieldMapping.SearchIndexData data =
+                searchFieldMapping.buildSearchIndexData(expansion, SearchableEntityType.EXPANSION);
+
+        assertThat(data.getSrd()).isNull();
     }
 }

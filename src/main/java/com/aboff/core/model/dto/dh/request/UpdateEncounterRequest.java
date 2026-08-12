@@ -55,6 +55,14 @@ public class UpdateEncounterRequest {
     private Boolean isPublic;
 
     /**
+     * Whether this encounter is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Optional; only ADMIN+ callers may actually set it to true --
+     * see {@code ContentAccessService#resolveSrd}. See {@code CreateEncounterRequest#srd} for
+     * why this is currently inert for API-created encounters.
+     */
+    private Boolean srd;
+
+    /**
      * The number of PCs in combat, manually entered by the GM.
      */
     @Min(value = 1, message = "Party size must be at least 1")

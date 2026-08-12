@@ -40,4 +40,10 @@ public class UpdateDomainRequest {
      * ID of the expansion this domain belongs to
      */
     private Long expansionId;
+
+    /**
+     * Whether this domain is SRD-licensed content. Only ADMIN/OWNER may set this to true;
+     * see {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
 }

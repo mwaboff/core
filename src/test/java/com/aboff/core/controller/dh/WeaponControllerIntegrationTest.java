@@ -710,6 +710,7 @@ class WeaponControllerIntegrationTest {
                 .description("Pre-existing")
                 .featureType(FeatureType.OTHER)
                 .expansion(testExpansion)
+                .isOfficial(false)
                 .build();
         existingFeature = featureRepository.save(existingFeature);
 

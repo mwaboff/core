@@ -27,7 +27,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class SubclassPathResponse {
+public class SubclassPathResponse implements Restrictable {
 
     /**
      * Unique identifier for the subclass path.
@@ -38,6 +38,12 @@ public class SubclassPathResponse {
      * Name of the subclass path.
      */
     private String name;
+
+    /**
+     * Whether this path (and by cascade, every card in it) is SRD-licensed content, freely
+     * usable without owning the sourcebook it was printed in.
+     */
+    private Boolean srd;
 
     /**
      * ID of the associated class (always included).
@@ -89,6 +95,19 @@ public class SubclassPathResponse {
      * Timestamp when the subclass path was soft-deleted (null if not deleted).
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * The display name of the expansion this path belongs to. Set on a redacted stub so the
+     * caller can tell which book to buy, even though {@link #expansion} itself is unset.
+     */
+    private String expansionName;
+
+    /**
+     * True if this response is a redacted stub for gated non-SRD content the caller may not
+     * view. When true, every other field except {@link #id} and {@link #expansionName} is
+     * unset.
+     */
+    private Boolean restricted;
 
     /**
      * Nested class containing trait information with metadata.

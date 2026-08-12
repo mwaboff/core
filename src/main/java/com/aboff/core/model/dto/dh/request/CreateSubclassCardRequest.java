@@ -45,6 +45,14 @@ public class CreateSubclassCardRequest {
     private Boolean isOfficial;
 
     /**
+     * Declared for schema uniformity with the other card create requests, but ignored by
+     * {@code SubclassCardService}: a subclass card's {@code srd} flag is always derived from its
+     * {@code subclassPath} so a card can never disagree with its path. See
+     * {@code SubclassCardService#createSubclassCard} for details.
+     */
+    private Boolean srd;
+
+    /**
      * URL to the background image for this card
      */
     @Size(max = 500, message = "Background image URL must not exceed 500 characters")

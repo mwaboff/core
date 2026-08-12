@@ -50,6 +50,14 @@ public class CreateLootRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this loot is SRD-licensed content, freely usable without owning the sourcebook
+     * it was printed in. Optional and honoured only for ADMIN+ — see
+     * {@code ContentAccessService#resolveSrd}. Omitted by existing bulk-import payloads, which
+     * must keep working, so this is never required.
+     */
+    private Boolean srd;
+
+    /**
      * Whether this loot item is consumable (e.g., potions, scrolls, food).
      */
     @NotNull(message = "isConsumable is required")

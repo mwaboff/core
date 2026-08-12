@@ -22,7 +22,7 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class DomainResponse {
+public class DomainResponse implements Restrictable {
     /**
      * Unique identifier for the domain
      */
@@ -49,6 +49,12 @@ public class DomainResponse {
     private Boolean isOfficial;
 
     /**
+     * Whether this domain is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in.
+     */
+    private Boolean srd;
+
+    /**
      * ID of the expansion this domain belongs to (always included)
      */
     private Long expansionId;
@@ -72,4 +78,17 @@ public class DomainResponse {
      * Timestamp when the domain was soft-deleted (null if not deleted)
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * The display name of the expansion this domain belongs to. Set on a redacted stub so the
+     * caller can tell which book to buy, even though {@link #expansion} itself is unset.
+     */
+    private String expansionName;
+
+    /**
+     * True if this response is a redacted stub for gated non-SRD content the caller may not
+     * view. When true, every other field except {@link #id} and {@link #expansionName} is
+     * unset.
+     */
+    private Boolean restricted;
 }

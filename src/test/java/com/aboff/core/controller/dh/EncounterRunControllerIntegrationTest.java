@@ -212,6 +212,7 @@ class EncounterRunControllerIntegrationTest {
                 .description("Test feature description")
                 .featureType(FeatureType.ADVERSARY)
                 .expansion(testExpansion)
+                .isOfficial(false)
                 .build());
     }
 

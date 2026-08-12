@@ -43,6 +43,9 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
      * @param tier Optional filter for encounter tier (1-4)
      * @param isOfficial Optional filter for official status
      * @param name Optional filter for name (partial match, case-insensitive)
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) content; official
+     *                      rows that are not SRD-licensed are excluded when false. See
+     *                      {@code ContentAccessService#includeNonSrd()}.
      * @param pageable Pagination information
      * @return Page of accessible non-deleted encounters matching the criteria
      */
@@ -52,7 +55,8 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
            "AND (:campaignId IS NULL OR e.campaign.id = :campaignId) " +
            "AND (:tier IS NULL OR e.tier = :tier) " +
            "AND (:isOfficial IS NULL OR e.isOfficial = :isOfficial) " +
-           "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%')))")
+           "AND (:name IS NULL OR LOWER(e.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
+           "AND (:includeNonSrd = true OR e.isOfficial = false OR e.srd = true)")
     Page<Encounter> findAccessibleWithFilters(
             @Param("userId") Long userId,
             @Param("creatorId") Long creatorId,
@@ -60,6 +64,7 @@ public interface EncounterRepository extends JpaRepository<Encounter, Long> {
             @Param("tier") Integer tier,
             @Param("isOfficial") Boolean isOfficial,
             @Param("name") String name,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

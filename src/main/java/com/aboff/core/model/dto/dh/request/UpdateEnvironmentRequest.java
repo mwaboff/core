@@ -99,6 +99,13 @@ public class UpdateEnvironmentRequest {
     private Boolean isOfficial;
 
     /**
+     * Whether this environment is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Optional; only ADMIN+ callers may actually set it to true --
+     * see {@code ContentAccessService#resolveSrd}.
+     */
+    private Boolean srd;
+
+    /**
      * Whether this environment is publicly visible to other users.
      */
     private Boolean isPublic;

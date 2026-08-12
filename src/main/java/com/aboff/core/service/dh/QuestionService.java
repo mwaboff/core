@@ -6,11 +6,14 @@ import com.aboff.core.model.dto.dh.request.UpdateQuestionRequest;
 import com.aboff.core.model.dto.dh.response.ExpansionResponse;
 import com.aboff.core.model.dto.dh.response.QuestionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.enums.QuestionType;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.QuestionRepository;
+import com.aboff.core.security.CustomUserDetails;
+import com.aboff.core.util.ContentRedaction;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -44,6 +47,7 @@ public class QuestionService {
 
     private final QuestionRepository questionRepository;
     private final ExpansionRepository expansionRepository;
+    private final ContentAccessService contentAccessService;
     private final ApplicationEventPublisher eventPublisher;
     private final AuditLogger auditLogger;
 
@@ -60,10 +64,11 @@ public class QuestionService {
         Pageable pageable = PageRequest.of(page, size, Sort.by("id").ascending());
         Page<Question> questionPage;
 
-        if (includeDeleted) {
+        if (contentAccessService.resolveIncludeDeleted(includeDeleted)) {
             questionPage = questionRepository.findAllWithFilters(expansionId, questionType, pageable);
         } else {
-            questionPage = questionRepository.findByDeletedAtIsNullAndFilters(expansionId, questionType, pageable);
+            questionPage = questionRepository.findByDeletedAtIsNullAndFilters(
+                    expansionId, questionType, contentAccessService.includeNonSrd(), pageable);
         }
 
         Set<String> expandSet = ExpandUtil.parseExpand(expand);
@@ -98,6 +103,7 @@ public class QuestionService {
                 .questionText(request.getQuestionText())
                 .questionType(request.getQuestionType())
                 .expansion(expansion)
+                .srd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()))
                 .build();
 
         Question savedQuestion = questionRepository.save(question);
@@ -150,6 +156,9 @@ public class QuestionService {
                     .orElseThrow(() -> new EntityNotFoundException(
                             "Expansion not found with id: " + request.getExpansionId()));
             question.setExpansion(expansion);
+        }
+        if (request.getSrd() != null) {
+            question.setSrd(contentAccessService.resolveSrd(currentUser(authentication), request.getSrd()));
         }
 
         Question updatedQuestion = questionRepository.save(question);
@@ -256,12 +265,34 @@ public class QuestionService {
         return resolved;
     }
 
-    private QuestionResponse toResponse(Question question, Set<String> expand) {
+    /**
+     * Converts a Question entity to QuestionResponse DTO.
+     * <p>
+     * Question has no {@code isOfficial} distinction of its own — every question is catalogue
+     * content, so visibility is decided by {@code srd} alone. {@code true} is passed as the
+     * {@code isOfficial} argument to {@link ContentAccessService#mayView(Boolean, Boolean)} to
+     * force that check rather than short-circuiting it. This is the universal funnel — every
+     * caller (list, single-get, and any sibling type expanding its questions, e.g.
+     * {@code ClassService}, {@code TransformationCardService}) must route through this method
+     * rather than building a {@link QuestionResponse} directly.
+     * </p>
+     *
+     * @param question The question entity
+     * @param expand Set of relationships to expand
+     * @return QuestionResponse DTO, or a redacted stub if the caller may not view it
+     */
+    public QuestionResponse toResponse(Question question, Set<String> expand) {
+        if (!contentAccessService.mayView(true, question.getSrd())) {
+            return ContentRedaction.stub(QuestionResponse::new, question.getId(),
+                    question.getExpansion() != null ? question.getExpansion().getName() : null);
+        }
+
         QuestionResponse.QuestionResponseBuilder builder = QuestionResponse.builder()
                 .id(question.getId())
                 .questionText(question.getQuestionText())
                 .questionType(question.getQuestionType())
                 .expansionId(question.getExpansion().getId())
+                .srd(question.getSrd())
                 .createdAt(question.getCreatedAt())
                 .lastModifiedAt(question.getLastModifiedAt())
                 .deletedAt(question.getDeletedAt());
@@ -279,5 +310,16 @@ public class QuestionService {
         }
 
         return builder.build();
+    }
+
+    /**
+     * Resolves the authenticated user from an {@link Authentication}, matching the
+     * {@link CustomUserDetails} extraction pattern used throughout {@code service.dh}.
+     *
+     * @param authentication the authentication context of the requesting user
+     * @return the authenticated {@link User}
+     */
+    private User currentUser(Authentication authentication) {
+        return ((CustomUserDetails) authentication.getPrincipal()).getUser();
     }
 }

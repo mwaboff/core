@@ -391,11 +391,25 @@ class CustomItemAuthorizationIntegrationTest {
     }
 
     @Test
-    void regularUserCannotListSoftDeletedWeapons() throws Exception {
+    void regularUserRequestingIncludeDeletedIsCoercedAndSeesNoSoftDeletedWeapons() throws Exception {
+        // ContentAccessService#resolveIncludeDeleted coerces includeDeleted=true down to false
+        // for callers below MODERATOR (logging a warning) rather than rejecting the request
+        // outright -- mirroring ItemAccessService#resolveIsOfficial's established coerce-and-warn
+        // philosophy. The coerced request still returns 200, but must route to
+        // findAccessibleWithFilters, whose query hard-codes "deletedAt IS NULL" unconditionally
+        // (not inside the visibility OR-clause), so a soft-deleted row can never reach the
+        // response regardless of who is asking. This asserts that guarantee against the actual
+        // response body rather than trusting the status code alone.
+        Weapon deleted = persistWeapon("Soft Deleted Blade", false, false, otherUser);
+        deleted.softDelete();
+        weaponRepository.save(deleted);
+
         mockMvc.perform(get("/api/dh/weapons")
                         .param("includeDeleted", "true")
+                        .param("size", "100")
                         .cookie(new Cookie("AUTH_TOKEN", authorToken)))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Soft Deleted Blade')]").isEmpty());
     }
 
     @Test
@@ -404,6 +418,74 @@ class CustomItemAuthorizationIntegrationTest {
                         .param("includeDeleted", "true")
                         .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void regularUserRequestingIncludeDeletedIsCoercedAndSeesNoSoftDeletedArmor() throws Exception {
+        // ArmorService took the identical requireModerator -> resolveIncludeDeleted change as
+        // WeaponService (see the comment on the weapon equivalent above); same proof, same reason.
+        Armor deleted = armorRepository.save(Armor.builder()
+                .name("Soft Deleted Plate").tier(1).isOfficial(false).isPublic(false).createdBy(otherUser)
+                .baseMajorThreshold(7).baseSevereThreshold(14).baseScore(4).build());
+        deleted.softDelete();
+        armorRepository.save(deleted);
+
+        mockMvc.perform(get("/api/dh/armors")
+                        .param("includeDeleted", "true")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Soft Deleted Plate')]").isEmpty());
+    }
+
+    @Test
+    void moderatorCanListSoftDeletedArmor() throws Exception {
+        Armor deleted = armorRepository.save(Armor.builder()
+                .name("Moderator Visible Plate").tier(1).isOfficial(false).isPublic(false).createdBy(otherUser)
+                .baseMajorThreshold(7).baseSevereThreshold(14).baseScore(4).build());
+        deleted.softDelete();
+        armorRepository.save(deleted);
+
+        mockMvc.perform(get("/api/dh/armors")
+                        .param("includeDeleted", "true")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Moderator Visible Plate')]").exists());
+    }
+
+    @Test
+    void regularUserRequestingIncludeDeletedIsCoercedAndSeesNoSoftDeletedLoot() throws Exception {
+        // LootService took the identical requireModerator -> resolveIncludeDeleted change as
+        // WeaponService (see the comment on the weapon equivalent above); same proof, same reason.
+        Loot deleted = lootRepository.save(Loot.builder()
+                .name("Soft Deleted Trinket").tier(1).isOfficial(false).isPublic(false).createdBy(otherUser)
+                .isConsumable(false).description("A trinket.").build());
+        deleted.softDelete();
+        lootRepository.save(deleted);
+
+        mockMvc.perform(get("/api/dh/loot")
+                        .param("includeDeleted", "true")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", authorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Soft Deleted Trinket')]").isEmpty());
+    }
+
+    @Test
+    void moderatorCanListSoftDeletedLoot() throws Exception {
+        Loot deleted = lootRepository.save(Loot.builder()
+                .name("Moderator Visible Trinket").tier(1).isOfficial(false).isPublic(false).createdBy(otherUser)
+                .isConsumable(false).description("A trinket.").build());
+        deleted.softDelete();
+        lootRepository.save(deleted);
+
+        mockMvc.perform(get("/api/dh/loot")
+                        .param("includeDeleted", "true")
+                        .param("size", "100")
+                        .cookie(new Cookie("AUTH_TOKEN", moderatorToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.content[?(@.name == 'Moderator Visible Trinket')]").exists());
     }
 
     // ==================== COPYING ====================

@@ -4,13 +4,17 @@ import com.aboff.core.model.dto.dh.request.CreateQuestionRequest;
 import com.aboff.core.model.dto.dh.request.UpdateQuestionRequest;
 import com.aboff.core.model.dto.dh.response.QuestionResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Expansion;
 import com.aboff.core.model.entity.dh.Question;
 import com.aboff.core.model.enums.QuestionType;
+import com.aboff.core.model.enums.Role;
 import com.aboff.core.repository.dh.ExpansionRepository;
 import com.aboff.core.repository.dh.QuestionRepository;
+import com.aboff.core.security.CustomUserDetails;
 import com.aboff.core.service.AuditLogger;
 import jakarta.persistence.EntityNotFoundException;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -51,10 +55,24 @@ class QuestionServiceTest {
     private AuditLogger auditLogger;
 
     @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private Authentication authentication;
 
     @InjectMocks
     private QuestionService questionService;
+
+    @BeforeEach
+    void stubDefaultVisibility() {
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        // QuestionService.currentUser(authentication) is real (non-mocked) code invoked
+        // unconditionally on the create path, so the principal must resolve to a real user.
+        lenient().when(authentication.getPrincipal())
+                .thenReturn(new CustomUserDetails(User.builder().id(1L).username("tester").role(Role.ADMIN).build()));
+    }
 
     // ==================== GET ALL QUESTIONS TESTS ====================
 
@@ -84,7 +102,7 @@ class QuestionServiceTest {
                 .build();
 
         Page<Question> questionPage = new PageImpl<>(List.of(question1, question2));
-        when(questionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(questionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(questionPage);
 
         // Act
@@ -118,7 +136,7 @@ class QuestionServiceTest {
                 .build();
 
         Page<Question> questionPage = new PageImpl<>(List.of(question));
-        when(questionRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class)))
+        when(questionRepository.findByDeletedAtIsNullAndFilters(eq(1L), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(questionPage);
 
         // Act
@@ -127,7 +145,7 @@ class QuestionServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getExpansionId()).isEqualTo(1L);
-        verify(questionRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), any(Pageable.class));
+        verify(questionRepository).findByDeletedAtIsNullAndFilters(eq(1L), isNull(), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -148,7 +166,7 @@ class QuestionServiceTest {
                 .build();
 
         Page<Question> questionPage = new PageImpl<>(List.of(question));
-        when(questionRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(QuestionType.BACKGROUND), any(Pageable.class)))
+        when(questionRepository.findByDeletedAtIsNullAndFilters(isNull(), eq(QuestionType.BACKGROUND), anyBoolean(), any(Pageable.class)))
                 .thenReturn(questionPage);
 
         // Act
@@ -157,7 +175,7 @@ class QuestionServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getQuestionType()).isEqualTo(QuestionType.BACKGROUND);
-        verify(questionRepository).findByDeletedAtIsNullAndFilters(isNull(), eq(QuestionType.BACKGROUND), any(Pageable.class));
+        verify(questionRepository).findByDeletedAtIsNullAndFilters(isNull(), eq(QuestionType.BACKGROUND), anyBoolean(), any(Pageable.class));
     }
 
     @Test
@@ -178,6 +196,7 @@ class QuestionServiceTest {
                 .build();
 
         Page<Question> questionPage = new PageImpl<>(List.of(question));
+        when(contentAccessService.resolveIncludeDeleted(true)).thenReturn(true);
         when(questionRepository.findAllWithFilters(isNull(), isNull(), any(Pageable.class)))
                 .thenReturn(questionPage);
 
@@ -194,7 +213,7 @@ class QuestionServiceTest {
     void getAllQuestions_WithLargePage_LimitsTo100() {
         // Arrange
         Page<Question> questionPage = new PageImpl<>(List.of());
-        when(questionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(questionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(questionPage);
 
         // Act
@@ -204,6 +223,7 @@ class QuestionServiceTest {
         verify(questionRepository).findByDeletedAtIsNullAndFilters(
                 isNull(),
                 isNull(),
+                anyBoolean(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -227,7 +247,7 @@ class QuestionServiceTest {
                 .build();
 
         Page<Question> questionPage = new PageImpl<>(List.of(question));
-        when(questionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), any(Pageable.class)))
+        when(questionRepository.findByDeletedAtIsNullAndFilters(isNull(), isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(questionPage);
 
         // Act
@@ -647,5 +667,41 @@ class QuestionServiceTest {
         assertThatThrownBy(() -> questionService.restoreQuestion(999L, authentication))
                 .isInstanceOf(EntityNotFoundException.class)
                 .hasMessage("Question not found with id: 999");
+    }
+
+    // ==================== SRD CONTENT GATING TESTS ====================
+
+    @Test
+    void getQuestionById_RestrictedNonSrdContent_ReturnsRedactedStub() {
+        // Arrange
+        Expansion expansion = Expansion.builder()
+                .id(1L)
+                .name("Hope & Fear")
+                .isPublished(true)
+                .build();
+
+        Question question = Question.builder()
+                .id(1L)
+                .questionText("Restricted question text")
+                .questionType(QuestionType.BACKGROUND)
+                .expansion(expansion)
+                .srd(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(questionRepository.findByIdAndDeletedAtIsNull(1L))
+                .thenReturn(Optional.of(question));
+        when(contentAccessService.mayView(true, question.getSrd())).thenReturn(false);
+
+        // Act
+        QuestionResponse result = questionService.getQuestionById(1L, null);
+
+        // Assert
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(result.getQuestionText()).isNull();
+        assertThat(result.getQuestionType()).isNull();
+        assertThat(result.getSrd()).isNull();
     }
 }

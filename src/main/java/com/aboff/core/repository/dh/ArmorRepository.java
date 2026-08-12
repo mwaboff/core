@@ -48,6 +48,8 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
      * @param name Optional case-insensitive substring match on the name
      * @param isOfficial Optional filter for official status
      * @param tier Optional filter for tier
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) official content;
+     *                      see {@code ContentAccessService#includeNonSrd()}
      * @param pageable Pagination information
      * @return Page of visible armors matching the criteria
      */
@@ -63,7 +65,8 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
            "AND (:createdByUserId IS NULL OR a.createdBy.id = :createdByUserId) " +
            "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
-           "AND (:tier IS NULL OR a.tier = :tier) ",
+           "AND (:tier IS NULL OR a.tier = :tier) " +
+           "AND (:includeNonSrd = true OR a.isOfficial = false OR a.srd = true) ",
            countQuery = "SELECT COUNT(DISTINCT a) FROM Armor a LEFT JOIN a.campaigns ac " +
            "WHERE a.deletedAt IS NULL " +
            "AND (:isPrivileged = true " +
@@ -76,7 +79,8 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
            "AND (:createdByUserId IS NULL OR a.createdBy.id = :createdByUserId) " +
            "AND (:name IS NULL OR LOWER(a.name) LIKE LOWER(CONCAT('%', CAST(:name AS string), '%'))) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
-           "AND (:tier IS NULL OR a.tier = :tier) ")
+           "AND (:tier IS NULL OR a.tier = :tier) " +
+           "AND (:includeNonSrd = true OR a.isOfficial = false OR a.srd = true) ")
     Page<Armor> findAccessibleWithFilters(
             @Param("userId") Long userId,
             @Param("memberCampaignIds") Collection<Long> memberCampaignIds,
@@ -86,6 +90,7 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
             @Param("name") String name,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**
@@ -93,17 +98,22 @@ public interface ArmorRepository extends JpaRepository<Armor, Long> {
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status
+     * @param tier Optional filter for tier
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) official content;
+     *                      see {@code ContentAccessService#includeNonSrd()}
      * @param pageable Pagination information
      * @return Page of non-deleted armors matching the criteria
      */
     @Query("SELECT a FROM Armor a WHERE a.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR a.expansion.id = :expansionId) " +
            "AND (:isOfficial IS NULL OR a.isOfficial = :isOfficial) " +
-           "AND (:tier IS NULL OR a.tier = :tier)")
+           "AND (:tier IS NULL OR a.tier = :tier) " +
+           "AND (:includeNonSrd = true OR a.isOfficial = false OR a.srd = true)")
     Page<Armor> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("tier") Integer tier,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**

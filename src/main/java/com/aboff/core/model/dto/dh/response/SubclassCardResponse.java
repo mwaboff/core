@@ -28,7 +28,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class SubclassCardResponse {
+public class SubclassCardResponse implements Restrictable {
     /**
      * Unique identifier for the card
      */
@@ -68,6 +68,13 @@ public class SubclassCardResponse {
      * Whether this card is from official game content
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this card is SRD-licensed content, freely usable without owning the sourcebook it
+     * was printed in. Always mirrors the parent {@code subclassPath}'s {@code srd} flag — see
+     * {@code SubclassCardService} for why this card never sets it independently.
+     */
+    private Boolean srd;
 
     /**
      * URL to the background image for this card
@@ -153,4 +160,11 @@ public class SubclassCardResponse {
      * Timestamp when the card was soft-deleted (null if not deleted)
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * True when this response is a redacted stub for gated non-SRD content the caller may not
+     * browse directly. When true, every field except {@code id}, {@code cardType}, and
+     * {@code expansionName} is omitted from the response.
+     */
+    private Boolean restricted;
 }

@@ -6,6 +6,7 @@ import com.aboff.core.model.enums.SearchableEntityType;
 import com.aboff.core.model.enums.Trait;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -73,6 +74,16 @@ public class SubclassPath extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "expansion_id", nullable = false)
     private Expansion expansion;
+
+    /**
+     * Indicates whether this subclass path is SRD-licensed content, freely usable without
+     * owning the sourcebook it was printed in. Defaults to false at creation time; only an
+     * explicit SRD flag opens the subclass path to users who have not been granted
+     * expansion access. See {@code ContentAccessService} for how this is enforced.
+     */
+    @Column(name = "srd", nullable = false)
+    @Builder.Default
+    private Boolean srd = false;
 
     /**
      * Timestamp indicating when this subclass path was soft-deleted.

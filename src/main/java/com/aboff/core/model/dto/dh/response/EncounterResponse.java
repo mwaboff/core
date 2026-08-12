@@ -31,7 +31,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class EncounterResponse {
+public class EncounterResponse implements Restrictable {
 
     /**
      * Unique identifier for the encounter.
@@ -58,6 +58,20 @@ public class EncounterResponse {
      * Whether this encounter is from official game content.
      */
     private Boolean isOfficial;
+
+    /**
+     * Whether this encounter is SRD-licensed content, freely usable without owning the
+     * sourcebook it was printed in. Never populated on a redacted stub.
+     */
+    private Boolean srd;
+
+    /**
+     * Name of the expansion this encounter's licensing is drawn from, for a redacted stub. Null
+     * in the normal (non-restricted) response -- unlike the other four GM content types,
+     * {@code Encounter} has no {@code Expansion} relation of its own, since encounters are
+     * user-authored GM tools rather than printed book content.
+     */
+    private String expansionName;
 
     /**
      * Whether this encounter is publicly visible to other users.
@@ -174,6 +188,15 @@ public class EncounterResponse {
      * Timestamp when the encounter was soft-deleted (null if not deleted).
      */
     private LocalDateTime deletedAt;
+
+    /**
+     * True when this response is a redacted stub for gated non-SRD content the caller may not
+     * browse directly. When true, every field except {@code id}, {@code expansionName}, and
+     * this one is omitted from the response. In practice this only applies to encounters marked
+     * official (never true for a user's own custom encounter, regardless of its {@code srd}
+     * flag) -- see {@code EncounterService#toResponse}.
+     */
+    private Boolean restricted;
 
     /**
      * Nested DTO for adversary instances in the encounter.

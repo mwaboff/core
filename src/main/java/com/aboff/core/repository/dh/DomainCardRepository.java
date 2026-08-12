@@ -28,6 +28,8 @@ public interface DomainCardRepository extends JpaRepository<DomainCard, Long> {
      * @param associatedDomainIds Optional list of associated domain IDs to filter by
      * @param type Optional filter for domain card type
      * @param levels Optional list of levels to filter by
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) cards; when
+     *                      false, only custom (non-official) or SRD-flagged cards are returned
      * @param pageable Pagination information
      * @return Page of non-deleted domain cards matching the criteria
      */
@@ -36,18 +38,25 @@ public interface DomainCardRepository extends JpaRepository<DomainCard, Long> {
            "AND (:isOfficial IS NULL OR d.isOfficial = :isOfficial) " +
            "AND (:associatedDomainIds IS NULL OR d.associatedDomain.id IN :associatedDomainIds) " +
            "AND (:type IS NULL OR d.type = :type) " +
-           "AND (:levels IS NULL OR d.level IN :levels)")
+           "AND (:levels IS NULL OR d.level IN :levels) " +
+           "AND (:includeNonSrd = true OR d.isOfficial = false OR d.srd = true)")
     Page<DomainCard> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("isOfficial") Boolean isOfficial,
             @Param("associatedDomainIds") List<Long> associatedDomainIds,
             @Param("type") DomainCardType type,
             @Param("levels") List<Integer> levels,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     /**
      * Finds all domain cards with optional filters, including soft-deleted ones.
      * Supports filtering by multiple associated domain IDs and/or multiple levels.
+     * <p>
+     * ADMIN-only per the controller's {@code includeDeleted} contract; carries no SRD
+     * visibility clause because {@code ContentAccessService#resolveIncludeDeleted} already
+     * restricts this path to privileged callers.
+     * </p>
      *
      * @param expansionId Optional filter for expansion ID
      * @param isOfficial Optional filter for official status

@@ -18,12 +18,24 @@ import java.util.Optional;
 @Repository
 public interface QuestionRepository extends JpaRepository<Question, Long> {
 
+    /**
+     * Finds all non-deleted questions with optional filters.
+     *
+     * @param expansionId Optional filter for expansion ID
+     * @param questionType Optional filter for question type
+     * @param includeNonSrd Whether the caller may see paid-expansion (non-SRD) questions; when
+     *                      false, only SRD-flagged questions are returned
+     * @param pageable Pagination information
+     * @return Page of non-deleted questions matching the criteria
+     */
     @Query("SELECT q FROM Question q WHERE q.deletedAt IS NULL " +
            "AND (:expansionId IS NULL OR q.expansion.id = :expansionId) " +
-           "AND (:questionType IS NULL OR q.questionType = :questionType)")
+           "AND (:questionType IS NULL OR q.questionType = :questionType) " +
+           "AND (:includeNonSrd = true OR q.srd = true)")
     Page<Question> findByDeletedAtIsNullAndFilters(
             @Param("expansionId") Long expansionId,
             @Param("questionType") QuestionType questionType,
+            @Param("includeNonSrd") boolean includeNonSrd,
             Pageable pageable);
 
     @Query("SELECT q FROM Question q WHERE " +

@@ -4,19 +4,28 @@ import com.aboff.core.event.EntityChangeEvent;
 import com.aboff.core.model.dto.dh.request.CreateSubclassPathRequest;
 import com.aboff.core.model.dto.dh.request.SubclassPathInput;
 import com.aboff.core.model.dto.dh.request.UpdateSubclassPathRequest;
+import com.aboff.core.model.dto.dh.response.ClassResponse;
+import com.aboff.core.model.dto.dh.response.DomainResponse;
 import com.aboff.core.model.dto.dh.response.SubclassPathResponse;
 import com.aboff.core.model.dto.response.PagedResponse;
+import com.aboff.core.model.entity.User;
 import com.aboff.core.model.entity.dh.Class;
 import com.aboff.core.model.entity.dh.Domain;
 import com.aboff.core.model.entity.dh.Expansion;
+import com.aboff.core.model.entity.dh.SubclassCard;
 import com.aboff.core.model.entity.dh.SubclassPath;
+import com.aboff.core.model.enums.Role;
+import com.aboff.core.model.enums.SubclassLevel;
 import com.aboff.core.model.enums.Trait;
 import com.aboff.core.repository.dh.ClassRepository;
 import com.aboff.core.repository.dh.DomainRepository;
 import com.aboff.core.repository.dh.ExpansionRepository;
+import com.aboff.core.repository.dh.SubclassCardRepository;
 import com.aboff.core.repository.dh.SubclassPathRepository;
+import com.aboff.core.security.CustomUserDetails;
 import jakarta.persistence.EntityNotFoundException;
 import com.aboff.core.service.AuditLogger;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.ApplicationEventPublisher;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -61,6 +70,18 @@ class SubclassPathServiceTest {
     private DomainRepository domainRepository;
 
     @Mock
+    private SubclassCardRepository subclassCardRepository;
+
+    @Mock
+    private ClassService classService;
+
+    @Mock
+    private DomainService domainService;
+
+    @Mock
+    private ContentAccessService contentAccessService;
+
+    @Mock
     private ApplicationEventPublisher eventPublisher;
 
     @Mock
@@ -71,6 +92,31 @@ class SubclassPathServiceTest {
 
     @InjectMocks
     private SubclassPathService subclassPathService;
+
+    private final User defaultUser = User.builder().id(1L).username("tester").role(Role.USER).build();
+
+    @BeforeEach
+    void stubDefaultVisibility() {
+        // Every list call resolves includeDeleted/includeNonSrd through the SRD gate first;
+        // default to the ordinary (non-deleted, full-visibility) browse path unless a test
+        // overrides it.
+        lenient().when(contentAccessService.resolveIncludeDeleted(anyBoolean())).thenReturn(false);
+        lenient().when(contentAccessService.includeNonSrd()).thenReturn(true);
+        // toResponse redacts anything mayView() rejects; default to visible so existing
+        // assertions on full response fields keep working. Redaction itself is covered by a
+        // dedicated test below.
+        lenient().when(contentAccessService.mayView(any(), any())).thenReturn(true);
+        // createSubclassPath/createSubclassPathsBulk/updateSubclassPath always resolve
+        // currentUser(authentication) now (for the srd field), so every test needs a principal.
+        lenient().when(authentication.getPrincipal()).thenReturn(new CustomUserDetails(defaultUser));
+        // Default a non-admin caller's requested srd to false; tests exercising the srd cascade
+        // override this per-test.
+        lenient().when(contentAccessService.resolveSrd(any(), any())).thenReturn(false);
+        // create/updateSubclassPath always cascade srd to the path's cards after save; default
+        // to no cards so that cascade is a no-op unless a test stubs otherwise.
+        lenient().when(subclassCardRepository.findBySubclassPathIdAndDeletedAtIsNull(anyLong()))
+                .thenReturn(List.of());
+    }
 
     // ==================== GET ALL TESTS ====================
 
@@ -99,7 +145,7 @@ class SubclassPathServiceTest {
                 .build();
 
         Page<SubclassPath> pathPage = new PageImpl<>(List.of(path1, path2));
-        when(subclassPathRepository.findByDeletedAtIsNullAndFilters(isNull(), any(Pageable.class)))
+        when(subclassPathRepository.findByDeletedAtIsNullAndFilters(isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(pathPage);
 
         // Act
@@ -129,7 +175,7 @@ class SubclassPathServiceTest {
                 .build();
 
         Page<SubclassPath> pathPage = new PageImpl<>(List.of(path));
-        when(subclassPathRepository.findByDeletedAtIsNullAndFilters(eq(1L), any(Pageable.class)))
+        when(subclassPathRepository.findByDeletedAtIsNullAndFilters(eq(1L), anyBoolean(), any(Pageable.class)))
                 .thenReturn(pathPage);
 
         // Act
@@ -138,14 +184,14 @@ class SubclassPathServiceTest {
         // Assert
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getAssociatedClassId()).isEqualTo(1L);
-        verify(subclassPathRepository).findByDeletedAtIsNullAndFilters(eq(1L), any(Pageable.class));
+        verify(subclassPathRepository).findByDeletedAtIsNullAndFilters(eq(1L), anyBoolean(), any(Pageable.class));
     }
 
     @Test
     void getAllSubclassPaths_WithLargePage_LimitsTo100() {
         // Arrange
         Page<SubclassPath> pathPage = new PageImpl<>(List.of());
-        when(subclassPathRepository.findByDeletedAtIsNullAndFilters(isNull(), any(Pageable.class)))
+        when(subclassPathRepository.findByDeletedAtIsNullAndFilters(isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(pathPage);
 
         // Act
@@ -154,6 +200,7 @@ class SubclassPathServiceTest {
         // Assert
         verify(subclassPathRepository).findByDeletedAtIsNullAndFilters(
                 isNull(),
+                anyBoolean(),
                 argThat(pageable -> pageable.getPageSize() == 100)
         );
     }
@@ -175,8 +222,16 @@ class SubclassPathServiceTest {
                 .build();
 
         Page<SubclassPath> pathPage = new PageImpl<>(List.of(path));
-        when(subclassPathRepository.findByDeletedAtIsNullAndFilters(isNull(), any(Pageable.class)))
+        when(subclassPathRepository.findByDeletedAtIsNullAndFilters(isNull(), anyBoolean(), any(Pageable.class)))
                 .thenReturn(pathPage);
+        when(classService.toResponse(any(Class.class), any())).thenAnswer(invocation -> {
+            Class c = invocation.getArgument(0);
+            return ClassResponse.builder().id(c.getId()).name(c.getName()).build();
+        });
+        when(domainService.toResponse(any(Domain.class), any())).thenAnswer(invocation -> {
+            Domain d = invocation.getArgument(0);
+            return DomainResponse.builder().id(d.getId()).name(d.getName()).build();
+        });
 
         // Act
         PagedResponse<SubclassPathResponse> result = subclassPathService.getAllSubclassPaths(0, 20, false, null, "associatedClass,associatedDomains,expansion");
@@ -958,5 +1013,209 @@ class SubclassPathServiceTest {
         assertThatThrownBy(() -> subclassPathService.resolvePath(null, null, 1L, 1L))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("Either subclassPathId or subclassPath input must be provided");
+    }
+
+    // ==================== SRD GATING TESTS ====================
+
+    @Test
+    void toResponse_MayViewFalse_ReturnsRedactedStub() {
+        // Arrange — SubclassPath has no isOfficial of its own, so toResponse forces the mayView
+        // check with isOfficial=true; a caller who may not view non-SRD content sees a stub.
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+
+        SubclassPath path = SubclassPath.builder()
+                .id(1L)
+                .name("Restricted Path")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .srd(false)
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(contentAccessService.mayView(true, false)).thenReturn(false);
+
+        // Act
+        SubclassPathResponse result = subclassPathService.toResponse(path, Set.of());
+
+        // Assert — only id, restricted, and expansionName are set; everything else stays unset
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getRestricted()).isTrue();
+        assertThat(result.getExpansionName()).isEqualTo("Hope & Fear");
+        assertThat(result.getName()).isNull();
+        assertThat(result.getSrd()).isNull();
+        assertThat(result.getAssociatedClassId()).isNull();
+    }
+
+    @Test
+    void updateSubclassPath_SrdChanged_CascadesToNonDeletedCards() {
+        // Arrange — the only writable srd flag for the (path, Foundation, Specialization,
+        // Mastery) group lives on the path; updateSubclassPath must re-derive every non-deleted
+        // card's srd from the path in the same transaction.
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+
+        SubclassPath existingPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .srd(false)
+                .associatedDomains(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        SubclassCard foundation = SubclassCard.builder().id(10L).name("Foundation Card")
+                .subclassPath(existingPath).level(SubclassLevel.FOUNDATION).srd(false).build();
+        SubclassCard specialization = SubclassCard.builder().id(11L).name("Specialization Card")
+                .subclassPath(existingPath).level(SubclassLevel.SPECIALIZATION).srd(false).build();
+        SubclassCard mastery = SubclassCard.builder().id(12L).name("Mastery Card")
+                .subclassPath(existingPath).level(SubclassLevel.MASTERY).srd(false).build();
+        List<SubclassCard> cards = List.of(foundation, specialization, mastery);
+
+        UpdateSubclassPathRequest request = UpdateSubclassPathRequest.builder()
+                .srd(true)
+                .build();
+
+        when(subclassPathRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(existingPath));
+        when(contentAccessService.resolveSrd(defaultUser, true)).thenReturn(true);
+        when(subclassPathRepository.save(any(SubclassPath.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(subclassCardRepository.findBySubclassPathIdAndDeletedAtIsNull(1L)).thenReturn(cards);
+        when(subclassCardRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        SubclassPathResponse result = subclassPathService.updateSubclassPath(1L, request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isTrue();
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<SubclassCard>> captor = ArgumentCaptor.forClass(List.class);
+        verify(subclassCardRepository).saveAll(captor.capture());
+        assertThat(captor.getValue()).hasSize(3);
+        assertThat(captor.getValue()).allMatch(card -> Boolean.TRUE.equals(card.getSrd()));
+    }
+
+    @Test
+    void createSubclassPath_NoCardsYet_CascadeIsNoOp() {
+        // Arrange — a freshly created path has no cards, so the post-save cascade call is
+        // exercised but resolves to an empty list and never calls saveAll.
+        Expansion expansion = Expansion.builder().id(1L).name("Core Rulebook").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+
+        CreateSubclassPathRequest request = CreateSubclassPathRequest.builder()
+                .name("Warden of Renewal")
+                .associatedClassId(1L)
+                .expansionId(1L)
+                .srd(true)
+                .build();
+
+        SubclassPath savedPath = SubclassPath.builder()
+                .id(1L)
+                .name("Warden of Renewal")
+                .associatedClass(clazz)
+                .expansion(expansion)
+                .srd(true)
+                .associatedDomains(new HashSet<>())
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        when(classRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(clazz));
+        when(expansionRepository.findByIdAndDeletedAtIsNull(1L)).thenReturn(Optional.of(expansion));
+        when(contentAccessService.resolveSrd(defaultUser, true)).thenReturn(true);
+        when(subclassPathRepository.save(any(SubclassPath.class))).thenReturn(savedPath);
+
+        // Act
+        SubclassPathResponse result = subclassPathService.createSubclassPath(request, authentication);
+
+        // Assert
+        assertThat(result.getSrd()).isTrue();
+        verify(subclassCardRepository).findBySubclassPathIdAndDeletedAtIsNull(1L);
+        verify(subclassCardRepository, never()).saveAll(anyList());
+    }
+
+    // ==================== BULK SET SRD TESTS ====================
+
+    @Test
+    void bulkSetSrd_MatchingPaths_CascadesToEveryPathsCards() {
+        // Arrange — backs AdminContentService's bulk SRD-flagging tool for type=SUBCLASS_PATH;
+        // unlike the generic repository dispatch every other type uses, this must cascade to
+        // each path's Foundation/Specialization/Mastery cards in the same transaction.
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+
+        SubclassPath path1 = SubclassPath.builder()
+                .id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion)
+                .srd(false).associatedDomains(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+        SubclassPath path2 = SubclassPath.builder()
+                .id(2L).name("Warden of the Elements").associatedClass(clazz).expansion(expansion)
+                .srd(false).associatedDomains(new HashSet<>()).createdAt(LocalDateTime.now()).build();
+
+        SubclassCard path1Card = SubclassCard.builder().id(10L).name("Foundation Card")
+                .subclassPath(path1).level(SubclassLevel.FOUNDATION).srd(false).build();
+        SubclassCard path2Card = SubclassCard.builder().id(20L).name("Foundation Card")
+                .subclassPath(path2).level(SubclassLevel.FOUNDATION).srd(false).build();
+
+        when(subclassPathRepository.findAllById(List.of(1L, 2L))).thenReturn(List.of(path1, path2));
+        when(subclassPathRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(subclassCardRepository.findBySubclassPathIdAndDeletedAtIsNull(1L)).thenReturn(List.of(path1Card));
+        when(subclassCardRepository.findBySubclassPathIdAndDeletedAtIsNull(2L)).thenReturn(List.of(path2Card));
+        when(subclassCardRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        List<Long> updatedIds = subclassPathService.bulkSetSrd(List.of(1L, 2L), true);
+
+        // Assert
+        assertThat(updatedIds).containsExactlyInAnyOrder(1L, 2L);
+        assertThat(path1.getSrd()).isTrue();
+        assertThat(path2.getSrd()).isTrue();
+        assertThat(path1Card.getSrd()).isTrue();
+        assertThat(path2Card.getSrd()).isTrue();
+        verify(subclassCardRepository).saveAll(List.of(path1Card));
+        verify(subclassCardRepository).saveAll(List.of(path2Card));
+    }
+
+    @Test
+    void bulkSetSrd_UnknownId_SkippedAndOmittedFromResult() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+        SubclassPath path = SubclassPath.builder()
+                .id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion)
+                .srd(false).createdAt(LocalDateTime.now()).build();
+
+        when(subclassPathRepository.findAllById(List.of(1L, 999L))).thenReturn(List.of(path));
+        when(subclassPathRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(subclassCardRepository.findBySubclassPathIdAndDeletedAtIsNull(1L)).thenReturn(List.of());
+
+        // Act
+        List<Long> updatedIds = subclassPathService.bulkSetSrd(List.of(1L, 999L), true);
+
+        // Assert
+        assertThat(updatedIds).containsExactly(1L);
+    }
+
+    @Test
+    void bulkSetSrd_UnmarkingToFalse_SetsSrdFalseOnPathAndCards() {
+        // Arrange
+        Expansion expansion = Expansion.builder().id(1L).name("Hope & Fear").isPublished(true).build();
+        Class clazz = Class.builder().id(1L).name("Druid").expansion(expansion).startingEvasion(9).startingHitPoints(16).build();
+        SubclassPath path = SubclassPath.builder()
+                .id(1L).name("Warden of Renewal").associatedClass(clazz).expansion(expansion)
+                .srd(true).createdAt(LocalDateTime.now()).build();
+        SubclassCard card = SubclassCard.builder().id(10L).name("Foundation Card")
+                .subclassPath(path).level(SubclassLevel.FOUNDATION).srd(true).build();
+
+        when(subclassPathRepository.findAllById(List.of(1L))).thenReturn(List.of(path));
+        when(subclassPathRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(subclassCardRepository.findBySubclassPathIdAndDeletedAtIsNull(1L)).thenReturn(List.of(card));
+        when(subclassCardRepository.saveAll(anyList())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        // Act
+        subclassPathService.bulkSetSrd(List.of(1L), false);
+
+        // Assert
+        assertThat(path.getSrd()).isFalse();
+        assertThat(card.getSrd()).isFalse();
     }
 }
