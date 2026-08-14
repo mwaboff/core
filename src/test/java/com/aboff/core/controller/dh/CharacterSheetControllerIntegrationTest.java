@@ -1,5 +1,6 @@
 package com.aboff.core.controller.dh;
 
+import com.aboff.core.model.dto.dh.PrayerDieDto;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.request.InventoryArmorRequest;
 import com.aboff.core.model.dto.dh.request.InventoryLootRequest;
@@ -45,6 +46,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -627,6 +629,100 @@ class CharacterSheetControllerIntegrationTest {
                         .cookie(new Cookie("AUTH_TOKEN", player1Token)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.focusMarked").value(6));
+    }
+
+    @Test
+    void updateCharacterSheet_SetsPrayerDice_Returns200WithStructuredDice() throws Exception {
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .prayerDice(List.of(
+                        PrayerDieDto.builder().value(3).spent(false).build(),
+                        PrayerDieDto.builder().value(1).spent(true).build()))
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prayerDice.length()").value(2))
+                .andExpect(jsonPath("$.prayerDice[0].value").value(3))
+                .andExpect(jsonPath("$.prayerDice[0].spent").value(false))
+                .andExpect(jsonPath("$.prayerDice[1].value").value(1))
+                .andExpect(jsonPath("$.prayerDice[1].spent").value(true));
+    }
+
+    @Test
+    void getCharacterSheet_WithNoPrayerDiceRolled_ReturnsEmptyArrayRatherThanNull() throws Exception {
+        // The client relies on this field always being an array, so it never has to null-check.
+        mockMvc.perform(get("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prayerDice").isArray())
+                .andExpect(jsonPath("$.prayerDice.length()").value(0));
+    }
+
+    @Test
+    void updateCharacterSheet_ClearingPrayerDice_ReturnsEmptyArray() throws Exception {
+        UpdateCharacterSheetRequest roll = UpdateCharacterSheetRequest.builder()
+                .prayerDice(List.of(PrayerDieDto.builder().value(2).spent(false).build()))
+                .build();
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(roll))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk());
+
+        UpdateCharacterSheetRequest clear = UpdateCharacterSheetRequest.builder()
+                .prayerDice(List.of())
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(clear))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.prayerDice").isArray())
+                .andExpect(jsonPath("$.prayerDice.length()").value(0));
+    }
+
+    @Test
+    void updateCharacterSheet_PrayerDiceValueAboveFour_Returns400() throws Exception {
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .prayerDice(List.of(PrayerDieDto.builder().value(5).spent(false).build()))
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateCharacterSheet_PrayerDiceValueBelowOne_Returns400() throws Exception {
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .prayerDice(List.of(PrayerDieDto.builder().value(0).spent(false).build()))
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateCharacterSheet_TooManyPrayerDice_Returns400() throws Exception {
+        // 17 dice would overflow the column the encoded value is stored in.
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .prayerDice(Collections.nCopies(17, PrayerDieDto.builder().value(4).spent(false).build()))
+                .build();
+
+        mockMvc.perform(put("/api/dh/character-sheets/{id}", testSheet.getId())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request))
+                        .cookie(new Cookie("AUTH_TOKEN", player1Token)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

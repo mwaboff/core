@@ -831,8 +831,9 @@ public class CharacterSheetService {
     }
 
     /**
-     * Applies partial updates for the Hope &amp; Fear resources (Focus, Favor, transformation
-     * state, and known/active martial stances) on a character sheet.
+     * Applies partial updates for the class-specific resources (Focus, Favor, transformation
+     * state, and known/active martial stances from Hope &amp; Fear, plus the Core Set Seraph's
+     * Prayer Dice) on a character sheet.
      * <p>
      * Follows the same clamp-on-max-change convention used for hit points/stress/hope
      * ({@link #updateCharacterSheet}): lowering {@code focusMax} clamps {@code focusMarked} down
@@ -860,6 +861,9 @@ public class CharacterSheetService {
         }
         if (request.getFavor() != null) {
             sheet.setFavor(request.getFavor());
+        }
+        if (request.getPrayerDice() != null) {
+            sheet.setPrayerDice(PrayerDiceCodec.format(request.getPrayerDice()));
         }
 
         validateTransformationAccess(sheet, request);
@@ -1096,6 +1100,7 @@ public class CharacterSheetService {
                 .focusMarked(sheet.getFocusMarked())
                 .focusMax(sheet.getFocusMax())
                 .favor(sheet.getFavor())
+                .prayerDice(PrayerDiceCodec.parse(sheet.getPrayerDice()))
                 .comboDie(sheet.getComboDie())
                 .transformationEnabled(sheet.isTransformationEnabled())
                 .transformationTokens(sheet.getTransformationTokens())

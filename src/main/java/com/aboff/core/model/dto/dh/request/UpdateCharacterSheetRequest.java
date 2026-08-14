@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.request;
 
+import com.aboff.core.model.dto.dh.PrayerDieDto;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import lombok.AllArgsConstructor;
@@ -209,6 +210,14 @@ public class UpdateCharacterSheetRequest {
      */
     @PositiveOrZero(message = "Favor must be zero or positive")
     private Integer favor;
+
+    /**
+     * Updated Seraph Prayer Dice for the current session, in roll order (null to leave unchanged,
+     * empty list to clear the dice). Bounded so a hostile payload cannot overflow the column.
+     */
+    @Valid
+    @Size(max = 16, message = "Prayer dice must not exceed 16 dice")
+    private List<PrayerDieDto> prayerDice;
 
     /**
      * ID of the transformation card to attach to this character.

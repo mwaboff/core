@@ -1,5 +1,6 @@
 package com.aboff.core.model.dto.dh.response;
 
+import com.aboff.core.model.dto.dh.PrayerDieDto;
 import com.aboff.core.model.dto.response.UserResponse;
 import com.aboff.core.model.enums.DiceType;
 import com.fasterxml.jackson.annotation.JsonInclude;
@@ -214,6 +215,12 @@ public class CharacterSheetResponse {
      * Favor points currently held (Warlock resource).
      */
     private Integer favor;
+
+    /**
+     * The Seraph's Prayer Dice for the current session, in roll order. Empty for characters who
+     * have not rolled any, which is every non-Seraph character.
+     */
+    private List<PrayerDieDto> prayerDice;
 
     /**
      * Current Combo Die size (Brawler resource), null when the character has no Combo Die.
