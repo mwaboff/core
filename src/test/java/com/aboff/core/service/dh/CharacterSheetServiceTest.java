@@ -1,6 +1,7 @@
 package com.aboff.core.service.dh;
 
 import com.aboff.core.exception.InsufficientPermissionsException;
+import com.aboff.core.model.dto.dh.PrayerDieDto;
 import com.aboff.core.model.dto.dh.request.CreateCharacterSheetRequest;
 import com.aboff.core.model.dto.dh.request.InventoryArmorRequest;
 import com.aboff.core.model.dto.dh.request.InventoryLootRequest;
@@ -2060,6 +2061,97 @@ class CharacterSheetServiceTest {
 
         assertThat(result.getFocusMax()).isEqualTo(2);
         assertThat(result.getFocusMarked()).isEqualTo(2);
+    }
+
+    @Test
+    void updateCharacterSheet_PrayerDice_PersistsEncodedValueAndReturnsStructuredDice() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .prayerDice(List.of(
+                        PrayerDieDto.builder().value(3).spent(false).build(),
+                        PrayerDieDto.builder().value(1).spent(true).build(),
+                        PrayerDieDto.builder().value(4).spent(false).build()))
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(sheet.getPrayerDice()).isEqualTo("3,1*,4");
+        assertThat(result.getPrayerDice()).containsExactly(
+                PrayerDieDto.builder().value(3).spent(false).build(),
+                PrayerDieDto.builder().value(1).spent(true).build(),
+                PrayerDieDto.builder().value(4).spent(false).build());
+    }
+
+    @Test
+    void updateCharacterSheet_PrayerDice_EmptyListClearsTheColumn() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setPrayerDice("2,3*");
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .prayerDice(List.of())
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(sheet.getPrayerDice()).isNull();
+        assertThat(result.getPrayerDice()).isEmpty();
+    }
+
+    @Test
+    void updateCharacterSheet_PrayerDice_NullLeavesTheDiceUnchanged() {
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setPrayerDice("2,3*");
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .gold(10)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(sheet.getPrayerDice()).isEqualTo("2,3*");
+        assertThat(result.getPrayerDice()).containsExactly(
+                PrayerDieDto.builder().value(2).spent(false).build(),
+                PrayerDieDto.builder().value(3).spent(true).build());
+    }
+
+    @Test
+    void updateCharacterSheet_PrayerDice_UnreadableStoredValueReadsBackAsNoDice() {
+        // A hand-edited or corrupt column must not break the whole sheet load.
+        User owner = User.builder().id(1L).username("player1").role(Role.USER).build();
+        CharacterSheet sheet = buildHfSheet(owner);
+        sheet.setPrayerDice("not-dice");
+
+        UpdateCharacterSheetRequest request = UpdateCharacterSheetRequest.builder()
+                .gold(10)
+                .build();
+
+        CustomUserDetails userDetails = new CustomUserDetails(owner);
+        when(authentication.getPrincipal()).thenReturn(userDetails);
+        when(characterSheetRepository.findActiveById(1L)).thenReturn(Optional.of(sheet));
+        stubSaveWithEmptyCollections(characterSheetRepository);
+
+        CharacterSheetResponse result = characterSheetService.updateCharacterSheet(1L, request, authentication);
+
+        assertThat(result.getPrayerDice()).isEmpty();
     }
 
     @Test

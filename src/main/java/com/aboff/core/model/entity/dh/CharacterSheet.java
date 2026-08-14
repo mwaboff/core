@@ -347,6 +347,19 @@ public class CharacterSheet extends BaseEntity {
     private DiceType comboDie;
 
     /**
+     * The Seraph's Prayer Dice for the current session, encoded as comma-separated face values in
+     * roll order with a {@code *} suffix marking a spent die — {@code "3,1*,4,2"} is four dice of
+     * which the 1 has been spent. Null or empty means no dice have been rolled this session, which
+     * is the resting state for every non-Seraph character.
+     * <p>
+     * {@link com.aboff.core.service.dh.PrayerDiceCodec} is the only place that understands this
+     * format; nothing outside it should parse or build the string by hand.
+     * </p>
+     */
+    @Column(name = "prayer_dice", length = 64)
+    private String prayerDice;
+
+    /**
      * Whether the Game Master has granted this character access to transformations.
      * False by default: the transformation panel stays hidden and every transformation
      * mutation on the player-facing update path is rejected until a GM enables it.
