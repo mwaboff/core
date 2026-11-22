@@ -28,6 +28,11 @@ spring:
       hibernate:
         format_sql: true
 
+server:
+  tomcat:
+    # Tomcat 11.0.27+ throws from request.getLocale() when Accept-Language has more than 10 entries; keep a finite bound (DoS mitigation).
+    max-locale-count: 50
+
 # JWT configuration
 jwt:
   secret: ${JWT_SECRET:change-this-to-256-bit-secret-in-production-must-be-long-enough-for-hmac-sha}
