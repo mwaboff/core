@@ -47,7 +47,6 @@ Both catalogs shipped on 2026-07-30 and are complete:
 | Questions in bulk payload | Inline in the card payload, find-or-create like `features` |
 | Vampire Feed tokens + Wolf Form | Build now |
 | Other new H&F resources | Also build **Combo Die** and **Favor**; document the rest |
-| Issue tracking | **Do not use `bd` this session** (overrides `core/CLAUDE.md`) |
 
 ---
 

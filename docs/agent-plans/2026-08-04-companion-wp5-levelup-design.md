@@ -1,7 +1,6 @@
 # Companions WP5: Level-Up / Level-Down — Design
 
 **Date:** 2026-08-04
-**bd issue:** core-vyu (P1)
 **Depends on:** WP1+WP2+WP3 (`9ecc933`, committed)
 **Source of truth:** `dawn/.agents/plans/companions/companions-implementation-plan.md` §3.1, §3.2, §3.3, §3.8, §3.9, §5.4, §7, §10; `core/docs/agent-plans/2026-08-03-companion-levelup-recon.md` (verified against code, corrects the plan where they conflict).
 

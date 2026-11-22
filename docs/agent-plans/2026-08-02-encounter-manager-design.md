@@ -440,9 +440,6 @@ official/prebuilt encounters; sharing a run read-only with players.
 `core/docs/agent-plans/2026-08-02-encounter-manager-design.md` before any code is written.
 That write is the first action after approval.
 
-Both repos also mandate `bd` (beads) for task tracking rather than markdown TODOs — the six
-phases below become `bd` issues.
-
 ## Verification
 
 1. `cd core && ./mvnw test` — all green; new calculator tests included.
@@ -503,7 +500,7 @@ Extract `dawn/src/app/shared/components/resource-tracker/` wrapping those existi
 (inputs `max`, `marked`, `label`, `variant`; output `markedChange`), use it in the run view, **and
 migrate the character sheet onto it in the same commit** — `dawn/CLAUDE.md` is explicit that an
 extraction which isn't adopted is dead code with misleading passing tests. If the character-sheet
-migration proves risky, file a `bd` issue rather than leaving two hand-inlined copies.
+migration proves risky, file an issue rather than leaving two hand-inlined copies.
 
 ### 6. Promote `isCampaignGameMaster`
 `CampaignGmScreen` duplicates a `canManage` computed with an inline comment: *"if a third consumer
