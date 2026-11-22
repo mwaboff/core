@@ -1,7 +1,6 @@
 # Companions WP2: API Hardening — Design
 
 **Date:** 2026-08-04
-**bd issue:** core-7zn (P1, blocks core-6oy)
 **Depends on:** WP1 (`e4de987`, committed)
 **Source of truth:** `dawn/.agents/plans/companions/companions-implementation-plan.md` §3.11, §3.12, §5.1, §10 (§10 wins on conflict)
 
